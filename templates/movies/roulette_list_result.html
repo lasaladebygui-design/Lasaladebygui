@@ -1,0 +1,33 @@
+<div id="roulette-panel">
+    <div class="roulette-controls">
+        <form hx-post="{% url 'movies:roulette-list-draw' %}" hx-target="#roulette-panel" hx-swap="outerHTML" class="inline-form">
+            {% csrf_token %}
+            <button type="submit" class="btn btn--accent">Girar la ruleta</button>
+        </form>
+        <form method="post" action="{% url 'movies:roulette-list-reset' %}" class="inline-form">
+            {% csrf_token %}
+            <button type="submit" class="link-btn">Reiniciar lista vista</button>
+        </form>
+    </div>
+
+    {% include "movies/_reel.html" %}
+
+    <h2>Tu lista ({{ candidates|length }})</h2>
+    {% if candidates %}
+    <ul class="candidate-list">
+        {% for candidate in candidates %}
+        <li class="candidate-row{% if candidate.is_seen %} candidate-row--seen{% endif %}">
+            {% if candidate.movie.poster_url %}<img src="{{ candidate.movie.poster_url }}" alt="" class="candidate-row__poster">{% endif %}
+            <span class="candidate-row__title">{{ candidate.movie.title }} <span class="muted">{{ candidate.movie.year }}</span></span>
+            {% if candidate.is_seen %}<span class="tag-pill">ya vista</span>{% endif %}
+            <form hx-post="{% url 'movies:roulette-candidate-remove' candidate.pk %}" hx-target="#roulette-panel" hx-swap="outerHTML" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="link-btn link-btn--danger">Quitar</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">Todavía no has añadido ninguna candidata. Búscala arriba.</p>
+    {% endif %}
+</div>

@@ -1,0 +1,95 @@
+{% load static %}<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ site_name }}{% endblock %} — {{ site_config.tagline }}</title>
+    <meta name="description" content="{% block meta_description %}{{ site_config.tagline }}{% endblock %}">
+    <meta property="og:title" content="{{ site_name }}">
+    <meta property="og:description" content="{{ site_config.tagline }}">
+    <meta property="og:type" content="website">
+    <meta name="theme-color" content="{{ site_theme.color_bg }}">
+    <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Bebas+Neue&family=Special+Elite&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% url 'theme-css' %}">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
+    <script>
+        document.addEventListener("htmx:configRequest", (event) => {
+            const match = document.cookie.match(/(?:^|; )csrftoken=([^;]*)/);
+            if (match) event.detail.headers["X-CSRFToken"] = match[1];
+        });
+    </script>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    {% csrf_token %}
+    {% include "partials/intro.html" %}
+    <a class="skip-link" href="#contenido">Saltar al contenido</a>
+
+    <header class="site-header" x-data="{ navOpen: false }">
+        <div class="wrap site-header__inner">
+            <a href="{% url 'core:home' %}" class="brand">
+                <img src="{% static 'img/logo-icon.svg' %}" alt="" class="brand__icon" width="36" height="36">
+                <span class="brand__text">La sala de <em>Bygui</em></span>
+            </a>
+
+            <button type="button" class="nav-toggle" @click="navOpen = !navOpen" :aria-expanded="navOpen.toString()" aria-controls="site-nav">
+                <span class="visually-hidden">Abrir menú</span>
+                <span aria-hidden="true">☰</span>
+            </button>
+
+            <nav id="site-nav" class="site-nav" aria-label="Principal" :class="{ 'site-nav--open': navOpen }">
+                <a href="{% url 'articles:list' %}" class="btn btn--ghost btn--sm">Artículos</a>
+                <a href="{% url 'forum:list' %}" class="btn btn--ghost btn--sm">Foro</a>
+                <a href="{% url 'movies:list' %}" class="btn btn--ghost btn--sm">Películas</a>
+                <a href="{% url 'movies:roulette-home' %}" class="btn btn--ghost btn--sm">Ruleta</a>
+                {% if user.is_authenticated %}
+                    <span class="site-nav__user">{{ user.username }}</span>
+                    <a href="{% url 'accounts:profile' %}" class="btn btn--ghost btn--sm">Perfil</a>
+                    {% if user.is_staff %}
+                        <a href="{% url 'admin:index' %}" class="btn btn--ghost btn--sm">Panel</a>
+                    {% endif %}
+                    <form action="{% url 'accounts:logout' %}" method="post" class="inline-form">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn--ghost btn--sm">Salir</button>
+                    </form>
+                {% else %}
+                    <a href="{% url 'accounts:login' %}" class="btn btn--ghost btn--sm">Entrar</a>
+                    <a href="{% url 'accounts:register' %}" class="btn btn--accent btn--sm">Crear cuenta</a>
+                {% endif %}
+            </nav>
+        </div>
+    </header>
+
+    {% if messages %}
+        <div class="wrap messages">
+            {% for message in messages %}
+                <p class="message message--{{ message.tags }}">{{ message }}</p>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <main id="contenido">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+        <div class="wrap site-footer__inner">
+            <div>
+                <span class="brand__text brand__text--sm">La sala de <em>Bygui</em></span>
+                <p class="muted">{{ site_config.tagline }}</p>
+            </div>
+            <nav class="site-footer__links" aria-label="Enlaces">
+                <a href="{% url 'secret:gate' %}">Top Secret</a>
+                <a href="{% url 'core:donations' %}">Donaciones</a>
+                <a href="{% url 'core:contact' %}">Contacto</a>
+            </nav>
+            <p class="muted">&copy; {% now "Y" %} La Sala de Bygui. Todos los derechos reservados.</p>
+        </div>
+    </footer>
+</body>
+</html>

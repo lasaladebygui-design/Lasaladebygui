@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+    <div class="wrap">
+        <h1>Bienvenido a <em>La Sala de Bygui</em></h1>
+        <p>{{ site_config.tagline }}</p>
+        {% if not user.is_authenticated %}
+        <div class="hero__actions">
+            <a href="{% url 'accounts:register' %}" class="btn btn--accent">Crear cuenta</a>
+            <a href="{% url 'accounts:login' %}" class="btn btn--ghost">Ya tengo cuenta</a>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<section class="section">
+    <div class="wrap">
+        <div class="section-header">
+            <div>
+                <span class="card__tag">Tablón</span>
+                <h2>Últimos artículos</h2>
+            </div>
+            <a href="{% url 'articles:list' %}" class="btn btn--ghost btn--sm">Ver todos &rarr;</a>
+        </div>
+
+        {% if featured_articles %}
+        <div class="article-grid">
+            {% for article in featured_articles %}
+            <article class="article-card">
+                <a href="{{ article.get_absolute_url }}" class="article-card__cover-link">
+                    {% if article.cover %}
+                        <img src="{{ article.cover.url }}" alt="" class="article-card__cover">
+                    {% else %}
+                        <div class="article-card__cover article-card__cover--placeholder"><span>🎬</span></div>
+                    {% endif %}
+                </a>
+                <div class="article-card__body">
+                    {% if article.tags.all %}
+                        <span class="card__tag">{{ article.tags.all.0.name }}</span>
+                    {% endif %}
+                    <h3><a href="{{ article.get_absolute_url }}">{{ article.title }}</a></h3>
+                    <p class="muted article-card__meta">{{ article.author }} · {{ article.created_at|date:"d/m/Y" }}</p>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">Todavía no hay artículos publicados. ¡Sé el primero en escribir uno!</p>
+        {% endif %}
+    </div>
+</section>
+
+<section class="section section--tight section--strip">
+    <div class="wrap">
+        <a href="{% url 'movies:roulette-home' %}" class="strip-card strip-card--link">
+            <div>
+                <span class="card__tag">Ruleta</span>
+                <h2>¿Qué vemos hoy?</h2>
+                <p class="muted">Elige un rango de nota IMDb o tu propia lista de candidatas y deja que la sala decida.</p>
+            </div>
+            <span class="btn btn--accent btn--sm">Girar &rarr;</span>
+        </a>
+    </div>
+</section>
+
+<section class="section">
+    <div class="wrap">
+        <h2>Explora la sala</h2>
+        <div class="card-grid">
+            <a href="{% url 'movies:list' %}" class="card card--link">
+                <span class="card__tag">Catálogo</span>
+                <h3>Películas</h3>
+                <p>Explora el catálogo, lee sinopsis y vota tus favoritas.</p>
+            </a>
+            <a href="{% url 'forum:list' %}" class="card card--link">
+                <span class="card__tag">Debate</span>
+                <h3>Foro</h3>
+                <p>Hilos con respuestas anidadas, moderados por el equipo.</p>
+            </a>
+            <a href="{% url 'secret:gate' %}" class="card card--link">
+                <span class="card__tag">Top Secret</span>
+                <h3>Maletín Tarantino</h3>
+                <p>Código de acceso y recomendaciones personales.</p>
+            </a>
+            <a href="{% url 'core:donations' %}" class="card card--link">
+                <span class="card__tag">Apoya la sala</span>
+                <h3>Donaciones</h3>
+                <p>Apoya la sala vía Bizum.</p>
+            </a>
+            <a href="{% url 'core:contact' %}" class="card card--link">
+                <span class="card__tag">Contacto</span>
+                <h3>Escríbenos</h3>
+                <p>Formulario directo al equipo.</p>
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}

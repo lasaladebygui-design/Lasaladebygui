@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Ruleta con tu lista{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <span class="card__tag">Ruleta · Modo 2</span>
+        <h1>Tu lista personalizada</h1>
+
+        <div class="field">
+            <label for="id_query">Buscar y añadir una película</label>
+            <input type="text" id="id_query" name="query" placeholder="Título de la película…" autocomplete="off"
+                   hx-get="{% url 'movies:roulette-list-search' %}"
+                   hx-trigger="keyup changed delay:400ms, search"
+                   hx-target="#search-results"
+                   hx-swap="innerHTML">
+        </div>
+        <div id="search-results"></div>
+
+        {% include "movies/roulette_list_result.html" %}
+    </div>
+</section>
+{% endblock %}

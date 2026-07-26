@@ -1,0 +1,18 @@
+<div id="vote-widget" class="vote-widget">
+    <p class="vote-widget__stats">
+        {% if movie.votes_count %}
+            Media: <strong>{{ movie.average_score|floatformat:1 }}</strong> / 10 · {{ movie.votes_count }} voto{{ movie.votes_count|pluralize }}
+        {% else %}
+            Todavía no hay votos.
+        {% endif %}
+    </p>
+
+    {% if user.is_authenticated %}
+    <form hx-post="{% url 'movies:vote' movie.pk %}" hx-target="#vote-widget" hx-swap="outerHTML" class="vote-widget__form">
+        {{ vote_form.score }}
+        <button type="submit" class="btn btn--accent btn--sm">{% if user_vote %}Cambiar voto{% else %}Votar{% endif %}</button>
+    </form>
+    {% else %}
+    <p class="muted"><a href="{% url 'accounts:login' %}?next={{ request.path }}">Inicia sesión</a> para votar.</p>
+    {% endif %}
+</div>

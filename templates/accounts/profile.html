@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Tu perfil{% endblock %}
+
+{% block content %}
+<div class="wrap auth-page">
+    <div class="auth-card">
+        <h1>Tu perfil</h1>
+        <p class="muted" style="text-align:center; margin-top:-1rem; margin-bottom:1.5rem;">{{ user.email }}</p>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="field">
+                <label for="{{ form.theme.id_for_label }}">{{ form.theme.label }}</label>
+                {{ form.theme }}
+                <p class="field-help">Elige un tema solo para ti; el resto de la web seguirá viendo el tema activo del sitio.</p>
+                {% for error in form.theme.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
+            </div>
+            <button type="submit" class="btn btn--accent btn--block">Guardar</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

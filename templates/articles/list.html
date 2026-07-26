@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Artículos{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap">
+        <div class="section-header">
+            <div>
+                <span class="card__tag">Tablón</span>
+                <h1>Artículos</h1>
+            </div>
+            {% if can_create %}
+                <a href="{% url 'articles:create' %}" class="btn btn--accent">Escribir artículo</a>
+            {% endif %}
+        </div>
+
+        {% if tags %}
+        <div class="tag-filter">
+            <a href="{% url 'articles:list' %}" class="tag-pill{% if not active_tag %} tag-pill--active{% endif %}">Todos</a>
+            {% for tag in tags %}
+                <a href="?tag={{ tag.slug }}" class="tag-pill{% if active_tag == tag %} tag-pill--active{% endif %}">{{ tag.name }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if page_obj.object_list %}
+        <div class="article-grid">
+            {% for article in page_obj %}
+            <article class="article-card">
+                <a href="{{ article.get_absolute_url }}" class="article-card__cover-link">
+                    {% if article.cover %}
+                        <img src="{{ article.cover.url }}" alt="" class="article-card__cover">
+                    {% else %}
+                        <div class="article-card__cover article-card__cover--placeholder"><span>🎬</span></div>
+                    {% endif %}
+                </a>
+                <div class="article-card__body">
+                    {% if article.tags.all %}
+                        <span class="card__tag">{{ article.tags.all.0.name }}</span>
+                    {% endif %}
+                    <h3><a href="{{ article.get_absolute_url }}">{{ article.title }}</a></h3>
+                    <p class="muted article-card__meta">{{ article.author }} · {{ article.created_at|date:"d/m/Y" }}</p>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+
+        {% include "partials/pagination.html" with page_obj=page_obj %}
+        {% else %}
+        <p class="muted">Todavía no hay artículos{% if active_tag %} con este tag{% endif %}.</p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% load static %}
+{% if site_config.show_intro_animation %}
+<div
+    id="intro"
+    class="intro"
+    x-data="introOverlay()"
+    x-init="init()"
+    x-show="visible"
+    x-cloak
+    x-transition:leave="intro--fading"
+    aria-hidden="true"
+>
+    <div class="intro__grain"></div>
+    <div class="intro__beam"></div>
+    <div class="intro__reel-bar intro__reel-bar--top"></div>
+    <div class="intro__reel-bar intro__reel-bar--bottom"></div>
+
+    <div class="intro__center">
+        <img src="{% static 'img/logo-icon.svg' %}" alt="" class="intro__logo">
+        <p class="intro__title">La sala de <em>Bygui</em></p>
+    </div>
+
+    <button type="button" class="intro__skip" @click="skip()">Saltar intro</button>
+</div>
+
+<script src="{% static 'js/intro.js' %}"></script>
+{% endif %}

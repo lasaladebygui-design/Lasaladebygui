@@ -1,0 +1,266 @@
+# La Sala de Bygui
+
+Web de cine: artículos, foro de debate, recomendador de películas y una sección secreta.
+Construida con Django + plantillas DTL, pensada para desplegarse en Render con Supabase (Postgres) como base de datos.
+
+**Estado actual: Fase 5 (completa) — las 5 fases del proyecto están entregadas:** estructura base y Supabase, autenticación con roles, tema visual editable, tablón de artículos, foro de debate, ruleta de recomendaciones (TMDb/OMDb), votaciones, Top Secret, donaciones, contacto, animación de proyector al entrar y despliegue en Render.
+
+## Stack
+
+- **Backend:** Python + Django (panel admin nativo como base del panel de gestión).
+- **Base de datos:** Supabase (Postgres) vía `DATABASE_URL`. En local, si no se configura, se usa SQLite automáticamente.
+- **Frontend:** plantillas de Django + CSS/JS vanilla. Alpine.js (vía CDN) para interacciones ligeras (toggle de respuesta en el foro, animación de la ruleta) y HTMX (vía CDN) para la búsqueda de películas y el voto sin recargar la página.
+- **Editor de artículos:** CKEditor 5 (`django-ckeditor-5`).
+- **Películas:** TMDb (búsqueda, portadas, sinopsis) + OMDb (nota IMDb).
+- **Estáticos:** WhiteNoise (listo para producción; en local Django los sirve directamente).
+- **Despliegue:** Render (plan free), vía `render.yaml`. Servidor de aplicación: gunicorn.
+- **Idioma:** español (`LANGUAGE_CODE = 'es-es'`).
+
+## Estructura de carpetas
+
+```
+bygui/
+├── config/                # Settings, urls, wsgi/asgi
+├── apps/
+│   ├── accounts/           # Usuario personalizado, roles, login/registro, perfil
+│   ├── core/                # Home, temas visuales (theme.css), configuración del sitio
+│   ├── articles/            # Tablón de artículos (CRUD, tags, comentarios)
+│   ├── forum/                # Foro de debate (hilos, árbol de comentarios, moderación)
+│   ├── movies/                # Catálogo, ruleta (TMDb/OMDb) y votaciones
+│   └── secret/                # Top Secret: maletín Tarantino, código de acceso, lista personal
+├── templates/               # base.html + plantillas por app
+├── static/
+│   ├── css/main.css         # Estilos estructurales (usan las variables de theme.css)
+│   └── img/                 # Logo e iconos SVG
+├── media/                    # Portadas de artículos e imágenes subidas desde el editor (no versionado)
+├── docs/design-refs/        # Bocetos/mockups de referencia (no forman parte de la app)
+├── requirements.txt
+├── render.yaml               # Blueprint de despliegue en Render
+├── .env.example
+└── manage.py
+```
+
+## 1. Instalación local
+
+Requisitos: Python 3.11+ (probado con 3.14).
+
+```bash
+py -m venv venv
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # Linux/Mac
+
+pip install -r requirements.txt
+
+copy .env.example .env       # Windows
+# cp .env.example .env       # Linux/Mac
+```
+
+Edita `.env` si quieres apuntar a Supabase (ver sección 2); si dejas `DATABASE_URL` vacío, el proyecto usa SQLite local sin configuración adicional.
+
+```bash
+python manage.py migrate
+python manage.py createsuperuser      # tu propio usuario Admin
+python manage.py seed_content         # opcional: usuarios de ejemplo + artículos + hilos de foro + Top Secret
+python manage.py seed_movies          # opcional pero recomendado: puebla el catálogo desde TMDb/OMDb (necesita las API keys, ver sección 3)
+python manage.py runserver
+```
+
+Abre http://127.0.0.1:8000 — el panel de administración está en `/admin/`.
+
+### Usuarios de ejemplo (`seed_demo`)
+
+| Rol      | Email                          | Contraseña    |
+|----------|---------------------------------|---------------|
+| Admin    | admin@lasaladebygui.local       | Admin1234!    |
+| Gestor   | gestor@lasaladebygui.local      | Gestor1234!   |
+| Editor   | editor@lasaladebygui.local      | Editor1234!   |
+| Lector   | lector@lasaladebygui.local      | Lector1234!   |
+| Baneado  | baneado@lasaladebygui.local     | Baneado1234!  |
+
+Son solo para pruebas locales — no ejecutes `seed_demo`/`seed_content` contra una base de datos de producción real. `seed_content` llama primero a `seed_demo` (por si no se había ejecutado) y luego crea 3 artículos, 2 hilos de foro y 4 películas de ejemplo en Top Secret, usando esos mismos usuarios como autores.
+
+## 2. Configurar Supabase
+
+1. Crea un proyecto en [supabase.com](https://supabase.com).
+2. Ve a **Project Settings → Database → Connection string**, pestaña **URI**.
+   Para Render (que no soporta IPv6 saliente en el plan free) usa el **Session pooler** o **Transaction pooler**, no la conexión directa.
+3. Copia esa URL a `DATABASE_URL` en tu `.env`, con formato:
+   ```
+   DATABASE_URL=postgres://usuario:password@host:puerto/postgres
+   ```
+4. Ejecuta `python manage.py migrate` para crear las tablas en Supabase.
+
+El proyecto usa el ORM y las migraciones estándar de Django; Supabase solo actúa como el Postgres gestionado.
+
+## 3. Variables de entorno
+
+Todas están documentadas en [.env.example](.env.example). Resumen:
+
+| Variable | Para qué sirve |
+|---|---|
+| `DJANGO_SECRET_KEY` | Clave secreta de Django. Genera una propia en producción. |
+| `DEBUG` | `True` en local, `False` en producción. |
+| `ALLOWED_HOSTS` | Dominios permitidos, separados por comas. |
+| `DATABASE_URL` | Cadena de conexión de Supabase/Postgres. Vacío = SQLite local. |
+| `EMAIL_*` | Configuración SMTP para verificación de email y contacto. En local, por defecto los emails se imprimen en la consola. |
+| `REQUIRE_EMAIL_VERIFICATION` | Valor inicial de la opción "exigir verificación de email"; después se gestiona desde el admin (**Sitio → Configuración del sitio**). |
+| `TMDB_API_KEY` / `OMDB_API_KEY` | Búsqueda/portadas/sinopsis (TMDb) y nota IMDb (OMDb) para el catálogo y la ruleta. Instrucciones abajo. |
+| `RENDER_EXTERNAL_HOSTNAME` | La rellena Render automáticamente en producción. |
+
+### Obtener las API keys de películas
+
+- **TMDb:** crea una cuenta en https://www.themoviedb.org/, ve a *Configuración → API* y solicita una clave (uso gratuito, no comercial).
+- **OMDb (nota IMDb):** solicita una clave gratuita en https://www.omdbapi.com/apikey.aspx (el plan gratuito permite 1000 peticiones/día). Se documenta esta elección porque IMDb no ofrece una API pública oficial; OMDb expone su nota (`imdbRating`) de forma gratuita para uso personal.
+
+Sin estas dos claves, el catálogo de películas queda vacío (no hay fallback ni datos de ejemplo hardcodeados: todo viene de TMDb/OMDb).
+
+## 4. Roles y permisos
+
+El modelo de usuario (`apps.accounts.User`) tiene un campo `role` con 5 valores. El rol determina automáticamente `is_active`/`is_staff`/`is_superuser` al guardar el usuario:
+
+| Rol | Acceso al `/admin/` | Puede hacer |
+|---|---|---|
+| **Admin** | Sí, control total (`is_superuser`) | Todo: gestionar usuarios, artículos y foro (de cualquier autor), configuración del sitio, tema visual, número de Bizum, email de contacto y el contenido de Top Secret (código de acceso y lista numerada). |
+| **Gestor** | Sí (staff) | Igual que Admin en moderación de contenido: editar/eliminar cualquier artículo, cerrar/eliminar cualquier hilo del foro y borrar cualquier comentario. No accede a ajustes globales de Django (usuarios de Django, permisos de bajo nivel) ni a la configuración del sitio. |
+| **Editor** | Sí (staff, permisos limitados) | Crear artículos; editar o eliminar únicamente los suyos. Participa en el foro como cualquier usuario logueado. |
+| **Lector** | No | Rol por defecto al registrarse: leer y comentar artículos, abrir hilos y responder en el foro (con posibilidad de borrar sus propios comentarios), usar la ruleta y votar películas. |
+| **Baneado** | No | Cuenta desactivada (`is_active=False`): no puede iniciar sesión. Es un rol, no un flag aparte — "banear" es cambiar el rol a `Baneado`, y "desbanear" es devolverlo a `Lector`. |
+
+Gestión desde el admin: **Usuarios → Usuarios**. La columna *rol* es editable en línea desde el listado, y hay acciones masivas "Banear usuarios seleccionados" / "Desbanear usuarios seleccionados".
+
+### Verificación de email
+
+Es opcional y se activa/desactiva desde **Sitio → Configuración del sitio → "exigir verificación de email al registrarse"**. Cuando está activada, el registro sigue dejando entrar al usuario de inmediato (no se bloquea el login para evitar que un fallo de envío de email deje a alguien fuera de su cuenta), pero se le envía un email de confirmación y se marca `email_verified`. Esa marca se podrá usar en fases futuras para restringir acciones (comentar, votar, etc.).
+
+## 5. Sistema de temas (`theme.css`)
+
+Los colores, tipografías y espaciados **no están hardcodeados**: cada tema es una fila del modelo `Theme` (`apps.core.models.Theme`), y sus valores se sirven dinámicamente en `/theme.css` como variables CSS genéricas (`--color-accent`, `--color-bg`, `--font-heading`, etc.). El resto de los estilos, en `static/css/main.css`, consume esas variables — nunca un color a pelo — así que un tema nuevo no requiere tocar CSS ni plantillas.
+
+Vienen 3 temas precargados (vía migración de datos, `apps/core/migrations/0002_seed_themes.py`):
+
+| Tema | Estilo |
+|---|---|
+| **Cinephile** (por defecto) | Teal + ámbar sobre fondo oscuro. |
+| **Noir** | Negro/gris carbón + rojo sangre, alto contraste, cine negro. |
+| **Vintage** | Verde menta/salvia pastel con acentos crema y marrón, retro. |
+
+**Cómo se elige el tema que ve cada visitante** (`apps.core.models.get_effective_theme`):
+1. Si el usuario ha iniciado sesión y eligió un tema personal en **Cuenta → Perfil**, se usa ese.
+2. Si no, se usa el "tema activo" del sitio (**Admin → Sitio → Configuración del sitio → tema activo**).
+3. Si tampoco hay uno configurado, se cae a Cinephile por su slug, y como último recurso a los valores por defecto del modelo.
+
+**Cambiar el tema de toda la web:** entra en `/admin/`, ve a **Sitio → Configuración del sitio** y cambia el campo *tema activo*. No hace falta tocar código ni volver a desplegar.
+
+**Añadir un tema nuevo:** ve a **Sitio → Temas visuales → Añadir tema visual**, rellena colores (con selector de color nativo), tipografías y espaciados, y guarda. Aparecerá disponible tanto en el selector de "tema activo" del sitio como en el perfil de cada usuario. Cada tema define: fondo, superficie, bordes, texto primario/secundario, acento principal (+ hover + color de texto sobre él), acento secundario (+ hover + color de texto sobre él), y los estados de error/éxito.
+
+Si un tema nuevo necesita una tipografía de Google Fonts que no esté entre las ya cargadas (Playfair Display, Bebas Neue, Special Elite, Inter), hay que añadir esa fuente al `<link>` de Google Fonts en `templates/base.html` — es el único caso que sí toca una plantilla.
+
+## 6. Artículos y foro
+
+### Tablón de artículos (`/articulos/`)
+
+CRUD completo respetando los permisos de la tabla de roles anterior. El cuerpo se escribe con **CKEditor 5** (negrita, enlaces, listas, imágenes, tablas...); las imágenes que se suban desde el editor requieren `is_staff` (Admin/Gestor/Editor). Los tags se escriben como texto separado por comas y se crean sobre la marcha si no existen. Los comentarios al pie solo son visibles/escribibles por usuarios logueados; cualquiera puede leer los artículos sin cuenta.
+
+### Foro de debate (`/foro/`)
+
+Cualquier usuario logueado (no baneado) puede abrir un hilo o responder, a cualquier profundidad: los comentarios se guardan con un `parent` opcional y la vista arma el árbol completo en memoria (una sola consulta por hilo, sin problema N+1) antes de pintarlo de forma recursiva, indentado como en Reddit.
+
+**Moderación (Gestor/Admin):** pueden cerrar un hilo (deja de admitir respuestas nuevas, ya publicadas se conservan) o eliminarlo por completo, y borrar cualquier comentario. El propio autor también puede borrar su comentario. Borrar un comentario es un **borrado lógico** (queda como "[comentario eliminado]") para no romper las respuestas que cuelguen de él; eliminar un hilo sí borra todo en cascada.
+
+### Imágenes y almacenamiento
+
+Las portadas de artículo y las imágenes subidas desde CKEditor se guardan en `media/` (disco local). **En el plan free de Render el disco no es persistente entre despliegues/reinicios** — las imágenes subidas en producción pueden desaparecer al redeployar (ver la nota en la sección de despliegue, más abajo, con las opciones para evitarlo). Para desarrollo local no hay ningún problema.
+
+## 7. Catálogo, ruleta y votaciones (`/peliculas/`)
+
+### Catálogo local y las dos APIs
+
+Cada película se cachea una sola vez en el modelo `Movie` (`apps.movies.models.Movie`), identificada por su `tmdb_id`: título, año, portada y sinopsis vienen de **TMDb**; la nota IMDb se resuelve una vez vía **OMDb** (a partir del `imdb_id` que TMDb expone en `external_ids`) y se guarda en `imdb_rating`. Ni la ruleta ni las votaciones vuelven a golpear las APIs externas para una película ya cacheada.
+
+`python manage.py seed_movies` (opcional `--pages N`, por defecto 2) recorre "populares" y "mejor valoradas" de TMDb y resuelve la nota IMDb de cada una — es lo que necesita el Modo 1 de la ruleta para tener con qué filtrar por rango de nota. Sin ejecutarlo, el catálogo empieza vacío y se va llenando según los usuarios añaden películas a su lista en el Modo 2.
+
+### Ruleta — Modo 1 (`/peliculas/ruleta/nota/`)
+
+El usuario elige una nota mínima y máxima (1-10); se sortea al azar una película del catálogo dentro de ese rango, excluyendo las que ya se le mostraron a ese usuario en ese modo (`RouletteRatingSeen`). Al agotar el rango, hay que darle a "reiniciar" para volver a verlas.
+
+### Ruleta — Modo 2 (`/peliculas/ruleta/lista/`)
+
+El usuario busca títulos (TMDb en vivo, vía HTMX) y arma su propia lista de candidatas (`RouletteCandidate`), asociada a su cuenta. "Girar" elige al azar una no vista de esa lista y la marca como vista; "reiniciar" las vuelve a poner todas disponibles.
+
+Ambos modos muestran el resultado con una animación de carteles rotando (tipo tragaperras) antes de fijarse en la película elegida, hecha con Alpine.js sobre las portadas ya cacheadas — sin llamadas adicionales a las APIs.
+
+### Votaciones
+
+Cualquier usuario logueado vota una película del 1 al 10 desde su ficha (`/peliculas/<id>/`); un segundo voto sobre la misma película sobreescribe el anterior (`unique_together` en `Vote` + `update_or_create`). Se muestra la media y el número de votos. El voto se envía por HTMX sin recargar la página.
+
+## 8. Top Secret, donaciones y contacto
+
+### Top Secret — el maletín Tarantino (`/top-secret/`)
+
+Acceso **independiente de las cuentas de usuario**: no hace falta estar registrado, solo conocer el código. Al entrar se muestra un maletín animado y un campo de código; si es correcto, se guarda un flag en la sesión (`request.session['top_secret_unlocked']`) que da acceso al resto de páginas de la sección hasta que se cierra sesión del navegador o se pulsa "Cerrar maletín".
+
+El código **no se guarda en texto plano**: se hashea con el mismo mecanismo que las contraseñas de usuario (`django.contrib.auth.hashers`) en `TopSecretConfig.access_code_hash`. El código de fábrica es `8888`. Para cambiarlo: **Admin → Top Secret → Código de acceso**, campo "Nuevo código" — el admin nunca puede ver el código actual, solo fijar uno nuevo (igual que un campo de contraseña).
+
+Dentro hay tres secciones, todas editables desde **Admin → Top Secret → Películas secretas** (cada entrada es un número único + título + nota personal + comentario; opcionalmente se puede enlazar a una película del catálogo de `/peliculas/` para reutilizar su portada):
+
+- **a) Selector numérico:** eliges un número de la lista y te devuelve la película asociada.
+- **b) Buscador por nota:** un intervalo de nota *personal* (no la de IMDb ni la media de votos) y una recomendación al azar dentro de él.
+- **c) Lista completa:** todas las entradas, con su nota y comentario.
+
+### Donaciones (`/donaciones/`)
+
+Cartel estilo cine antiguo con el número de Bizum. El número no está hardcodeado: vive en `SiteConfig.bizum_number` (**Admin → Sitio → Configuración del sitio → Donaciones**) y por defecto trae el que se indicó en el encargo (684 127 181).
+
+### Contacto (`/contacto/`)
+
+Formulario (nombre, email, mensaje) que se envía por email a `SiteConfig.contact_email` (**Admin → Sitio → Configuración del sitio**) — ese campo empieza vacío a propósito; mientras no se rellene, la página muestra un aviso en vez del formulario. Anti-spam por **honeypot**: un campo (`website`) invisible por CSS que un usuario real nunca rellena; si llega relleno, se descarta el envío mostrando igualmente el mensaje de éxito (para no darle pistas a un bot de que fue detectado).
+
+## 9. Animación de proyector al entrar
+
+Al cargar la web (`templates/partials/intro.html` + `static/js/intro.js`) se muestra un proyector encendiéndose: parpadeo inicial, haz de luz que barre la pantalla, grano de película y las perforaciones del carrete desplazándose arriba y abajo, con un "clack" mecánico sintetizado por Web Audio API (si el navegador bloquea el autoplay de sonido sin interacción previa, simplemente no suena — la animación visual no depende de ello). Tras ~3,4s hace un fundido y desaparece, revelando la home.
+
+- **Una vez por sesión de navegador:** se controla con `sessionStorage` (`bygui_intro_seen`), así que reaparece en una pestaña/ventana nueva pero no en cada navegación dentro de la misma.
+- **Botón "Saltar intro"**, siempre visible durante la animación.
+- **Configurable desde el admin:** **Sitio → Configuración del sitio → Animación de entrada → "mostrar animación de proyector al entrar"**. Desactivarla la quita de toda la web sin tocar código.
+- Respeta `prefers-reduced-motion`: si el sistema operativo del visitante tiene activada la reducción de movimiento, se omiten el parpadeo, el barrido de luz y el sonido, y solo queda un fundido simple.
+
+## 10. Despliegue en Render
+
+El repositorio incluye `render.yaml` (Blueprint): Render lee ese archivo y crea el servicio con la configuración correcta sin tener que rellenar el formulario a mano.
+
+1. Sube el proyecto a un repositorio de GitHub (Render despliega desde ahí).
+2. En [render.com](https://render.com), **New → Blueprint**, y selecciona el repositorio. Render detecta `render.yaml` automáticamente.
+3. Antes de confirmar, Render pedirá valores para las variables marcadas como `sync: false` (no se generan solas ni se suben al repo):
+   - `DATABASE_URL` — la cadena de conexión de Supabase (ver sección 2; usa el **Session pooler**, no la conexión directa).
+   - `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL` — credenciales de Gmail (ver más abajo cómo generar la contraseña de aplicación).
+   - `TMDB_API_KEY`, `OMDB_API_KEY` — ver sección 3.
+4. Despliega. El `buildCommand` instala dependencias y ejecuta `collectstatic`; el `startCommand` aplica `migrate` y arranca `gunicorn` en cada arranque del servicio.
+5. Entra en `https://<tu-servicio>.onrender.com/admin/` y ejecuta `createsuperuser` desde la pestaña **Shell** del panel de Render (o localmente contra la misma `DATABASE_URL`) para tener un usuario Admin en producción.
+
+`DJANGO_SECRET_KEY` se genera automáticamente (`generateValue: true`); `ALLOWED_HOSTS` no hace falta configurarlo a mano porque Render inyecta `RENDER_EXTERNAL_HOSTNAME` y `config/settings.py` ya lo añade automáticamente.
+
+### Generar la contraseña de aplicación de Gmail
+
+Gmail no deja usar tu contraseña normal para SMTP. Para generar una contraseña de aplicación: activa la verificación en dos pasos en tu cuenta de Google, ve a **Gestionar tu cuenta de Google → Seguridad → Verificación en dos pasos → Contraseñas de aplicaciones**, genera una (16 caracteres, sin espacios) y usa esa como `EMAIL_HOST_PASSWORD` — nunca tu contraseña real.
+
+### El plan free "duerme" — y cómo mitigarlo
+
+Render **apaga el servicio tras ~15 minutos sin recibir tráfico**. La siguiente petición lo despierta, pero esa primera carga puede tardar 30-60 segundos (arranque en frío). Es una limitación del plan gratuito, no un fallo de la app.
+
+Para mitigarlo (opcional): un monitor externo como [UptimeRobot](https://uptimerobot.com) que haga una petición HTTP a tu URL cada 5-10 minutos mantiene el servicio despierto en horas de uso. Configuración: crea una cuenta gratuita, **Add New Monitor** → tipo *HTTP(s)* → la URL de tu servicio en Render → intervalo de 5 minutos. Esto no evita el sleep de forma permanente (Render igualmente puede reiniciar el servicio periódicamente en el plan free), pero reduce mucho la frecuencia con la que un visitante real se encuentra con el arranque en frío.
+
+### Imágenes subidas en producción (recordatorio)
+
+Como se explica en la sección de artículos, el disco de Render free no es persistente: las portadas e imágenes subidas desaparecen en cada redeploy. Si esto es un problema, la vía habitual es cambiar `STORAGES["default"]` en `config/settings.py` por un backend de almacenamiento externo (p. ej. `django-storages` con S3 o Cloudinary) — no está incluido en este entregable para no añadir una dependencia de pago obligatoria, pero es el siguiente paso natural si la web pasa a producción real con contenido subido por usuarios.
+
+## Comandos útiles
+
+```bash
+python manage.py makemigrations   # tras cambiar modelos
+python manage.py migrate
+python manage.py seed_demo        # usuarios de ejemplo (uno por rol)
+python manage.py seed_content     # seed_demo + artículos, hilos de foro y películas de Top Secret de ejemplo
+python manage.py seed_movies      # catálogo de películas desde TMDb/OMDb (--pages N, por defecto 2)
+python manage.py createsuperuser
+python manage.py collectstatic    # antes de desplegar
+```

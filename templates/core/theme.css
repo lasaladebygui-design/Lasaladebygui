@@ -1,0 +1,33 @@
+{% autoescape off %}
+/* Generado dinámicamente a partir del tema activo (Sitio → Configuración del
+   sitio → tema activo), o del tema personal del usuario si lo ha elegido en
+   su perfil. No editar a mano: los cambios se hacen desde /admin/. */
+:root {
+    color-scheme: {{ theme.is_dark|yesno:"dark,light" }};
+
+    --color-bg: {{ theme.color_bg }};
+    --color-surface: {{ theme.color_surface }};
+    --color-border: {{ theme.color_border }};
+
+    --color-text: {{ theme.color_text }};
+    --color-text-muted: {{ theme.color_text_muted }};
+
+    --color-accent: {{ theme.color_accent }};
+    --color-accent-hover: {{ theme.color_accent_hover }};
+    --color-on-accent: {{ theme.color_on_accent }};
+
+    --color-accent-secondary: {{ theme.color_accent_secondary }};
+    --color-accent-secondary-hover: {{ theme.color_accent_secondary_hover }};
+    --color-on-accent-secondary: {{ theme.color_on_accent_secondary }};
+
+    --color-danger: {{ theme.color_danger }};
+    --color-success: {{ theme.color_success }};
+
+    --font-heading: {{ theme.font_heading }};
+    --font-body: {{ theme.font_body }};
+
+    --space-unit: {{ theme.space_unit }};
+    --radius-base: {{ theme.radius_base }};
+    --max-content-width: {{ theme.max_content_width }};
+}
+{% endautoescape %}

@@ -1,0 +1,21 @@
+# Entorno
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Django
+*.log
+db.sqlite3
+staticfiles/
+media/
+
+# Entorno / secretos
+.env
+
+# Editor / SO
+.vscode/
+.idea/
+.claude/
+.DS_Store
+Thumbs.db

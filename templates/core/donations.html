@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Apoya la sala{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <div class="donation-poster">
+            <p class="donation-poster__eyebrow">La Sala de Bygui presenta</p>
+            <h1>Apoya la web</h1>
+            <div class="donation-poster__divider" aria-hidden="true">★ ★ ★</div>
+            {% if site_config.bizum_number %}
+            <p class="donation-poster__lead">vía Bizum al</p>
+            <p class="donation-poster__number">{{ site_config.bizum_number }}</p>
+            {% else %}
+            <p class="donation-poster__lead">Todavía no se ha configurado un número de Bizum.</p>
+            {% endif %}
+            <div class="donation-poster__divider" aria-hidden="true">★ ★ ★</div>
+            <p class="donation-poster__footer">Cada aportación ayuda a que la sala siga proyectando</p>
+        </div>
+    </div>
+</section>
+{% endblock %}

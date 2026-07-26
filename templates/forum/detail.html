@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}{{ thread.title }}{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <div class="thread-header">
+            {% if thread.is_locked %}<span class="tag-pill">🔒 Cerrado</span>{% endif %}
+            <h1>{{ thread.title }}</h1>
+        </div>
+        <p class="muted article-card__meta">{{ thread.author|default:"usuario eliminado" }} · {{ thread.created_at|date:"d/m/Y H:i" }}</p>
+        <p class="thread-body">{{ thread.body|linebreaksbr }}</p>
+
+        {% if can_moderate %}
+        <div class="article-detail__actions">
+            <form method="post" action="{% url 'forum:toggle-lock' thread.pk %}" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn--ghost btn--sm">{% if thread.is_locked %}Reabrir{% else %}Cerrar hilo{% endif %}</button>
+            </form>
+            <a href="{% url 'forum:delete' thread.pk %}" class="btn btn--ghost btn--sm">Eliminar hilo</a>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<section class="section section--tight">
+    <div class="wrap wrap--narrow">
+        <h2>Respuestas ({{ thread.comments.count }})</h2>
+
+        {% if reply_form and not thread.is_locked %}
+        <form method="post" class="comment-form">
+            {% csrf_token %}
+            <div class="field">
+                {{ reply_form.body }}
+                {% for error in reply_form.body.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
+            </div>
+            <button type="submit" class="btn btn--accent btn--sm">Responder</button>
+        </form>
+        {% elif thread.is_locked %}
+        <p class="muted">Este hilo está cerrado: no se admiten nuevas respuestas.</p>
+        {% else %}
+        <p class="muted"><a href="{% url 'accounts:login' %}?next={{ request.path }}">Inicia sesión</a> para responder.</p>
+        {% endif %}
+
+        <ul class="thread-comment-tree">
+            {% for comment in roots %}
+                {% include "forum/_comment_node.html" %}
+            {% empty %}
+                <li class="muted">Todavía no hay respuestas.</li>
+            {% endfor %}
+        </ul>
+    </div>
+</section>
+{% endblock %}

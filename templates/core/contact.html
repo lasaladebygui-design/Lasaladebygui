@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Contacto{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <span class="card__tag">Contacto</span>
+        <h1>Escríbenos</h1>
+
+        {% if form is None %}
+        <p class="muted">El formulario de contacto todavía no está activo: falta configurar un email de contacto en el admin.</p>
+        {% else %}
+        <form method="post" class="stacked-form">
+            {% csrf_token %}
+            <div class="field">
+                <label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+                {{ form.name }}
+                {% for error in form.name.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
+            </div>
+            <div class="field">
+                <label for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+                {{ form.email }}
+                {% for error in form.email.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
+            </div>
+            <div class="field">
+                <label for="{{ form.message.id_for_label }}">{{ form.message.label }}</label>
+                {{ form.message }}
+                {% for error in form.message.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
+            </div>
+            <div class="honeypot-field" aria-hidden="true">
+                <label for="{{ form.website.id_for_label }}">No rellenes este campo</label>
+                {{ form.website }}
+            </div>
+            <button type="submit" class="btn btn--accent">Enviar</button>
+        </form>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

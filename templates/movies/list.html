@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Películas{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap">
+        <div class="section-header">
+            <div>
+                <span class="card__tag">Catálogo</span>
+                <h1>Películas</h1>
+            </div>
+            <a href="{% url 'movies:roulette-home' %}" class="btn btn--accent">Probar la ruleta</a>
+        </div>
+
+        <form method="get" class="search-form">
+            {{ form.query }}
+            <button type="submit" class="btn btn--ghost btn--sm">Buscar</button>
+        </form>
+
+        {% if page_obj.object_list %}
+        <div class="movie-grid">
+            {% for movie in page_obj %}
+            <a href="{% url 'movies:detail' movie.pk %}" class="movie-card">
+                {% if movie.poster_url %}
+                    <img src="{{ movie.poster_url }}" alt="" class="movie-card__poster">
+                {% else %}
+                    <div class="movie-card__poster movie-card__poster--placeholder"><span>🎬</span></div>
+                {% endif %}
+                <div class="movie-card__body">
+                    <h3>{{ movie.title }}</h3>
+                    <p class="muted">{{ movie.year }}</p>
+                    {% if movie.imdb_rating %}<span class="tag-pill">IMDb {{ movie.imdb_rating }}</span>{% endif %}
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% include "partials/pagination.html" with page_obj=page_obj %}
+        {% else %}
+        <p class="muted">
+            {% if query %}Sin resultados para «{{ query }}».{% else %}
+            El catálogo está vacío todavía. Ejecuta <code>python manage.py seed_movies</code> para poblarlo, o añade películas desde la ruleta (Modo 2).
+            {% endif %}
+        </p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

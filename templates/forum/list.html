@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Foro{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap">
+        <div class="section-header">
+            <div>
+                <span class="card__tag">Debate</span>
+                <h1>Foro</h1>
+            </div>
+            {% if user.is_authenticated %}
+                <a href="{% url 'forum:create' %}" class="btn btn--accent">Abrir hilo</a>
+            {% endif %}
+        </div>
+
+        {% if page_obj.object_list %}
+        <ul class="thread-list">
+            {% for thread in page_obj %}
+            <li class="thread-row">
+                <a href="{{ thread.get_absolute_url }}" class="thread-row__title">
+                    {% if thread.is_locked %}<span class="tag-pill" title="Hilo cerrado">🔒</span>{% endif %}
+                    {{ thread.title }}
+                </a>
+                <p class="muted thread-row__meta">
+                    {{ thread.author|default:"usuario eliminado" }} · {{ thread.created_at|date:"d/m/Y H:i" }} · {{ thread.comment_count }} respuesta{{ thread.comment_count|pluralize }}
+                </p>
+            </li>
+            {% endfor %}
+        </ul>
+        {% include "partials/pagination.html" with page_obj=page_obj %}
+        {% else %}
+        <p class="muted">Todavía no hay hilos. ¡Abre el primero!</p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

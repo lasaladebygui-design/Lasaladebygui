@@ -1,0 +1,37 @@
+<li class="thread-comment" data-comment-id="{{ comment.pk }}">
+    <div class="thread-comment__body">
+        <p class="comment__meta"><strong>{{ comment.display_author }}</strong> · <span class="muted">{{ comment.created_at|date:"d/m/Y H:i" }}</span></p>
+        <p class="comment__body{% if comment.is_deleted %} comment__body--deleted{% endif %}">{{ comment.display_body|linebreaksbr }}</p>
+
+        {% if not comment.is_deleted %}
+        <div class="thread-comment__actions" x-data="{ open: false }">
+            {% if reply_form and not thread.is_locked %}
+                <button type="button" class="link-btn" @click="open = !open">Responder</button>
+            {% endif %}
+            {% if comment.can_delete %}
+                <form action="{% url 'forum:comment-delete' comment.pk %}" method="post" class="inline-form">
+                    {% csrf_token %}
+                    <button type="submit" class="link-btn link-btn--danger">Eliminar</button>
+                </form>
+            {% endif %}
+
+            {% if reply_form %}
+            <form method="post" x-show="open" x-cloak class="reply-form">
+                {% csrf_token %}
+                <input type="hidden" name="parent_id" value="{{ comment.pk }}">
+                {{ reply_form.body }}
+                <button type="submit" class="btn btn--accent btn--sm">Responder</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    {% if comment.children %}
+    <ul class="thread-comment__children">
+        {% for child in comment.children %}
+            {% include "forum/_comment_node.html" with comment=child %}
+        {% endfor %}
+    </ul>
+    {% endif %}
+</li>

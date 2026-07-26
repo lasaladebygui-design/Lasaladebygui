@@ -1,0 +1,25 @@
+{% if error %}
+    <p class="field-errors">{{ error }}</p>
+{% elif query and not results %}
+    <p class="muted">Sin resultados para «{{ query }}».</p>
+{% endif %}
+
+{% if results %}
+<ul class="search-results">
+    {% for movie in results %}
+    <li class="search-result">
+        {% if movie.poster_url %}
+            <img src="{{ movie.poster_url }}" alt="" class="search-result__poster">
+        {% endif %}
+        <div class="search-result__body">
+            <strong>{{ movie.title }}</strong> <span class="muted">{{ movie.year }}</span>
+            <p class="muted search-result__overview">{{ movie.overview|truncatewords:18 }}</p>
+        </div>
+        <form hx-post="{% url 'movies:roulette-candidate-add' movie.tmdb_id %}"
+              hx-target="#roulette-panel" hx-swap="outerHTML">
+            <button type="submit" class="btn btn--ghost btn--sm">Añadir</button>
+        </form>
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}

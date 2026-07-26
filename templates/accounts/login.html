@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Entrar{% endblock %}
+
+{% block content %}
+<div class="wrap auth-page">
+    <div class="auth-card">
+        <h1>Entrar</h1>
+
+        {% if form.non_field_errors %}
+            <div class="form-errors">
+                {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+            </div>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="field">
+                <label for="{{ form.username.id_for_label }}">Correo electrónico</label>
+                {{ form.username }}
+                {% for error in form.username.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
+            </div>
+            <div class="field">
+                <label for="{{ form.password.id_for_label }}">Contraseña</label>
+                {{ form.password }}
+                {% for error in form.password.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
+            </div>
+            <button type="submit" class="btn btn--accent btn--block">Entrar</button>
+        </form>
+
+        <p class="auth-card__footer">
+            ¿Todavía no tienes cuenta? <a href="{% url 'accounts:register' %}">Regístrate</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

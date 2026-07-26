@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Abrir hilo{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <h1>Abrir hilo</h1>
+
+        {% if form.non_field_errors %}
+            <div class="form-errors">{% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}</div>
+        {% endif %}
+
+        <form method="post" class="stacked-form">
+            {% csrf_token %}
+            <div class="field">
+                <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+                {{ form.title }}
+                {% for error in form.title.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
+            </div>
+            <div class="field">
+                <label for="{{ form.body.id_for_label }}">{{ form.body.label }}</label>
+                {{ form.body }}
+                {% for error in form.body.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
+            </div>
+            <button type="submit" class="btn btn--accent">Publicar hilo</button>
+        </form>
+    </div>
+</section>
+{% endblock %}

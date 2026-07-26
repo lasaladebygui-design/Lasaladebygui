@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Ruleta de películas{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <span class="card__tag">Ruleta</span>
+        <h1>¿Qué vemos hoy?</h1>
+        <p class="muted">Elige cómo quieres que la sala decida por ti.</p>
+
+        <div class="card-grid">
+            <a href="{% url 'movies:roulette-rating' %}" class="card card--link">
+                <span class="card__tag">Modo 1</span>
+                <h3>Por rango de nota IMDb</h3>
+                <p>Elige un mínimo y un máximo (p. ej. 7-9) y te recomendamos algo del catálogo.</p>
+            </a>
+            <a href="{% url 'movies:roulette-list' %}" class="card card--link">
+                <span class="card__tag">Modo 2</span>
+                <h3>Con tu propia lista</h3>
+                <p>Añade tus candidatas y deja que la ruleta elija entre ellas.</p>
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}

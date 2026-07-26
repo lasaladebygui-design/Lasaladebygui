@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Ruleta por nota IMDb{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <span class="card__tag">Ruleta · Modo 1</span>
+        <h1>Elige un rango de nota IMDb</h1>
+
+        <form method="post" class="stacked-form rating-form">
+            {% csrf_token %}
+            <div class="rating-form__row">
+                <div class="field">
+                    <label for="{{ form.min_rating.id_for_label }}">{{ form.min_rating.label }}</label>
+                    {{ form.min_rating }}
+                </div>
+                <div class="field">
+                    <label for="{{ form.max_rating.id_for_label }}">{{ form.max_rating.label }}</label>
+                    {{ form.max_rating }}
+                </div>
+            </div>
+            {% for error in form.non_field_errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
+            <button type="submit" class="btn btn--accent">Girar la ruleta</button>
+        </form>
+
+        <form method="post" action="{% url 'movies:roulette-rating-reset' %}" class="inline-form">
+            {% csrf_token %}
+            <button type="submit" class="link-btn">Reiniciar películas vistas en este modo</button>
+        </form>
+
+        {% include "movies/_reel.html" %}
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Eliminar artículo{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap auth-page">
+        <div class="auth-card">
+            <h1>¿Eliminar «{{ article.title }}»?</h1>
+            <p class="muted">Esta acción no se puede deshacer. También se borrarán sus comentarios.</p>
+            <form method="post">
+                {% csrf_token %}
+                <div class="hero__actions">
+                    <a href="{{ article.get_absolute_url }}" class="btn btn--ghost">Cancelar</a>
+                    <button type="submit" class="btn btn--danger">Eliminar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+{% endblock %}

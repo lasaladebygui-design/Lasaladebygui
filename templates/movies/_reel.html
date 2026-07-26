@@ -1,0 +1,31 @@
+{% if reel_json %}
+<div class="roulette-machine" x-data="{
+    posters: {{ reel_json|safe }},
+    index: 0,
+    spinning: true,
+    init() {
+        const iv = setInterval(() => { this.index = (this.index + 1) % this.posters.length }, 110);
+        setTimeout(() => { clearInterval(iv); this.index = this.posters.length - 1; this.spinning = false; }, 1300);
+    }
+}">
+    <div class="reel-window">
+        <template x-for="(poster, i) in posters" :key="i">
+            <img :src="poster || ''" x-show="index === i" x-cloak class="reel-window__poster" alt="">
+        </template>
+        <div class="reel-window__shine" x-show="spinning" x-cloak></div>
+    </div>
+
+    <div x-show="!spinning" x-cloak x-transition class="roulette-result">
+        <div class="movie-card movie-card--result">
+            {% if result.poster_url %}
+                <img src="{{ result.poster_url }}" alt="" class="movie-card__poster">
+            {% endif %}
+            <div class="movie-card__body">
+                <h3><a href="{% url 'movies:detail' result.pk %}">{{ result.title }}</a></h3>
+                <p class="muted">{{ result.year }}{% if result.imdb_rating %} · IMDb {{ result.imdb_rating }}{% endif %}</p>
+                <p>{{ result.overview|truncatewords:25 }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
