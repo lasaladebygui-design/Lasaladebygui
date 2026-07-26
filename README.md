@@ -234,10 +234,27 @@ El repositorio incluye `render.yaml` (Blueprint): Render lee ese archivo y crea 
    - `DATABASE_URL` — la cadena de conexión de Supabase (ver sección 2; usa el **Session pooler**, no la conexión directa).
    - `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL` — credenciales de Gmail (ver más abajo cómo generar la contraseña de aplicación).
    - `TMDB_API_KEY`, `OMDB_API_KEY` — ver sección 3.
-4. Despliega. El `buildCommand` instala dependencias y ejecuta `collectstatic`; el `startCommand` aplica `migrate` y arranca `gunicorn` en cada arranque del servicio.
-5. Entra en `https://<tu-servicio>.onrender.com/admin/` y ejecuta `createsuperuser` desde la pestaña **Shell** del panel de Render (o localmente contra la misma `DATABASE_URL`) para tener un usuario Admin en producción.
+4. Despliega. El `buildCommand` instala dependencias y ejecuta `collectstatic`; el `startCommand` aplica `migrate`, ejecuta `bootstrap_production` (ver siguiente apartado) y arranca `gunicorn` en cada arranque del servicio.
 
 `DJANGO_SECRET_KEY` se genera automáticamente (`generateValue: true`); `ALLOWED_HOSTS` no hace falta configurarlo a mano porque Render inyecta `RENDER_EXTERNAL_HOSTNAME` y `config/settings.py` ya lo añade automáticamente.
+
+### Crear el primer Admin y poblar el catálogo (sin Shell)
+
+El **plan free de Render no incluye acceso a Shell** (es de pago), así que `createsuperuser` y `seed_movies` no se pueden lanzar a mano ahí. En su lugar, `apps/core/management/commands/bootstrap_production.py` hace ambas cosas automáticamente en cada arranque del servicio, activadas solo por variables de entorno — se configuran desde el mismo panel de Render donde ya pusiste `DATABASE_URL`, sin terminal:
+
+1. En tu servicio de Render → pestaña **Environment**, añade:
+   - `DJANGO_SUPERUSER_EMAIL` = tu email de admin
+   - `DJANGO_SUPERUSER_PASSWORD` = una contraseña segura
+2. Guarda (Render redespliega solo). En ese arranque se crea el usuario Admin — pero **solo si todavía no existe ningún Admin**; en arranques posteriores no hace nada, así que es seguro dejar esas variables puestas indefinidamente (aunque por higiene puedes borrarlas después de confirmar que el admin se creó).
+3. Para poblar el catálogo de películas, añade además `RUN_SEED_MOVIES` = `true`, guarda, espera al redeploy, y **quita esa variable** (o ponla en `false`) — a diferencia del admin, conviene no dejarla activada, porque volvería a llamar a TMDb/OMDb en cada arranque del servicio.
+4. Entra en `https://<tu-servicio>.onrender.com/admin/` con el email/contraseña del paso 1.
+
+Si en algún momento sí quieres ejecutar comandos sueltos (management commands que no estén cubiertos por este bootstrap), la alternativa sin pagar por Shell es lanzarlos desde tu propio ordenador apuntando temporalmente a la `DATABASE_URL` de producción (mismo Supabase, esté donde esté desplegada la app):
+```bash
+# PowerShell
+$env:DATABASE_URL = "postgresql://...tu cadena de Supabase..."
+python manage.py <comando>
+```
 
 ### Generar la contraseña de aplicación de Gmail
 

@@ -5,8 +5,14 @@ services:
     plan: free
     region: frankfurt
     buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput"
-    startCommand: "python manage.py migrate --noinput && gunicorn config.wsgi:application"
+    startCommand: "python manage.py migrate --noinput && python manage.py bootstrap_production && gunicorn config.wsgi:application"
     envVars:
+      - key: DJANGO_SUPERUSER_EMAIL
+        sync: false
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false
+      - key: RUN_SEED_MOVIES
+        value: "false"
       - key: PYTHON_VERSION
         value: 3.13.0
       - key: DJANGO_SECRET_KEY

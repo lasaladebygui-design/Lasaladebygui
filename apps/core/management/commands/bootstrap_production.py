@@ -1,0 +1,51 @@
+import os
+
+from django.core.management import call_command
+from django.core.management.base import BaseCommand
+
+from apps.accounts.models import User
+
+
+class Command(BaseCommand):
+    """Paso de arranque seguro de ejecutar en cada despliegue (se encadena
+    en el startCommand de render.yaml, después de migrate). No requiere
+    Shell: todo se activa o desactiva con variables de entorno desde el
+    panel de Render.
+
+    - Si DJANGO_SUPERUSER_EMAIL y DJANGO_SUPERUSER_PASSWORD están definidas
+      y todavía no existe ningún Admin, crea uno. Si ya existe un Admin, no
+      hace nada (seguro de dejar puesto para siempre).
+    - Si RUN_SEED_MOVIES=true, puebla el catálogo de películas desde
+      TMDb/OMDb (equivalente a `seed_movies`). Conviene quitar esta variable
+      después del primer despliegue para no repetir las llamadas a las APIs
+      en cada arranque.
+    """
+
+    help = "Bootstrap de producción: primer Admin y/o catálogo de películas, vía variables de entorno."
+
+    def handle(self, *args, **options):
+        self._ensure_admin()
+        self._maybe_seed_movies()
+
+    def _ensure_admin(self):
+        email = os.environ.get("DJANGO_SUPERUSER_EMAIL")
+        password = os.environ.get("DJANGO_SUPERUSER_PASSWORD")
+        if not email or not password:
+            return
+
+        if User.objects.filter(role=User.Role.ADMIN).exists():
+            self.stdout.write("Ya existe un Admin: no se crea ninguno nuevo.")
+            return
+
+        user, _ = User.objects.get_or_create(
+            email=email, defaults={"role": User.Role.ADMIN, "email_verified": True}
+        )
+        user.role = User.Role.ADMIN
+        user.email_verified = True
+        user.set_password(password)
+        user.save()
+        self.stdout.write(self.style.SUCCESS(f"Admin creado: {email}"))
+
+    def _maybe_seed_movies(self):
+        if os.environ.get("RUN_SEED_MOVIES", "").lower() in ("1", "true", "yes"):
+            call_command("seed_movies")

@@ -1,6 +1,9 @@
 from django.core import mail
+from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
+
+from apps.accounts.models import User
 
 from .models import SiteConfig
 
@@ -61,3 +64,42 @@ class IntroAnimationTests(TestCase):
         config.save()
         response = self.client.get(reverse("core:home"))
         self.assertNotContains(response, 'id="intro"')
+
+
+class BootstrapProductionTests(TestCase):
+    def test_sin_variables_no_hace_nada(self):
+        call_command("bootstrap_production")
+        self.assertFalse(User.objects.exists())
+
+    def test_crea_admin_si_se_piden_las_variables(self):
+        import os
+
+        os.environ["DJANGO_SUPERUSER_EMAIL"] = "admin@lasaladebygui.local"
+        os.environ["DJANGO_SUPERUSER_PASSWORD"] = "Testpass123!"
+        try:
+            call_command("bootstrap_production")
+        finally:
+            del os.environ["DJANGO_SUPERUSER_EMAIL"]
+            del os.environ["DJANGO_SUPERUSER_PASSWORD"]
+
+        user = User.objects.get(email="admin@lasaladebygui.local")
+        self.assertEqual(user.role, User.Role.ADMIN)
+        self.assertTrue(user.is_superuser)
+        self.assertTrue(user.check_password("Testpass123!"))
+
+    def test_no_crea_un_segundo_admin_si_ya_existe_uno(self):
+        import os
+
+        existing = User(email="ya-existe@lasaladebygui.local", role=User.Role.ADMIN)
+        existing.set_password("Otra1234!")
+        existing.save()
+
+        os.environ["DJANGO_SUPERUSER_EMAIL"] = "otro@lasaladebygui.local"
+        os.environ["DJANGO_SUPERUSER_PASSWORD"] = "Testpass123!"
+        try:
+            call_command("bootstrap_production")
+        finally:
+            del os.environ["DJANGO_SUPERUSER_EMAIL"]
+            del os.environ["DJANGO_SUPERUSER_PASSWORD"]
+
+        self.assertFalse(User.objects.filter(email="otro@lasaladebygui.local").exists())
