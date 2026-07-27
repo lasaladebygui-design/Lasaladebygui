@@ -4,7 +4,7 @@ from django.core.management.base import BaseCommand
 from apps.accounts.models import User
 from apps.articles.models import Article, Tag
 from apps.forum.models import Thread, ThreadComment
-from apps.secret.models import SecretMovie
+from apps.secret.models import MovieQuote, SecretMovie
 
 ARTICLES = [
     {
@@ -77,6 +77,14 @@ SECRET_MOVIES = [
     (4, "Malas tierras", "8.0", "No es suya, pero se nota en cada plano por qué la cita tanto."),
 ]
 
+MOVIE_QUOTES = [
+    ("Que la Fuerza te acompañe.", "Star Wars", "Regreso al futuro", "El padrino"),
+    ("Voy a hacerle una oferta que no podrá rechazar.", "El padrino", "Uno de los nuestros", "Scarface"),
+    ("Hasta el infinito y más allá.", "Toy Story", "Wall-E", "Los Increíbles"),
+    ("Aquí hay algo que no encaja... y ese algo soy yo.", "Reservoir Dogs", "Pulp Fiction", "Kill Bill"),
+    ("Con un gran poder viene una gran responsabilidad.", "Spider-Man", "Batman Begins", "El caballero oscuro"),
+]
+
 
 class Command(BaseCommand):
     help = "Crea artículos y hilos de foro de ejemplo (requiere los usuarios de seed_demo)."
@@ -127,5 +135,15 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f"Top Secret: #{number} {title}"))
             else:
                 self.stdout.write(f"Ya existía la película secreta #{number}, no se modifica.")
+
+        for quote, correct, wrong1, wrong2 in MOVIE_QUOTES:
+            _, created = MovieQuote.objects.get_or_create(
+                quote=quote,
+                defaults={"correct_title": correct, "wrong_title_1": wrong1, "wrong_title_2": wrong2},
+            )
+            if created:
+                self.stdout.write(self.style.SUCCESS(f"Frase célebre creada: «{quote}»"))
+            else:
+                self.stdout.write(f"Ya existía la frase «{quote}», no se modifica.")
 
         self.stdout.write(self.style.SUCCESS("Seed de contenido completado."))

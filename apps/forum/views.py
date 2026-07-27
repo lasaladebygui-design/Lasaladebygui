@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import ThreadCommentForm, ThreadForm
 from .models import Thread, ThreadComment
-from .permissions import can_delete_comment, can_moderate_thread, can_post, is_moderator
+from .permissions import can_delete_comment, can_hard_delete_comment, can_moderate_thread, can_post, is_moderator
 
 
 def _build_comment_tree(thread, user):
@@ -19,6 +19,7 @@ def _build_comment_tree(thread, user):
     for comment in comments:
         comment.children = []
         comment.can_delete = can_delete_comment(user, comment)
+        comment.can_hard_delete = can_hard_delete_comment(user, comment)
     for comment in comments:
         if comment.parent_id and comment.parent_id in by_id:
             by_id[comment.parent_id].children.append(comment)
@@ -87,14 +88,26 @@ def thread_create(request):
 @login_required
 def comment_delete(request, pk):
     comment = get_object_or_404(ThreadComment, pk=pk)
-    if not can_delete_comment(request.user, comment):
-        raise Http404
-    if request.method == "POST":
-        comment.is_deleted = True
-        comment.body = ""
-        comment.save(update_fields=["is_deleted", "body"])
-        messages.success(request, "Comentario eliminado.")
-    return redirect("forum:detail", pk=comment.thread_id)
+    thread_id = comment.thread_id
+
+    if comment.is_deleted:
+        # Segundo "borrar" sobre un comentario que ya estaba oculto: solo
+        # Gestor/Admin, y esta vez es definitivo (se borra de verdad).
+        if not can_hard_delete_comment(request.user, comment):
+            raise Http404
+        if request.method == "POST":
+            comment.delete()
+            messages.success(request, "Comentario eliminado definitivamente.")
+    else:
+        if not can_delete_comment(request.user, comment):
+            raise Http404
+        if request.method == "POST":
+            comment.is_deleted = True
+            comment.body = ""
+            comment.save(update_fields=["is_deleted", "body"])
+            messages.success(request, "Comentario eliminado.")
+
+    return redirect("forum:detail", pk=thread_id)
 
 
 @login_required

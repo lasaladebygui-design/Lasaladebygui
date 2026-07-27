@@ -1,7 +1,9 @@
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import SecretMovie, TopSecretConfig
+from apps.accounts.models import User
+
+from .models import MovieQuote, SecretMovie, TopSecretConfig
 
 
 class GateTests(TestCase):
@@ -59,3 +61,75 @@ class SecretMovieViewTests(TestCase):
     def test_lista_completa_incluye_todas(self):
         response = self.client.get(reverse("secret:list"))
         self.assertEqual(list(response.context["movies"]), [self.a, self.b])
+
+
+class QuoteGameTests(TestCase):
+    def setUp(self):
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.quote = MovieQuote.objects.create(
+            quote="Que la Fuerza te acompañe.",
+            correct_title="Star Wars",
+            wrong_title_1="Regreso al futuro",
+            wrong_title_2="El padrino",
+        )
+
+    def test_requiere_haber_entrado_al_maletin(self):
+        self.client.post(reverse("secret:lock"))
+        response = self.client.get(reverse("secret:quote-game"))
+        self.assertRedirects(response, reverse("secret:gate"))
+
+    def test_muestra_una_frase_con_tres_opciones(self):
+        response = self.client.get(reverse("secret:quote-game"))
+        self.assertIsNotNone(response.context["quote"])
+        self.assertEqual(len(response.context["options"]), 3)
+        self.assertIn("Star Wars", response.context["options"])
+
+    def test_acertar_incrementa_la_racha(self):
+        response = self.client.post(reverse("secret:quote-game"), {
+            "quote_id": self.quote.pk, "answer": "Star Wars",
+        })
+        self.assertEqual(response.context["streak"], 1)
+
+    def test_fallar_reinicia_la_racha(self):
+        session = self.client.session
+        session["quote_streak"] = 4
+        session.save()
+
+        response = self.client.post(reverse("secret:quote-game"), {
+            "quote_id": self.quote.pk, "answer": "El padrino",
+        })
+        self.assertEqual(response.context["streak"], 0)
+
+    def test_racha_se_guarda_en_el_perfil_si_esta_logueado(self):
+        user = User.objects.create(email="lector@test.local", role=User.Role.LECTOR)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+
+        session = self.client.session
+        session["quote_streak"] = 3
+        session.save()
+
+        self.client.post(reverse("secret:quote-game"), {
+            "quote_id": self.quote.pk, "answer": "El padrino",
+        })
+        user.refresh_from_db()
+        self.assertEqual(user.quote_streak_best, 3)
+
+    def test_no_baja_el_record_si_la_racha_es_menor(self):
+        user = User.objects.create(email="lector2@test.local", role=User.Role.LECTOR, quote_streak_best=10)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+
+        session = self.client.session
+        session["quote_streak"] = 2
+        session.save()
+
+        self.client.post(reverse("secret:quote-game"), {
+            "quote_id": self.quote.pk, "answer": "El padrino",
+        })
+        user.refresh_from_db()
+        self.assertEqual(user.quote_streak_best, 10)

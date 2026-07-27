@@ -17,5 +17,12 @@ def can_delete_comment(user, comment):
     return is_moderator(user) or comment.author_id == user.pk
 
 
+def can_hard_delete_comment(user, comment):
+    """Un comentario ya borrado (blando) solo lo puede eliminar definitivamente
+    un Gestor/Admin — un segundo "borrar" sobre lo que ya es "[comentario
+    eliminado]"."""
+    return comment.is_deleted and is_moderator(user)
+
+
 def can_moderate_thread(user):
     return is_moderator(user)

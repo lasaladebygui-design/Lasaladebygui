@@ -28,6 +28,14 @@
             </form>
             {% endif %}
         </div>
+        {% elif comment.can_hard_delete %}
+        <div class="thread-comment__actions">
+            <form action="{% url 'forum:comment-delete' comment.pk %}" method="post" class="inline-form"
+                  onsubmit="return confirm('¿Eliminar definitivamente? Esto no se puede deshacer.');">
+                {% csrf_token %}
+                <button type="submit" class="link-btn link-btn--danger">Eliminar definitivamente</button>
+            </form>
+        </div>
         {% endif %}
     </div>
 

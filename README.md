@@ -189,6 +189,8 @@ Cualquier usuario logueado (no baneado) puede abrir un hilo o responder, a cualq
 
 **Moderación (Gestor/Admin):** pueden cerrar un hilo (deja de admitir respuestas nuevas, ya publicadas se conservan) o eliminarlo por completo, y borrar cualquier comentario. El propio autor también puede borrar su comentario. Borrar un comentario es un **borrado lógico** (queda como "[comentario eliminado]") para no romper las respuestas que cuelguen de él; eliminar un hilo sí borra todo en cascada.
 
+**Doble borrado (Gestor/Admin):** sobre un comentario que ya está en "[comentario eliminado]", un Gestor o Admin ve un segundo botón, "Eliminar definitivamente", que esta vez sí lo borra de la base de datos sin posibilidad de deshacerlo. El autor del comentario no tiene este segundo paso, solo el borrado lógico.
+
 ### Imágenes y almacenamiento
 
 Las portadas de artículo y las imágenes subidas desde CKEditor se guardan en `media/` (disco local). **En el plan free de Render el disco no es persistente entre despliegues/reinicios** — las imágenes subidas en producción pueden desaparecer al redeployar (ver la nota en la sección de despliegue, más abajo, con las opciones para evitarlo). Para desarrollo local no hay ningún problema.
@@ -230,6 +232,11 @@ Dentro hay tres secciones, todas editables desde **Admin → Top Secret → Pel�
 - **a) Selector numérico:** eliges un número de la lista y te devuelve la película asociada.
 - **b) Buscador por nota:** un intervalo de nota *personal* (no la de IMDb ni la media de votos) y una recomendación al azar dentro de él.
 - **c) Lista completa:** todas las entradas, con su nota y comentario.
+- **d) Juegos:** de momento, "Frases célebres" (ver más abajo) — pensado como sección ampliable para futuros juegos.
+
+### Juegos: Frases célebres (`/top-secret/dentro/juegos/frases/`)
+
+La web muestra una frase de película (`apps.secret.models.MovieQuote`) y tres opciones (la correcta + dos incorrectas, editables desde **Admin → Top Secret → Frases célebres**); aciertas y sigue la racha, fallas y se reinicia a 0. La racha en curso se guarda en la sesión del navegador; la **mejor racha** se guarda de forma permanente en la cuenta (`User.quote_streak_best`) si has iniciado sesión — y se muestra en tu página de perfil — o solo para esa sesión de navegador si entras sin cuenta.
 
 ### Donaciones (`/donaciones/`)
 

@@ -3,7 +3,7 @@ from django.contrib import admin
 
 from apps.core.admin import SingletonAdmin
 
-from .models import SecretMovie, TopSecretConfig
+from .models import MovieQuote, SecretMovie, TopSecretConfig
 
 
 class TopSecretConfigForm(forms.ModelForm):
@@ -42,3 +42,9 @@ class SecretMovieAdmin(admin.ModelAdmin):
     search_fields = ("title",)
     autocomplete_fields = ("movie",)
     ordering = ("number",)
+
+
+@admin.register(MovieQuote)
+class MovieQuoteAdmin(admin.ModelAdmin):
+    list_display = ("quote", "correct_title")
+    search_fields = ("quote", "correct_title")

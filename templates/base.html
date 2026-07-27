@@ -43,6 +43,7 @@
                     <a href="{% url 'forum:list' %}">Foro</a>
                     <a href="{% url 'movies:list' %}">Películas</a>
                     <a href="{% url 'movies:roulette-home' %}">Ruleta</a>
+                    <a href="{% url 'secret:gate' %}">Top Secret</a>
                     {% if user.is_authenticated %}
                         {% if user.is_staff %}
                             <a href="{% url 'admin:index' %}">Panel</a>

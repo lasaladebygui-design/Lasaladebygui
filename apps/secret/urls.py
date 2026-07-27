@@ -11,4 +11,6 @@ urlpatterns = [
     path("dentro/numero/", views.by_number, name="by-number"),
     path("dentro/nota/", views.by_rating, name="by-rating"),
     path("dentro/lista/", views.full_list, name="list"),
+    path("dentro/juegos/", views.games_home, name="games"),
+    path("dentro/juegos/frases/", views.quote_game, name="quote-game"),
 ]

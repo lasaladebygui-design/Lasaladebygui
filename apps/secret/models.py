@@ -58,3 +58,21 @@ class SecretMovie(models.Model):
     @property
     def poster_url(self):
         return self.movie.poster_url if self.movie else ""
+
+
+class MovieQuote(models.Model):
+    """Frase de una película para el juego 'Frases célebres': la web la
+    muestra junto a tres opciones (la correcta + estas dos) y hay que
+    acertar la película. Primer juego de la sección Juegos de Top Secret."""
+
+    quote = models.TextField("frase")
+    correct_title = models.CharField("película correcta", max_length=255)
+    wrong_title_1 = models.CharField("opción incorrecta 1", max_length=255)
+    wrong_title_2 = models.CharField("opción incorrecta 2", max_length=255)
+
+    class Meta:
+        verbose_name = "frase célebre"
+        verbose_name_plural = "frases célebres"
+
+    def __str__(self):
+        return f"«{self.quote[:40]}…» — {self.correct_title}"

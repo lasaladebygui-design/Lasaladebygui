@@ -74,3 +74,30 @@ class ForumPermissionTests(TestCase):
             reverse("forum:detail", args=[self.thread.pk]), {"body": "respuesta tardía"}
         )
         self.assertEqual(response.status_code, 403)
+
+    def test_doble_borrado_gestor_elimina_definitivamente(self):
+        self.comment.is_deleted = True
+        self.comment.save()
+
+        self._login(self.gestor)
+        response = self.client.post(reverse("forum:comment-delete", args=[self.comment.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(ThreadComment.objects.filter(pk=self.comment.pk).exists())
+
+    def test_autor_no_puede_hacer_el_doble_borrado(self):
+        self.comment.is_deleted = True
+        self.comment.save()
+
+        self._login(self.lector)
+        response = self.client.post(reverse("forum:comment-delete", args=[self.comment.pk]))
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(ThreadComment.objects.filter(pk=self.comment.pk).exists())
+
+    def test_comentario_no_borrado_no_se_elimina_definitivamente_por_gestor(self):
+        # El primer "borrar" de un Gestor sobre un comentario vivo sigue
+        # siendo el borrado blando, no el definitivo.
+        self._login(self.gestor)
+        self.client.post(reverse("forum:comment-delete", args=[self.comment.pk]))
+        self.assertTrue(ThreadComment.objects.filter(pk=self.comment.pk).exists())
+        self.comment.refresh_from_db()
+        self.assertTrue(self.comment.is_deleted)

@@ -19,6 +19,10 @@
             <p class="profile-quote">“{{ user.favorite_quote }}”</p>
         {% endif %}
 
+        <p class="muted" style="text-align:center;">
+            🏆 Mejor racha en <a href="{% url 'secret:quote-game' %}">Frases célebres</a>: <strong>{{ user.quote_streak_best }}</strong>
+        </p>
+
         <form method="post" enctype="multipart/form-data" class="stacked-form">
             {% csrf_token %}
             <div class="field">

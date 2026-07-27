@@ -958,6 +958,26 @@ main { flex: 1; }
 }
 .secret-list__body p { margin: 0.3rem 0 0; }
 
+/* --- Juego: Frases célebres --------------------------------------------------- */
+
+.quote-game__score { color: var(--color-text-muted); margin-bottom: calc(var(--space-unit) * 6); }
+.quote-game__quote {
+    font-family: var(--font-heading);
+    font-style: italic;
+    font-size: 1.3rem;
+    text-align: center;
+    margin: 0 0 calc(var(--space-unit) * 8);
+    padding: calc(var(--space-unit) * 6);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+}
+.quote-game__options {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--space-unit) * 3);
+}
+
 /* --- Animación de proyector (intro) -----------------------------------------
    Prop fijo, independiente del tema activo: siempre negro, como una sala
    a oscuras antes de que arranque la proyección. */

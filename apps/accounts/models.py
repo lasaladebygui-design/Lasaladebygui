@@ -34,6 +34,10 @@ class User(AbstractUser):
         "frase mítica de cine", max_length=300, blank=True,
         help_text="Tu cita de cine favorita, para presumir en el perfil.",
     )
+    quote_streak_best = models.PositiveIntegerField(
+        "mejor racha en Frases célebres", default=0,
+        help_text="Récord del juego de Top Secret. Se actualiza solo al jugar.",
+    )
     theme = models.ForeignKey(
         Theme,
         verbose_name="tema personal",
