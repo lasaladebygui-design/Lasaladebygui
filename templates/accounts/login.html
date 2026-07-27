@@ -25,6 +25,7 @@
                 {{ form.password }}
                 {% for error in form.password.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
             </div>
+            <p class="auth-card__forgot"><a href="{% url 'accounts:password-reset' %}">¿Olvidaste tu contraseña?</a></p>
             <button type="submit" class="btn btn--accent btn--block">Entrar</button>
         </form>
 

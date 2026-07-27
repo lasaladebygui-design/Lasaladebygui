@@ -143,6 +143,10 @@ En cualquier sitio donde aparece un nombre de usuario (cabecera, autoría de art
 
 Es opcional y se activa/desactiva desde **Sitio → Configuración del sitio → "exigir verificación de email al registrarse"**. Cuando está activada, el registro sigue dejando entrar al usuario de inmediato (no se bloquea el login para evitar que un fallo de envío de email deje a alguien fuera de su cuenta), pero se le envía un email de confirmación y se marca `email_verified`. Esa marca se podrá usar en fases futuras para restringir acciones (comentar, votar, etc.).
 
+### Recuperar contraseña
+
+Desde `/cuenta/login/` hay un enlace "¿Olvidaste tu contraseña?" que usa las vistas estándar de Django (`PasswordResetView` y compañía) con plantillas propias a juego con el resto del sitio: pide el email, envía un enlace de un solo uso (caduca a los 3 días, por defecto de Django) y permite fijar una contraseña nueva. Por seguridad, pedir el reset para un email que no existe en la base de datos muestra el mismo mensaje que si sí existiera (no revela si una cuenta está registrada), y un usuario **Baneado** no recibe el email (su cuenta está inactiva).
+
 ## 5. Sistema de temas (`theme.css`)
 
 Los colores, tipografías y espaciados **no están hardcodeados**: cada tema es una fila del modelo `Theme` (`apps.core.models.Theme`), y sus valores se sirven dinámicamente en `/theme.css` como variables CSS genéricas (`--color-accent`, `--color-bg`, `--font-heading`, etc.). El resto de los estilos, en `static/css/main.css`, consume esas variables — nunca un color a pelo — así que un tema nuevo no requiere tocar CSS ni plantillas.

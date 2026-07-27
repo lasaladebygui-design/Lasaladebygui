@@ -1,4 +1,8 @@
+import re
+
+from django.core import mail
 from django.test import TestCase
+from django.urls import reverse
 
 from apps.forum.models import Thread
 
@@ -34,3 +38,52 @@ class GestorGroupSyncTests(TestCase):
         self.client.login(username=user.email, password="Testpass123!")
         response = self.client.get(f"/admin/forum/thread/{thread.pk}/change/")
         self.assertEqual(response.status_code, 200)
+
+
+class PasswordResetTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create(email="lector@test.local", role=User.Role.LECTOR)
+        self.user.set_password("ContraseñaVieja123!")
+        self.user.save()
+
+    def test_solicitar_reset_envia_email_con_enlace(self):
+        response = self.client.post(reverse("accounts:password-reset"), {"email": self.user.email})
+        self.assertRedirects(response, reverse("accounts:password-reset-done"))
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("Recupera tu contraseña", mail.outbox[0].subject)
+        self.assertIn(self.user.email, mail.outbox[0].to)
+
+    def test_email_inexistente_no_revela_si_existe_la_cuenta(self):
+        response = self.client.post(reverse("accounts:password-reset"), {"email": "no-existe@test.local"})
+        self.assertRedirects(response, reverse("accounts:password-reset-done"))
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_flujo_completo_cambia_la_contraseña(self):
+        self.client.post(reverse("accounts:password-reset"), {"email": self.user.email})
+        body = mail.outbox[0].body
+        match = re.search(r"/cuenta/password/reset/confirmar/([^/]+)/([^/\s]+)/", body)
+        self.assertIsNotNone(match)
+        uidb64, token = match.group(1), match.group(2)
+
+        # Django exige visitar primero la URL con el token real para que la
+        # vista lo intercambie por uno de sesión (así no queda en el historial).
+        confirm_url = reverse("accounts:password-reset-confirm", args=[uidb64, token])
+        session_response = self.client.get(confirm_url, follow=True)
+        self.assertEqual(session_response.status_code, 200)
+        final_url = session_response.redirect_chain[-1][0]
+
+        response = self.client.post(final_url, {
+            "new_password1": "ContraseñaNueva456!",
+            "new_password2": "ContraseñaNueva456!",
+        })
+        self.assertRedirects(response, reverse("accounts:password-reset-complete"))
+
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("ContraseñaNueva456!"))
+        self.assertFalse(self.user.check_password("ContraseñaVieja123!"))
+
+    def test_baneado_no_recibe_email_de_reset(self):
+        self.user.role = User.Role.BANEADO
+        self.user.save()
+        self.client.post(reverse("accounts:password-reset"), {"email": self.user.email})
+        self.assertEqual(len(mail.outbox), 0)
