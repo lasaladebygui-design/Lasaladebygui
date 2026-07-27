@@ -1,13 +1,15 @@
 from django.contrib import messages
 from django.core.mail import EmailMessage
-from django.shortcuts import redirect, render
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.template.response import TemplateResponse
 from django.views.decorators.cache import cache_control
+from django.views.decorators.http import require_POST
 
 from apps.articles.models import Article
 
 from .forms import ContactForm
-from .models import SiteConfig, get_effective_theme
+from .models import SESSION_THEME_KEY, SiteConfig, Theme, get_effective_theme
 
 
 def home(request):
@@ -46,9 +48,29 @@ def contact(request):
     return render(request, "core/contact.html", {"form": form})
 
 
-@cache_control(private=True, max_age=30)
+@cache_control(private=True, no_cache=True)
 def theme_css(request):
-    theme = get_effective_theme(request.user)
+    theme = get_effective_theme(request.user, request.session)
     return TemplateResponse(
         request, "core/theme.css", {"theme": theme}, content_type="text/css"
     )
+
+
+@require_POST
+def set_theme(request, slug):
+    theme = get_object_or_404(Theme, slug=slug)
+    if request.user.is_authenticated:
+        request.user.theme = theme
+        request.user.save(update_fields=["theme"])
+    else:
+        request.session[SESSION_THEME_KEY] = theme.slug
+    return JsonResponse({"ok": True, "slug": theme.slug})
+
+
+@require_POST
+def reset_theme(request):
+    if request.user.is_authenticated:
+        request.user.theme = None
+        request.user.save(update_fields=["theme"])
+    request.session.pop(SESSION_THEME_KEY, None)
+    return JsonResponse({"ok": True, "slug": None})

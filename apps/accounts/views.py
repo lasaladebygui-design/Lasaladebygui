@@ -10,7 +10,7 @@ from django.urls import reverse
 
 from apps.core.models import SiteConfig
 
-from .forms import EmailAuthenticationForm, ProfileThemeForm, RegisterForm
+from .forms import EmailAuthenticationForm, RegisterForm
 from .models import EmailVerificationToken, User
 
 
@@ -87,15 +87,7 @@ def verify_email(request, token):
 
 @login_required
 def profile(request):
-    if request.method == "POST":
-        form = ProfileThemeForm(request.POST, instance=request.user)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Preferencias actualizadas.")
-            return redirect("accounts:profile")
-    else:
-        form = ProfileThemeForm(instance=request.user)
-    return render(request, "accounts/profile.html", {"form": form})
+    return render(request, "accounts/profile.html")
 
 
 @login_required

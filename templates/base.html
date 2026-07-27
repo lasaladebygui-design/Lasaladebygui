@@ -15,6 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Bebas+Neue&family=Special+Elite&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% url 'theme-css' %}">
     <link rel="stylesheet" href="{% static 'css/main.css' %}">
+    <script src="{% static 'js/theme_switcher.js' %}"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
     <script>
@@ -36,6 +37,27 @@
                 <img src="{% static 'img/logo-icon.svg' %}" alt="" class="brand__icon" width="36" height="36">
                 <span class="brand__text">La sala de <em>Bygui</em></span>
             </a>
+
+            <div class="theme-switcher" x-data="themeSwitcher()">
+                <button type="button" class="theme-switcher__toggle" @click="open = !open" @click.outside="open = false" :aria-expanded="open.toString()" title="Cambiar tema visual">
+                    <span aria-hidden="true">🌙</span>
+                    <span class="visually-hidden">Cambiar tema visual</span>
+                </button>
+                <div class="theme-switcher__menu" x-show="open" x-cloak x-transition>
+                    {% for theme in all_themes %}
+                        <button type="button"
+                                class="theme-switcher__option{% if theme.pk == site_theme.pk %} theme-switcher__option--active{% endif %}"
+                                @click="choose('{{ theme.slug }}')">
+                            {{ theme.name }}
+                        </button>
+                    {% endfor %}
+                    {% if user.is_authenticated and user.theme_id %}
+                        <button type="button" class="theme-switcher__option theme-switcher__option--reset" @click="reset()">
+                            Usar tema del sitio
+                        </button>
+                    {% endif %}
+                </div>
+            </div>
 
             <button type="button" class="nav-toggle" @click="navOpen = !navOpen" :aria-expanded="navOpen.toString()" aria-controls="site-nav">
                 <span class="visually-hidden">Abrir menú</span>

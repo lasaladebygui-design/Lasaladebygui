@@ -1,8 +1,6 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 
-from apps.core.models import Theme
-
 from .models import User
 
 
@@ -53,19 +51,6 @@ class RegisterForm(forms.ModelForm):
         if commit:
             user.save()
         return user
-
-
-class ProfileThemeForm(forms.ModelForm):
-    theme = forms.ModelChoiceField(
-        queryset=Theme.objects.all(),
-        required=False,
-        empty_label="Usar el tema activo del sitio",
-        label="Tema visual",
-    )
-
-    class Meta:
-        model = User
-        fields = ["theme"]
 
 
 class EmailAuthenticationForm(AuthenticationForm):

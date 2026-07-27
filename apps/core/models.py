@@ -150,14 +150,27 @@ class SiteConfig(SingletonModel):
         return "Configuración de La Sala de Bygui"
 
 
-def get_effective_theme(user=None):
-    """Resuelve qué tema debe pintarse: el elegido por el usuario en su
-    perfil, si lo tiene; si no, el tema activo del sitio; si no, Cinephile
-    por su slug; y como último recurso un Theme() sin guardar con los
-    valores por defecto, para que /theme.css nunca falle."""
+SESSION_THEME_KEY = "theme_slug"
+
+
+def get_effective_theme(user=None, session=None):
+    """Resuelve qué tema debe pintarse:
+    1. El guardado en la cuenta del usuario (si ha iniciado sesión y tiene uno).
+    2. El elegido desde el selector de la cabecera por un visitante sin
+       cuenta, guardado en su sesión de navegador.
+    3. El "tema activo" del sitio.
+    4. Cinephile por su slug, y como último recurso un Theme() sin guardar
+       con los valores por defecto, para que /theme.css nunca falle."""
 
     if user is not None and getattr(user, "is_authenticated", False) and getattr(user, "theme_id", None):
         return user.theme
+
+    if session is not None:
+        slug = session.get(SESSION_THEME_KEY)
+        if slug:
+            theme = Theme.objects.filter(slug=slug).first()
+            if theme:
+                return theme
 
     config = SiteConfig.load()
     if config.active_theme_id:

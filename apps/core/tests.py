@@ -5,7 +5,7 @@ from django.urls import reverse
 
 from apps.accounts.models import User
 
-from .models import SiteConfig
+from .models import SESSION_THEME_KEY, SiteConfig, Theme, get_effective_theme
 
 
 class ContactFormTests(TestCase):
@@ -103,3 +103,48 @@ class BootstrapProductionTests(TestCase):
             del os.environ["DJANGO_SUPERUSER_PASSWORD"]
 
         self.assertFalse(User.objects.filter(email="otro@lasaladebygui.local").exists())
+
+
+class ThemeSwitcherTests(TestCase):
+    def setUp(self):
+        self.noir = Theme.objects.get(slug="noir")
+        self.vintage = Theme.objects.get(slug="vintage")
+
+    def test_anonimo_cambia_tema_via_sesion(self):
+        response = self.client.post(reverse("core:set-theme", args=[self.noir.slug]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.client.session[SESSION_THEME_KEY], "noir")
+
+        theme = get_effective_theme(None, self.client.session)
+        self.assertEqual(theme, self.noir)
+
+    def test_anonimo_ve_el_tema_en_theme_css(self):
+        self.client.post(reverse("core:set-theme", args=[self.vintage.slug]))
+        response = self.client.get(reverse("theme-css"))
+        self.assertContains(response, self.vintage.color_bg)
+
+    def test_usuario_logueado_guarda_en_su_cuenta_no_en_sesion(self):
+        user = User.objects.create(email="lector@test.local", role=User.Role.LECTOR)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+
+        self.client.post(reverse("core:set-theme", args=[self.noir.slug]))
+        user.refresh_from_db()
+        self.assertEqual(user.theme, self.noir)
+        self.assertNotIn(SESSION_THEME_KEY, self.client.session)
+
+    def test_reset_theme_quita_la_preferencia(self):
+        user = User.objects.create(email="lector2@test.local", role=User.Role.LECTOR, theme=self.noir)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+
+        self.client.post(reverse("core:reset-theme"))
+        user.refresh_from_db()
+        self.assertIsNone(user.theme)
+
+    def test_theme_css_no_se_cachea_publicamente(self):
+        response = self.client.get(reverse("theme-css"))
+        self.assertIn("no-cache", response.headers["Cache-Control"])
+        self.assertIn("private", response.headers["Cache-Control"])
