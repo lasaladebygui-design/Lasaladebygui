@@ -149,7 +149,11 @@ Desde `/cuenta/login/` hay un enlace "¿Olvidaste tu contraseña?" que usa las v
 
 ### Perfil de usuario (`/cuenta/perfil/`)
 
-Cada usuario puede subir una foto de perfil (`User.avatar`) y fijar una frase mítica de cine (`User.favorite_quote`), visibles en su propia página de perfil junto a su nombre coloreado por rango. El tema visual **ya no se cambia aquí** — se movió al icono 🌙 de la cabecera (ver sección 5).
+Cada usuario puede subir una foto de perfil (`User.avatar`), visible en su propia página y en su perfil público junto a su nombre coloreado por rango. El tema visual **ya no se cambia aquí** — se movió al icono 🌙 de la cabecera (ver sección 5).
+
+**Recorte de la foto de perfil:** al elegir una imagen se abre un editor de encuadre (`static/js/avatar_cropper.js`, sin dependencias externas) sobre un lienzo circular: se puede arrastrar la imagen para reposicionarla y hay una barra para hacer zoom. Al pulsar "Aplicar recorte" se dibuja la selección en un `<canvas>` oculto (480×480), se convierte a un `Blob`/`File` con `canvas.toBlob` y se inyecta en el campo de archivo real del formulario mediante `DataTransfer` — así el recorte ya se sube como si el usuario hubiera seleccionado directamente esa imagen cuadrada, sin tocar nada en el backend (`ProfileForm` sigue recibiendo un `ImageField` normal).
+
+**Frase de perfil dinámica:** el antiguo campo de texto libre ("frase mítica de cine") se sustituyó por una frase que rota sola cada 12 segundos, tomada del mismo pool que usa el juego Frases célebres (`apps.secret.models.MovieQuote`) — así el pool crece automáticamente si se añaden frases nuevas al juego, sin mantener dos listados. Se ve tanto en tu propio perfil como en el perfil público de cualquier otro usuario (`templates/partials/rotating_quote.html` + `static/js/rotating_quote.js`): cada carga de página empieza en una frase al azar y rota por todo el pool.
 
 ## 5. Sistema de temas (`theme.css`)
 
@@ -201,7 +205,9 @@ Las portadas de artículo y las imágenes subidas desde CKEditor se guardan en `
 
 Cada película se cachea una sola vez en el modelo `Movie` (`apps.movies.models.Movie`), identificada por su `tmdb_id`: título, año, portada y sinopsis vienen de **TMDb**; la nota IMDb se resuelve una vez vía **OMDb** (a partir del `imdb_id` que TMDb expone en `external_ids`) y se guarda en `imdb_rating`. Ni la ruleta ni las votaciones vuelven a golpear las APIs externas para una película ya cacheada.
 
-`python manage.py seed_movies` (opcional `--pages N`, por defecto 2) recorre "populares" y "mejor valoradas" de TMDb y resuelve la nota IMDb de cada una — es lo que necesita el Modo 1 de la ruleta para tener con qué filtrar por rango de nota. Sin ejecutarlo, el catálogo empieza vacío y se va llenando según los usuarios añaden películas a su lista en el Modo 2.
+`python manage.py seed_movies` (opcional `--pages N`, por defecto 2) recorre "populares" y "mejor valoradas" de TMDb **y además tres franjas de `/discover/movie` por nota** (≤4, 4-6 y 6-7.5, cada una con un mínimo de votos para evitar títulos irrelevantes) para que el catálogo no quede sesgado hacia notas altas — si solo se usaran "populares"/"mejor valoradas", el Modo 1 de la ruleta se quedaría sin candidatas al elegir un rango de nota bajo. Resuelve la nota IMDb de cada película encontrada. Sin ejecutarlo, el catálogo empieza vacío y se va llenando según los usuarios añaden películas a su lista en el Modo 2.
+
+Si ya habías ejecutado `seed_movies` antes de este cambio y notas huecos en ciertos rangos de nota, vuelve a ejecutarlo (es idempotente: no duplica lo que ya existe) para completar el catálogo con las franjas nuevas.
 
 **Buscar en `/peliculas/` no se limita al catálogo local:** si buscas un título que no está cacheado todavía, la página también consulta TMDb en vivo y muestra esos resultados en una sección aparte ("Más resultados"); al abrir uno se cachea igual que cualquier otra (título, portada, sinopsis y nota IMDb) y a partir de ahí ya cuenta para el Modo 1 de la ruleta y las votaciones.
 
@@ -238,6 +244,7 @@ Dentro hay tres secciones, todas editables desde **Admin → Top Secret → Pel�
 - **c) Lista completa:** todas las entradas, con su nota y comentario.
 - **d) Juegos:** de momento, "Frases célebres" (ver más abajo) — pensado como sección ampliable para futuros juegos.
 - **e) Tier list:** un ranking editable de películas por niveles S/A/B/C/D (`apps.secret.models.TierListEntry`, editable desde **Admin → Top Secret → Tier list**), con póster opcional (enlazando a una película del catálogo) o solo título. Pensado para uso personal del dueño de la web, no hay edición desde la web pública.
+- **f) Tablón de fotos** (`/top-secret/dentro/tablon/`): a diferencia del resto de Top Secret, **esto sí se sube desde la propia web, no desde el admin** — cualquiera que haya entrado con el código puede subir una foto con una pequeña descripción (`apps.secret.models.SecretPhoto`). No hace falta tener cuenta para subir una; si el visitante ha iniciado sesión, se guarda y se muestra quién la subió (con su nombre coloreado por rango), y si no, aparece como "Anónimo".
 
 ### Juegos: Frases célebres (`/top-secret/dentro/juegos/frases/`)
 
@@ -245,11 +252,13 @@ La web muestra una frase de película (`apps.secret.models.MovieQuote`) y tres o
 
 Al fallar se muestra una pantalla de fin de partida con la racha conseguida, un botón "Jugar de nuevo" y, si esa racha ha superado tu mejor marca anterior, un mensaje de felicitación.
 
-## 9. Amigos y mensajes (`/social/`)
+## 9. Social: buscador, amigos y mensajes (`/social/`)
 
-Cualquier usuario logueado puede visitar el perfil público de otro (`/social/usuarios/<username>/`, accesible desde los nombres de autor del foro) y enviarle una solicitud de amistad. Si el otro usuario ya le había enviado una solicitud pendiente, aceptarla en ese momento los hace amigos directamente en vez de crear una segunda solicitud cruzada. Desde `/social/amigos/` se ven las solicitudes recibidas/enviadas y la lista de amigos actuales, con opción de eliminar la amistad.
+`/social/` es la página central del apartado social (enlazada como "Social" en el desplegable de la cabecera), con dos cosas a la vez: un **buscador de usuarios por nombre** (`?q=...`, coincidencia parcial, para encontrar a cualquiera aunque nunca haya escrito en el foro) y la lista de **tus chats** (conversaciones existentes, con cuántos mensajes sin leer hay en cada una).
 
-La mensajería (`/social/mensajes/`) está **limitada a amigos**: solo se puede abrir o escribir en una conversación con alguien con quien ya existe una amistad aceptada (`apps.social.models.FriendRequest` con `accepted=True`); intentarlo con quien no es amigo da 404. La bandeja de entrada agrupa los mensajes por conversación y marca cuántos están sin leer; al abrir una conversación, los mensajes recibidos se marcan como leídos.
+Desde el buscador (o desde los nombres de autor del foro, que también enlazan al perfil) se llega al perfil público de cualquiera (`/social/usuarios/<username>/`), donde se puede enviar una solicitud de amistad. Si el otro usuario ya te había enviado una solicitud pendiente, aceptarla en ese momento os hace amigos directamente en vez de crear una segunda solicitud cruzada. `/social/amigos/` (enlazado desde la página Social, con un contador de solicitudes pendientes) lista solicitudes recibidas/enviadas y tus amigos actuales, con opción de eliminar la amistad.
+
+La mensajería está **limitada a amigos**: solo se puede abrir o escribir en una conversación con alguien con quien ya existe una amistad aceptada (`apps.social.models.FriendRequest` con `accepted=True`); intentarlo con quien no es amigo da 404. Al abrir una conversación, los mensajes recibidos se marcan como leídos.
 
 ### Donaciones (`/donaciones/`)
 

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import models
 
@@ -108,3 +109,26 @@ class TierListEntry(models.Model):
     @property
     def poster_url(self):
         return self.movie.poster_url if self.movie else ""
+
+
+class SecretPhoto(models.Model):
+    """Tablón de fotos de Top Secret: cualquiera que haya entrado con el
+    código puede subir una foto con una pequeña descripción (no hace falta
+    tener cuenta; si el visitante ha iniciado sesión, se guarda quién la
+    subió, pero eso no es un requisito para publicar)."""
+
+    image = models.ImageField("foto", upload_to="secret_photos/")
+    description = models.CharField("descripción", max_length=280, blank=True)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="subida por",
+        on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    created_at = models.DateTimeField("subida", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "foto del tablón"
+        verbose_name_plural = "Top Secret: tablón de fotos"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.description or f"Foto #{self.pk}"

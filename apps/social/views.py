@@ -89,7 +89,12 @@ def friends_list(request):
 
 
 @login_required
-def inbox(request):
+def social_home(request):
+    query = request.GET.get("q", "").strip()
+    results = []
+    if query:
+        results = User.objects.filter(username__icontains=query).exclude(pk=request.user.pk)[:20]
+
     thread_messages = Message.objects.filter(
         Q(sender=request.user) | Q(recipient=request.user)
     ).select_related("sender", "recipient").order_by("-created_at")
@@ -101,7 +106,14 @@ def inbox(request):
         if msg.recipient_id == request.user.pk and msg.read_at is None:
             entry["unread"] += 1
 
-    return render(request, "social/inbox.html", {"conversations": conversations.values()})
+    pending_incoming = FriendRequest.objects.filter(to_user=request.user, accepted=False).count()
+
+    return render(request, "social/home.html", {
+        "query": query,
+        "results": results,
+        "conversations": conversations.values(),
+        "pending_incoming": pending_incoming,
+    })
 
 
 @login_required

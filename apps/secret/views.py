@@ -4,8 +4,8 @@ from functools import wraps
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import CodeForm, NumberSelectForm, RatingSearchForm
-from .models import MovieQuote, SecretMovie, TierListEntry, TopSecretConfig
+from .forms import CodeForm, NumberSelectForm, RatingSearchForm, SecretPhotoForm
+from .models import MovieQuote, SecretMovie, SecretPhoto, TierListEntry, TopSecretConfig
 
 SESSION_KEY = "top_secret_unlocked"
 QUOTE_STREAK_KEY = "quote_streak"
@@ -86,6 +86,24 @@ def tier_list(request):
     for entry in TierListEntry.objects.select_related("movie"):
         tiers[entry.tier].append(entry)
     return render(request, "secret/tier_list.html", {"tiers": tiers})
+
+
+@secret_required
+def photo_board(request):
+    if request.method == "POST":
+        form = SecretPhotoForm(request.POST, request.FILES)
+        if form.is_valid():
+            photo = form.save(commit=False)
+            if request.user.is_authenticated:
+                photo.uploaded_by = request.user
+            photo.save()
+            messages.success(request, "Foto subida al tablón.")
+            return redirect("secret:photo-board")
+    else:
+        form = SecretPhotoForm()
+
+    photos = SecretPhoto.objects.select_related("uploaded_by")
+    return render(request, "secret/photo_board.html", {"form": form, "photos": photos})
 
 
 # --- Juegos -----------------------------------------------------------------

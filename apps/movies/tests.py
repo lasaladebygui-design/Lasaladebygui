@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from apps.accounts.models import User
@@ -215,3 +215,60 @@ class MovieListLiveSearchTests(TestCase):
         mock_get_or_create.return_value = make_movie(603, "Matrix", None)
         response = self.client.get(reverse("movies:from-tmdb", args=[603]))
         self.assertRedirects(response, reverse("movies:detail", args=[mock_get_or_create.return_value.pk]))
+
+
+class SeedMoviesCommandTests(TestCase):
+    """`seed_movies` debe combinar populares/mejor valoradas con discover por
+    franja de nota, para que el catálogo no quede sesgado hacia notas altas
+    (si no, ciertos rangos del Modo 1 de la ruleta se quedan sin candidatas)."""
+
+    def _fake_tmdb_get(self, url, params=None, timeout=None):
+        from unittest.mock import MagicMock
+
+        response = MagicMock()
+        response.raise_for_status.return_value = None
+
+        if url.endswith("/movie/popular"):
+            response.json.return_value = {"results": [{"id": 1}, {"id": 2}]}
+        elif url.endswith("/movie/top_rated"):
+            response.json.return_value = {"results": [{"id": 2}, {"id": 3}]}
+        elif url.endswith("/discover/movie"):
+            # Cada franja (bucket) devuelve una peli distinta según su umbral,
+            # simulando que discover trae candidatas de nota baja/media.
+            if params.get("vote_average.lte") == 4:
+                response.json.return_value = {"results": [{"id": 100}]}
+            elif params.get("vote_average.lte") == 6:
+                response.json.return_value = {"results": [{"id": 101}]}
+            else:
+                response.json.return_value = {"results": [{"id": 102}]}
+        elif "themoviedb.org/3/movie/" in url:
+            tmdb_id = int(url.rstrip("/").split("/")[-1])
+            response.json.return_value = {
+                "id": tmdb_id, "title": f"Película {tmdb_id}", "release_date": "2020-01-01",
+                "poster_path": "/p.jpg", "overview": "...",
+                "external_ids": {"imdb_id": f"tt{tmdb_id:07d}"},
+            }
+        elif "omdbapi.com" in url:
+            response.json.return_value = {"imdbRating": "5.5"}
+        else:
+            raise AssertionError(f"URL inesperada en el test: {url}")
+        return response
+
+    @override_settings(TMDB_API_KEY="fake-tmdb-key", OMDB_API_KEY="fake-omdb-key")
+    @patch("requests.get")
+    def test_incluye_peliculas_de_las_franjas_discover_ademas_de_populares(self, mock_get):
+        mock_get.side_effect = self._fake_tmdb_get
+        from django.core.management import call_command
+
+        call_command("seed_movies", "--pages", "1")
+
+        tmdb_ids = set(Movie.objects.values_list("tmdb_id", flat=True))
+        # 1, 2, 3 vienen de popular/top_rated; 100/101/102 de las franjas discover.
+        self.assertEqual(tmdb_ids, {1, 2, 3, 100, 101, 102})
+
+    @override_settings(TMDB_API_KEY="", OMDB_API_KEY="")
+    def test_sin_api_keys_no_hace_peticiones(self):
+        from django.core.management import call_command
+
+        call_command("seed_movies")
+        self.assertEqual(Movie.objects.count(), 0)

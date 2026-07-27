@@ -1,9 +1,25 @@
-from django.test import TestCase
+import io
+import tempfile
+
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from apps.accounts.models import User
 
-from .models import MovieQuote, SecretMovie, TierListEntry, TopSecretConfig
+from .models import MovieQuote, SecretMovie, SecretPhoto, TierListEntry, TopSecretConfig
+
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
+
+
+def _fake_image():
+    buffer = io.BytesIO()
+    Image.new("RGB", (2, 2)).save(buffer, format="PNG")
+    buffer.seek(0)
+    return SimpleUploadedFile("photo.png", buffer.read(), content_type="image/png")
 
 
 class GateTests(TestCase):
@@ -82,6 +98,49 @@ class TierListTests(TestCase):
         self.client.post(reverse("secret:lock"))
         response = self.client.get(reverse("secret:tier-list"))
         self.assertRedirects(response, reverse("secret:gate"))
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class PhotoBoardTests(TestCase):
+    def setUp(self):
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+
+    def test_requiere_haber_entrado_al_maletin(self):
+        self.client.post(reverse("secret:lock"))
+        response = self.client.get(reverse("secret:photo-board"))
+        self.assertRedirects(response, reverse("secret:gate"))
+
+    def test_subir_foto_sin_cuenta(self):
+        response = self.client.post(reverse("secret:photo-board"), {
+            "image": _fake_image(), "description": "Una foto anónima",
+        })
+        self.assertRedirects(response, reverse("secret:photo-board"))
+        photo = SecretPhoto.objects.get()
+        self.assertEqual(photo.description, "Una foto anónima")
+        self.assertIsNone(photo.uploaded_by)
+
+    def test_subir_foto_logueado_guarda_quien_la_subio(self):
+        user = User.objects.create(email="lector@test.local", role=User.Role.LECTOR)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+
+        self.client.post(reverse("secret:photo-board"), {
+            "image": _fake_image(), "description": "Foto con autor",
+        })
+        photo = SecretPhoto.objects.get()
+        self.assertEqual(photo.uploaded_by, user)
+
+    def test_listado_muestra_las_fotos_subidas(self):
+        SecretPhoto.objects.create(image=_fake_image(), description="Foto de prueba")
+        response = self.client.get(reverse("secret:photo-board"))
+        self.assertContains(response, "Foto de prueba")
+
+    def test_sin_imagen_no_crea_la_foto(self):
+        response = self.client.post(reverse("secret:photo-board"), {"description": "Sin imagen"})
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(SecretPhoto.objects.exists())
 
 
 class QuoteGameTests(TestCase):

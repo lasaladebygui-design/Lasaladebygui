@@ -112,23 +112,8 @@ class ProfileTests(TestCase):
         self.user.save()
         self.client.login(username=self.user.email, password="Testpass123!")
 
-    def test_guardar_frase_mitica(self):
-        response = self.client.post(reverse("accounts:profile"), {
-            "favorite_quote": "Hasta el infinito y más allá",
-        })
-        self.assertRedirects(response, reverse("accounts:profile"))
-        self.user.refresh_from_db()
-        self.assertEqual(self.user.favorite_quote, "Hasta el infinito y más allá")
-
-    def test_la_frase_se_muestra_en_el_perfil(self):
-        self.user.favorite_quote = "Que la Fuerza te acompañe"
-        self.user.save()
-        response = self.client.get(reverse("accounts:profile"))
-        self.assertContains(response, "Que la Fuerza te acompañe")
-
     def test_subir_avatar(self):
         response = self.client.post(reverse("accounts:profile"), {
-            "favorite_quote": "",
             "avatar": _fake_image(),
         })
         self.assertRedirects(response, reverse("accounts:profile"))
@@ -138,3 +123,19 @@ class ProfileTests(TestCase):
     def test_sin_avatar_muestra_placeholder(self):
         response = self.client.get(reverse("accounts:profile"))
         self.assertContains(response, "profile-avatar--placeholder")
+
+    def test_el_perfil_incluye_el_pool_de_frases_para_la_frase_dinamica(self):
+        from apps.secret.models import MovieQuote
+
+        MovieQuote.objects.create(
+            quote="Frase de prueba sin caracteres especiales",
+            correct_title="Película X", wrong_title_1="Y", wrong_title_2="Z",
+        )
+        response = self.client.get(reverse("accounts:profile"))
+        self.assertContains(response, "rotating-quotes-data")
+        self.assertContains(response, "Frase de prueba sin caracteres especiales")
+
+    def test_sin_frases_celebres_el_perfil_no_falla(self):
+        response = self.client.get(reverse("accounts:profile"))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "rotating-quotes-data")

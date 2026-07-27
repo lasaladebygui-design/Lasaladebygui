@@ -1,0 +1,6 @@
+{% load accounts_extras %}
+{% rotating_quotes as quotes %}
+{% if quotes %}
+{{ quotes|json_script:"rotating-quotes-data" }}
+<p class="profile-quote" x-data="rotatingQuote(12000)" x-text="quote"></p>
+{% endif %}

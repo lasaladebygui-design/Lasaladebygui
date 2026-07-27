@@ -373,7 +373,10 @@ main { flex: 1; }
     text-align: center;
     color: var(--color-text-muted);
     margin: 0 0 calc(var(--space-unit) * 6);
+    min-height: 1.4em;
 }
+.profile-quote:not(:empty)::before { content: "“"; }
+.profile-quote:not(:empty)::after { content: "”"; }
 
 .field { margin-bottom: calc(var(--space-unit) * 4); }
 .field label {
@@ -688,7 +691,8 @@ main { flex: 1; }
     margin-bottom: calc(var(--space-unit) * 6);
     max-width: 420px;
 }
-.search-form input[type="text"] {
+.search-form input[type="text"],
+.search-form input[type="search"] {
     flex: 1;
     padding: 0.6rem 0.8rem;
     border-radius: var(--radius-base);
@@ -1152,6 +1156,107 @@ main { flex: 1; }
     .intro__grain, .intro__beam, .intro__reel-bar { animation: none; }
     .intro__center { animation: intro-logo-in 0.4s ease-out 0.1s forwards; }
 }
+
+/* --- Perfil: recorte de foto ------------------------------------------------ */
+
+.avatar-editor { text-align: center; }
+
+.avatar-editor__button {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: calc(var(--space-unit) * 1);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+}
+
+.avatar-editor__button .profile-avatar { margin: 0; }
+
+.avatar-editor__label {
+    font-size: 0.8rem;
+    color: var(--color-accent);
+    text-decoration: underline;
+}
+
+.avatar-crop-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+.avatar-crop-modal__card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    padding: calc(var(--space-unit) * 4);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: calc(var(--space-unit) * 3);
+}
+
+.avatar-crop-modal__title { margin: 0; font-weight: 600; }
+
+.avatar-crop-modal__stage {
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    overflow: hidden;
+    position: relative;
+    background: var(--color-bg);
+    border: 2px solid var(--color-accent);
+    cursor: grab;
+    touch-action: none;
+}
+
+.avatar-crop-modal__image {
+    position: absolute;
+    max-width: none;
+    user-select: none;
+    pointer-events: none;
+}
+
+.avatar-crop-modal__zoom { width: 240px; }
+
+.avatar-crop-modal__actions { display: flex; gap: calc(var(--space-unit) * 2); }
+
+/* --- Top Secret: tablón de fotos -------------------------------------------- */
+
+.photo-board {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: calc(var(--space-unit) * 4);
+    margin-top: calc(var(--space-unit) * 6);
+}
+
+.photo-board__item {
+    margin: 0;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    overflow: hidden;
+}
+
+.photo-board__img {
+    width: 100%;
+    aspect-ratio: 4/3;
+    object-fit: cover;
+    display: block;
+}
+
+.photo-board__caption {
+    padding: calc(var(--space-unit) * 2) calc(var(--space-unit) * 3);
+}
+
+.photo-board__caption p { margin: 0 0 0.3rem; }
 
 /* --- Social: amigos y mensajes -------------------------------------------- */
 

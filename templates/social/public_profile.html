@@ -14,9 +14,7 @@
 
         <h1>{% username_badge profile_user %}</h1>
 
-        {% if profile_user.favorite_quote %}
-            <p class="profile-quote">“{{ profile_user.favorite_quote }}”</p>
-        {% endif %}
+        {% include "partials/rotating_quote.html" %}
 
         <p class="muted" style="text-align:center;">
             🏆 Mejor racha en Frases célebres: <strong>{{ profile_user.quote_streak_best }}</strong>

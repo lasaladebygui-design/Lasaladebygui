@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import SecretMovie
+from .models import SecretMovie, SecretPhoto
 
 RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
 
@@ -29,3 +29,13 @@ class RatingSearchForm(forms.Form):
         if min_r and max_r and int(min_r) > int(max_r):
             raise forms.ValidationError("La nota mínima no puede ser mayor que la máxima.")
         return cleaned
+
+
+class SecretPhotoForm(forms.ModelForm):
+    class Meta:
+        model = SecretPhoto
+        fields = ["image", "description"]
+        labels = {"image": "Foto", "description": "Descripción"}
+        widgets = {
+            "description": forms.TextInput(attrs={"placeholder": "Una pequeña descripción..."}),
+        }

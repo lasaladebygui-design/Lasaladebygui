@@ -131,12 +131,33 @@ class MessagingTests(TestCase):
         msg = Message.objects.get(sender=self.bea, recipient=self.ana)
         self.assertIsNotNone(msg.read_at)
 
-    def test_inbox_agrupa_por_conversacion(self):
+    def test_home_agrupa_los_chats_por_conversacion(self):
         FriendRequest.objects.create(from_user=self.ana, to_user=self.bea, accepted=True)
         Message.objects.create(sender=self.ana, recipient=self.bea, body="Uno")
         Message.objects.create(sender=self.bea, recipient=self.ana, body="Dos")
         self.client.login(username="ana@test.local", password="Testpass123!")
-        response = self.client.get(reverse("social:inbox"))
+        response = self.client.get(reverse("social:home"))
         conversations = list(response.context["conversations"])
         self.assertEqual(len(conversations), 1)
         self.assertEqual(conversations[0]["user"], self.bea)
+
+
+class UserSearchTests(TestCase):
+    def setUp(self):
+        self.ana = make_user("ana@test.local")
+        self.bea = make_user("bea@test.local")
+
+    def test_buscar_encuentra_por_coincidencia_parcial(self):
+        self.client.login(username="ana@test.local", password="Testpass123!")
+        response = self.client.get(reverse("social:home"), {"q": "be"})
+        self.assertIn(self.bea, response.context["results"])
+
+    def test_buscar_no_se_incluye_a_si_mismo(self):
+        self.client.login(username="ana@test.local", password="Testpass123!")
+        response = self.client.get(reverse("social:home"), {"q": "ana"})
+        self.assertNotIn(self.ana, response.context["results"])
+
+    def test_sin_query_no_hay_resultados(self):
+        self.client.login(username="ana@test.local", password="Testpass123!")
+        response = self.client.get(reverse("social:home"))
+        self.assertEqual(list(response.context["results"]), [])

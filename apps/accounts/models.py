@@ -30,10 +30,6 @@ class User(AbstractUser):
     email_verified = models.BooleanField("email verificado", default=False)
     bio = models.TextField("biografía", blank=True)
     avatar = models.ImageField("foto de perfil", upload_to="avatars/", blank=True, null=True)
-    favorite_quote = models.CharField(
-        "frase mítica de cine", max_length=300, blank=True,
-        help_text="Tu cita de cine favorita, para presumir en el perfil.",
-    )
     quote_streak_best = models.PositiveIntegerField(
         "mejor racha en Frases célebres", default=0,
         help_text="Récord del juego de Top Secret. Se actualiza solo al jugar.",

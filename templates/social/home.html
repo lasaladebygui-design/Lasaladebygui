@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load accounts_extras %}
+
+{% block title %}Social{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap">
+        <div class="section-header">
+            <h1>Social</h1>
+            <a href="{% url 'social:friends' %}" class="btn btn--ghost">
+                Amigos{% if pending_incoming %} <span class="tag-pill">{{ pending_incoming }} pendiente{{ pending_incoming|pluralize }}</span>{% endif %}
+            </a>
+        </div>
+
+        <form method="get" class="search-form">
+            <input type="search" name="q" value="{{ query }}" placeholder="Buscar usuarios por nombre..." autofocus>
+            <button type="submit" class="btn btn--accent">Buscar</button>
+        </form>
+
+        {% if query %}
+        <h2 class="movie-section-title">Resultados para “{{ query }}”</h2>
+        {% if results %}
+        <ul class="plain-list">
+            {% for person in results %}
+            <li>
+                <a href="{% url 'social:public-profile' username=person.username %}">{% username_badge person %}</a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="muted">No hay ningún usuario con ese nombre.</p>
+        {% endif %}
+        {% endif %}
+
+        <h2 class="movie-section-title">Tus chats</h2>
+        {% if conversations %}
+        <ul class="plain-list">
+            {% for entry in conversations %}
+            <li>
+                <a href="{% url 'social:conversation' username=entry.user.username %}">
+                    {% username_badge entry.user %}
+                    {% if entry.unread %}<span class="tag-pill">{{ entry.unread }} sin leer</span>{% endif %}
+                </a>
+                <p class="muted">{{ entry.last_message.body|truncatechars:80 }}</p>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="muted">No tienes ninguna conversación todavía. Busca a alguien arriba o escribe a un amigo desde su perfil.</p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

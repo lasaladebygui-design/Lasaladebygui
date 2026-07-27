@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="{% url 'theme-css' %}">
     <link rel="stylesheet" href="{% static 'css/main.css' %}">
     <script src="{% static 'js/theme_switcher.js' %}"></script>
+    <script src="{% static 'js/rotating_quote.js' %}"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
     <script>
@@ -45,8 +46,7 @@
                     <a href="{% url 'movies:roulette-home' %}">Ruleta</a>
                     <a href="{% url 'secret:gate' %}">Top Secret</a>
                     {% if user.is_authenticated %}
-                        <a href="{% url 'social:friends' %}">Amigos</a>
-                        <a href="{% url 'social:inbox' %}">Mensajes</a>
+                        <a href="{% url 'social:home' %}">Social</a>
                         {% if user.is_staff %}
                             <a href="{% url 'admin:index' %}">Panel</a>
                         {% endif %}
