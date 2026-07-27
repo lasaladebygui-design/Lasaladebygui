@@ -6,6 +6,7 @@ app_name = "movies"
 
 urlpatterns = [
     path("", views.movie_list, name="list"),
+    path("desde-tmdb/<int:tmdb_id>/", views.movie_from_tmdb, name="from-tmdb"),
     path("<int:pk>/", views.movie_detail, name="detail"),
     path("<int:pk>/votar/", views.movie_vote, name="vote"),
 

@@ -18,30 +18,32 @@
             <button type="submit" class="btn btn--ghost btn--sm">Buscar</button>
         </form>
 
-        {% if page_obj.object_list %}
-        <div class="movie-grid">
-            {% for movie in page_obj %}
-            <a href="{% url 'movies:detail' movie.pk %}" class="movie-card">
-                {% if movie.poster_url %}
-                    <img src="{{ movie.poster_url }}" alt="" class="movie-card__poster">
-                {% else %}
-                    <div class="movie-card__poster movie-card__poster--placeholder"><span>🎬</span></div>
-                {% endif %}
-                <div class="movie-card__body">
-                    <h3>{{ movie.title }}</h3>
-                    <p class="muted">{{ movie.year }}</p>
-                    {% if movie.imdb_rating %}<span class="tag-pill">IMDb {{ movie.imdb_rating }}</span>{% endif %}
-                </div>
-            </a>
-            {% endfor %}
-        </div>
-        {% include "partials/pagination.html" with page_obj=page_obj %}
-        {% else %}
-        <p class="muted">
-            {% if query %}Sin resultados para «{{ query }}».{% else %}
-            El catálogo está vacío todavía. Ejecuta <code>python manage.py seed_movies</code> para poblarlo, o añade películas desde la ruleta (Modo 2).
+        {% if query %}
+            {% if page_obj.object_list %}
+                <h2 class="movie-section-title">En el catálogo</h2>
+                {% include "movies/_movie_grid.html" with movies=page_obj local=True %}
+                {% include "partials/pagination.html" with page_obj=page_obj %}
             {% endif %}
-        </p>
+
+            {% if search_error %}
+                <p class="field-errors">{{ search_error }}</p>
+            {% elif external_results %}
+                <h2 class="movie-section-title">Más resultados (TMDb)</h2>
+                {% include "movies/_movie_grid.html" with movies=external_results local=False %}
+            {% endif %}
+
+            {% if not page_obj.object_list and not external_results and not search_error %}
+                <p class="muted">Sin resultados para «{{ query }}».</p>
+            {% endif %}
+        {% else %}
+            {% if page_obj.object_list %}
+                {% include "movies/_movie_grid.html" with movies=page_obj local=True %}
+                {% include "partials/pagination.html" with page_obj=page_obj %}
+            {% else %}
+                <p class="muted">
+                    El catálogo está vacío todavía. Busca cualquier película arriba, o ejecuta <code>python manage.py seed_movies</code> para poblarlo de golpe.
+                </p>
+            {% endif %}
         {% endif %}
     </div>
 </section>

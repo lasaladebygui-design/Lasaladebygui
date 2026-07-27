@@ -33,13 +33,42 @@ def movie_list(request):
     form = MovieSearchForm(request.GET or None)
     movies = Movie.objects.all()
     query = ""
+    external_results = []
+    search_error = None
+
     if form.is_valid() and form.cleaned_data["query"]:
         query = form.cleaned_data["query"]
         movies = movies.filter(title__icontains=query)
 
+        # El catálogo local solo tiene lo ya sembrado/visto antes: se
+        # complementa con una búsqueda en vivo a TMDb para que cualquier
+        # película que se busque aparezca, no solo las ya cacheadas.
+        local_tmdb_ids = set(Movie.objects.values_list("tmdb_id", flat=True))
+        try:
+            tmdb_results = tmdb_search(query)
+        except MovieAPIError as exc:
+            search_error = str(exc)
+        else:
+            external_results = [r for r in tmdb_results if r.tmdb_id not in local_tmdb_ids][:12]
+
     paginator = Paginator(movies, 12)
     page = paginator.get_page(request.GET.get("page"))
-    return render(request, "movies/list.html", {"page_obj": page, "form": form, "query": query})
+    return render(request, "movies/list.html", {
+        "page_obj": page,
+        "form": form,
+        "query": query,
+        "external_results": external_results,
+        "search_error": search_error,
+    })
+
+
+def movie_from_tmdb(request, tmdb_id):
+    try:
+        movie = Movie.get_or_create_from_tmdb(tmdb_id)
+    except MovieAPIError as exc:
+        messages.error(request, str(exc))
+        return redirect("movies:list")
+    return redirect("movies:detail", pk=movie.pk)
 
 
 def movie_detail(request, pk):

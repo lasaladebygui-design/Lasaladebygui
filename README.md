@@ -201,6 +201,8 @@ Cada película se cachea una sola vez en el modelo `Movie` (`apps.movies.models.
 
 `python manage.py seed_movies` (opcional `--pages N`, por defecto 2) recorre "populares" y "mejor valoradas" de TMDb y resuelve la nota IMDb de cada una — es lo que necesita el Modo 1 de la ruleta para tener con qué filtrar por rango de nota. Sin ejecutarlo, el catálogo empieza vacío y se va llenando según los usuarios añaden películas a su lista en el Modo 2.
 
+**Buscar en `/peliculas/` no se limita al catálogo local:** si buscas un título que no está cacheado todavía, la página también consulta TMDb en vivo y muestra esos resultados en una sección aparte ("Más resultados"); al abrir uno se cachea igual que cualquier otra (título, portada, sinopsis y nota IMDb) y a partir de ahí ya cuenta para el Modo 1 de la ruleta y las votaciones.
+
 ### Ruleta — Modo 1 (`/peliculas/ruleta/nota/`)
 
 El usuario elige una nota mínima y máxima (1-10); se sortea al azar una película del catálogo dentro de ese rango, excluyendo las que ya se le mostraron a ese usuario en ese modo (`RouletteRatingSeen`). Al agotar el rango, hay que darle a "reiniciar" para volver a verlas.

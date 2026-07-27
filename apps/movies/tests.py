@@ -6,6 +6,7 @@ from django.urls import reverse
 from apps.accounts.models import User
 
 from .models import Movie, RouletteCandidate, RouletteRatingSeen, Vote
+from .services import MovieAPIError
 
 
 def make_user(email):
@@ -77,6 +78,16 @@ class RouletteRatingTests(TestCase):
         response = self.client.post(reverse("movies:roulette-rating"), {"min_rating": 1, "max_rating": 2})
         self.assertIsNone(response.context["result"])
 
+    def test_el_carrusel_no_rompe_el_atributo_html(self):
+        # Regresión: reel_json es JSON (comillas dobles) y se embebía dentro
+        # de un atributo x-data también delimitado por comillas dobles, lo
+        # que el navegador cortaba en la primera comilla del JSON — el
+        # carrusel/cartel nunca llegaba a mostrarse. Debe ir en comillas simples.
+        response = self.client.post(reverse("movies:roulette-rating"), {"min_rating": 7, "max_rating": 9})
+        content = response.content.decode()
+        self.assertIn("roulette-machine\" x-data='{", content)
+        self.assertNotIn('roulette-machine" x-data="{', content)
+
 
 class RouletteListTests(TestCase):
     def setUp(self):
@@ -129,3 +140,47 @@ class MovieSearchViewTests(TestCase):
         response = self.client.get(reverse("movies:roulette-list-search"), {"query": "matrix"})
         self.assertEqual(response.status_code, 200)
         mock_search.assert_called_once_with("matrix")
+
+
+class MovieListLiveSearchTests(TestCase):
+    """El catálogo local es limitado a lo ya sembrado/visto; al buscar debe
+    complementarse con una búsqueda en vivo a TMDb para cualquier título."""
+
+    def _tmdb_result(self, tmdb_id, title):
+        from apps.movies.services import TMDbResult
+        return TMDbResult(tmdb_id=tmdb_id, title=title, year="2020", poster_path="/x.jpg", overview="...")
+
+    def test_sin_query_no_busca_en_tmdb(self):
+        with patch("apps.movies.views.tmdb_search") as mock_search:
+            response = self.client.get(reverse("movies:list"))
+            self.assertEqual(response.status_code, 200)
+            mock_search.assert_not_called()
+
+    @patch("apps.movies.views.tmdb_search")
+    def test_pelicula_no_cacheada_aparece_como_resultado_externo(self, mock_search):
+        mock_search.return_value = [self._tmdb_result(603, "The Matrix")]
+        response = self.client.get(reverse("movies:list"), {"query": "matrix"})
+        mock_search.assert_called_once_with("matrix")
+        external = response.context["external_results"]
+        self.assertEqual(len(external), 1)
+        self.assertEqual(external[0].tmdb_id, 603)
+
+    @patch("apps.movies.views.tmdb_search")
+    def test_pelicula_ya_cacheada_no_se_duplica_en_externos(self, mock_search):
+        make_movie(603, "Matrix", None)
+        mock_search.return_value = [self._tmdb_result(603, "The Matrix")]
+        response = self.client.get(reverse("movies:list"), {"query": "matrix"})
+        self.assertEqual(len(response.context["page_obj"].object_list), 1)
+        self.assertEqual(response.context["external_results"], [])
+
+    @patch("apps.movies.views.tmdb_search", side_effect=MovieAPIError("fallo de red"))
+    def test_error_de_tmdb_no_rompe_la_pagina(self, mock_search):
+        response = self.client.get(reverse("movies:list"), {"query": "matrix"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["search_error"], "fallo de red")
+
+    @patch("apps.movies.views.Movie.get_or_create_from_tmdb")
+    def test_ver_ficha_desde_tmdb_crea_y_redirige(self, mock_get_or_create):
+        mock_get_or_create.return_value = make_movie(603, "Matrix", None)
+        response = self.client.get(reverse("movies:from-tmdb", args=[603]))
+        self.assertRedirects(response, reverse("movies:detail", args=[mock_get_or_create.return_value.pk]))

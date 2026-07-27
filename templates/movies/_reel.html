@@ -1,5 +1,5 @@
 {% if reel_json %}
-<div class="roulette-machine" x-data="{
+<div class="roulette-machine" x-data='{
     posters: {{ reel_json|safe }},
     index: 0,
     spinning: true,
@@ -7,7 +7,7 @@
         const iv = setInterval(() => { this.index = (this.index + 1) % this.posters.length }, 110);
         setTimeout(() => { clearInterval(iv); this.index = this.posters.length - 1; this.spinning = false; }, 1300);
     }
-}">
+}'>
     <div class="reel-window">
         <template x-for="(poster, i) in posters" :key="i">
             <img :src="poster || ''" x-show="index === i" x-cloak class="reel-window__poster" alt="">
