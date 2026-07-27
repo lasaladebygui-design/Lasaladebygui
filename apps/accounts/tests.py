@@ -17,6 +17,34 @@ except ImportError:
     Image = None
 
 
+class RegisterFormTests(TestCase):
+    def _post(self, **overrides):
+        data = {
+            "username": "cinefilo1", "email": "nuevo@test.local",
+            "password1": "Testpass123!", "password2": "Testpass123!",
+        }
+        data.update(overrides)
+        return self.client.post(reverse("accounts:register"), data)
+
+    def test_registro_crea_el_usuario_con_el_nombre_elegido(self):
+        response = self._post()
+        self.assertRedirects(response, reverse("core:home"))
+        user = User.objects.get(email="nuevo@test.local")
+        self.assertEqual(user.username, "cinefilo1")
+
+    def test_nombre_de_usuario_duplicado_se_rechaza(self):
+        User.objects.create(email="otro@test.local", username="cinefilo1", role=User.Role.LECTOR)
+        response = self._post()
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(User.objects.filter(email="nuevo@test.local").exists())
+        self.assertContains(response, "ya está en uso")
+
+    def test_nombre_de_usuario_con_caracteres_invalidos_se_rechaza(self):
+        response = self._post(username="con espacios!")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(User.objects.filter(email="nuevo@test.local").exists())
+
+
 class GestorGroupSyncTests(TestCase):
     def test_gestor_se_anade_al_grupo_con_permisos_de_foro(self):
         user = User.objects.create(email="gestor@test.local", role=User.Role.GESTOR)

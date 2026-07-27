@@ -5,11 +5,9 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import CodeForm, NumberSelectForm, RatingSearchForm, SecretPhotoForm
-from .models import MovieQuote, SecretMovie, SecretPhoto, TierListEntry, TopSecretConfig
+from .models import SecretMovie, SecretPhoto, TierListEntry, TopSecretConfig
 
 SESSION_KEY = "top_secret_unlocked"
-QUOTE_STREAK_KEY = "quote_streak"
-QUOTE_BEST_ANON_KEY = "quote_streak_best_anon"
 
 
 def secret_required(view_func):
@@ -104,65 +102,3 @@ def photo_board(request):
 
     photos = SecretPhoto.objects.select_related("uploaded_by")
     return render(request, "secret/photo_board.html", {"form": form, "photos": photos})
-
-
-# --- Juegos -----------------------------------------------------------------
-
-@secret_required
-def games_home(request):
-    return render(request, "secret/games.html")
-
-
-def _register_best_streak(request, streak):
-    if request.user.is_authenticated:
-        if streak > request.user.quote_streak_best:
-            request.user.quote_streak_best = streak
-            request.user.save(update_fields=["quote_streak_best"])
-    elif streak > request.session.get(QUOTE_BEST_ANON_KEY, 0):
-        request.session[QUOTE_BEST_ANON_KEY] = streak
-
-
-@secret_required
-def quote_game(request):
-    streak = request.session.get(QUOTE_STREAK_KEY, 0)
-    game_over = False
-    is_new_record = False
-    final_streak = None
-    wrong_answer_title = None
-
-    if request.method == "POST":
-        quote = get_object_or_404(MovieQuote, pk=request.POST.get("quote_id"))
-        if request.POST.get("answer") == quote.correct_title:
-            streak += 1
-            request.session[QUOTE_STREAK_KEY] = streak
-        else:
-            previous_best = (
-                request.user.quote_streak_best if request.user.is_authenticated
-                else request.session.get(QUOTE_BEST_ANON_KEY, 0)
-            )
-            final_streak = streak
-            is_new_record = streak > previous_best
-            wrong_answer_title = quote.correct_title
-            _register_best_streak(request, streak)
-            request.session[QUOTE_STREAK_KEY] = 0
-            streak = 0
-            game_over = True
-
-    next_quote = None
-    options = []
-    if not game_over:
-        next_quote = MovieQuote.objects.order_by("?").first()
-        if next_quote:
-            options = [next_quote.correct_title, next_quote.wrong_title_1, next_quote.wrong_title_2]
-            random.shuffle(options)
-
-    best = (
-        request.user.quote_streak_best if request.user.is_authenticated
-        else request.session.get(QUOTE_BEST_ANON_KEY, 0)
-    )
-
-    return render(request, "secret/quote_game.html", {
-        "quote": next_quote, "options": options, "streak": streak, "best": best,
-        "game_over": game_over, "is_new_record": is_new_record,
-        "final_streak": final_streak, "wrong_answer_title": wrong_answer_title,
-    })

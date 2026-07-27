@@ -16,6 +16,12 @@
         <form method="post">
             {% csrf_token %}
             <div class="field">
+                <label for="{{ form.username.id_for_label }}">Nombre de usuario</label>
+                {{ form.username }}
+                {% if form.username.help_text %}<p class="field-help">{{ form.username.help_text }}</p>{% endif %}
+                {% for error in form.username.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
+            </div>
+            <div class="field">
                 <label for="{{ form.email.id_for_label }}">Correo electrónico</label>
                 {{ form.email }}
                 {% for error in form.email.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}

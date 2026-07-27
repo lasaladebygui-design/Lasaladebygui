@@ -116,6 +116,10 @@ Sin estas dos claves, el catálogo de películas queda vacío (no hay fallback n
 
 ## 4. Roles y permisos
 
+### Registro (`/cuenta/registro/`)
+
+Al crear la cuenta se pide **nombre de usuario** (además de email y contraseña) — es el nombre por el que te va a poder encontrar cualquiera en el buscador de Social (sección 10), así que no se genera solo a partir del email como antes. Se valida que sea único (sin distinguir mayúsculas/minúsculas) y que solo tenga letras, números, puntos, guiones y guiones bajos (`RegisterForm.clean_username`, `apps/accounts/forms.py`). Los usuarios creados por comandos de gestión (`seed_demo`, admins añadidos a mano sin indicar uno) siguen generándolo automáticamente a partir del email si se deja en blanco (`User._generate_username`).
+
 El modelo de usuario (`apps.accounts.User`) tiene un campo `role` con 5 valores. El rol determina automáticamente `is_active`/`is_staff`/`is_superuser` al guardar el usuario:
 
 | Rol | Acceso al `/admin/` | Puede hacer |
@@ -211,6 +215,8 @@ Si ya habías ejecutado `seed_movies` antes de este cambio y notas huecos en cie
 
 **Buscar en `/peliculas/` no se limita al catálogo local:** si buscas un título que no está cacheado todavía, la página también consulta TMDb en vivo y muestra esos resultados en una sección aparte ("Más resultados"); al abrir uno se cachea igual que cualquier otra (título, portada, sinopsis y nota IMDb) y a partir de ahí ya cuenta para el Modo 1 de la ruleta y las votaciones.
 
+Los dos modos de la ruleta están agrupados, junto con "Frases célebres", en un apartado **Juegos** (`/juegos/`, enlazado en el desplegable de la cabecera) — ver sección 9.
+
 ### Ruleta — Modo 1 (`/peliculas/ruleta/nota/`)
 
 El usuario elige una nota mínima y máxima (1-10; el formulario empieza abierto a todo el rango, 1-10, y se estrecha solo si el usuario lo cambia); se sortea al azar una película del catálogo dentro de ese rango, excluyendo las que ya se le mostraron a ese usuario en ese modo (`RouletteRatingSeen`). Al agotar el rango, hay que darle a "reiniciar" para volver a verlas.
@@ -242,17 +248,19 @@ Dentro hay tres secciones, todas editables desde **Admin → Top Secret → Pel�
 - **a) Selector numérico:** eliges un número de la lista y te devuelve la película asociada.
 - **b) Buscador por nota:** un intervalo de nota *personal* (no la de IMDb ni la media de votos) y una recomendación al azar dentro de él.
 - **c) Lista completa:** todas las entradas, con su nota y comentario.
-- **d) Juegos:** de momento, "Frases célebres" (ver más abajo) — pensado como sección ampliable para futuros juegos.
-- **e) Tier list:** un ranking editable de películas por niveles S/A/B/C/D (`apps.secret.models.TierListEntry`, editable desde **Admin → Top Secret → Tier list**), con póster opcional (enlazando a una película del catálogo) o solo título. Pensado para uso personal del dueño de la web, no hay edición desde la web pública.
-- **f) Tablón de fotos** (`/top-secret/dentro/tablon/`): a diferencia del resto de Top Secret, **esto sí se sube desde la propia web, no desde el admin** — cualquiera que haya entrado con el código puede subir una foto con una pequeña descripción (`apps.secret.models.SecretPhoto`). No hace falta tener cuenta para subir una; si el visitante ha iniciado sesión, se guarda y se muestra quién la subió (con su nombre coloreado por rango), y si no, aparece como "Anónimo".
+- **d) Tier list:** un ranking editable de películas por niveles S/A/B/C/D (`apps.secret.models.TierListEntry`, editable desde **Admin → Top Secret → Tier list**), con póster opcional (enlazando a una película del catálogo) o solo título. Pensado para uso personal del dueño de la web, no hay edición desde la web pública.
+- **e) Tablón de fotos** (`/top-secret/dentro/tablon/`): a diferencia del resto de Top Secret, **esto sí se sube desde la propia web, no desde el admin** — cualquiera que haya entrado con el código puede subir una foto con una pequeña descripción (`apps.secret.models.SecretPhoto`). No hace falta tener cuenta para subir una; si el visitante ha iniciado sesión, se guarda y se muestra quién la subió (con su nombre coloreado por rango), y si no, aparece como "Anónimo".
 
-### Juegos: Frases célebres (`/top-secret/dentro/juegos/frases/`)
+Nota: "Frases célebres" vivía antes aquí, como un juego más de Top Secret — se sacó al apartado **Juegos** (sección 9) para que jugarlo no dependa del código de acceso.
 
-La web muestra una frase de película (`apps.secret.models.MovieQuote`) y tres opciones (la correcta + dos incorrectas, editables desde **Admin → Top Secret → Frases célebres**); aciertas y sigue la racha, fallas y se reinicia a 0. La racha en curso se guarda en la sesión del navegador; la **mejor racha** se guarda de forma permanente en la cuenta (`User.quote_streak_best`) si has iniciado sesión — y se muestra en tu página de perfil — o solo para esa sesión de navegador si entras sin cuenta.
+## 9. Juegos (`/juegos/`)
 
-Al fallar se muestra una pantalla de fin de partida con la racha conseguida, un botón "Jugar de nuevo" y, si esa racha ha superado tu mejor marca anterior, un mensaje de felicitación.
+Apartado de acceso libre (ni cuenta ni código de Top Secret) que agrupa lo que antes estaba repartido entre el enlace "Ruleta" de la cabecera y la sección de Juegos de Top Secret — de ahí que ahora sea un único punto de entrada, enlazado como "Juegos" en el desplegable.
 
-## 9. Social: buscador, amigos y mensajes (`/social/`)
+- **Ruleta** (`/peliculas/ruleta/`): los Modos 1 y 2 descritos en la sección 7.
+- **Frases célebres** (`/juegos/frases/`, `apps.secret.models.MovieQuote` — el modelo se queda en `apps.secret` porque las frases se siguen editando desde **Admin → Top Secret → Frases célebres**, pero la vista y la plantilla viven en `apps.core`): la web muestra una frase de película y tres opciones (la correcta + dos incorrectas); aciertas y sigue la racha, fallas y se reinicia a 0. La racha en curso se guarda en la sesión del navegador; la **mejor racha** se guarda de forma permanente en la cuenta (`User.quote_streak_best`) si has iniciado sesión — y se muestra en tu página de perfil — o solo para esa sesión de navegador si entras sin cuenta. Al fallar se muestra una pantalla de fin de partida con la racha conseguida, un botón "Jugar de nuevo" y, si esa racha ha superado tu mejor marca anterior, un mensaje de felicitación.
+
+## 10. Social: buscador, amigos y mensajes (`/social/`)
 
 `/social/` es la página central del apartado social (enlazada como "Social" en el desplegable de la cabecera), con dos cosas a la vez: un **buscador de usuarios por nombre** (`?q=...`, coincidencia parcial, para encontrar a cualquiera aunque nunca haya escrito en el foro) y la lista de **tus chats** (conversaciones existentes, con cuántos mensajes sin leer hay en cada una).
 
@@ -268,7 +276,7 @@ Cartel estilo cine antiguo con el número de Bizum. El número no está hardcode
 
 Formulario (nombre, email, mensaje) que se envía por email a `SiteConfig.contact_email` (**Admin → Sitio → Configuración del sitio**) — ese campo empieza vacío a propósito; mientras no se rellene, la página muestra un aviso en vez del formulario. Anti-spam por **honeypot**: un campo (`website`) invisible por CSS que un usuario real nunca rellena; si llega relleno, se descarta el envío mostrando igualmente el mensaje de éxito (para no darle pistas a un bot de que fue detectado).
 
-## 10. Animación de proyector al entrar
+## 11. Animación de proyector al entrar
 
 Al cargar la web (`templates/partials/intro.html` + `static/js/intro.js`) se muestra un proyector encendiéndose: parpadeo inicial, haz de luz que barre la pantalla, grano de película y las perforaciones del carrete desplazándose arriba y abajo, con un "clack" mecánico sintetizado por Web Audio API (si el navegador bloquea el autoplay de sonido sin interacción previa, simplemente no suena — la animación visual no depende de ello). Tras ~3,4s hace un fundido y desaparece, revelando la home.
 
@@ -277,7 +285,7 @@ Al cargar la web (`templates/partials/intro.html` + `static/js/intro.js`) se mue
 - **Configurable desde el admin:** **Sitio → Configuración del sitio → Animación de entrada → "mostrar animación de proyector al entrar"**. Desactivarla la quita de toda la web sin tocar código.
 - Respeta `prefers-reduced-motion`: si el sistema operativo del visitante tiene activada la reducción de movimiento, se omiten el parpadeo, el barrido de luz y el sonido, y solo queda un fundido simple.
 
-## 11. Despliegue en Render
+## 12. Despliegue en Render
 
 El repositorio incluye `render.yaml` (Blueprint): Render lee ese archivo y crea el servicio con la configuración correcta sin tener que rellenar el formulario a mano.
 
@@ -325,6 +333,8 @@ Para mitigarlo (opcional): un monitor externo como [UptimeRobot](https://uptimer
 ### Imágenes subidas en producción (recordatorio)
 
 Como se explica en la sección de artículos, el disco de Render free no es persistente: las portadas e imágenes subidas desaparecen en cada redeploy. Si esto es un problema, la vía habitual es cambiar `STORAGES["default"]` en `config/settings.py` por un backend de almacenamiento externo (p. ej. `django-storages` con S3 o Cloudinary) — no está incluido en este entregable para no añadir una dependencia de pago obligatoria, pero es el siguiente paso natural si la web pasa a producción real con contenido subido por usuarios.
+
+**Servir `/media/` en producción:** whitenoise solo sirve `STATIC_ROOT` (CSS/JS/imágenes del propio código); las imágenes subidas por usuarios (`MEDIA_ROOT`: avatares, portadas, fotos del tablón de Top Secret) se sirven mediante una ruta explícita en `config/urls.py` con `django.views.static.serve`, añadida siempre (no solo con `DEBUG=True` como el resto de estáticos) — si no, esas imágenes devuelven 404 en Render aunque se hayan subido correctamente. No es la forma más eficiente de servir archivos en un sitio de tráfico alto, pero es la opción más simple mientras no haya un backend externo (S3/Cloudinary) configurado.
 
 ## Comandos útiles
 

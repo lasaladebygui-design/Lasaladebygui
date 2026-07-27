@@ -1,10 +1,20 @@
+import re
+
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 
 from .models import User
 
+USERNAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
 
 class RegisterForm(forms.ModelForm):
+    username = forms.CharField(
+        label="Nombre de usuario",
+        max_length=150,
+        widget=forms.TextInput(attrs={"autocomplete": "username", "autofocus": True}),
+        help_text="Con este nombre te podrán encontrar en Social. Solo letras, números, puntos, guiones y guiones bajos.",
+    )
     password1 = forms.CharField(
         label="Contraseña",
         strip=False,
@@ -18,11 +28,19 @@ class RegisterForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ["email"]
+        fields = ["username", "email"]
         widgets = {
-            "email": forms.EmailInput(attrs={"autocomplete": "email", "autofocus": True}),
+            "email": forms.EmailInput(attrs={"autocomplete": "email"}),
         }
         labels = {"email": "Correo electrónico"}
+
+    def clean_username(self):
+        username = self.cleaned_data["username"].strip()
+        if not USERNAME_RE.match(username):
+            raise forms.ValidationError("Solo letras, números, puntos, guiones y guiones bajos.")
+        if User.objects.filter(username__iexact=username).exists():
+            raise forms.ValidationError("Ese nombre de usuario ya está en uso.")
+        return username
 
     def clean_email(self):
         email = self.cleaned_data["email"].strip().lower()

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Juegos{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <span class="card__tag">Juegos</span>
+        <h1>¿A qué jugamos?</h1>
+        <p class="muted">Nada de códigos secretos aquí: entra y juega.</p>
+
+        <div class="card-grid">
+            <a href="{% url 'movies:roulette-home' %}" class="card card--link">
+                <span class="card__tag">🎰</span>
+                <h3>Ruleta de películas</h3>
+                <p>Por rango de nota IMDb o con tu propia lista de candidatas.</p>
+            </a>
+            <a href="{% url 'core:quote-game' %}" class="card card--link">
+                <span class="card__tag">🎬</span>
+                <h3>Frases célebres</h3>
+                <p>Te damos una frase, tú aciertas la película. A ver cuánto dura tu racha.</p>
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}
