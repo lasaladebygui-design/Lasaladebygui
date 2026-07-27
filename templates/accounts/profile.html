@@ -6,11 +6,35 @@
 {% block content %}
 <div class="wrap auth-page">
     <div class="auth-card">
-        <h1>Tu perfil</h1>
+        {% if user.avatar %}
+            <img src="{{ user.avatar.url }}" alt="" class="profile-avatar">
+        {% else %}
+            <div class="profile-avatar profile-avatar--placeholder"><span aria-hidden="true">🎬</span></div>
+        {% endif %}
+
+        <h1>{% username_badge user %}</h1>
         <p class="muted" style="text-align:center; margin-top:-1rem; margin-bottom:1.5rem;">{{ user.email }}</p>
 
-        <p><strong>Rango:</strong> {% username_badge user %}</p>
-        <p class="muted">
+        {% if user.favorite_quote %}
+            <p class="profile-quote">“{{ user.favorite_quote }}”</p>
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data" class="stacked-form">
+            {% csrf_token %}
+            <div class="field">
+                <label for="{{ form.avatar.id_for_label }}">{{ form.avatar.label }}</label>
+                {{ form.avatar }}
+                {% for error in form.avatar.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
+            </div>
+            <div class="field">
+                <label for="{{ form.favorite_quote.id_for_label }}">{{ form.favorite_quote.label }}</label>
+                {{ form.favorite_quote }}
+                {% for error in form.favorite_quote.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
+            </div>
+            <button type="submit" class="btn btn--accent btn--block">Guardar</button>
+        </form>
+
+        <p class="muted" style="margin-top:1.5rem;">
             ¿Quieres cambiar el tema visual? Usa el icono 🌙 de la cabecera — se aplica al momento y se guarda en tu cuenta.
         </p>
     </div>

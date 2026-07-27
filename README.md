@@ -147,6 +147,10 @@ Es opcional y se activa/desactiva desde **Sitio → Configuración del sitio →
 
 Desde `/cuenta/login/` hay un enlace "¿Olvidaste tu contraseña?" que usa las vistas estándar de Django (`PasswordResetView` y compañía) con plantillas propias a juego con el resto del sitio: pide el email, envía un enlace de un solo uso (caduca a los 3 días, por defecto de Django) y permite fijar una contraseña nueva. Por seguridad, pedir el reset para un email que no existe en la base de datos muestra el mismo mensaje que si sí existiera (no revela si una cuenta está registrada), y un usuario **Baneado** no recibe el email (su cuenta está inactiva).
 
+### Perfil de usuario (`/cuenta/perfil/`)
+
+Cada usuario puede subir una foto de perfil (`User.avatar`) y fijar una frase mítica de cine (`User.favorite_quote`), visibles en su propia página de perfil junto a su nombre coloreado por rango. El tema visual **ya no se cambia aquí** — se movió al icono 🌙 de la cabecera (ver sección 5).
+
 ## 5. Sistema de temas (`theme.css`)
 
 Los colores, tipografías y espaciados **no están hardcodeados**: cada tema es una fila del modelo `Theme` (`apps.core.models.Theme`), y sus valores se sirven dinámicamente en `/theme.css` como variables CSS genéricas (`--color-accent`, `--color-bg`, `--font-heading`, etc.). El resto de los estilos, en `static/css/main.css`, consume esas variables — nunca un color a pelo — así que un tema nuevo no requiere tocar CSS ni plantillas.
@@ -159,14 +163,17 @@ Vienen 3 temas precargados (vía migración de datos, `apps/core/migrations/0002
 | **Noir** | Negro/gris carbón + rojo sangre, alto contraste, cine negro. |
 | **Vintage** | Verde menta/salvia pastel con acentos crema y marrón, retro. |
 
+**Selector en la cabecera:** el icono 🌙 (arriba, junto al logo) abre un desplegable con todos los temas disponibles. Al elegir uno se aplica al instante, sin recargar ni pasar por ningún botón "guardar" — funciona incluso sin haber iniciado sesión (se guarda en la sesión del navegador); si estás logueado, se guarda en tu cuenta y aparece la opción "Usar tema del sitio" para volver al tema activo global.
+
 **Cómo se elige el tema que ve cada visitante** (`apps.core.models.get_effective_theme`):
-1. Si el usuario ha iniciado sesión y eligió un tema personal en **Cuenta → Perfil**, se usa ese.
-2. Si no, se usa el "tema activo" del sitio (**Admin → Sitio → Configuración del sitio → tema activo**).
-3. Si tampoco hay uno configurado, se cae a Cinephile por su slug, y como último recurso a los valores por defecto del modelo.
+1. Si el usuario ha iniciado sesión y eligió un tema desde el icono 🌙, se usa ese (guardado en su cuenta).
+2. Si no ha iniciado sesión pero eligió uno desde el icono 🌙, se usa el guardado en su sesión de navegador.
+3. Si no, se usa el "tema activo" del sitio (**Admin → Sitio → Configuración del sitio → tema activo**).
+4. Si tampoco hay uno configurado, se cae a Cinephile por su slug, y como último recurso a los valores por defecto del modelo.
 
 **Cambiar el tema de toda la web:** entra en `/admin/`, ve a **Sitio → Configuración del sitio** y cambia el campo *tema activo*. No hace falta tocar código ni volver a desplegar.
 
-**Añadir un tema nuevo:** ve a **Sitio → Temas visuales → Añadir tema visual**, rellena colores (con selector de color nativo), tipografías y espaciados, y guarda. Aparecerá disponible tanto en el selector de "tema activo" del sitio como en el perfil de cada usuario. Cada tema define: fondo, superficie, bordes, texto primario/secundario, acento principal (+ hover + color de texto sobre él), acento secundario (+ hover + color de texto sobre él), y los estados de error/éxito.
+**Añadir un tema nuevo:** ve a **Sitio → Temas visuales → Añadir tema visual**, rellena colores (con selector de color nativo), tipografías y espaciados, y guarda. Aparecerá disponible tanto en el selector de "tema activo" del sitio como en el icono 🌙 de cualquier visitante. Cada tema define: fondo, superficie, bordes, texto primario/secundario, acento principal (+ hover + color de texto sobre él), acento secundario (+ hover + color de texto sobre él), y los estados de error/éxito.
 
 Si un tema nuevo necesita una tipografía de Google Fonts que no esté entre las ya cargadas (Playfair Display, Bebas Neue, Special Elite, Inter), hay que añadir esa fuente al `<link>` de Google Fonts en `templates/base.html` — es el único caso que sí toca una plantilla.
 
@@ -247,11 +254,13 @@ El repositorio incluye `render.yaml` (Blueprint): Render lee ese archivo y crea 
 2. En [render.com](https://render.com), **New → Blueprint**, y selecciona el repositorio. Render detecta `render.yaml` automáticamente.
 3. Antes de confirmar, Render pedirá valores para las variables marcadas como `sync: false` (no se generan solas ni se suben al repo):
    - `DATABASE_URL` — la cadena de conexión de Supabase (ver sección 2; usa el **Session pooler**, no la conexión directa).
-   - `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL` — credenciales de Gmail (ver más abajo cómo generar la contraseña de aplicación).
+   - `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` — credenciales de Gmail (ver más abajo cómo generar la contraseña de aplicación).
    - `TMDB_API_KEY`, `OMDB_API_KEY` — ver sección 3.
 4. Despliega. El `buildCommand` instala dependencias y ejecuta `collectstatic`; el `startCommand` aplica `migrate`, ejecuta `bootstrap_production` (ver siguiente apartado) y arranca `gunicorn` en cada arranque del servicio.
 
 `DJANGO_SECRET_KEY` se genera automáticamente (`generateValue: true`); `ALLOWED_HOSTS` no hace falta configurarlo a mano porque Render inyecta `RENDER_EXTERNAL_HOSTNAME` y `config/settings.py` ya lo añade automáticamente.
+
+**Sobre `DEFAULT_FROM_EMAIL` (remitente de los correos):** no hace falta configurarla — si no se fija, se deriva automáticamente de `EMAIL_HOST_USER`. Esto es importante porque **Gmail no entrega bien los correos (verificación de cuenta, recuperar contraseña, contacto) si el remitente no coincide con la cuenta autenticada por SMTP**. Si en tu servicio ya existía una `DEFAULT_FROM_EMAIL` con un dominio distinto (por ejemplo, del `.env.example` original), es la causa más probable de que esos correos no llegaran — bórrala en **Environment** (o iguálala exactamente a `EMAIL_HOST_USER`) y guarda para que se redespliegue.
 
 ### Crear el primer Admin y poblar el catálogo (sin Shell)
 

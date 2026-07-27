@@ -29,6 +29,11 @@ class User(AbstractUser):
     role = models.CharField("rol", max_length=20, choices=Role.choices, default=Role.LECTOR)
     email_verified = models.BooleanField("email verificado", default=False)
     bio = models.TextField("biografía", blank=True)
+    avatar = models.ImageField("foto de perfil", upload_to="avatars/", blank=True, null=True)
+    favorite_quote = models.CharField(
+        "frase mítica de cine", max_length=300, blank=True,
+        help_text="Tu cita de cine favorita, para presumir en el perfil.",
+    )
     theme = models.ForeignKey(
         Theme,
         verbose_name="tema personal",

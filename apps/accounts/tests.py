@@ -1,12 +1,20 @@
+import io
 import re
+import tempfile
 
 from django.core import mail
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from apps.forum.models import Thread
 
 from .models import User
+
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
 
 
 class GestorGroupSyncTests(TestCase):
@@ -87,3 +95,46 @@ class PasswordResetTests(TestCase):
         self.user.save()
         self.client.post(reverse("accounts:password-reset"), {"email": self.user.email})
         self.assertEqual(len(mail.outbox), 0)
+
+
+def _fake_image():
+    buffer = io.BytesIO()
+    Image.new("RGB", (1, 1)).save(buffer, format="PNG")
+    buffer.seek(0)
+    return SimpleUploadedFile("avatar.png", buffer.read(), content_type="image/png")
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class ProfileTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create(email="lector@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+    def test_guardar_frase_mitica(self):
+        response = self.client.post(reverse("accounts:profile"), {
+            "favorite_quote": "Hasta el infinito y más allá",
+        })
+        self.assertRedirects(response, reverse("accounts:profile"))
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.favorite_quote, "Hasta el infinito y más allá")
+
+    def test_la_frase_se_muestra_en_el_perfil(self):
+        self.user.favorite_quote = "Que la Fuerza te acompañe"
+        self.user.save()
+        response = self.client.get(reverse("accounts:profile"))
+        self.assertContains(response, "Que la Fuerza te acompañe")
+
+    def test_subir_avatar(self):
+        response = self.client.post(reverse("accounts:profile"), {
+            "favorite_quote": "",
+            "avatar": _fake_image(),
+        })
+        self.assertRedirects(response, reverse("accounts:profile"))
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.avatar.name.startswith("avatars/"))
+
+    def test_sin_avatar_muestra_placeholder(self):
+        response = self.client.get(reverse("accounts:profile"))
+        self.assertContains(response, "profile-avatar--placeholder")

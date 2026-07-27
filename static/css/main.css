@@ -291,6 +291,30 @@ main { flex: 1; }
 }
 .auth-card h1 { font-size: 1.6rem; margin-bottom: 1.5rem; text-align: center; }
 
+.profile-avatar {
+    display: block;
+    width: 96px;
+    height: 96px;
+    margin: 0 auto calc(var(--space-unit) * 4);
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--color-border);
+}
+.profile-avatar--placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.2rem;
+    background: var(--color-bg);
+}
+.profile-quote {
+    font-family: var(--font-heading);
+    font-style: italic;
+    text-align: center;
+    color: var(--color-text-muted);
+    margin: 0 0 calc(var(--space-unit) * 6);
+}
+
 .field { margin-bottom: calc(var(--space-unit) * 4); }
 .field label {
     display: block;

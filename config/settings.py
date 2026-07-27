@@ -175,7 +175,15 @@ EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="La Sala de Bygui <no-reply@lasaladebygui.local>")
+
+# Gmail rechaza o no entrega bien los correos si el remitente ("From") no
+# coincide con la cuenta autenticada por SMTP. Por eso, si DEFAULT_FROM_EMAIL
+# no se fija explícitamente (o se deja vacío), se deriva de EMAIL_HOST_USER
+# en vez de usar un dominio distinto que no está verificado en esa cuenta de
+# Gmail. `or` cubre tanto la variable ausente como presente-pero-vacía.
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="") or (
+    f"La Sala de Bygui <{EMAIL_HOST_USER}>" if EMAIL_HOST_USER else "La Sala de Bygui <no-reply@lasaladebygui.local>"
+)
 
 # --- APIs externas (usadas a partir de la Fase 3) ------------------------
 

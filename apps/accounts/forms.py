@@ -53,6 +53,16 @@ class RegisterForm(forms.ModelForm):
         return user
 
 
+class ProfileForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ["avatar", "favorite_quote"]
+        labels = {"avatar": "Foto de perfil", "favorite_quote": "Frase mítica de cine"}
+        widgets = {
+            "favorite_quote": forms.TextInput(attrs={"placeholder": "“Hasta el infinito y más allá”"}),
+        }
+
+
 class EmailAuthenticationForm(AuthenticationForm):
     username = forms.EmailField(
         label="Correo electrónico",
