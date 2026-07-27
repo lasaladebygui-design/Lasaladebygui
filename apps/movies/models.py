@@ -83,24 +83,6 @@ class Vote(models.Model):
         return f"{self.user} vota {self.score} a {self.movie}"
 
 
-class RouletteCandidate(models.Model):
-    """Modo 2 de la ruleta: lista personalizada de candidatas de un usuario."""
-
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="roulette_candidates")
-    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name="+")
-    is_seen = models.BooleanField("ya salió en la ruleta", default=False)
-    added_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        verbose_name = "candidata de ruleta (lista personal)"
-        verbose_name_plural = "candidatas de ruleta (lista personal)"
-        constraints = [models.UniqueConstraint(fields=["user", "movie"], name="una_candidata_por_usuario")]
-        ordering = ["-added_at"]
-
-    def __str__(self):
-        return f"{self.movie} en la lista de {self.user}"
-
-
 class SavedMovie(models.Model):
     """Película guardada por un usuario en 'Mis películas' (independiente de
     si la ha votado o de si es candidata en la ruleta Modo 2)."""
@@ -131,3 +113,18 @@ class RouletteRatingSeen(models.Model):
         verbose_name = "película vista en ruleta (modo nota)"
         verbose_name_plural = "películas vistas en ruleta (modo nota)"
         constraints = [models.UniqueConstraint(fields=["user", "movie"], name="una_vista_por_usuario_modo_nota")]
+
+
+class RouletteSavedSeen(models.Model):
+    """Modo 2 de la ruleta: qué películas guardadas ya se le han mostrado a
+    este usuario. La ruleta gira directamente sobre `SavedMovie` (no hay una
+    lista de candidatas aparte); esto solo evita repetir hasta reiniciar."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
+    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name="+")
+    seen_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "película vista en ruleta (modo lista)"
+        verbose_name_plural = "películas vistas en ruleta (modo lista)"
+        constraints = [models.UniqueConstraint(fields=["user", "movie"], name="una_vista_por_usuario_modo_lista")]

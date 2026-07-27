@@ -5,7 +5,7 @@ from django.urls import reverse
 
 from apps.accounts.models import User
 
-from .models import Movie, RouletteCandidate, RouletteRatingSeen, SavedMovie, Vote
+from .models import Movie, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, Vote
 from .services import MovieAPIError
 
 
@@ -45,6 +45,29 @@ class VoteTests(TestCase):
         self.assertEqual(self.movie.votes_count, 2)
         self.assertEqual(float(self.movie.average_score), 7.0)
 
+    def test_quitar_nota_borra_el_voto(self):
+        Vote.objects.create(movie=self.movie, user=self.user, score=8)
+        self.client.post(reverse("movies:vote-remove", args=[self.movie.pk]))
+        self.assertFalse(Vote.objects.filter(movie=self.movie, user=self.user).exists())
+
+    def test_quitar_nota_la_saca_de_mis_peliculas(self):
+        Vote.objects.create(movie=self.movie, user=self.user, score=8)
+        self.client.post(reverse("movies:vote-remove", args=[self.movie.pk]))
+        response = self.client.get(reverse("movies:my-movies"))
+        self.assertEqual(list(response.context["votes"]), [])
+
+    def test_quitar_nota_no_afecta_el_voto_de_otro_usuario(self):
+        other = make_user("otro@test.local")
+        Vote.objects.create(movie=self.movie, user=self.user, score=8)
+        Vote.objects.create(movie=self.movie, user=other, score=5)
+        self.client.post(reverse("movies:vote-remove", args=[self.movie.pk]))
+        self.assertTrue(Vote.objects.filter(movie=self.movie, user=other).exists())
+
+    def test_anonimo_no_puede_quitar_nota(self):
+        self.client.logout()
+        response = self.client.post(reverse("movies:vote-remove", args=[self.movie.pk]))
+        self.assertIn("/cuenta/login/", response.url)
+
 
 class SavedMovieTests(TestCase):
     def setUp(self):
@@ -67,51 +90,24 @@ class SavedMovieTests(TestCase):
         response = self.client.post(reverse("movies:save-toggle", args=[self.movie.pk]))
         self.assertIn("/cuenta/login/", response.url)
 
-    def test_mis_peliculas_muestra_votadas_guardadas_y_lista_de_ruleta(self):
+    def test_mis_peliculas_muestra_solo_lo_votado(self):
         other_movie = make_movie(2, "Movie B", "7.0")
-        third_movie = make_movie(3, "Movie C", "6.0")
         Vote.objects.create(movie=self.movie, user=self.user, score=9)
         SavedMovie.objects.create(user=self.user, movie=other_movie)
-        RouletteCandidate.objects.create(user=self.user, movie=third_movie)
 
         response = self.client.get(reverse("movies:my-movies"))
         self.assertEqual(list(response.context["votes"].values_list("movie", flat=True)), [self.movie.pk])
-        self.assertEqual(list(response.context["saved"].values_list("movie", flat=True)), [other_movie.pk])
-        self.assertEqual(list(response.context["candidates"].values_list("movie", flat=True)), [third_movie.pk])
+        self.assertNotIn("saved", response.context)
 
+    def test_pagina_guardadas_separada_de_mis_peliculas(self):
+        SavedMovie.objects.create(user=self.user, movie=self.movie)
+        response = self.client.get(reverse("movies:saved-movies"))
+        self.assertEqual(list(response.context["saved"].values_list("movie", flat=True)), [self.movie.pk])
 
-class RouletteCandidateToggleTests(TestCase):
-    def setUp(self):
-        self.user = make_user("lector@test.local")
-        self.movie = make_movie(1, "Movie A", "8.0")
-        self.client.login(username=self.user.email, password="Testpass123!")
-
-    def test_anadir_a_la_ruleta_desde_la_ficha(self):
-        response = self.client.post(reverse("movies:roulette-candidate-toggle", args=[self.movie.pk]))
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(RouletteCandidate.objects.filter(user=self.user, movie=self.movie).exists())
-
-    def test_segundo_clic_la_quita(self):
-        RouletteCandidate.objects.create(user=self.user, movie=self.movie)
-        self.client.post(reverse("movies:roulette-candidate-toggle", args=[self.movie.pk]))
-        self.assertFalse(RouletteCandidate.objects.filter(user=self.user, movie=self.movie).exists())
-
-    def test_anonimo_no_puede_anadir(self):
+    def test_anonimo_no_ve_guardadas(self):
         self.client.logout()
-        response = self.client.post(reverse("movies:roulette-candidate-toggle", args=[self.movie.pk]))
+        response = self.client.get(reverse("movies:saved-movies"))
         self.assertIn("/cuenta/login/", response.url)
-
-    def test_ficha_marca_is_candidate(self):
-        RouletteCandidate.objects.create(user=self.user, movie=self.movie)
-        response = self.client.get(reverse("movies:detail", args=[self.movie.pk]))
-        self.assertTrue(response.context["is_candidate"])
-
-    def test_htmx_devuelve_el_panel_de_la_ruleta(self):
-        response = self.client.post(
-            reverse("movies:roulette-candidate-toggle", args=[self.movie.pk]),
-            HTTP_HX_REQUEST="true",
-        )
-        self.assertContains(response, self.movie.title)
 
 
 class RouletteRatingTests(TestCase):
@@ -158,13 +154,16 @@ class RouletteRatingTests(TestCase):
 
 
 class RouletteListTests(TestCase):
+    """Modo 2: gira directamente sobre `SavedMovie`, sin una lista de
+    candidatas aparte — guardar una película ya la hace elegible aquí."""
+
     def setUp(self):
         self.user = make_user("lector@test.local")
         self.client.login(username=self.user.email, password="Testpass123!")
         self.movie_a = make_movie(1, "A", None)
         self.movie_b = make_movie(2, "B", None)
-        RouletteCandidate.objects.create(user=self.user, movie=self.movie_a)
-        RouletteCandidate.objects.create(user=self.user, movie=self.movie_b)
+        SavedMovie.objects.create(user=self.user, movie=self.movie_a)
+        SavedMovie.objects.create(user=self.user, movie=self.movie_b)
 
     def test_girar_marca_como_vista_y_no_repite(self):
         seen_ids = set()
@@ -175,60 +174,29 @@ class RouletteListTests(TestCase):
             seen_ids.add(result.pk)
 
         self.assertEqual(seen_ids, {self.movie_a.pk, self.movie_b.pk})
-        self.assertTrue(RouletteCandidate.objects.filter(user=self.user, is_seen=False).count() == 0)
+        self.assertEqual(RouletteSavedSeen.objects.filter(user=self.user).count(), 2)
 
         response = self.client.post(reverse("movies:roulette-list-draw"))
         self.assertIsNone(response.context["result"])
 
-    def test_reiniciar_lista(self):
-        RouletteCandidate.objects.filter(user=self.user).update(is_seen=True)
+    def test_reiniciar(self):
+        RouletteSavedSeen.objects.create(user=self.user, movie=self.movie_a)
+        RouletteSavedSeen.objects.create(user=self.user, movie=self.movie_b)
         self.client.post(reverse("movies:roulette-list-reset"))
-        self.assertEqual(RouletteCandidate.objects.filter(user=self.user, is_seen=False).count(), 2)
+        self.assertEqual(RouletteSavedSeen.objects.filter(user=self.user).count(), 0)
 
-    @patch("apps.movies.views.Movie.get_or_create_from_tmdb")
-    def test_anadir_candidata_desde_busqueda(self, mock_get_or_create):
-        mock_get_or_create.return_value = make_movie(99, "Nueva", None)
-        response = self.client.post(reverse("movies:roulette-candidate-add", args=[99]))
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(RouletteCandidate.objects.filter(user=self.user, movie__tmdb_id=99).exists())
-
-    def test_quitar_candidata_de_otro_usuario_da_404(self):
-        otro = make_user("otro@test.local")
-        candidate = RouletteCandidate.objects.create(user=otro, movie=make_movie(50, "C", None))
-        response = self.client.post(reverse("movies:roulette-candidate-remove", args=[candidate.pk]))
-        self.assertEqual(response.status_code, 404)
-
-    def test_muestra_guardadas_que_no_estan_ya_en_la_lista(self):
-        saved_movie = make_movie(60, "Guardada", None)
-        SavedMovie.objects.create(user=self.user, movie=saved_movie)
-        # movie_a ya está en la lista de candidatas (ver setUp) y también
-        # podría estar guardada: no debe salir duplicada en "para añadir".
-        SavedMovie.objects.create(user=self.user, movie=self.movie_a)
+    def test_guardar_una_pelicula_la_hace_elegible_sin_pasos_extra(self):
+        nueva = make_movie(60, "Recién guardada", None)
+        self.client.post(reverse("movies:save-toggle", args=[nueva.pk]))
 
         response = self.client.get(reverse("movies:roulette-list"))
-        saved_ids = list(response.context["saved_available"].values_list("movie", flat=True))
-        self.assertEqual(saved_ids, [saved_movie.pk])
+        saved_ids = list(response.context["saved"].values_list("movie", flat=True))
+        self.assertIn(nueva.pk, saved_ids)
 
-    def test_anadir_desde_guardadas_la_mueve_a_la_lista(self):
-        saved_movie = make_movie(60, "Guardada", None)
-        SavedMovie.objects.create(user=self.user, movie=saved_movie)
-
-        self.client.post(reverse("movies:roulette-candidate-toggle", args=[saved_movie.pk]))
-
-        self.assertTrue(RouletteCandidate.objects.filter(user=self.user, movie=saved_movie).exists())
-        response = self.client.get(reverse("movies:roulette-list"))
-        self.assertNotIn(saved_movie.pk, response.context["saved_available"].values_list("movie", flat=True))
-
-
-class MovieSearchViewTests(TestCase):
-    @patch("apps.movies.views.tmdb_search")
-    def test_busqueda_usa_el_servicio_tmdb(self, mock_search):
-        mock_search.return_value = []
-        user = make_user("lector@test.local")
-        self.client.login(username=user.email, password="Testpass123!")
-        response = self.client.get(reverse("movies:roulette-list-search"), {"query": "matrix"})
-        self.assertEqual(response.status_code, 200)
-        mock_search.assert_called_once_with("matrix")
+    def test_sin_guardadas_no_hay_resultado(self):
+        SavedMovie.objects.filter(user=self.user).delete()
+        response = self.client.post(reverse("movies:roulette-list-draw"))
+        self.assertIsNone(response.context["result"])
 
 
 class MovieListLiveSearchTests(TestCase):

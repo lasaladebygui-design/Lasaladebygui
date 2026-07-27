@@ -12,6 +12,12 @@
         {{ vote_form.score }}
         <button type="submit" class="btn btn--accent btn--sm">{% if user_vote %}Cambiar voto{% else %}Votar{% endif %}</button>
     </form>
+    {% if user_vote %}
+    <form hx-post="{% url 'movies:vote-remove' movie.pk %}" hx-target="#vote-widget" hx-swap="outerHTML" class="inline-form">
+        {% csrf_token %}
+        <button type="submit" class="link-btn link-btn--danger">Quitar nota</button>
+    </form>
+    {% endif %}
     {% else %}
     <p class="muted"><a href="{% url 'accounts:login' %}?next={{ request.path }}">Inicia sesión</a> para votar.</p>
     {% endif %}

@@ -1004,7 +1004,10 @@ main { flex: 1; }
     padding: calc(var(--space-unit) * 3);
     background: var(--color-surface);
     flex: 1;
+    min-height: 56px;
+    transition: background-color 0.15s ease;
 }
+.tier-row__items--dragover { background-color: var(--color-bg); }
 .tier-row__empty { padding: calc(var(--space-unit) * 2) 0; }
 
 .tier-item {
@@ -1013,7 +1016,9 @@ main { flex: 1; }
     align-items: center;
     width: 80px;
     text-align: center;
+    cursor: grab;
 }
+.tier-item:active { cursor: grabbing; }
 .tier-item__poster {
     width: 80px;
     aspect-ratio: 2 / 3;

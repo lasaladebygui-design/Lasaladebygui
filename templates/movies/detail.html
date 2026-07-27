@@ -25,12 +25,9 @@
                         {% if is_saved %}✓ Guardada{% else %}Guardar película{% endif %}
                     </button>
                 </form>
-                <form method="post" action="{% url 'movies:roulette-candidate-toggle' movie.pk %}" class="inline-form">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn--ghost btn--sm">
-                        {% if is_candidate %}✓ En tu lista de la ruleta{% else %}Añadir a la ruleta{% endif %}
-                    </button>
-                </form>
+                {% if is_saved %}
+                <span class="muted">Ya puedes girar la <a href="{% url 'movies:roulette-list' %}">ruleta</a> con ella.</span>
+                {% endif %}
             </div>
             {% endif %}
 

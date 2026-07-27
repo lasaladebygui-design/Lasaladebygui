@@ -1,11 +1,14 @@
 import io
 import tempfile
+from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from apps.accounts.models import User
+from apps.movies.models import Movie
+from apps.movies.services import MovieAPIError
 
 from .models import SecretMovie, SecretPhoto, TierListEntry, TopSecretConfig
 
@@ -97,6 +100,53 @@ class TierListTests(TestCase):
     def test_requiere_haber_entrado_al_maletin(self):
         self.client.post(reverse("secret:lock"))
         response = self.client.get(reverse("secret:tier-list"))
+        self.assertRedirects(response, reverse("secret:gate"))
+
+    @patch("apps.secret.views.tmdb_search")
+    def test_buscar_usa_el_servicio_tmdb(self, mock_search):
+        mock_search.return_value = []
+        response = self.client.get(reverse("secret:tier-list-search"), {"query": "matrix"})
+        self.assertEqual(response.status_code, 200)
+        mock_search.assert_called_once_with("matrix")
+
+    @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
+    def test_anadir_desde_busqueda_crea_entrada_en_nivel_a(self, mock_get_or_create):
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=99, title="Nueva película")
+        response = self.client.post(reverse("secret:tier-list-add", args=[99]))
+        self.assertRedirects(response, reverse("secret:tier-list"))
+        entry = TierListEntry.objects.get(movie__tmdb_id=99)
+        self.assertEqual(entry.tier, TierListEntry.Tier.A)
+        self.assertEqual(entry.title, "Nueva película")
+
+    @patch("apps.secret.views.Movie.get_or_create_from_tmdb", side_effect=MovieAPIError("fallo"))
+    def test_error_de_tmdb_al_anadir_no_rompe_la_pagina(self, mock_get_or_create):
+        response = self.client.post(reverse("secret:tier-list-add", args=[99]))
+        self.assertRedirects(response, reverse("secret:tier-list"))
+        self.assertFalse(TierListEntry.objects.exists())
+
+    def test_mover_cambia_de_nivel_y_se_coloca_al_final(self):
+        TierListEntry.objects.create(tier="B", title="Ya en B", order=1)
+        entry = TierListEntry.objects.create(tier="A", title="Se mueve", order=1)
+
+        response = self.client.post(reverse("secret:tier-list-move", args=[entry.pk]), {"tier": "B"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"ok": True})
+
+        entry.refresh_from_db()
+        self.assertEqual(entry.tier, "B")
+        self.assertEqual(entry.order, 2)
+
+    def test_mover_con_nivel_invalido_da_error(self):
+        entry = TierListEntry.objects.create(tier="A", title="X", order=1)
+        response = self.client.post(reverse("secret:tier-list-move", args=[entry.pk]), {"tier": "Z"})
+        self.assertEqual(response.status_code, 400)
+        entry.refresh_from_db()
+        self.assertEqual(entry.tier, "A")
+
+    def test_mover_requiere_haber_entrado_al_maletin(self):
+        entry = TierListEntry.objects.create(tier="A", title="X", order=1)
+        self.client.post(reverse("secret:lock"))
+        response = self.client.get(reverse("secret:tier-list-move", args=[entry.pk]))
         self.assertRedirects(response, reverse("secret:gate"))
 
 

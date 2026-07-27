@@ -2,7 +2,12 @@ import random
 from functools import wraps
 
 from django.contrib import messages
+from django.db.models import Max
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+
+from apps.movies.models import Movie
+from apps.movies.services import MovieAPIError, tmdb_search
 
 from .forms import CodeForm, NumberSelectForm, RatingSearchForm, SecretPhotoForm
 from .models import SecretMovie, SecretPhoto, TierListEntry, TopSecretConfig
@@ -84,6 +89,51 @@ def tier_list(request):
     for entry in TierListEntry.objects.select_related("movie"):
         tiers[entry.tier].append(entry)
     return render(request, "secret/tier_list.html", {"tiers": tiers})
+
+
+@secret_required
+def tier_list_search(request):
+    query = request.GET.get("query", "").strip()
+    results = []
+    error = None
+    if query:
+        try:
+            results = tmdb_search(query)[:8]
+        except MovieAPIError as exc:
+            error = str(exc)
+    return render(request, "secret/_tier_search_results.html", {
+        "results": results, "error": error, "query": query,
+    })
+
+
+@secret_required
+def tier_list_add(request, tmdb_id):
+    if request.method == "POST":
+        try:
+            movie = Movie.get_or_create_from_tmdb(tmdb_id)
+        except MovieAPIError as exc:
+            messages.error(request, str(exc))
+        else:
+            TierListEntry.objects.get_or_create(
+                movie=movie, defaults={"title": movie.title, "tier": TierListEntry.Tier.A},
+            )
+    return redirect("secret:tier-list")
+
+
+@secret_required
+def tier_list_move(request, pk):
+    if request.method != "POST":
+        raise Http404
+    entry = get_object_or_404(TierListEntry, pk=pk)
+    new_tier = request.POST.get("tier")
+    if new_tier not in TierListEntry.Tier.values:
+        return JsonResponse({"ok": False, "error": "nivel inválido"}, status=400)
+
+    max_order = TierListEntry.objects.filter(tier=new_tier).aggregate(Max("order"))["order__max"] or 0
+    entry.tier = new_tier
+    entry.order = max_order + 1
+    entry.save(update_fields=["tier", "order"])
+    return JsonResponse({"ok": True})
 
 
 @secret_required

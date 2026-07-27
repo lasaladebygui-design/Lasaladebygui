@@ -9,7 +9,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import MovieSearchForm, RatingRangeForm, VoteForm
-from .models import Movie, RouletteCandidate, RouletteRatingSeen, SavedMovie, Vote
+from .models import Movie, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, Vote
 from .services import MovieAPIError, tmdb_search
 
 SPIN_DECOYS = 5
@@ -25,16 +25,6 @@ def _build_reel(final_movie, decoy_pool):
     decoys = decoys[:SPIN_DECOYS] or [final_movie] * SPIN_DECOYS
     reel = decoys + [final_movie]
     return json.dumps([m.poster_url or "" for m in reel])
-
-
-def _roulette_list_context(user):
-    candidates = RouletteCandidate.objects.filter(user=user).select_related("movie")
-    # Guardadas que todavía no están en la lista: para poder añadirlas a la
-    # ruleta con un clic en vez de tener que volver a buscarlas.
-    saved_available = SavedMovie.objects.filter(user=user).exclude(
-        movie_id__in=candidates.values_list("movie_id", flat=True)
-    ).select_related("movie")
-    return {"candidates": candidates, "saved_available": saved_available}
 
 
 # --- Catálogo y votación ----------------------------------------------------
@@ -85,15 +75,12 @@ def movie_detail(request, pk):
     movie = get_object_or_404(Movie, pk=pk)
     user_vote = None
     is_saved = False
-    is_candidate = False
     if request.user.is_authenticated:
         user_vote = Vote.objects.filter(movie=movie, user=request.user).first()
         is_saved = SavedMovie.objects.filter(movie=movie, user=request.user).exists()
-        is_candidate = RouletteCandidate.objects.filter(movie=movie, user=request.user).exists()
     vote_form = VoteForm(initial={"score": user_vote.score if user_vote else None})
     return render(request, "movies/detail.html", {
-        "movie": movie, "vote_form": vote_form, "user_vote": user_vote,
-        "is_saved": is_saved, "is_candidate": is_candidate,
+        "movie": movie, "vote_form": vote_form, "user_vote": user_vote, "is_saved": is_saved,
     })
 
 
@@ -113,9 +100,13 @@ def movie_save_toggle(request, pk):
 @login_required
 def my_movies(request):
     votes = Vote.objects.filter(user=request.user).select_related("movie").order_by("-updated_at")
+    return render(request, "movies/my_movies.html", {"votes": votes})
+
+
+@login_required
+def saved_movies(request):
     saved = SavedMovie.objects.filter(user=request.user).select_related("movie")
-    candidates = RouletteCandidate.objects.filter(user=request.user).select_related("movie")
-    return render(request, "movies/my_movies.html", {"votes": votes, "saved": saved, "candidates": candidates})
+    return render(request, "movies/saved_movies.html", {"saved": saved})
 
 
 @login_required
@@ -134,6 +125,23 @@ def movie_vote(request, pk):
     user_vote = Vote.objects.filter(movie=movie, user=request.user).first()
     vote_form = VoteForm(initial={"score": user_vote.score if user_vote else None})
     context = {"movie": movie, "vote_form": vote_form, "user_vote": user_vote}
+
+    if _is_htmx(request):
+        return render(request, "movies/_vote_widget.html", context)
+    return redirect("movies:detail", pk=movie.pk)
+
+
+@login_required
+def movie_vote_remove(request, pk):
+    movie = get_object_or_404(Movie, pk=pk)
+    if request.method == "POST":
+        Vote.objects.filter(movie=movie, user=request.user).delete()
+        if not _is_htmx(request):
+            messages.success(request, "Nota quitada. Ya no aparece en «Mis películas».")
+
+    movie.refresh_from_db()
+    vote_form = VoteForm()
+    context = {"movie": movie, "vote_form": vote_form, "user_vote": None}
 
     if _is_htmx(request):
         return render(request, "movies/_vote_widget.html", context)
@@ -182,106 +190,51 @@ def roulette_rating_reset(request):
     return redirect("movies:roulette-rating")
 
 
-# --- Ruleta Modo 2: lista personalizada -------------------------------------
+# --- Ruleta Modo 2: gira sobre tus Guardadas --------------------------------
+# No hay una lista de candidatas aparte: guardar una película (botón
+# "Guardar película" en su ficha) ya la hace elegible aquí. Esto solo
+# registra cuáles ya han salido, para no repetir hasta reiniciar.
+
+def _roulette_saved_context(user):
+    saved = SavedMovie.objects.filter(user=user).select_related("movie")
+    seen_ids = set(RouletteSavedSeen.objects.filter(user=user).values_list("movie_id", flat=True))
+    for item in saved:
+        item.is_seen = item.movie_id in seen_ids
+    return {"saved": saved, "unseen_count": sum(1 for item in saved if not item.is_seen)}
+
 
 @login_required
 def roulette_list(request):
-    search_form = MovieSearchForm()
-    return render(request, "movies/roulette_list.html", {
-        "search_form": search_form, **_roulette_list_context(request.user),
-    })
-
-
-@login_required
-def roulette_list_search(request):
-    query = request.GET.get("query", "").strip()
-    results = []
-    error = None
-    if query:
-        try:
-            results = tmdb_search(query)[:8]
-        except MovieAPIError as exc:
-            error = str(exc)
-    return render(request, "movies/_search_results.html", {
-        "results": results, "error": error, "query": query,
-    })
-
-
-@login_required
-def roulette_candidate_add(request, tmdb_id):
-    if request.method == "POST":
-        try:
-            movie = Movie.get_or_create_from_tmdb(tmdb_id)
-        except MovieAPIError as exc:
-            messages.error(request, str(exc))
-        else:
-            RouletteCandidate.objects.get_or_create(user=request.user, movie=movie)
-
-    if _is_htmx(request):
-        return render(request, "movies/roulette_list_result.html", _roulette_list_context(request.user))
-    return redirect("movies:roulette-list")
-
-
-@login_required
-def roulette_candidate_remove(request, pk):
-    candidate = get_object_or_404(RouletteCandidate, pk=pk, user=request.user)
-    if request.method == "POST":
-        candidate.delete()
-
-    if _is_htmx(request):
-        return render(request, "movies/roulette_list_result.html", _roulette_list_context(request.user))
-    return redirect("movies:roulette-list")
-
-
-@login_required
-def roulette_candidate_toggle(request, pk):
-    """Añadir/quitar una película (del catálogo, no de una búsqueda TMDb en
-    vivo) a la lista de la ruleta Modo 2. Se usa tanto desde la ficha de la
-    película (redirige de vuelta) como desde la sección "tus guardadas" de
-    la propia lista de la ruleta (HTMX, refresca el panel)."""
-    movie = get_object_or_404(Movie, pk=pk)
-    if request.method == "POST":
-        candidate, created = RouletteCandidate.objects.get_or_create(user=request.user, movie=movie)
-        if not created:
-            candidate.delete()
-            if not _is_htmx(request):
-                messages.success(request, "Quitada de tu lista de la ruleta.")
-        elif not _is_htmx(request):
-            messages.success(request, "¡Añadida a tu lista de la ruleta!")
-
-    if _is_htmx(request):
-        return render(request, "movies/roulette_list_result.html", _roulette_list_context(request.user))
-    return redirect("movies:detail", pk=movie.pk)
+    return render(request, "movies/roulette_list.html", _roulette_saved_context(request.user))
 
 
 @login_required
 def roulette_list_draw(request):
     result = None
     reel = None
-    context = _roulette_list_context(request.user)
-    candidates = context["candidates"]
+    saved = SavedMovie.objects.filter(user=request.user).select_related("movie")
 
     if request.method == "POST":
-        unseen = list(candidates.filter(is_seen=False))
-        if not candidates.exists():
-            messages.warning(request, "Tu lista está vacía. Añade alguna película candidata primero.")
+        seen_ids = RouletteSavedSeen.objects.filter(user=request.user).values_list("movie_id", flat=True)
+        unseen = list(saved.exclude(movie_id__in=seen_ids))
+        if not saved.exists():
+            messages.warning(request, "Todavía no has guardado ninguna película. Guarda alguna desde su ficha.")
         elif not unseen:
-            messages.info(request, "Has visto toda tu lista. Dale a «reiniciar» para volver a empezar.")
+            messages.info(request, "Has visto todas tus guardadas. Dale a «reiniciar» para volver a empezar.")
         else:
-            chosen = random.choice(unseen)
-            chosen.is_seen = True
-            chosen.save(update_fields=["is_seen"])
-            result = chosen.movie
-            reel = _build_reel(result, [c.movie for c in candidates])
+            chosen = random.choice(unseen).movie
+            RouletteSavedSeen.objects.get_or_create(user=request.user, movie=chosen)
+            result = chosen
+            reel = _build_reel(result, [s.movie for s in saved])
 
     return render(request, "movies/roulette_list_result.html", {
-        **context, "result": result, "reel_json": reel,
+        **_roulette_saved_context(request.user), "result": result, "reel_json": reel,
     })
 
 
 @login_required
 def roulette_list_reset(request):
     if request.method == "POST":
-        RouletteCandidate.objects.filter(user=request.user).update(is_seen=False)
-        messages.success(request, "Lista reiniciada: todas tus candidatas vuelven a estar disponibles.")
+        RouletteSavedSeen.objects.filter(user=request.user).delete()
+        messages.success(request, "Reiniciado: volverás a ver todas tus guardadas.")
     return redirect("movies:roulette-list")

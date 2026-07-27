@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Movie, RouletteCandidate, RouletteRatingSeen, SavedMovie, Vote
+from .models import Movie, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, Vote
 
 
 @admin.register(Movie)
@@ -21,14 +21,13 @@ class VoteAdmin(admin.ModelAdmin):
     search_fields = ("movie__title", "user__email")
 
 
-@admin.register(RouletteCandidate)
-class RouletteCandidateAdmin(admin.ModelAdmin):
-    list_display = ("user", "movie", "is_seen", "added_at")
-    list_filter = ("is_seen",)
-
-
 @admin.register(RouletteRatingSeen)
 class RouletteRatingSeenAdmin(admin.ModelAdmin):
+    list_display = ("user", "movie", "seen_at")
+
+
+@admin.register(RouletteSavedSeen)
+class RouletteSavedSeenAdmin(admin.ModelAdmin):
     list_display = ("user", "movie", "seen_at")
 
 

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Guardadas{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap">
+        <div class="section-header">
+            <div>
+                <span class="card__tag">Tu cuenta</span>
+                <h1>Guardadas</h1>
+            </div>
+            <div class="section-header__actions">
+                <a href="{% url 'movies:roulette-list' %}" class="btn btn--accent">Girar la ruleta</a>
+                <a href="{% url 'movies:list' %}" class="btn btn--ghost">Volver al catálogo</a>
+            </div>
+        </div>
+        <p class="muted">Estas son las que puede ofrecerte la ruleta (Modo 2). Guarda o quita alguna desde su ficha.</p>
+
+        {% if saved %}
+        <div class="movie-grid">
+            {% for item in saved %}
+            <a href="{% url 'movies:detail' item.movie.pk %}" class="movie-card">
+                {% if item.movie.poster_url %}
+                    <img src="{{ item.movie.poster_url }}" alt="" class="movie-card__poster">
+                {% else %}
+                    <div class="movie-card__poster movie-card__poster--placeholder"><span>🎬</span></div>
+                {% endif %}
+                <div class="movie-card__body">
+                    <h3>{{ item.movie.title }}</h3>
+                    <p class="muted">{{ item.movie.year }}</p>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">Todavía no has guardado ninguna película. Hazlo desde la ficha de cualquier película.</p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

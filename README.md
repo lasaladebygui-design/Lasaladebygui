@@ -227,17 +227,20 @@ El usuario elige una nota mínima y máxima (1-10; el formulario empieza abierto
 
 ### Ruleta — Modo 2 (`/peliculas/ruleta/lista/`)
 
-El usuario arma su propia lista de candidatas (`RouletteCandidate`, asociada a su cuenta) de tres formas: buscando títulos en vivo (TMDb, vía HTMX, como antes), añadiendo directamente desde **sus películas guardadas** (sección "Añadir desde tus guardadas" en la propia página de la lista — solo aparecen las guardadas que todavía no están en la lista) o desde el botón **"Añadir a la ruleta"** en la ficha de cualquier película del catálogo (`/peliculas/<id>/`, junto al de "Guardar película"; ambos toggles son independientes). "Girar" elige al azar una no vista de esa lista y la marca como vista; "reiniciar" las vuelve a poner todas disponibles.
+Gira directamente sobre tus **Guardadas** (`apps.movies.models.SavedMovie`) — no hay una lista de candidatas aparte que mantener: guardar una película desde su ficha ya la hace elegible aquí, sin ningún paso extra. "Girar" elige al azar una guardada que no hayas visto todavía en este modo y la marca como vista (`RouletteSavedSeen`, mismo patrón que `RouletteRatingSeen` del Modo 1); "reiniciar" las vuelve a poner todas disponibles.
 
 Ambos modos muestran el resultado con una animación de carteles rotando (tipo tragaperras) antes de fijarse en la película elegida, hecha con Alpine.js sobre las portadas ya cacheadas — sin llamadas adicionales a las APIs.
 
 ### Votaciones
 
-Cualquier usuario logueado vota una película del 1 al 10 desde su ficha (`/peliculas/<id>/`); un segundo voto sobre la misma película sobreescribe el anterior (`unique_together` en `Vote` + `update_or_create`). Se muestra la media y el número de votos. El voto se envía por HTMX sin recargar la página.
+Cualquier usuario logueado vota una película del 1 al 10 desde su ficha (`/peliculas/<id>/`); un segundo voto sobre la misma película sobreescribe el anterior (`unique_together` en `Vote` + `update_or_create`). Se muestra la media y el número de votos. El voto se envía por HTMX sin recargar la página. Hay también un botón **"Quitar nota"** (visible solo si ya has votado) que borra tu voto — al hacerlo, la película deja de aparecer en "Mis películas".
 
-### Mis películas y guardar (`/peliculas/mias/`)
+### Mis películas (`/peliculas/mias/`) y Guardadas (`/peliculas/guardadas/`)
 
-Junto a la cabecera del catálogo hay un enlace "Mis películas" (solo para usuarios logueados) con **tres** listas: las que has votado (con tu nota), las que has guardado y las que están en tu lista de la ruleta Modo 2. Desde la ficha de cualquier película hay dos botones independientes: "Guardar película" / "✓ Guardada" (`apps.movies.models.SavedMovie`, una fila única por usuario+película — pensado para marcar "quiero verla" sin necesidad de puntuarla todavía) y "Añadir a la ruleta" / "✓ En tu lista de la ruleta" (`RouletteCandidate`, ver Modo 2 más arriba).
+Dos apartados separados, ambos enlazados desde la cabecera del catálogo (solo para usuarios logueados):
+
+- **Mis películas:** solo lo que has votado, con tu nota.
+- **Guardadas:** lo que has guardado desde la ficha de cualquier película (botón "Guardar película" / "✓ Guardada", `apps.movies.models.SavedMovie` — una fila única por usuario+película, pensado para marcar "quiero verla" sin necesidad de puntuarla todavía). Esta es la lista de la que tira el Modo 2 de la ruleta, de ahí que tenga su propio apartado en vez de ser una sección más dentro de "Mis películas".
 
 ## 8. Top Secret, donaciones y contacto
 
@@ -252,7 +255,7 @@ Dentro hay tres secciones, todas editables desde **Admin → Top Secret → Pel�
 - **a) Selector numérico:** eliges un número de la lista y te devuelve la película asociada.
 - **b) Buscador por nota:** un intervalo de nota *personal* (no la de IMDb ni la media de votos) y una recomendación al azar dentro de él.
 - **c) Lista completa:** todas las entradas, con su nota y comentario.
-- **d) Tier list:** un ranking editable de películas por niveles S/A/B/C/D (`apps.secret.models.TierListEntry`, editable desde **Admin → Top Secret → Tier list**), con póster opcional (enlazando a una película del catálogo) o solo título. Pensado para uso personal del dueño de la web, no hay edición desde la web pública.
+- **d) Tier list:** un ranking de películas por niveles S/A/B/C/D (`apps.secret.models.TierListEntry`). Editable directamente desde la propia página: un buscador (TMDb en vivo, como en el catálogo) para añadir una película nueva al nivel A, y arrastrar y soltar (`static/js/tier_list.js`, drag-and-drop nativo del navegador, sin librerías) cualquier entrada ya existente para cambiarla de nivel — se coloca al final del nivel de destino. También se puede editar desde **Admin → Top Secret → Tier list** (título, nivel, orden y película enlazada).
 - **e) Tablón de fotos** (`/top-secret/dentro/tablon/`): a diferencia del resto de Top Secret, **esto sí se sube desde la propia web, no desde el admin** — cualquiera que haya entrado con el código puede subir una foto con una pequeña descripción (`apps.secret.models.SecretPhoto`). No hace falta tener cuenta para subir una; si el visitante ha iniciado sesión, se guarda y se muestra quién la subió (con su nombre coloreado por rango), y si no, aparece como "Anónimo".
 
 Nota: "Frases célebres" vivía antes aquí, como un juego más de Top Secret — se sacó al apartado **Juegos** (sección 9) para que jugarlo no dependa del código de acceso.
