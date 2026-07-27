@@ -19,13 +19,18 @@ class Command(BaseCommand):
       TMDb/OMDb (equivalente a `seed_movies`). Conviene quitar esta variable
       después del primer despliegue para no repetir las llamadas a las APIs
       en cada arranque.
+    - Si RUN_SEED_QUOTES=true, carga las frases de ejemplo del juego "Frases
+      célebres" (equivalente a `seed_quotes`). Es idempotente (no duplica si
+      ya existen), así que es seguro dejarla activada si prefieres no volver
+      a tocar las variables de entorno.
     """
 
-    help = "Bootstrap de producción: primer Admin y/o catálogo de películas, vía variables de entorno."
+    help = "Bootstrap de producción: primer Admin y/o contenido de ejemplo, vía variables de entorno."
 
     def handle(self, *args, **options):
         self._ensure_admin()
         self._maybe_seed_movies()
+        self._maybe_seed_quotes()
 
     def _ensure_admin(self):
         email = os.environ.get("DJANGO_SUPERUSER_EMAIL")
@@ -49,3 +54,7 @@ class Command(BaseCommand):
     def _maybe_seed_movies(self):
         if os.environ.get("RUN_SEED_MOVIES", "").lower() in ("1", "true", "yes"):
             call_command("seed_movies")
+
+    def _maybe_seed_quotes(self):
+        if os.environ.get("RUN_SEED_QUOTES", "").lower() in ("1", "true", "yes"):
+            call_command("seed_quotes")

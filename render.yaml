@@ -13,6 +13,8 @@ services:
         sync: false
       - key: RUN_SEED_MOVIES
         value: "false"
+      - key: RUN_SEED_QUOTES
+        value: "false"
       - key: PYTHON_VERSION
         value: 3.13.0
       - key: DJANGO_SECRET_KEY

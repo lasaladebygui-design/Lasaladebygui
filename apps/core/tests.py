@@ -104,6 +104,25 @@ class BootstrapProductionTests(TestCase):
 
         self.assertFalse(User.objects.filter(email="otro@lasaladebygui.local").exists())
 
+    def test_run_seed_quotes_carga_las_frases(self):
+        import os
+
+        from apps.secret.models import MovieQuote
+
+        os.environ["RUN_SEED_QUOTES"] = "true"
+        try:
+            call_command("bootstrap_production")
+        finally:
+            del os.environ["RUN_SEED_QUOTES"]
+
+        self.assertTrue(MovieQuote.objects.exists())
+
+    def test_sin_run_seed_quotes_no_carga_nada(self):
+        from apps.secret.models import MovieQuote
+
+        call_command("bootstrap_production")
+        self.assertFalse(MovieQuote.objects.exists())
+
 
 class ThemeSwitcherTests(TestCase):
     def setUp(self):

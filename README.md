@@ -280,7 +280,8 @@ El **plan free de Render no incluye acceso a Shell** (es de pago), así que `cre
    - `DJANGO_SUPERUSER_PASSWORD` = una contraseña segura
 2. Guarda (Render redespliega solo). En ese arranque se crea el usuario Admin — pero **solo si todavía no existe ningún Admin**; en arranques posteriores no hace nada, así que es seguro dejar esas variables puestas indefinidamente (aunque por higiene puedes borrarlas después de confirmar que el admin se creó).
 3. Para poblar el catálogo de películas, añade además `RUN_SEED_MOVIES` = `true`, guarda, espera al redeploy, y **quita esa variable** (o ponla en `false`) — a diferencia del admin, conviene no dejarla activada, porque volvería a llamar a TMDb/OMDb en cada arranque del servicio.
-4. Entra en `https://<tu-servicio>.onrender.com/admin/` con el email/contraseña del paso 1.
+4. Para cargar las 36 frases de ejemplo del juego "Frases célebres" (Top Secret → Juegos), añade `RUN_SEED_QUOTES` = `true` y guarda. A diferencia de `RUN_SEED_MOVIES`, esta sí es segura de dejar activada para siempre si prefieres no volver a tocar las variables (no llama a ninguna API externa, y no duplica las frases si ya existen).
+5. Entra en `https://<tu-servicio>.onrender.com/admin/` con el email/contraseña del paso 1.
 
 Si en algún momento sí quieres ejecutar comandos sueltos (management commands que no estén cubiertos por este bootstrap), la alternativa sin pagar por Shell es lanzarlos desde tu propio ordenador apuntando temporalmente a la `DATABASE_URL` de producción (mismo Supabase, esté donde esté desplegada la app):
 ```bash
@@ -309,8 +310,9 @@ Como se explica en la sección de artículos, el disco de Render free no es pers
 python manage.py makemigrations   # tras cambiar modelos
 python manage.py migrate
 python manage.py seed_demo        # usuarios de ejemplo (uno por rol)
-python manage.py seed_content     # seed_demo + artículos, hilos de foro y películas de Top Secret de ejemplo
+python manage.py seed_content     # seed_demo + artículos, hilos de foro, películas de Top Secret y frases célebres de ejemplo
 python manage.py seed_movies      # catálogo de películas desde TMDb/OMDb (--pages N, por defecto 2)
+python manage.py seed_quotes      # frases de ejemplo para "Frases célebres" (seguro en producción, no crea usuarios)
 python manage.py createsuperuser
 python manage.py collectstatic    # antes de desplegar
 ```
