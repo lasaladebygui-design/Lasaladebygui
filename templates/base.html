@@ -42,12 +42,14 @@
                 <nav id="site-nav" class="site-nav" aria-label="Principal" x-show="navOpen" x-cloak x-transition>
                     <a href="{% url 'articles:list' %}">Artículos</a>
                     <a href="{% url 'forum:list' %}">Foro</a>
+                    {% if user.is_authenticated %}
+                        <a href="{% url 'social:home' %}">Social</a>
+                    {% endif %}
                     <a href="{% url 'movies:list' %}">Películas</a>
                     <a href="{% url 'core:games' %}">Juegos</a>
                     <a href="{% url 'secret:gate' %}">Top Secret</a>
                     {% if user.is_authenticated %}
-                        <a href="{% url 'social:home' %}">Social</a>
-                        {% if user.is_staff %}
+                        {% if user.is_superuser %}
                             <a href="{% url 'admin:index' %}">Panel</a>
                         {% endif %}
                         <form action="{% url 'accounts:logout' %}" method="post" class="site-nav__logout">

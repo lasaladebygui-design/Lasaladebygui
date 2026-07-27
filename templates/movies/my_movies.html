@@ -55,6 +55,28 @@
         {% else %}
         <p class="muted">Todavía no has guardado ninguna película. Hazlo desde la ficha de cualquier película.</p>
         {% endif %}
+
+        <h2 class="movie-section-title">En tu lista de la ruleta</h2>
+        {% if candidates %}
+        <div class="movie-grid">
+            {% for candidate in candidates %}
+            <a href="{% url 'movies:detail' candidate.movie.pk %}" class="movie-card">
+                {% if candidate.movie.poster_url %}
+                    <img src="{{ candidate.movie.poster_url }}" alt="" class="movie-card__poster">
+                {% else %}
+                    <div class="movie-card__poster movie-card__poster--placeholder"><span>🎬</span></div>
+                {% endif %}
+                <div class="movie-card__body">
+                    <h3>{{ candidate.movie.title }}</h3>
+                    <p class="muted">{{ candidate.movie.year }}</p>
+                    {% if candidate.is_seen %}<span class="tag-pill">ya vista en la ruleta</span>{% endif %}
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">Todavía no has añadido ninguna película a la lista de la ruleta (Modo 2). Hazlo desde la ficha de cualquier película o desde <a href="{% url 'movies:roulette-list' %}">la ruleta</a>.</p>
+        {% endif %}
     </div>
 </section>
 {% endblock %}

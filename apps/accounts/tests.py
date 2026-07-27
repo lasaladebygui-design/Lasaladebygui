@@ -167,3 +167,30 @@ class ProfileTests(TestCase):
         response = self.client.get(reverse("accounts:profile"))
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "rotating-quotes-data")
+
+
+class NavPanelLinkTests(TestCase):
+    """El enlace 'Panel' del desplegable es solo para el Admin — Gestor y
+    Editor también son is_staff (para permisos puntuales en /admin/) pero
+    no deben ver el enlace en la navegación."""
+
+    def _login_as(self, email, role):
+        user = User.objects.create(email=email, role=role)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=email, password="Testpass123!")
+
+    def test_admin_ve_el_enlace_panel(self):
+        self._login_as("admin@test.local", User.Role.ADMIN)
+        response = self.client.get(reverse("core:home"))
+        self.assertContains(response, ">Panel<")
+
+    def test_gestor_no_ve_el_enlace_panel(self):
+        self._login_as("gestor@test.local", User.Role.GESTOR)
+        response = self.client.get(reverse("core:home"))
+        self.assertNotContains(response, ">Panel<")
+
+    def test_editor_no_ve_el_enlace_panel(self):
+        self._login_as("editor@test.local", User.Role.EDITOR)
+        response = self.client.get(reverse("core:home"))
+        self.assertNotContains(response, ">Panel<")

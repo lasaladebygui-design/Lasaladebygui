@@ -11,6 +11,7 @@ urlpatterns = [
     path("<int:pk>/", views.movie_detail, name="detail"),
     path("<int:pk>/votar/", views.movie_vote, name="vote"),
     path("<int:pk>/guardar/", views.movie_save_toggle, name="save-toggle"),
+    path("<int:pk>/ruleta/", views.roulette_candidate_toggle, name="roulette-candidate-toggle"),
 
     path("ruleta/", views.roulette_home, name="roulette-home"),
 

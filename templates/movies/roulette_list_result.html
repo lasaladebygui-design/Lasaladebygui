@@ -30,4 +30,20 @@
     {% else %}
     <p class="muted">Todavía no has añadido ninguna candidata. Búscala arriba.</p>
     {% endif %}
+
+    {% if saved_available %}
+    <h2>Añadir desde tus guardadas</h2>
+    <ul class="candidate-list">
+        {% for saved in saved_available %}
+        <li class="candidate-row">
+            {% if saved.movie.poster_url %}<img src="{{ saved.movie.poster_url }}" alt="" class="candidate-row__poster">{% endif %}
+            <span class="candidate-row__title">{{ saved.movie.title }} <span class="muted">{{ saved.movie.year }}</span></span>
+            <form hx-post="{% url 'movies:roulette-candidate-toggle' saved.movie.pk %}" hx-target="#roulette-panel" hx-swap="outerHTML" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="link-btn">Añadir</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
 </div>

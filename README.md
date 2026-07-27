@@ -132,6 +132,10 @@ El modelo de usuario (`apps.accounts.User`) tiene un campo `role` con 5 valores.
 
 Gestión desde el admin: **Usuarios → Usuarios**. La columna *rol* es editable en línea desde el listado, y hay acciones masivas "Banear usuarios seleccionados" / "Desbanear usuarios seleccionados". Al guardar un usuario como Gestor, `User._sync_gestor_group()` lo añade automáticamente a un grupo Django "Gestor" con permisos sobre el foro (y lo quita si deja de serlo) — no hace falta tocar Grupos/Permisos a mano.
 
+### Menú de navegación
+
+El desplegable de la cabecera sigue este orden: Artículos, Foro, Social (solo si has iniciado sesión), Películas, Juegos, Top Secret y, al final, **Panel** — pero este último enlace a `/admin/` solo lo ve el **Admin** (`user.is_superuser`), no Gestor ni Editor, aunque ambos también sean `is_staff` internamente (para tener permisos puntuales dentro del propio `/admin/`, como el Gestor con el foro). Es decir: Gestor/Editor pueden seguir entrando a `/admin/` escribiendo la URL a mano si de verdad lo necesitan, pero no se les ofrece el atajo en el menú.
+
 ### Nombre coloreado por rango
 
 En cualquier sitio donde aparece un nombre de usuario (cabecera, autoría de artículos, autoría de hilos y comentarios del foro), se pinta según su rol — así se distingue el rango de un vistazo. Se genera con el template tag `{% username_badge usuario %}` (`apps/accounts/templatetags/accounts_extras.py`) y los colores viven en `static/css/main.css`:
@@ -223,7 +227,7 @@ El usuario elige una nota mínima y máxima (1-10; el formulario empieza abierto
 
 ### Ruleta — Modo 2 (`/peliculas/ruleta/lista/`)
 
-El usuario busca títulos (TMDb en vivo, vía HTMX) y arma su propia lista de candidatas (`RouletteCandidate`), asociada a su cuenta. "Girar" elige al azar una no vista de esa lista y la marca como vista; "reiniciar" las vuelve a poner todas disponibles.
+El usuario arma su propia lista de candidatas (`RouletteCandidate`, asociada a su cuenta) de tres formas: buscando títulos en vivo (TMDb, vía HTMX, como antes), añadiendo directamente desde **sus películas guardadas** (sección "Añadir desde tus guardadas" en la propia página de la lista — solo aparecen las guardadas que todavía no están en la lista) o desde el botón **"Añadir a la ruleta"** en la ficha de cualquier película del catálogo (`/peliculas/<id>/`, junto al de "Guardar película"; ambos toggles son independientes). "Girar" elige al azar una no vista de esa lista y la marca como vista; "reiniciar" las vuelve a poner todas disponibles.
 
 Ambos modos muestran el resultado con una animación de carteles rotando (tipo tragaperras) antes de fijarse en la película elegida, hecha con Alpine.js sobre las portadas ya cacheadas — sin llamadas adicionales a las APIs.
 
@@ -233,7 +237,7 @@ Cualquier usuario logueado vota una película del 1 al 10 desde su ficha (`/peli
 
 ### Mis películas y guardar (`/peliculas/mias/`)
 
-Junto a la cabecera del catálogo hay un enlace "Mis películas" (solo para usuarios logueados) con dos listas: las que has votado (con tu nota) y las que has guardado. Desde la ficha de cualquier película hay un botón "Guardar película" / "✓ Guardada" que la añade o la quita de tu lista de guardadas (`apps.movies.models.SavedMovie`, una fila única por usuario+película) — pensado para marcar "quiero verla" sin necesidad de puntuarla todavía.
+Junto a la cabecera del catálogo hay un enlace "Mis películas" (solo para usuarios logueados) con **tres** listas: las que has votado (con tu nota), las que has guardado y las que están en tu lista de la ruleta Modo 2. Desde la ficha de cualquier película hay dos botones independientes: "Guardar película" / "✓ Guardada" (`apps.movies.models.SavedMovie`, una fila única por usuario+película — pensado para marcar "quiero verla" sin necesidad de puntuarla todavía) y "Añadir a la ruleta" / "✓ En tu lista de la ruleta" (`RouletteCandidate`, ver Modo 2 más arriba).
 
 ## 8. Top Secret, donaciones y contacto
 

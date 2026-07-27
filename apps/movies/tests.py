@@ -67,14 +67,51 @@ class SavedMovieTests(TestCase):
         response = self.client.post(reverse("movies:save-toggle", args=[self.movie.pk]))
         self.assertIn("/cuenta/login/", response.url)
 
-    def test_mis_peliculas_muestra_votadas_y_guardadas(self):
+    def test_mis_peliculas_muestra_votadas_guardadas_y_lista_de_ruleta(self):
         other_movie = make_movie(2, "Movie B", "7.0")
+        third_movie = make_movie(3, "Movie C", "6.0")
         Vote.objects.create(movie=self.movie, user=self.user, score=9)
         SavedMovie.objects.create(user=self.user, movie=other_movie)
+        RouletteCandidate.objects.create(user=self.user, movie=third_movie)
 
         response = self.client.get(reverse("movies:my-movies"))
         self.assertEqual(list(response.context["votes"].values_list("movie", flat=True)), [self.movie.pk])
         self.assertEqual(list(response.context["saved"].values_list("movie", flat=True)), [other_movie.pk])
+        self.assertEqual(list(response.context["candidates"].values_list("movie", flat=True)), [third_movie.pk])
+
+
+class RouletteCandidateToggleTests(TestCase):
+    def setUp(self):
+        self.user = make_user("lector@test.local")
+        self.movie = make_movie(1, "Movie A", "8.0")
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+    def test_anadir_a_la_ruleta_desde_la_ficha(self):
+        response = self.client.post(reverse("movies:roulette-candidate-toggle", args=[self.movie.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(RouletteCandidate.objects.filter(user=self.user, movie=self.movie).exists())
+
+    def test_segundo_clic_la_quita(self):
+        RouletteCandidate.objects.create(user=self.user, movie=self.movie)
+        self.client.post(reverse("movies:roulette-candidate-toggle", args=[self.movie.pk]))
+        self.assertFalse(RouletteCandidate.objects.filter(user=self.user, movie=self.movie).exists())
+
+    def test_anonimo_no_puede_anadir(self):
+        self.client.logout()
+        response = self.client.post(reverse("movies:roulette-candidate-toggle", args=[self.movie.pk]))
+        self.assertIn("/cuenta/login/", response.url)
+
+    def test_ficha_marca_is_candidate(self):
+        RouletteCandidate.objects.create(user=self.user, movie=self.movie)
+        response = self.client.get(reverse("movies:detail", args=[self.movie.pk]))
+        self.assertTrue(response.context["is_candidate"])
+
+    def test_htmx_devuelve_el_panel_de_la_ruleta(self):
+        response = self.client.post(
+            reverse("movies:roulette-candidate-toggle", args=[self.movie.pk]),
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertContains(response, self.movie.title)
 
 
 class RouletteRatingTests(TestCase):
@@ -160,6 +197,27 @@ class RouletteListTests(TestCase):
         candidate = RouletteCandidate.objects.create(user=otro, movie=make_movie(50, "C", None))
         response = self.client.post(reverse("movies:roulette-candidate-remove", args=[candidate.pk]))
         self.assertEqual(response.status_code, 404)
+
+    def test_muestra_guardadas_que_no_estan_ya_en_la_lista(self):
+        saved_movie = make_movie(60, "Guardada", None)
+        SavedMovie.objects.create(user=self.user, movie=saved_movie)
+        # movie_a ya está en la lista de candidatas (ver setUp) y también
+        # podría estar guardada: no debe salir duplicada en "para añadir".
+        SavedMovie.objects.create(user=self.user, movie=self.movie_a)
+
+        response = self.client.get(reverse("movies:roulette-list"))
+        saved_ids = list(response.context["saved_available"].values_list("movie", flat=True))
+        self.assertEqual(saved_ids, [saved_movie.pk])
+
+    def test_anadir_desde_guardadas_la_mueve_a_la_lista(self):
+        saved_movie = make_movie(60, "Guardada", None)
+        SavedMovie.objects.create(user=self.user, movie=saved_movie)
+
+        self.client.post(reverse("movies:roulette-candidate-toggle", args=[saved_movie.pk]))
+
+        self.assertTrue(RouletteCandidate.objects.filter(user=self.user, movie=saved_movie).exists())
+        response = self.client.get(reverse("movies:roulette-list"))
+        self.assertNotIn(saved_movie.pk, response.context["saved_available"].values_list("movie", flat=True))
 
 
 class MovieSearchViewTests(TestCase):

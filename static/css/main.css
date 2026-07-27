@@ -751,6 +751,12 @@ main { flex: 1; }
     aspect-ratio: 2 / 3;
     object-fit: cover;
 }
+.movie-detail__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: calc(var(--space-unit) * 2);
+    margin-block: calc(var(--space-unit) * 2);
+}
 .movie-detail__body h1 { margin-bottom: 0.5rem; }
 
 .vote-widget {

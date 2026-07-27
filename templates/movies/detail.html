@@ -18,12 +18,20 @@
             <p>{{ movie.overview|default:"Sin sinopsis disponible." }}</p>
 
             {% if user.is_authenticated %}
-            <form method="post" action="{% url 'movies:save-toggle' movie.pk %}" class="inline-form">
-                {% csrf_token %}
-                <button type="submit" class="btn btn--ghost btn--sm">
-                    {% if is_saved %}✓ Guardada{% else %}Guardar película{% endif %}
-                </button>
-            </form>
+            <div class="movie-detail__actions">
+                <form method="post" action="{% url 'movies:save-toggle' movie.pk %}" class="inline-form">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn--ghost btn--sm">
+                        {% if is_saved %}✓ Guardada{% else %}Guardar película{% endif %}
+                    </button>
+                </form>
+                <form method="post" action="{% url 'movies:roulette-candidate-toggle' movie.pk %}" class="inline-form">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn--ghost btn--sm">
+                        {% if is_candidate %}✓ En tu lista de la ruleta{% else %}Añadir a la ruleta{% endif %}
+                    </button>
+                </form>
+            </div>
             {% endif %}
 
             {% include "movies/_vote_widget.html" %}
