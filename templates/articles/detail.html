@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load accounts_extras %}
 
 {% block title %}{{ article.title }}{% endblock %}
 {% block meta_description %}{{ article.body|striptags|truncatewords:30 }}{% endblock %}
@@ -18,7 +19,7 @@
 
         <h1>{{ article.title }}</h1>
         <p class="muted article-card__meta">
-            Por {{ article.author|default:"autor eliminado" }} · {{ article.created_at|date:"d/m/Y" }}
+            Por {% username_badge article.author "autor eliminado" %} · {{ article.created_at|date:"d/m/Y" }}
             {% if article.updated_at|date:"YmdHi" != article.created_at|date:"YmdHi" %}· editado el {{ article.updated_at|date:"d/m/Y" }}{% endif %}
         </p>
 
@@ -55,7 +56,7 @@
         <ul class="comment-list">
             {% for comment in article.comments.all %}
             <li class="comment">
-                <p class="comment__meta"><strong>{{ comment.author|default:"usuario eliminado" }}</strong> · <span class="muted">{{ comment.created_at|date:"d/m/Y H:i" }}</span></p>
+                <p class="comment__meta">{% username_badge comment.author "usuario eliminado" %} · <span class="muted">{{ comment.created_at|date:"d/m/Y H:i" }}</span></p>
                 <p class="comment__body">{{ comment.body|linebreaksbr }}</p>
             </li>
             {% empty %}

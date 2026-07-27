@@ -312,6 +312,16 @@ main { flex: 1; }
 
 [x-cloak] { display: none !important; }
 
+/* Nombre de usuario coloreado por rol (mismo color en cualquier tema,
+   son colores de rango, no de marca). Lector usa el color de texto normal
+   del tema activo en vez de blanco fijo, para que siga siendo legible en
+   temas claros como Vintage. */
+.role-badge { font-weight: 600; }
+.role-admin { color: #EC4899; }
+.role-gestor { color: #DC2626; }
+.role-editor { color: #16A34A; }
+.role-lector { color: var(--color-text); }
+
 .wrap--narrow { max-width: 760px; }
 
 .section--tight { padding-block: calc(var(--space-unit) * 6); }

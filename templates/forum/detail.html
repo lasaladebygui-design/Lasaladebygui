@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load accounts_extras %}
 
 {% block title %}{{ thread.title }}{% endblock %}
 
@@ -9,7 +10,7 @@
             {% if thread.is_locked %}<span class="tag-pill">🔒 Cerrado</span>{% endif %}
             <h1>{{ thread.title }}</h1>
         </div>
-        <p class="muted article-card__meta">{{ thread.author|default:"usuario eliminado" }} · {{ thread.created_at|date:"d/m/Y H:i" }}</p>
+        <p class="muted article-card__meta">{% username_badge thread.author "usuario eliminado" %} · {{ thread.created_at|date:"d/m/Y H:i" }}</p>
         <p class="thread-body">{{ thread.body|linebreaksbr }}</p>
 
         {% if can_moderate %}

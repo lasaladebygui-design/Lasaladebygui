@@ -1,4 +1,4 @@
-{% load static %}<!DOCTYPE html>
+{% load static accounts_extras %}<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -48,7 +48,7 @@
                 <a href="{% url 'movies:list' %}" class="btn btn--ghost btn--sm">Películas</a>
                 <a href="{% url 'movies:roulette-home' %}" class="btn btn--ghost btn--sm">Ruleta</a>
                 {% if user.is_authenticated %}
-                    <span class="site-nav__user">{{ user.username }}</span>
+                    <span class="site-nav__user">{% username_badge user %}</span>
                     <a href="{% url 'accounts:profile' %}" class="btn btn--ghost btn--sm">Perfil</a>
                     {% if user.is_staff %}
                         <a href="{% url 'admin:index' %}" class="btn btn--ghost btn--sm">Panel</a>

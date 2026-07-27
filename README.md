@@ -121,12 +121,23 @@ El modelo de usuario (`apps.accounts.User`) tiene un campo `role` con 5 valores.
 | Rol | Acceso al `/admin/` | Puede hacer |
 |---|---|---|
 | **Admin** | Sí, control total (`is_superuser`) | Todo: gestionar usuarios, artículos y foro (de cualquier autor), configuración del sitio, tema visual, número de Bizum, email de contacto y el contenido de Top Secret (código de acceso y lista numerada). |
-| **Gestor** | Sí (staff) | Igual que Admin en moderación de contenido: editar/eliminar cualquier artículo, cerrar/eliminar cualquier hilo del foro y borrar cualquier comentario. No accede a ajustes globales de Django (usuarios de Django, permisos de bajo nivel) ni a la configuración del sitio. |
-| **Editor** | Sí (staff, permisos limitados) | Crear artículos; editar o eliminar únicamente los suyos. Participa en el foro como cualquier usuario logueado. |
+| **Gestor** | Sí (staff) — además tiene permisos Django sobre el **foro** (Hilos y Comentarios de foro), así que puede gestionarlo también desde `/admin/`, no solo desde la web pública. | Igual que Admin en moderación de contenido: editar/eliminar cualquier artículo, cerrar/eliminar cualquier hilo del foro y borrar cualquier comentario. No accede a ajustes globales de Django ni a la configuración del sitio. |
+| **Editor** | Sí (staff), pero sin permisos Django asignados — hoy por hoy gestiona sus artículos desde la web pública, no desde `/admin/`. | Crear artículos; editar o eliminar únicamente los suyos. Participa en el foro como cualquier usuario logueado. |
 | **Lector** | No | Rol por defecto al registrarse: leer y comentar artículos, abrir hilos y responder en el foro (con posibilidad de borrar sus propios comentarios), usar la ruleta y votar películas. |
 | **Baneado** | No | Cuenta desactivada (`is_active=False`): no puede iniciar sesión. Es un rol, no un flag aparte — "banear" es cambiar el rol a `Baneado`, y "desbanear" es devolverlo a `Lector`. |
 
-Gestión desde el admin: **Usuarios → Usuarios**. La columna *rol* es editable en línea desde el listado, y hay acciones masivas "Banear usuarios seleccionados" / "Desbanear usuarios seleccionados".
+Gestión desde el admin: **Usuarios → Usuarios**. La columna *rol* es editable en línea desde el listado, y hay acciones masivas "Banear usuarios seleccionados" / "Desbanear usuarios seleccionados". Al guardar un usuario como Gestor, `User._sync_gestor_group()` lo añade automáticamente a un grupo Django "Gestor" con permisos sobre el foro (y lo quita si deja de serlo) — no hace falta tocar Grupos/Permisos a mano.
+
+### Nombre coloreado por rango
+
+En cualquier sitio donde aparece un nombre de usuario (cabecera, autoría de artículos, autoría de hilos y comentarios del foro), se pinta según su rol — así se distingue el rango de un vistazo. Se genera con el template tag `{% username_badge usuario %}` (`apps/accounts/templatetags/accounts_extras.py`) y los colores viven en `static/css/main.css`:
+
+| Rol | Color |
+|---|---|
+| Admin | Rosa (`#EC4899`) |
+| Gestor | Rojo (`#DC2626`) |
+| Editor | Verde (`#16A34A`) |
+| Lector | El color de texto normal del tema activo (no un blanco fijo: en el tema Vintage, de fondo claro, un blanco literal sería casi invisible) |
 
 ### Verificación de email
 

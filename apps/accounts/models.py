@@ -64,6 +64,32 @@ class User(AbstractUser):
         self.is_active = self.role != self.Role.BANEADO
 
         super().save(*args, **kwargs)
+        self._sync_gestor_group()
+
+    def _sync_gestor_group(self):
+        """El rol Gestor da además acceso de gestión del foro (Thread y
+        ThreadComment) dentro del panel /admin/, aparte de la moderación que
+        ya tiene en la web pública. Se sincroniza en cada guardado: si deja
+        de ser Gestor, se le quita del grupo (pero el grupo y sus permisos
+        se conservan para el resto de Gestores)."""
+        from django.contrib.auth.models import Group, Permission
+        from django.contrib.contenttypes.models import ContentType
+
+        from apps.forum.models import Thread, ThreadComment
+
+        group, _ = Group.objects.get_or_create(name="Gestor")
+        forum_perms = Permission.objects.filter(
+            content_type__in=[
+                ContentType.objects.get_for_model(Thread),
+                ContentType.objects.get_for_model(ThreadComment),
+            ]
+        )
+        group.permissions.set(forum_perms)
+
+        if self.role == self.Role.GESTOR:
+            self.groups.add(group)
+        else:
+            self.groups.remove(group)
 
     def _generate_username(self):
         base = (self.email.split("@")[0] or "usuario").lower()
