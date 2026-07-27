@@ -10,7 +10,14 @@
             {% if thread.is_locked %}<span class="tag-pill">🔒 Cerrado</span>{% endif %}
             <h1>{{ thread.title }}</h1>
         </div>
-        <p class="muted article-card__meta">{% username_badge thread.author "usuario eliminado" %} · {{ thread.created_at|date:"d/m/Y H:i" }}</p>
+        <p class="muted article-card__meta">
+            {% if user.is_authenticated and thread.author and thread.author != user %}
+                <a href="{% url 'social:public-profile' username=thread.author.username %}">{% username_badge thread.author "usuario eliminado" %}</a>
+            {% else %}
+                {% username_badge thread.author "usuario eliminado" %}
+            {% endif %}
+            · {{ thread.created_at|date:"d/m/Y H:i" }}
+        </p>
         <p class="thread-body">{{ thread.body|linebreaksbr }}</p>
 
         {% if can_moderate %}

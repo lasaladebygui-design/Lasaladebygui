@@ -17,6 +17,15 @@
             {% if movie.imdb_rating %}<span class="tag-pill">IMDb {{ movie.imdb_rating }}</span>{% endif %}
             <p>{{ movie.overview|default:"Sin sinopsis disponible." }}</p>
 
+            {% if user.is_authenticated %}
+            <form method="post" action="{% url 'movies:save-toggle' movie.pk %}" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn--ghost btn--sm">
+                    {% if is_saved %}✓ Guardada{% else %}Guardar película{% endif %}
+                </button>
+            </form>
+            {% endif %}
+
             {% include "movies/_vote_widget.html" %}
         </div>
     </div>

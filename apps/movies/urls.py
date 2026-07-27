@@ -6,9 +6,11 @@ app_name = "movies"
 
 urlpatterns = [
     path("", views.movie_list, name="list"),
+    path("mias/", views.my_movies, name="my-movies"),
     path("desde-tmdb/<int:tmdb_id>/", views.movie_from_tmdb, name="from-tmdb"),
     path("<int:pk>/", views.movie_detail, name="detail"),
     path("<int:pk>/votar/", views.movie_vote, name="vote"),
+    path("<int:pk>/guardar/", views.movie_save_toggle, name="save-toggle"),
 
     path("ruleta/", views.roulette_home, name="roulette-home"),
 

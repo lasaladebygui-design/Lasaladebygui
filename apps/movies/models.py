@@ -101,6 +101,24 @@ class RouletteCandidate(models.Model):
         return f"{self.movie} en la lista de {self.user}"
 
 
+class SavedMovie(models.Model):
+    """Película guardada por un usuario en 'Mis películas' (independiente de
+    si la ha votado o de si es candidata en la ruleta Modo 2)."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_movies")
+    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name="+")
+    saved_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "película guardada"
+        verbose_name_plural = "películas guardadas"
+        constraints = [models.UniqueConstraint(fields=["user", "movie"], name="una_guardada_por_usuario")]
+        ordering = ["-saved_at"]
+
+    def __str__(self):
+        return f"{self.movie} guardada por {self.user}"
+
+
 class RouletteRatingSeen(models.Model):
     """Modo 1 de la ruleta: qué películas del catálogo ya se le han mostrado
     a este usuario, para no repetir hasta agotar el rango de nota elegido."""

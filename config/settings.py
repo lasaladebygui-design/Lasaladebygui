@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "apps.forum",
     "apps.movies",
     "apps.secret",
+    "apps.social",
 ]
 
 MIDDLEWARE = [

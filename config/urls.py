@@ -14,6 +14,7 @@ urlpatterns = [
     path("foro/", include("apps.forum.urls")),
     path("peliculas/", include("apps.movies.urls")),
     path("top-secret/", include("apps.secret.urls")),
+    path("social/", include("apps.social.urls")),
     path("ckeditor5/", include("django_ckeditor_5.urls")),
     path("", include("apps.core.urls")),
 ]

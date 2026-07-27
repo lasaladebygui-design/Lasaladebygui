@@ -5,7 +5,7 @@ from django.urls import reverse
 
 from apps.accounts.models import User
 
-from .models import Movie, RouletteCandidate, RouletteRatingSeen, Vote
+from .models import Movie, RouletteCandidate, RouletteRatingSeen, SavedMovie, Vote
 from .services import MovieAPIError
 
 
@@ -44,6 +44,37 @@ class VoteTests(TestCase):
         Vote.objects.create(movie=self.movie, user=other, score=6)
         self.assertEqual(self.movie.votes_count, 2)
         self.assertEqual(float(self.movie.average_score), 7.0)
+
+
+class SavedMovieTests(TestCase):
+    def setUp(self):
+        self.user = make_user("lector@test.local")
+        self.movie = make_movie(1, "Movie A", "8.0")
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+    def test_guardar_pelicula(self):
+        response = self.client.post(reverse("movies:save-toggle", args=[self.movie.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(SavedMovie.objects.filter(user=self.user, movie=self.movie).exists())
+
+    def test_segundo_clic_la_quita(self):
+        SavedMovie.objects.create(user=self.user, movie=self.movie)
+        self.client.post(reverse("movies:save-toggle", args=[self.movie.pk]))
+        self.assertFalse(SavedMovie.objects.filter(user=self.user, movie=self.movie).exists())
+
+    def test_anonimo_no_puede_guardar(self):
+        self.client.logout()
+        response = self.client.post(reverse("movies:save-toggle", args=[self.movie.pk]))
+        self.assertIn("/cuenta/login/", response.url)
+
+    def test_mis_peliculas_muestra_votadas_y_guardadas(self):
+        other_movie = make_movie(2, "Movie B", "7.0")
+        Vote.objects.create(movie=self.movie, user=self.user, score=9)
+        SavedMovie.objects.create(user=self.user, movie=other_movie)
+
+        response = self.client.get(reverse("movies:my-movies"))
+        self.assertEqual(list(response.context["votes"].values_list("movie", flat=True)), [self.movie.pk])
+        self.assertEqual(list(response.context["saved"].values_list("movie", flat=True)), [other_movie.pk])
 
 
 class RouletteRatingTests(TestCase):

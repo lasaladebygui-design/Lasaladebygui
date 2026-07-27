@@ -45,6 +45,8 @@
                     <a href="{% url 'movies:roulette-home' %}">Ruleta</a>
                     <a href="{% url 'secret:gate' %}">Top Secret</a>
                     {% if user.is_authenticated %}
+                        <a href="{% url 'social:friends' %}">Amigos</a>
+                        <a href="{% url 'social:inbox' %}">Mensajes</a>
                         {% if user.is_staff %}
                             <a href="{% url 'admin:index' %}">Panel</a>
                         {% endif %}

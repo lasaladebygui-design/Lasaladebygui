@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Mis películas{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap">
+        <div class="section-header">
+            <div>
+                <span class="card__tag">Tu cuenta</span>
+                <h1>Mis películas</h1>
+            </div>
+            <a href="{% url 'movies:list' %}" class="btn btn--ghost">Volver al catálogo</a>
+        </div>
+
+        <h2 class="movie-section-title">Que has votado</h2>
+        {% if votes %}
+        <div class="movie-grid">
+            {% for vote in votes %}
+            <a href="{% url 'movies:detail' vote.movie.pk %}" class="movie-card">
+                {% if vote.movie.poster_url %}
+                    <img src="{{ vote.movie.poster_url }}" alt="" class="movie-card__poster">
+                {% else %}
+                    <div class="movie-card__poster movie-card__poster--placeholder"><span>🎬</span></div>
+                {% endif %}
+                <div class="movie-card__body">
+                    <h3>{{ vote.movie.title }}</h3>
+                    <p class="muted">{{ vote.movie.year }}</p>
+                    <span class="tag-pill">Tu nota: {{ vote.score }}</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">Todavía no has votado ninguna película.</p>
+        {% endif %}
+
+        <h2 class="movie-section-title">Guardadas</h2>
+        {% if saved %}
+        <div class="movie-grid">
+            {% for item in saved %}
+            <a href="{% url 'movies:detail' item.movie.pk %}" class="movie-card">
+                {% if item.movie.poster_url %}
+                    <img src="{{ item.movie.poster_url }}" alt="" class="movie-card__poster">
+                {% else %}
+                    <div class="movie-card__poster movie-card__poster--placeholder"><span>🎬</span></div>
+                {% endif %}
+                <div class="movie-card__body">
+                    <h3>{{ item.movie.title }}</h3>
+                    <p class="muted">{{ item.movie.year }}</p>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">Todavía no has guardado ninguna película. Hazlo desde la ficha de cualquier película.</p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

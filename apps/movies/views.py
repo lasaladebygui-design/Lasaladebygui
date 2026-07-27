@@ -9,7 +9,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import MovieSearchForm, RatingRangeForm, VoteForm
-from .models import Movie, RouletteCandidate, RouletteRatingSeen, Vote
+from .models import Movie, RouletteCandidate, RouletteRatingSeen, SavedMovie, Vote
 from .services import MovieAPIError, tmdb_search
 
 SPIN_DECOYS = 5
@@ -74,12 +74,34 @@ def movie_from_tmdb(request, tmdb_id):
 def movie_detail(request, pk):
     movie = get_object_or_404(Movie, pk=pk)
     user_vote = None
+    is_saved = False
     if request.user.is_authenticated:
         user_vote = Vote.objects.filter(movie=movie, user=request.user).first()
+        is_saved = SavedMovie.objects.filter(movie=movie, user=request.user).exists()
     vote_form = VoteForm(initial={"score": user_vote.score if user_vote else None})
     return render(request, "movies/detail.html", {
-        "movie": movie, "vote_form": vote_form, "user_vote": user_vote,
+        "movie": movie, "vote_form": vote_form, "user_vote": user_vote, "is_saved": is_saved,
     })
+
+
+@login_required
+def movie_save_toggle(request, pk):
+    movie = get_object_or_404(Movie, pk=pk)
+    if request.method == "POST":
+        saved, created = SavedMovie.objects.get_or_create(movie=movie, user=request.user)
+        if not created:
+            saved.delete()
+            messages.success(request, "Quitada de tus películas guardadas.")
+        else:
+            messages.success(request, "¡Guardada en tus películas!")
+    return redirect("movies:detail", pk=movie.pk)
+
+
+@login_required
+def my_movies(request):
+    votes = Vote.objects.filter(user=request.user).select_related("movie").order_by("-updated_at")
+    saved = SavedMovie.objects.filter(user=request.user).select_related("movie")
+    return render(request, "movies/my_movies.html", {"votes": votes, "saved": saved})
 
 
 @login_required
@@ -116,7 +138,7 @@ def roulette_home(request):
 def roulette_rating(request):
     result = None
     reel = None
-    form = RatingRangeForm(request.POST or None, initial={"min_rating": 7, "max_rating": 9})
+    form = RatingRangeForm(request.POST or None, initial={"min_rating": 1, "max_rating": 10})
 
     if request.method == "POST" and form.is_valid():
         min_r, max_r = int(form.cleaned_data["min_rating"]), int(form.cleaned_data["max_rating"])

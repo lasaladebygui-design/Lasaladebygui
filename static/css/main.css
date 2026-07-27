@@ -488,6 +488,7 @@ main { flex: 1; }
     margin-bottom: calc(var(--space-unit) * 6);
 }
 .section-header h1, .section-header h2 { margin-bottom: 0.25rem; }
+.section-header__actions { display: flex; gap: calc(var(--space-unit) * 3); flex-wrap: wrap; }
 
 .card--link { display: block; color: var(--color-text); }
 .card--link:hover { border-color: var(--color-accent); color: var(--color-text); }
@@ -958,6 +959,66 @@ main { flex: 1; }
 }
 .secret-list__body p { margin: 0.3rem 0 0; }
 
+/* --- Tier list --------------------------------------------------------------- */
+
+.tier-row {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    margin-bottom: calc(var(--space-unit) * 3);
+    overflow: hidden;
+}
+.tier-row__label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    flex-shrink: 0;
+    font-family: var(--font-heading);
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #1a1a1a;
+}
+.tier-row--s .tier-row__label { background: #FFD700; }
+.tier-row--a .tier-row__label { background: #90EE90; }
+.tier-row--b .tier-row__label { background: #87CEEB; }
+.tier-row--c .tier-row__label { background: #FFA366; }
+.tier-row--d .tier-row__label { background: #D98C8C; }
+
+.tier-row__items {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--space-unit) * 3);
+    padding: calc(var(--space-unit) * 3);
+    background: var(--color-surface);
+    flex: 1;
+}
+.tier-row__empty { padding: calc(var(--space-unit) * 2) 0; }
+
+.tier-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 80px;
+    text-align: center;
+}
+.tier-item__poster {
+    width: 80px;
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    border-radius: 4px;
+    background: var(--color-bg);
+}
+.tier-item__poster--placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+.tier-item__title { font-size: 0.75rem; margin-top: 0.3rem; color: var(--color-text-muted); }
+
 /* --- Juego: Frases célebres --------------------------------------------------- */
 
 .quote-game__score { color: var(--color-text-muted); margin-bottom: calc(var(--space-unit) * 6); }
@@ -977,6 +1038,16 @@ main { flex: 1; }
     flex-direction: column;
     gap: calc(var(--space-unit) * 3);
 }
+
+.quote-game__gameover {
+    text-align: center;
+    padding: calc(var(--space-unit) * 8) calc(var(--space-unit) * 6);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+}
+.quote-game__record { color: var(--color-accent-secondary); font-weight: 600; font-size: 1.1rem; }
+.quote-game__final { font-size: 1.2rem; margin-bottom: calc(var(--space-unit) * 6); }
 
 /* --- Animación de proyector (intro) -----------------------------------------
    Prop fijo, independiente del tema activo: siempre negro, como una sala
@@ -1080,6 +1151,50 @@ main { flex: 1; }
     .intro { animation: none; }
     .intro__grain, .intro__beam, .intro__reel-bar { animation: none; }
     .intro__center { animation: intro-logo-in 0.4s ease-out 0.1s forwards; }
+}
+
+/* --- Social: amigos y mensajes -------------------------------------------- */
+
+.plain-list {
+    list-style: none;
+    margin: 0 0 calc(var(--space-unit) * 6);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--space-unit) * 3);
+}
+
+.plain-list li {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--space-unit) * 3);
+    flex-wrap: wrap;
+    padding-bottom: calc(var(--space-unit) * 3);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.conversation-thread {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--space-unit) * 3);
+    margin-bottom: calc(var(--space-unit) * 6);
+    max-height: 50vh;
+    overflow-y: auto;
+    padding-right: calc(var(--space-unit) * 2);
+}
+
+.conversation-message {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    padding: calc(var(--space-unit) * 3);
+    max-width: 70%;
+    align-self: flex-start;
+}
+
+.conversation-message--mine {
+    align-self: flex-end;
+    border-color: var(--color-accent);
 }
 
 /* --- Responsive ----------------------------------------------------------

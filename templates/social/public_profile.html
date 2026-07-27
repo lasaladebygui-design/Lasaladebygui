@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load accounts_extras %}
+
+{% block title %}{{ profile_user.username }}{% endblock %}
+
+{% block content %}
+<div class="wrap auth-page">
+    <div class="auth-card">
+        {% if profile_user.avatar %}
+            <img src="{{ profile_user.avatar.url }}" alt="" class="profile-avatar">
+        {% else %}
+            <div class="profile-avatar profile-avatar--placeholder"><span aria-hidden="true">🎬</span></div>
+        {% endif %}
+
+        <h1>{% username_badge profile_user %}</h1>
+
+        {% if profile_user.favorite_quote %}
+            <p class="profile-quote">“{{ profile_user.favorite_quote }}”</p>
+        {% endif %}
+
+        <p class="muted" style="text-align:center;">
+            🏆 Mejor racha en Frases célebres: <strong>{{ profile_user.quote_streak_best }}</strong>
+        </p>
+
+        <div style="text-align:center; margin-top:1.5rem;">
+            {% if status == "friends" %}
+                <span class="tag-pill">✓ Amigos</span>
+                <form method="post" action="{% url 'social:friend-remove' username=profile_user.username %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn--ghost btn--sm">Eliminar amistad</button>
+                </form>
+                <a href="{% url 'social:conversation' username=profile_user.username %}" class="btn btn--accent btn--sm">Enviar mensaje</a>
+            {% elif status == "pending_outgoing" %}
+                <span class="muted">Solicitud enviada, esperando respuesta.</span>
+            {% elif status == "pending_incoming" %}
+                <form method="post" action="{% url 'social:friend-request-accept' pk=incoming_request.pk %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn--accent btn--sm">Aceptar solicitud</button>
+                </form>
+                <form method="post" action="{% url 'social:friend-request-decline' pk=incoming_request.pk %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn--ghost btn--sm">Rechazar</button>
+                </form>
+            {% else %}
+                <form method="post" action="{% url 'social:friend-request-send' username=profile_user.username %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn--accent btn--sm">Agregar amigo</button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

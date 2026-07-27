@@ -3,7 +3,7 @@ from django.urls import reverse
 
 from apps.accounts.models import User
 
-from .models import MovieQuote, SecretMovie, TopSecretConfig
+from .models import MovieQuote, SecretMovie, TierListEntry, TopSecretConfig
 
 
 class GateTests(TestCase):
@@ -61,6 +61,27 @@ class SecretMovieViewTests(TestCase):
     def test_lista_completa_incluye_todas(self):
         response = self.client.get(reverse("secret:list"))
         self.assertEqual(list(response.context["movies"]), [self.a, self.b])
+
+
+class TierListTests(TestCase):
+    def setUp(self):
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+
+    def test_agrupa_por_nivel(self):
+        TierListEntry.objects.create(tier="S", title="Pulp Fiction", order=1)
+        TierListEntry.objects.create(tier="S", title="Kill Bill", order=2)
+        TierListEntry.objects.create(tier="D", title="Una película mala", order=1)
+
+        response = self.client.get(reverse("secret:tier-list"))
+        tiers = response.context["tiers"]
+        self.assertEqual([e.title for e in tiers["S"]], ["Pulp Fiction", "Kill Bill"])
+        self.assertEqual([e.title for e in tiers["D"]], ["Una película mala"])
+        self.assertEqual(tiers["A"], [])
+
+    def test_requiere_haber_entrado_al_maletin(self):
+        self.client.post(reverse("secret:lock"))
+        response = self.client.get(reverse("secret:tier-list"))
+        self.assertRedirects(response, reverse("secret:gate"))
 
 
 class QuoteGameTests(TestCase):
@@ -133,3 +154,55 @@ class QuoteGameTests(TestCase):
         })
         user.refresh_from_db()
         self.assertEqual(user.quote_streak_best, 10)
+
+    def test_fallar_muestra_pantalla_de_fin_de_partida(self):
+        session = self.client.session
+        session["quote_streak"] = 3
+        session.save()
+
+        response = self.client.post(reverse("secret:quote-game"), {
+            "quote_id": self.quote.pk, "answer": "El padrino",
+        })
+        self.assertTrue(response.context["game_over"])
+        self.assertEqual(response.context["final_streak"], 3)
+        self.assertEqual(response.context["wrong_answer_title"], "Star Wars")
+        self.assertIsNone(response.context["quote"])
+
+    def test_fallar_con_racha_record_marca_nuevo_record(self):
+        user = User.objects.create(email="lector3@test.local", role=User.Role.LECTOR, quote_streak_best=2)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+
+        session = self.client.session
+        session["quote_streak"] = 5
+        session.save()
+
+        response = self.client.post(reverse("secret:quote-game"), {
+            "quote_id": self.quote.pk, "answer": "El padrino",
+        })
+        self.assertTrue(response.context["is_new_record"])
+
+    def test_fallar_sin_superar_el_record_no_lo_marca(self):
+        user = User.objects.create(email="lector4@test.local", role=User.Role.LECTOR, quote_streak_best=10)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+
+        session = self.client.session
+        session["quote_streak"] = 2
+        session.save()
+
+        response = self.client.post(reverse("secret:quote-game"), {
+            "quote_id": self.quote.pk, "answer": "El padrino",
+        })
+        self.assertFalse(response.context["is_new_record"])
+
+    def test_acertar_no_muestra_pantalla_de_fin_de_partida(self):
+        response = self.client.post(reverse("secret:quote-game"), {
+            "quote_id": self.quote.pk, "answer": "Star Wars",
+        })
+        self.assertFalse(response.context["game_over"])
+        self.assertIsNotNone(response.context["quote"])

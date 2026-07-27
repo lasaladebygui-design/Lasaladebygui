@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% load accounts_extras %}
+
+{% block title %}Amigos{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap">
+        <div class="section-header">
+            <h1>Amigos</h1>
+        </div>
+
+        {% if incoming %}
+        <h2 class="movie-section-title">Solicitudes recibidas</h2>
+        <ul class="plain-list">
+            {% for req in incoming %}
+            <li>
+                <a href="{% url 'social:public-profile' username=req.from_user.username %}">{% username_badge req.from_user %}</a>
+                <form method="post" action="{% url 'social:friend-request-accept' pk=req.pk %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn--accent btn--sm">Aceptar</button>
+                </form>
+                <form method="post" action="{% url 'social:friend-request-decline' pk=req.pk %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn--ghost btn--sm">Rechazar</button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if outgoing %}
+        <h2 class="movie-section-title">Solicitudes enviadas</h2>
+        <ul class="plain-list">
+            {% for req in outgoing %}
+            <li><a href="{% url 'social:public-profile' username=req.to_user.username %}">{% username_badge req.to_user %}</a> — pendiente</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        <h2 class="movie-section-title">Tus amigos</h2>
+        {% if friends %}
+        <ul class="plain-list">
+            {% for friend in friends %}
+            <li>
+                <a href="{% url 'social:public-profile' username=friend.username %}">{% username_badge friend %}</a>
+                <a href="{% url 'social:conversation' username=friend.username %}" class="btn btn--ghost btn--sm">Mensaje</a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="muted">Todavía no tienes amigos. Visita el perfil de alguien y agrégalo.</p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load accounts_extras %}
+
+{% block title %}Conversación con {{ other.username }}{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap">
+        <div class="section-header">
+            <h1>{% username_badge other %}</h1>
+            <a href="{% url 'social:inbox' %}" class="btn btn--ghost">Volver a mensajes</a>
+        </div>
+
+        <div class="conversation-thread">
+            {% for msg in thread %}
+                <p class="conversation-message{% if msg.sender_id == user.pk %} conversation-message--mine{% endif %}">
+                    <span class="muted">{{ msg.created_at|date:"d/m/Y H:i" }}</span><br>
+                    {{ msg.body|linebreaksbr }}
+                </p>
+            {% empty %}
+                <p class="muted">Todavía no os habéis escrito nada.</p>
+            {% endfor %}
+        </div>
+
+        <form method="post" class="stacked-form">
+            {% csrf_token %}
+            <div class="field">
+                <label for="body">Mensaje</label>
+                <textarea name="body" id="body" rows="3" required></textarea>
+            </div>
+            <button type="submit" class="btn btn--accent">Enviar</button>
+        </form>
+    </div>
+</section>
+{% endblock %}

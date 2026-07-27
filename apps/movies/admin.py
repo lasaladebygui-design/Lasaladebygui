@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Movie, RouletteCandidate, RouletteRatingSeen, Vote
+from .models import Movie, RouletteCandidate, RouletteRatingSeen, SavedMovie, Vote
 
 
 @admin.register(Movie)
@@ -30,3 +30,8 @@ class RouletteCandidateAdmin(admin.ModelAdmin):
 @admin.register(RouletteRatingSeen)
 class RouletteRatingSeenAdmin(admin.ModelAdmin):
     list_display = ("user", "movie", "seen_at")
+
+
+@admin.register(SavedMovie)
+class SavedMovieAdmin(admin.ModelAdmin):
+    list_display = ("user", "movie", "saved_at")

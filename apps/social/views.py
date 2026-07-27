@@ -1,0 +1,125 @@
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.db.models import Q
+from django.http import Http404
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+
+from apps.accounts.models import User
+
+from .models import FriendRequest, Message, friendship_status
+
+
+@login_required
+def public_profile(request, username):
+    profile_user = get_object_or_404(User, username=username)
+    if profile_user.pk == request.user.pk:
+        return redirect("accounts:profile")
+
+    status = friendship_status(request.user, profile_user)
+    incoming_request = None
+    if status == "pending_incoming":
+        incoming_request = FriendRequest.objects.filter(
+            from_user=profile_user, to_user=request.user, accepted=False
+        ).first()
+
+    return render(request, "social/public_profile.html", {
+        "profile_user": profile_user, "status": status, "incoming_request": incoming_request,
+    })
+
+
+@login_required
+def send_friend_request(request, username):
+    other = get_object_or_404(User, username=username)
+    if request.method == "POST" and other.pk != request.user.pk:
+        incoming = FriendRequest.objects.filter(from_user=other, to_user=request.user, accepted=False).first()
+        if incoming:
+            incoming.accepted = True
+            incoming.save(update_fields=["accepted"])
+            messages.success(request, f"Ahora eres amigo de {other.username}.")
+        else:
+            _, created = FriendRequest.objects.get_or_create(from_user=request.user, to_user=other)
+            if created:
+                messages.success(request, "Solicitud de amistad enviada.")
+    return redirect("social:public-profile", username=username)
+
+
+@login_required
+def respond_friend_request(request, pk, action):
+    friend_request = get_object_or_404(FriendRequest, pk=pk, to_user=request.user, accepted=False)
+    if request.method == "POST":
+        if action == "accept":
+            friend_request.accepted = True
+            friend_request.save(update_fields=["accepted"])
+            messages.success(request, f"Ahora eres amigo de {friend_request.from_user.username}.")
+        elif action == "decline":
+            friend_request.delete()
+            messages.info(request, "Solicitud rechazada.")
+        else:
+            raise Http404
+    return redirect("social:friends")
+
+
+@login_required
+def remove_friend(request, username):
+    other = get_object_or_404(User, username=username)
+    if request.method == "POST":
+        FriendRequest.objects.filter(
+            Q(from_user=request.user, to_user=other) | Q(from_user=other, to_user=request.user)
+        ).delete()
+        messages.info(request, f"Ya no eres amigo de {other.username}.")
+    return redirect("social:public-profile", username=username)
+
+
+@login_required
+def friends_list(request):
+    accepted = FriendRequest.objects.filter(
+        Q(from_user=request.user, accepted=True) | Q(to_user=request.user, accepted=True)
+    ).select_related("from_user", "to_user")
+    friends = [
+        fr.to_user if fr.from_user_id == request.user.pk else fr.from_user
+        for fr in accepted
+    ]
+    incoming = FriendRequest.objects.filter(to_user=request.user, accepted=False).select_related("from_user")
+    outgoing = FriendRequest.objects.filter(from_user=request.user, accepted=False).select_related("to_user")
+
+    return render(request, "social/friends_list.html", {
+        "friends": friends, "incoming": incoming, "outgoing": outgoing,
+    })
+
+
+@login_required
+def inbox(request):
+    thread_messages = Message.objects.filter(
+        Q(sender=request.user) | Q(recipient=request.user)
+    ).select_related("sender", "recipient").order_by("-created_at")
+
+    conversations = {}
+    for msg in thread_messages:
+        other = msg.recipient if msg.sender_id == request.user.pk else msg.sender
+        entry = conversations.setdefault(other.pk, {"user": other, "last_message": msg, "unread": 0})
+        if msg.recipient_id == request.user.pk and msg.read_at is None:
+            entry["unread"] += 1
+
+    return render(request, "social/inbox.html", {"conversations": conversations.values()})
+
+
+@login_required
+def conversation(request, username):
+    other = get_object_or_404(User, username=username)
+    if friendship_status(request.user, other) != "friends":
+        raise Http404
+
+    if request.method == "POST":
+        body = request.POST.get("body", "").strip()
+        if body:
+            Message.objects.create(sender=request.user, recipient=other, body=body)
+        return redirect("social:conversation", username=username)
+
+    Message.objects.filter(sender=other, recipient=request.user, read_at__isnull=True).update(read_at=timezone.now())
+
+    thread = Message.objects.filter(
+        Q(sender=request.user, recipient=other) | Q(sender=other, recipient=request.user)
+    )
+
+    return render(request, "social/conversation.html", {"other": other, "thread": thread})

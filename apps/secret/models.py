@@ -76,3 +76,35 @@ class MovieQuote(models.Model):
 
     def __str__(self):
         return f"«{self.quote[:40]}…» — {self.correct_title}"
+
+
+class TierListEntry(models.Model):
+    """Tier list personal (editable solo desde el admin): películas
+    agrupadas en niveles S/A/B/C/D, ordenables dentro de cada nivel."""
+
+    class Tier(models.TextChoices):
+        S = "S", "S"
+        A = "A", "A"
+        B = "B", "B"
+        C = "C", "C"
+        D = "D", "D"
+
+    tier = models.CharField("nivel", max_length=1, choices=Tier.choices, default=Tier.A)
+    title = models.CharField("título", max_length=255)
+    order = models.PositiveIntegerField("orden dentro del nivel", default=0)
+    movie = models.ForeignKey(
+        Movie, verbose_name="película del catálogo (opcional, para la portada)",
+        on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "entrada de tier list"
+        verbose_name_plural = "Top Secret: tier list"
+        ordering = ["tier", "order", "title"]
+
+    def __str__(self):
+        return f"[{self.tier}] {self.title}"
+
+    @property
+    def poster_url(self):
+        return self.movie.poster_url if self.movie else ""

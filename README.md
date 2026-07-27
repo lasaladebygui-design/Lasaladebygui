@@ -207,7 +207,7 @@ Cada película se cachea una sola vez en el modelo `Movie` (`apps.movies.models.
 
 ### Ruleta — Modo 1 (`/peliculas/ruleta/nota/`)
 
-El usuario elige una nota mínima y máxima (1-10); se sortea al azar una película del catálogo dentro de ese rango, excluyendo las que ya se le mostraron a ese usuario en ese modo (`RouletteRatingSeen`). Al agotar el rango, hay que darle a "reiniciar" para volver a verlas.
+El usuario elige una nota mínima y máxima (1-10; el formulario empieza abierto a todo el rango, 1-10, y se estrecha solo si el usuario lo cambia); se sortea al azar una película del catálogo dentro de ese rango, excluyendo las que ya se le mostraron a ese usuario en ese modo (`RouletteRatingSeen`). Al agotar el rango, hay que darle a "reiniciar" para volver a verlas.
 
 ### Ruleta — Modo 2 (`/peliculas/ruleta/lista/`)
 
@@ -218,6 +218,10 @@ Ambos modos muestran el resultado con una animación de carteles rotando (tipo t
 ### Votaciones
 
 Cualquier usuario logueado vota una película del 1 al 10 desde su ficha (`/peliculas/<id>/`); un segundo voto sobre la misma película sobreescribe el anterior (`unique_together` en `Vote` + `update_or_create`). Se muestra la media y el número de votos. El voto se envía por HTMX sin recargar la página.
+
+### Mis películas y guardar (`/peliculas/mias/`)
+
+Junto a la cabecera del catálogo hay un enlace "Mis películas" (solo para usuarios logueados) con dos listas: las que has votado (con tu nota) y las que has guardado. Desde la ficha de cualquier película hay un botón "Guardar película" / "✓ Guardada" que la añade o la quita de tu lista de guardadas (`apps.movies.models.SavedMovie`, una fila única por usuario+película) — pensado para marcar "quiero verla" sin necesidad de puntuarla todavía.
 
 ## 8. Top Secret, donaciones y contacto
 
@@ -233,10 +237,19 @@ Dentro hay tres secciones, todas editables desde **Admin → Top Secret → Pel�
 - **b) Buscador por nota:** un intervalo de nota *personal* (no la de IMDb ni la media de votos) y una recomendación al azar dentro de él.
 - **c) Lista completa:** todas las entradas, con su nota y comentario.
 - **d) Juegos:** de momento, "Frases célebres" (ver más abajo) — pensado como sección ampliable para futuros juegos.
+- **e) Tier list:** un ranking editable de películas por niveles S/A/B/C/D (`apps.secret.models.TierListEntry`, editable desde **Admin → Top Secret → Tier list**), con póster opcional (enlazando a una película del catálogo) o solo título. Pensado para uso personal del dueño de la web, no hay edición desde la web pública.
 
 ### Juegos: Frases célebres (`/top-secret/dentro/juegos/frases/`)
 
 La web muestra una frase de película (`apps.secret.models.MovieQuote`) y tres opciones (la correcta + dos incorrectas, editables desde **Admin → Top Secret → Frases célebres**); aciertas y sigue la racha, fallas y se reinicia a 0. La racha en curso se guarda en la sesión del navegador; la **mejor racha** se guarda de forma permanente en la cuenta (`User.quote_streak_best`) si has iniciado sesión — y se muestra en tu página de perfil — o solo para esa sesión de navegador si entras sin cuenta.
+
+Al fallar se muestra una pantalla de fin de partida con la racha conseguida, un botón "Jugar de nuevo" y, si esa racha ha superado tu mejor marca anterior, un mensaje de felicitación.
+
+## 9. Amigos y mensajes (`/social/`)
+
+Cualquier usuario logueado puede visitar el perfil público de otro (`/social/usuarios/<username>/`, accesible desde los nombres de autor del foro) y enviarle una solicitud de amistad. Si el otro usuario ya le había enviado una solicitud pendiente, aceptarla en ese momento los hace amigos directamente en vez de crear una segunda solicitud cruzada. Desde `/social/amigos/` se ven las solicitudes recibidas/enviadas y la lista de amigos actuales, con opción de eliminar la amistad.
+
+La mensajería (`/social/mensajes/`) está **limitada a amigos**: solo se puede abrir o escribir en una conversación con alguien con quien ya existe una amistad aceptada (`apps.social.models.FriendRequest` con `accepted=True`); intentarlo con quien no es amigo da 404. La bandeja de entrada agrupa los mensajes por conversación y marca cuántos están sin leer; al abrir una conversación, los mensajes recibidos se marcan como leídos.
 
 ### Donaciones (`/donaciones/`)
 
@@ -246,7 +259,7 @@ Cartel estilo cine antiguo con el número de Bizum. El número no está hardcode
 
 Formulario (nombre, email, mensaje) que se envía por email a `SiteConfig.contact_email` (**Admin → Sitio → Configuración del sitio**) — ese campo empieza vacío a propósito; mientras no se rellene, la página muestra un aviso en vez del formulario. Anti-spam por **honeypot**: un campo (`website`) invisible por CSS que un usuario real nunca rellena; si llega relleno, se descarta el envío mostrando igualmente el mensaje de éxito (para no darle pistas a un bot de que fue detectado).
 
-## 9. Animación de proyector al entrar
+## 10. Animación de proyector al entrar
 
 Al cargar la web (`templates/partials/intro.html` + `static/js/intro.js`) se muestra un proyector encendiéndose: parpadeo inicial, haz de luz que barre la pantalla, grano de película y las perforaciones del carrete desplazándose arriba y abajo, con un "clack" mecánico sintetizado por Web Audio API (si el navegador bloquea el autoplay de sonido sin interacción previa, simplemente no suena — la animación visual no depende de ello). Tras ~3,4s hace un fundido y desaparece, revelando la home.
 
@@ -255,7 +268,7 @@ Al cargar la web (`templates/partials/intro.html` + `static/js/intro.js`) se mue
 - **Configurable desde el admin:** **Sitio → Configuración del sitio → Animación de entrada → "mostrar animación de proyector al entrar"**. Desactivarla la quita de toda la web sin tocar código.
 - Respeta `prefers-reduced-motion`: si el sistema operativo del visitante tiene activada la reducción de movimiento, se omiten el parpadeo, el barrido de luz y el sonido, y solo queda un fundido simple.
 
-## 10. Despliegue en Render
+## 11. Despliegue en Render
 
 El repositorio incluye `render.yaml` (Blueprint): Render lee ese archivo y crea el servicio con la configuración correcta sin tener que rellenar el formulario a mano.
 
