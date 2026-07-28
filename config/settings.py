@@ -123,8 +123,53 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# --- Media (portadas de artículos, avatares, fotos del tablón...) ----------
+# En el plan free de Render el disco no es persistente entre despliegues: sin
+# esto, las imágenes subidas desaparecían en cada redeploy. Si se rellenan
+# las variables de Supabase Storage (mismo proyecto que ya se usa para la
+# base de datos — su Storage expone una API compatible con S3), se usa eso
+# en vez del disco local; si se dejan vacías, se cae a disco local como
+# siempre (imprescindible para desarrollo, y sigue funcionando en producción
+# si no se configura Supabase Storage, con la limitación ya conocida).
+
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+SUPABASE_STORAGE_ENDPOINT = env("SUPABASE_STORAGE_ENDPOINT", default="")
+SUPABASE_STORAGE_BUCKET = env("SUPABASE_STORAGE_BUCKET", default="")
+SUPABASE_STORAGE_ACCESS_KEY_ID = env("SUPABASE_STORAGE_ACCESS_KEY_ID", default="")
+SUPABASE_STORAGE_SECRET_ACCESS_KEY = env("SUPABASE_STORAGE_SECRET_ACCESS_KEY", default="")
+SUPABASE_STORAGE_REGION = env("SUPABASE_STORAGE_REGION", default="us-east-1")
+
+USE_SUPABASE_STORAGE = bool(
+    SUPABASE_STORAGE_ENDPOINT and SUPABASE_STORAGE_BUCKET and SUPABASE_STORAGE_ACCESS_KEY_ID
+)
+
 STORAGES = {
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "default": (
+        {
+            "BACKEND": "storages.backends.s3.S3Storage",
+            "OPTIONS": {
+                "access_key": SUPABASE_STORAGE_ACCESS_KEY_ID,
+                "secret_key": SUPABASE_STORAGE_SECRET_ACCESS_KEY,
+                "bucket_name": SUPABASE_STORAGE_BUCKET,
+                "endpoint_url": SUPABASE_STORAGE_ENDPOINT,
+                "region_name": SUPABASE_STORAGE_REGION,
+                # Sin firma de URL: el bucket debe marcarse "Public" desde el
+                # panel de Supabase (Storage → el bucket → Public), no aquí.
+                "querystring_auth": False,
+                # Evita que dos archivos con el mismo nombre (p. ej. todos los
+                # avatares recortados se llaman "avatar.jpg") se pisen entre
+                # sí: Django añade un sufijo aleatorio como ya hacía en disco.
+                "file_overwrite": False,
+                "addressing_style": "path",
+            },
+        }
+        if USE_SUPABASE_STORAGE
+        else {"BACKEND": "django.core.files.storage.FileSystemStorage"}
+    ),
     "staticfiles": {
         "BACKEND": (
             "django.contrib.staticfiles.storage.StaticFilesStorage"
@@ -133,15 +178,6 @@ STORAGES = {
         )
     },
 }
-
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
-# --- Media (portadas de artículos, imágenes subidas desde el editor) -------
-# Nota: en el plan free de Render el disco no es persistente entre despliegues
-# (se documenta en el README, sección de despliegue de la Fase 5).
-
-MEDIA_URL = "media/"
-MEDIA_ROOT = BASE_DIR / "media"
 
 # --- Editor de artículos (CKEditor 5) --------------------------------------
 

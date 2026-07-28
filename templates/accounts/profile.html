@@ -13,6 +13,20 @@
         <h1>{% username_badge user %}</h1>
         <p class="muted" style="text-align:center; margin-top:-1rem; margin-bottom:1.5rem;">{{ user.email }}</p>
 
+        {% if site_config.require_email_verification %}
+            {% if user.email_verified %}
+            <p class="muted" style="text-align:center;">✅ Email verificado</p>
+            {% else %}
+            <div style="text-align:center; margin-bottom:1.5rem;">
+                <p class="field-errors" style="text-align:center;">⚠️ Todavía no has verificado tu email. Revisa tu bandeja de entrada (y spam).</p>
+                <form method="post" action="{% url 'accounts:resend-verification' %}" class="inline-form">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn--ghost btn--sm">Reenviar email de verificación</button>
+                </form>
+            </div>
+            {% endif %}
+        {% endif %}
+
         {% include "partials/rotating_quote.html" %}
 
         <p class="muted" style="text-align:center;">

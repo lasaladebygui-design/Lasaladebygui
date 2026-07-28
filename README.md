@@ -105,6 +105,7 @@ Todas están documentadas en [.env.example](.env.example). Resumen:
 | `EMAIL_*` | Configuración SMTP para verificación de email y contacto. En local, por defecto los emails se imprimen en la consola. |
 | `REQUIRE_EMAIL_VERIFICATION` | Valor inicial de la opción "exigir verificación de email"; después se gestiona desde el admin (**Sitio → Configuración del sitio**). |
 | `TMDB_API_KEY` / `OMDB_API_KEY` | Búsqueda/portadas/sinopsis (TMDb) y nota IMDb (OMDb) para el catálogo y la ruleta. Instrucciones abajo. |
+| `SUPABASE_STORAGE_*` | Opcional: almacenamiento persistente de imágenes subidas (avatares, portadas...) en el Storage de Supabase. Vacío = disco local (no persistente en Render free). Instrucciones en la sección de despliegue. |
 | `RENDER_EXTERNAL_HOSTNAME` | La rellena Render automáticamente en producción. |
 
 ### Obtener las API keys de películas
@@ -337,11 +338,19 @@ Render **apaga el servicio tras ~15 minutos sin recibir tráfico**. La siguiente
 
 Para mitigarlo (opcional): un monitor externo como [UptimeRobot](https://uptimerobot.com) que haga una petición HTTP a tu URL cada 5-10 minutos mantiene el servicio despierto en horas de uso. Configuración: crea una cuenta gratuita, **Add New Monitor** → tipo *HTTP(s)* → la URL de tu servicio en Render → intervalo de 5 minutos. Esto no evita el sleep de forma permanente (Render igualmente puede reiniciar el servicio periódicamente en el plan free), pero reduce mucho la frecuencia con la que un visitante real se encuentra con el arranque en frío.
 
-### Imágenes subidas en producción (recordatorio)
+### Imágenes subidas en producción: almacenamiento persistente (Supabase Storage)
 
-Como se explica en la sección de artículos, el disco de Render free no es persistente: las portadas e imágenes subidas desaparecen en cada redeploy. Si esto es un problema, la vía habitual es cambiar `STORAGES["default"]` en `config/settings.py` por un backend de almacenamiento externo (p. ej. `django-storages` con S3 o Cloudinary) — no está incluido en este entregable para no añadir una dependencia de pago obligatoria, pero es el siguiente paso natural si la web pasa a producción real con contenido subido por usuarios.
+El disco de Render free **no es persistente**: sin más, las portadas, avatares y fotos del tablón de Top Secret desaparecen en cada redeploy (el archivo se sube bien, pero al redesplegar el disco se resetea). Esto es aparte de que `/media/` se sirva o no — de hecho, `/media/` **siempre** se sirve (whitenoise solo cubre `STATIC_ROOT`; las imágenes subidas por usuarios se sirven con una ruta explícita en `config/urls.py` vía `django.views.static.serve`, añadida siempre y no solo con `DEBUG=True`) — el problema es que el archivo en sí ya no está en el disco.
 
-**Servir `/media/` en producción:** whitenoise solo sirve `STATIC_ROOT` (CSS/JS/imágenes del propio código); las imágenes subidas por usuarios (`MEDIA_ROOT`: avatares, portadas, fotos del tablón de Top Secret) se sirven mediante una ruta explícita en `config/urls.py` con `django.views.static.serve`, añadida siempre (no solo con `DEBUG=True` como el resto de estáticos) — si no, esas imágenes devuelven 404 en Render aunque se hayan subido correctamente. No es la forma más eficiente de servir archivos en un sitio de tráfico alto, pero es la opción más simple mientras no haya un backend externo (S3/Cloudinary) configurado.
+**La solución persistente:** usar el Storage del mismo proyecto de Supabase que ya usas para la base de datos (tiene una API compatible con S3 y plan gratuito). Si rellenas estas variables de entorno, `STORAGES["default"]` en `config/settings.py` cambia automáticamente de disco local a Supabase Storage (vía `django-storages`); si las dejas vacías, sigue usando disco local (funciona en local y en Render, pero con la limitación de siempre):
+
+1. En tu proyecto de Supabase: **Storage → Create bucket**. Ponle un nombre (p. ej. `media`) y marca la casilla **Public** al crearlo (si no, las imágenes no serán accesibles sin firmar cada URL).
+2. **Storage → Settings** (o **Project Settings → Data API**, según la versión del panel) para ver la sección **S3 Connection**: ahí está el *endpoint* (algo como `https://<tu-proyecto>.supabase.co/storage/v1/s3`) y la *región*.
+3. En esa misma pantalla, **S3 Access Keys → New access key** genera un *access key id* y un *secret access key* (guarda el secreto en el momento: no se vuelve a mostrar).
+4. Rellena en Render (**Environment**, igual que `DATABASE_URL`): `SUPABASE_STORAGE_ENDPOINT`, `SUPABASE_STORAGE_BUCKET` (el nombre del bucket del paso 1), `SUPABASE_STORAGE_ACCESS_KEY_ID`, `SUPABASE_STORAGE_SECRET_ACCESS_KEY` y `SUPABASE_STORAGE_REGION`. Guarda y espera al redeploy.
+5. A partir de ese despliegue, las imágenes nuevas que se suban ya sobreviven a los redeploys. **Las que ya se hubieran subido antes de configurar esto siguen perdidas** (había que volver a subirlas de todas formas tras cada redeploy) — vuelve a subir tu avatar, portadas, etc. una vez, y a partir de ahí quedan fijas.
+
+Si no configuras esto, todo sigue funcionando igual que hasta ahora (disco local), solo que con la limitación de que las imágenes no sobreviven a un redeploy.
 
 ## Comandos útiles
 
