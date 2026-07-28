@@ -147,6 +147,11 @@ USE_SUPABASE_STORAGE = bool(
     SUPABASE_STORAGE_ENDPOINT and SUPABASE_STORAGE_BUCKET and SUPABASE_STORAGE_ACCESS_KEY_ID
 )
 
+if USE_SUPABASE_STORAGE:
+    from .storage import supabase_public_domain
+
+    _supabase_public_domain = supabase_public_domain(SUPABASE_STORAGE_ENDPOINT, SUPABASE_STORAGE_BUCKET)
+
 STORAGES = {
     "default": (
         {
@@ -157,8 +162,7 @@ STORAGES = {
                 "bucket_name": SUPABASE_STORAGE_BUCKET,
                 "endpoint_url": SUPABASE_STORAGE_ENDPOINT,
                 "region_name": SUPABASE_STORAGE_REGION,
-                # Sin firma de URL: el bucket debe marcarse "Public" desde el
-                # panel de Supabase (Storage → el bucket → Public), no aquí.
+                "custom_domain": _supabase_public_domain,
                 "querystring_auth": False,
                 # Evita que dos archivos con el mismo nombre (p. ej. todos los
                 # avatares recortados se llaman "avatar.jpg") se pisen entre

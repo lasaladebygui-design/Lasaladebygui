@@ -5,6 +5,7 @@ from django.urls import reverse
 
 from apps.accounts.models import User
 from apps.secret.models import MovieQuote
+from config.storage import supabase_public_domain
 
 from .models import SESSION_THEME_KEY, SiteConfig, Theme, get_effective_theme
 
@@ -296,3 +297,25 @@ class QuoteGameTests(TestCase):
         })
         self.assertFalse(response.context["game_over"])
         self.assertIsNotNone(response.context["quote"])
+
+
+class SupabasePublicDomainTests(TestCase):
+    """Marcar un bucket de Supabase como 'Public' no lo hace accesible por
+    la URL del endpoint S3 (esa exige petición firmada siempre) — hace
+    falta la URL nativa .../storage/v1/object/public/<bucket>/... Esto
+    verifica que la construimos bien a partir del endpoint S3 configurado."""
+
+    def test_deriva_el_dominio_publico_desde_el_endpoint_s3(self):
+        domain = supabase_public_domain(
+            "https://xpleukpsphqwuvshyyls.storage.supabase.co/storage/v1/s3", "media",
+        )
+        self.assertEqual(
+            domain,
+            "xpleukpsphqwuvshyyls.supabase.co/storage/v1/object/public/media",
+        )
+
+    def test_usa_el_nombre_del_bucket_configurado(self):
+        domain = supabase_public_domain(
+            "https://otro-proyecto.storage.supabase.co/storage/v1/s3", "avatares",
+        )
+        self.assertIn("/object/public/avatares", domain)

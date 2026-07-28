@@ -344,13 +344,15 @@ El disco de Render free **no es persistente**: sin más, las portadas, avatares 
 
 **La solución persistente:** usar el Storage del mismo proyecto de Supabase que ya usas para la base de datos (tiene una API compatible con S3 y plan gratuito). Si rellenas estas variables de entorno, `STORAGES["default"]` en `config/settings.py` cambia automáticamente de disco local a Supabase Storage (vía `django-storages`); si las dejas vacías, sigue usando disco local (funciona en local y en Render, pero con la limitación de siempre):
 
-1. En tu proyecto de Supabase: **Storage → Create bucket**. Ponle un nombre (p. ej. `media`) y marca la casilla **Public** al crearlo (si no, las imágenes no serán accesibles sin firmar cada URL).
-2. **Storage → Settings** (o **Project Settings → Data API**, según la versión del panel) para ver la sección **S3 Connection**: ahí está el *endpoint* (algo como `https://<tu-proyecto>.supabase.co/storage/v1/s3`) y la *región*.
+1. En tu proyecto de Supabase: **Storage → New bucket**. **El nombre solo puede tener letras, números, guiones y guiones bajos — nada de espacios** (el protocolo S3 los rechaza; si el bucket ya existe con espacios en el nombre, crea uno nuevo con un nombre válido, p. ej. `media`, y usa ese). Márcalo **Public**.
+2. **Storage → Settings** (o **Project Settings → Data API**, según la versión del panel) para ver la sección **S3 Connection**: ahí está el *endpoint* (algo como `https://<tu-proyecto>.storage.supabase.co/storage/v1/s3`) y la *región*.
 3. En esa misma pantalla, **S3 Access Keys → New access key** genera un *access key id* y un *secret access key* (guarda el secreto en el momento: no se vuelve a mostrar).
 4. Rellena en Render (**Environment**, igual que `DATABASE_URL`): `SUPABASE_STORAGE_ENDPOINT`, `SUPABASE_STORAGE_BUCKET` (el nombre del bucket del paso 1), `SUPABASE_STORAGE_ACCESS_KEY_ID`, `SUPABASE_STORAGE_SECRET_ACCESS_KEY` y `SUPABASE_STORAGE_REGION`. Guarda y espera al redeploy.
 5. A partir de ese despliegue, las imágenes nuevas que se suban ya sobreviven a los redeploys. **Las que ya se hubieran subido antes de configurar esto siguen perdidas** (había que volver a subirlas de todas formas tras cada redeploy) — vuelve a subir tu avatar, portadas, etc. una vez, y a partir de ahí quedan fijas.
 
 Si no configuras esto, todo sigue funcionando igual que hasta ahora (disco local), solo que con la limitación de que las imágenes no sobreviven a un redeploy.
+
+**Nota técnica (por qué hace falta `custom_domain`):** marcar el bucket como "Public" en Supabase no lo hace accesible por la URL del endpoint S3 (`.../storage/v1/s3/...`) — esa ruta exige petición firmada siempre, sea el bucket público o no. Los archivos públicos se sirven por una URL completamente distinta, la nativa de Supabase: `https://<project-ref>.supabase.co/storage/v1/object/public/<bucket>/<ruta>`. `config/settings.py` calcula ese dominio automáticamente a partir de `SUPABASE_STORAGE_ENDPOINT` y `SUPABASE_STORAGE_BUCKET` (parámetro `custom_domain` de `django-storages`), así que no hay que configurarlo aparte — pero si en el futuro cambias de proveedor S3-compatible, este detalle es específico de Supabase y puede no aplicar igual.
 
 ## Comandos útiles
 
