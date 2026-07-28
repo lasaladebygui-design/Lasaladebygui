@@ -319,3 +319,35 @@ class SupabasePublicDomainTests(TestCase):
             "https://otro-proyecto.storage.supabase.co/storage/v1/s3", "avatares",
         )
         self.assertIn("/object/public/avatares", domain)
+
+
+class AdminAccessTests(TestCase):
+    """/admin/ debe ser solo para el Admin (is_superuser) — Gestor y Editor
+    son is_staff (para sus permisos puntuales dentro del propio /admin/,
+    como el Gestor con el foro) pero no deben poder entrar al panel."""
+
+    def _login_as(self, email, role):
+        user = User.objects.create(email=email, role=role)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=email, password="Testpass123!")
+        return user
+
+    def test_admin_entra(self):
+        self._login_as("admin@test.local", User.Role.ADMIN)
+        response = self.client.get(reverse("admin:index"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_gestor_no_entra(self):
+        self._login_as("gestor@test.local", User.Role.GESTOR)
+        response = self.client.get(reverse("admin:index"))
+        self.assertRedirects(response, "/admin/login/?next=/admin/", fetch_redirect_response=False)
+
+    def test_editor_no_entra(self):
+        self._login_as("editor@test.local", User.Role.EDITOR)
+        response = self.client.get(reverse("admin:index"))
+        self.assertRedirects(response, "/admin/login/?next=/admin/", fetch_redirect_response=False)
+
+    def test_anonimo_no_entra(self):
+        response = self.client.get(reverse("admin:index"))
+        self.assertRedirects(response, "/admin/login/?next=/admin/", fetch_redirect_response=False)

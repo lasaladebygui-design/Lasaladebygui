@@ -7,7 +7,7 @@ Construida con Django + plantillas DTL, pensada para desplegarse en Render con S
 
 ## Stack
 
-- **Backend:** Python + Django (panel admin nativo como base del panel de gestión).
+- **Backend:** Python + Django. Panel de administración con **django-jazzmin** (aspecto propio de panel de control, restringido al rol Admin) y almacenamiento de imágenes en **Supabase Storage** (opcional, vía `django-storages`) para que sobrevivan a los redeploys.
 - **Base de datos:** Supabase (Postgres) vía `DATABASE_URL`. En local, si no se configura, se usa SQLite automáticamente.
 - **Frontend:** plantillas de Django + CSS/JS vanilla. Alpine.js (vía CDN) para interacciones ligeras (toggle de respuesta en el foro, animación de la ruleta) y HTMX (vía CDN) para la búsqueda de películas y el voto sin recargar la página.
 - **Editor de artículos:** CKEditor 5 (`django-ckeditor-5`).
@@ -135,7 +135,13 @@ Gestión desde el admin: **Usuarios → Usuarios**. La columna *rol* es editable
 
 ### Menú de navegación
 
-El desplegable de la cabecera sigue este orden: Artículos, Foro, Social (solo si has iniciado sesión), Películas, Juegos, Top Secret y, al final, **Panel** — pero este último enlace a `/admin/` solo lo ve el **Admin** (`user.is_superuser`), no Gestor ni Editor, aunque ambos también sean `is_staff` internamente (para tener permisos puntuales dentro del propio `/admin/`, como el Gestor con el foro). Es decir: Gestor/Editor pueden seguir entrando a `/admin/` escribiendo la URL a mano si de verdad lo necesitan, pero no se les ofrece el atajo en el menú.
+El desplegable de la cabecera sigue este orden: Artículos, Foro, Social (solo si has iniciado sesión), Películas, Juegos, Top Secret y, al final, **Panel** — pero este último enlace a `/admin/` solo lo ve el **Admin** (`user.is_superuser`), no Gestor ni Editor.
+
+### El panel de administración (`/admin/`) — solo para el Admin
+
+`/admin/` está restringido de verdad al rol Admin: Gestor y Editor son `is_staff` internamente (para tener permisos Django puntuales, como el Gestor con el foro — ver más abajo), pero **no pueden entrar a `/admin/` aunque escriban la URL a mano**. Esto se hace sobrescribiendo `admin.site.has_permission` en `apps/core/apps.py` (`CoreConfig.ready()`) para exigir `is_superuser` en vez del `is_staff` que usa Django por defecto; no afecta a los permisos Django reales de Gestor sobre el foro, solo a si puede entrar al panel a usarlos.
+
+El panel usa **django-jazzmin** para un aspecto de panel de control "de verdad" (menú lateral con iconos por sección, tema propio) en vez del estilo de la propia web — es una herramienta de trabajo distinta de la web pública, así que deliberadamente no comparte su identidad visual. Se configura en `JAZZMIN_SETTINGS`/`JAZZMIN_UI_TWEAKS` (`config/settings.py`): orden de las secciones del menú, iconos por modelo, tema Bootswatch "flatly".
 
 ### Nombre coloreado por rango
 
@@ -162,7 +168,9 @@ Cada usuario puede subir una foto de perfil (`User.avatar`), visible en su propi
 
 **Recorte de la foto de perfil:** al elegir una imagen se abre un editor de encuadre (`static/js/avatar_cropper.js`, sin dependencias externas) sobre un lienzo circular: se puede arrastrar la imagen para reposicionarla y hay una barra para hacer zoom. Al pulsar "Aplicar recorte" se dibuja la selección en un `<canvas>` oculto (480×480), se convierte a un `Blob`/`File` con `canvas.toBlob` y se inyecta en el campo de archivo real del formulario mediante `DataTransfer` — así el recorte ya se sube como si el usuario hubiera seleccionado directamente esa imagen cuadrada, sin tocar nada en el backend (`ProfileForm` sigue recibiendo un `ImageField` normal).
 
-**Frase de perfil dinámica:** el antiguo campo de texto libre ("frase mítica de cine") se sustituyó por una frase que rota sola cada 12 segundos, tomada del mismo pool que usa el juego Frases célebres (`apps.secret.models.MovieQuote`) — así el pool crece automáticamente si se añaden frases nuevas al juego, sin mantener dos listados. Se ve tanto en tu propio perfil como en el perfil público de cualquier otro usuario (`templates/partials/rotating_quote.html` + `static/js/rotating_quote.js`): cada carga de página empieza en una frase al azar y rota por todo el pool.
+**Frase de perfil dinámica:** el antiguo campo de texto libre ("frase mítica de cine") se sustituyó por una frase que rota sola cada 6 segundos, tomada del mismo pool que usa el juego Frases célebres (`apps.secret.models.MovieQuote`) — así el pool crece automáticamente si se añaden frases nuevas al juego, sin mantener dos listados. Se ve tanto en tu propio perfil como en el perfil público de cualquier otro usuario (`templates/partials/rotating_quote.html` + `static/js/rotating_quote.js`): cada carga de página empieza en una frase al azar y rota por todo el pool.
+
+Al final de la página hay un botón **"Cerrar sesión"**, además del que ya había en el desplegable de la cabecera.
 
 ## 5. Sistema de temas (`theme.css`)
 
@@ -254,10 +262,10 @@ El código **no se guarda en texto plano**: se hashea con el mismo mecanismo que
 Dentro hay tres secciones, todas editables desde **Admin → Top Secret → Películas secretas** (cada entrada es un número único + título + nota personal + comentario; opcionalmente se puede enlazar a una película del catálogo de `/peliculas/` para reutilizar su portada):
 
 - **a) Selector numérico:** eliges un número de la lista y te devuelve la película asociada.
-- **b) Buscador por nota:** un intervalo de nota *personal* (no la de IMDb ni la media de votos) y una recomendación al azar dentro de él.
-- **c) Lista completa:** todas las entradas, con su nota y comentario.
-- **d) Tier list:** un ranking de películas por niveles S/A/B/C/D (`apps.secret.models.TierListEntry`). Editable directamente desde la propia página: un buscador (TMDb en vivo, como en el catálogo) para añadir una película nueva al nivel A, y arrastrar y soltar (`static/js/tier_list.js`, drag-and-drop nativo del navegador, sin librerías) cualquier entrada ya existente para cambiarla de nivel — se coloca al final del nivel de destino. También se puede editar desde **Admin → Top Secret → Tier list** (título, nivel, orden y película enlazada).
-- **e) Tablón de fotos** (`/top-secret/dentro/tablon/`): a diferencia del resto de Top Secret, **esto sí se sube desde la propia web, no desde el admin** — cualquiera que haya entrado con el código puede subir una foto con una pequeña descripción (`apps.secret.models.SecretPhoto`). No hace falta tener cuenta para subir una; si el visitante ha iniciado sesión, se guarda y se muestra quién la subió (con su nombre coloreado por rango), y si no, aparece como "Anónimo".
+- **b) Buscador por nota:** un intervalo de nota *personal* (no la de IMDb ni la media de votos) y una recomendación al azar dentro de él. Cada entrada puede tener **géneros/subgénero** (`apps.secret.models.Genre`, tags de texto libre — se escriben separados por comas al editar la película en **Admin → Top Secret → Películas secretas**, campo "Géneros/subgéneros", y se crean sobre la marcha si no existen, igual que los tags de Artículos). En esta página aparecen como chips clicables: al pulsar uno se combina con el intervalo de nota, así que la recomendación al azar sale solo entre las películas de ese género y esa nota.
+- **c) Lista completa:** todas las entradas, con su nota, géneros y comentario.
+- **d) Tier list:** un ranking de películas por niveles S/A/B/C/D (`apps.secret.models.TierListEntry`). Editable directamente desde la propia página: un buscador (TMDb en vivo, como en el catálogo) para añadir una película nueva, y arrastrar y soltar (`static/js/tier_list.js`, drag-and-drop nativo del navegador, sin librerías) cualquier entrada para cambiarla de nivel — se coloca al final del nivel de destino. Las películas recién añadidas por búsqueda caen en un nivel especial **"Sin clasificar"** (por encima de S/A/B/C/D, con borde discontinuo) en vez de colarse directamente en un nivel real, hasta que se arrastran a donde corresponda. Un botón **"Vaciar tier list"** (con confirmación) borra todas las entradas para volver a empezar de cero. También se puede editar desde **Admin → Top Secret → Tier list** (título, nivel, orden y película enlazada).
+- **e) Tablón de fotos** (`/top-secret/dentro/tablon/`): a diferencia del resto de Top Secret, **esto sí se sube desde la propia web, no desde el admin** — cualquiera que haya entrado con el código puede subir una foto con una pequeña descripción (`apps.secret.models.SecretPhoto`). No hace falta tener cuenta para subir una; si el visitante ha iniciado sesión, se guarda y se muestra quién la subió (con su nombre coloreado por rango), y si no, aparece como "Anónimo". Con estética de cine propia (carrete de 35mm: fondo oscuro, perforaciones arriba y abajo de cada foto, texto a máquina de escribir) en vez del tema visual activo del sitio, deliberadamente distinta para que se note que es "el cuarto oscuro" del maletín.
 
 Nota: "Frases célebres" vivía antes aquí, como un juego más de Top Secret — se sacó al apartado **Juegos** (sección 9) para que jugarlo no dependa del código de acceso.
 

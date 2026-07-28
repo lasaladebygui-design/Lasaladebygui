@@ -15,5 +15,6 @@ urlpatterns = [
     path("dentro/tierlist/buscar/", views.tier_list_search, name="tier-list-search"),
     path("dentro/tierlist/anadir/<int:tmdb_id>/", views.tier_list_add, name="tier-list-add"),
     path("dentro/tierlist/<int:pk>/mover/", views.tier_list_move, name="tier-list-move"),
+    path("dentro/tierlist/reiniciar/", views.tier_list_reset, name="tier-list-reset"),
     path("dentro/tablon/", views.photo_board, name="photo-board"),
 ]

@@ -1,8 +1,41 @@
 from django import forms
 
-from .models import SecretMovie, SecretPhoto
+from .models import Genre, SecretMovie, SecretPhoto
 
 RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
+
+
+class SecretMovieForm(forms.ModelForm):
+    genres_input = forms.CharField(
+        label="Géneros/subgéneros",
+        required=False,
+        help_text="Sepáralos con comas, ej: terror, slasher, años 80",
+    )
+
+    class Meta:
+        model = SecretMovie
+        fields = ["number", "title", "personal_rating", "comment", "movie"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            self.fields["genres_input"].initial = ", ".join(
+                self.instance.genres.values_list("name", flat=True)
+            )
+
+    def save(self, commit=True):
+        movie = super().save(commit=commit)
+
+        def sync_genres():
+            names = [n.strip() for n in self.cleaned_data["genres_input"].split(",") if n.strip()]
+            genres = [Genre.objects.get_or_create(name=name)[0] for name in names]
+            movie.genres.set(genres)
+
+        if commit:
+            sync_genres()
+        else:
+            self.save_m2m = sync_genres
+        return movie
 
 
 class CodeForm(forms.Form):

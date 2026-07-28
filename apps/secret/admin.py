@@ -3,7 +3,8 @@ from django.contrib import admin
 
 from apps.core.admin import SingletonAdmin
 
-from .models import MovieQuote, SecretMovie, SecretPhoto, TierListEntry, TopSecretConfig
+from .forms import SecretMovieForm
+from .models import Genre, MovieQuote, SecretMovie, SecretPhoto, TierListEntry, TopSecretConfig
 
 
 class TopSecretConfigForm(forms.ModelForm):
@@ -36,12 +37,23 @@ class TopSecretConfigAdmin(SingletonAdmin):
     fieldsets = ((None, {"fields": ("new_code",)}),)
 
 
+@admin.register(Genre)
+class GenreAdmin(admin.ModelAdmin):
+    list_display = ("name",)
+    search_fields = ("name",)
+
+
 @admin.register(SecretMovie)
 class SecretMovieAdmin(admin.ModelAdmin):
-    list_display = ("number", "title", "personal_rating")
+    form = SecretMovieForm
+    list_display = ("number", "title", "personal_rating", "genre_list")
     search_fields = ("title",)
     autocomplete_fields = ("movie",)
     ordering = ("number",)
+
+    @admin.display(description="géneros")
+    def genre_list(self, obj):
+        return ", ".join(obj.genres.values_list("name", flat=True))
 
 
 @admin.register(MovieQuote)

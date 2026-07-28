@@ -14,7 +14,7 @@ function rotatingQuote(intervalMs) {
             setInterval(() => {
                 index = (index + 1) % this.quotes.length;
                 this.quote = this.quotes[index];
-            }, intervalMs || 12000);
+            }, intervalMs || 6000);
         },
     };
 }

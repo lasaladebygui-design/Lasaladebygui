@@ -10,7 +10,8 @@ from apps.accounts.models import User
 from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError
 
-from .models import SecretMovie, SecretPhoto, TierListEntry, TopSecretConfig
+from .forms import SecretMovieForm
+from .models import Genre, SecretMovie, SecretPhoto, TierListEntry, TopSecretConfig
 
 try:
     from PIL import Image
@@ -81,6 +82,56 @@ class SecretMovieViewTests(TestCase):
         response = self.client.get(reverse("secret:list"))
         self.assertEqual(list(response.context["movies"]), [self.a, self.b])
 
+    def test_buscador_por_nota_filtra_por_genero(self):
+        terror = Genre.objects.create(name="Terror")
+        self.a.genres.add(terror)
+
+        response = self.client.get(reverse("secret:by-rating"), {
+            "min_rating": 8, "max_rating": 9, "genre": terror.slug,
+        })
+        self.assertEqual(response.context["result"], self.a)
+
+    def test_buscador_por_nota_genero_sin_coincidencias(self):
+        terror = Genre.objects.create(name="Terror")
+        self.a.genres.add(terror)
+        comedia = Genre.objects.create(name="Comedia")
+
+        response = self.client.get(reverse("secret:by-rating"), {
+            "min_rating": 8, "max_rating": 9, "genre": comedia.slug,
+        })
+        self.assertIsNone(response.context["result"])
+
+
+class SecretMovieFormTests(TestCase):
+    def test_crea_generos_sobre_la_marcha(self):
+        form = SecretMovieForm(data={
+            "number": 1, "title": "Kill Bill", "personal_rating": "9.0",
+            "comment": "", "genres_input": "acción, venganza, Tarantino",
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        movie = form.save()
+        self.assertEqual(
+            set(movie.genres.values_list("name", flat=True)),
+            {"acción", "venganza", "Tarantino"},
+        )
+
+    def test_reutiliza_generos_existentes(self):
+        Genre.objects.create(name="Terror")
+        form = SecretMovieForm(data={
+            "number": 1, "title": "El resplandor", "personal_rating": "9.5",
+            "comment": "", "genres_input": "Terror, Drama",
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        movie = form.save()
+        self.assertEqual(Genre.objects.count(), 2)
+        self.assertEqual(movie.genres.count(), 2)
+
+    def test_editar_precarga_los_generos_actuales(self):
+        movie = SecretMovie.objects.create(number=1, title="X", personal_rating="8.0")
+        movie.genres.add(Genre.objects.create(name="Drama"))
+        form = SecretMovieForm(instance=movie)
+        self.assertEqual(form.fields["genres_input"].initial, "Drama")
+
 
 class TierListTests(TestCase):
     def setUp(self):
@@ -110,12 +161,12 @@ class TierListTests(TestCase):
         mock_search.assert_called_once_with("matrix")
 
     @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
-    def test_anadir_desde_busqueda_crea_entrada_en_nivel_a(self, mock_get_or_create):
+    def test_anadir_desde_busqueda_cae_en_sin_clasificar(self, mock_get_or_create):
         mock_get_or_create.return_value = Movie.objects.create(tmdb_id=99, title="Nueva película")
         response = self.client.post(reverse("secret:tier-list-add", args=[99]))
         self.assertRedirects(response, reverse("secret:tier-list"))
         entry = TierListEntry.objects.get(movie__tmdb_id=99)
-        self.assertEqual(entry.tier, TierListEntry.Tier.A)
+        self.assertEqual(entry.tier, TierListEntry.Tier.UNSORTED)
         self.assertEqual(entry.title, "Nueva película")
 
     @patch("apps.secret.views.Movie.get_or_create_from_tmdb", side_effect=MovieAPIError("fallo"))
@@ -148,6 +199,20 @@ class TierListTests(TestCase):
         self.client.post(reverse("secret:lock"))
         response = self.client.get(reverse("secret:tier-list-move", args=[entry.pk]))
         self.assertRedirects(response, reverse("secret:gate"))
+
+    def test_reiniciar_vacia_toda_la_tier_list(self):
+        TierListEntry.objects.create(tier="S", title="Uno", order=1)
+        TierListEntry.objects.create(tier="U", title="Dos", order=1)
+        response = self.client.post(reverse("secret:tier-list-reset"))
+        self.assertRedirects(response, reverse("secret:tier-list"))
+        self.assertFalse(TierListEntry.objects.exists())
+
+    def test_reiniciar_requiere_haber_entrado_al_maletin(self):
+        TierListEntry.objects.create(tier="S", title="Uno", order=1)
+        self.client.post(reverse("secret:lock"))
+        response = self.client.get(reverse("secret:tier-list-reset"))
+        self.assertRedirects(response, reverse("secret:gate"))
+        self.assertTrue(TierListEntry.objects.exists())
 
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())

@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import models
+from django.utils.text import slugify
 
 from apps.core.models import SingletonModel
 from apps.movies.models import Movie
@@ -33,6 +34,28 @@ class TopSecretConfig(SingletonModel):
         self.access_code_hash = make_password(code)
 
 
+class Genre(models.Model):
+    """Género o subgénero de una película secreta (terror, slasher, años
+    80...). Igual que los tags de Artículos: texto libre, se crea sobre la
+    marcha al escribirlo en el admin — no es una lista cerrada."""
+
+    name = models.CharField("nombre", max_length=50, unique=True)
+    slug = models.SlugField("slug", max_length=60, unique=True, blank=True)
+
+    class Meta:
+        verbose_name = "género/subgénero"
+        verbose_name_plural = "géneros/subgéneros"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
+
+
 class SecretMovie(models.Model):
     """Entrada de la lista personal de Quentin: un número (para el selector),
     su propia nota (distinta de la media de votos o de IMDb) y un comentario.
@@ -43,6 +66,7 @@ class SecretMovie(models.Model):
     title = models.CharField("título", max_length=255)
     personal_rating = models.DecimalField("nota personal", max_digits=3, decimal_places=1)
     comment = models.TextField("comentario", blank=True)
+    genres = models.ManyToManyField(Genre, verbose_name="géneros/subgéneros", blank=True, related_name="secret_movies")
     movie = models.ForeignKey(
         Movie, verbose_name="película del catálogo (opcional, para la portada)",
         on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
@@ -80,17 +104,22 @@ class MovieQuote(models.Model):
 
 
 class TierListEntry(models.Model):
-    """Tier list personal (editable solo desde el admin): películas
-    agrupadas en niveles S/A/B/C/D, ordenables dentro de cada nivel."""
+    """Tier list personal: películas agrupadas en niveles S/A/B/C/D,
+    ordenables dentro de cada nivel, editable tanto desde la propia web
+    (buscar y añadir, arrastrar entre niveles) como desde el admin.
+    Las que se acaban de añadir caen en "Sin clasificar" (U) hasta que se
+    arrastran a un nivel real — así nunca se cuela una entrada nueva
+    directamente en un nivel S/A/B/C/D sin que nadie la haya puesto ahí."""
 
     class Tier(models.TextChoices):
+        UNSORTED = "U", "Sin clasificar"
         S = "S", "S"
         A = "A", "A"
         B = "B", "B"
         C = "C", "C"
         D = "D", "D"
 
-    tier = models.CharField("nivel", max_length=1, choices=Tier.choices, default=Tier.A)
+    tier = models.CharField("nivel", max_length=1, choices=Tier.choices, default=Tier.UNSORTED)
     title = models.CharField("título", max_length=255)
     order = models.PositiveIntegerField("orden dentro del nivel", default=0)
     movie = models.ForeignKey(

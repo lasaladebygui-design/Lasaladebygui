@@ -65,15 +65,21 @@ class GestorGroupSyncTests(TestCase):
         user.save()
         self.assertFalse(user.groups.filter(name="Gestor").exists())
 
-    def test_gestor_puede_entrar_al_admin_del_foro(self):
+    def test_gestor_tiene_permisos_django_sobre_el_foro_aunque_no_entre_al_admin(self):
+        # /admin/ en sí es solo para el Admin (ver apps/core/apps.py y
+        # apps/core/tests.py::AdminAccessTests) — pero el Gestor conserva
+        # los permisos Django reales sobre el foro (por si en el futuro se
+        # necesitan fuera del panel), aunque no pueda usarlos desde /admin/.
         user = User.objects.create(email="gestor3@test.local", role=User.Role.GESTOR)
         user.set_password("Testpass123!")
         user.save()
         thread = Thread.objects.create(title="Hilo", body="cuerpo")
 
+        self.assertTrue(user.has_perm("forum.change_thread"))
+
         self.client.login(username=user.email, password="Testpass123!")
         response = self.client.get(f"/admin/forum/thread/{thread.pk}/change/")
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
 
 
 class PasswordResetTests(TestCase):
@@ -162,6 +168,16 @@ class ProfileTests(TestCase):
         response = self.client.get(reverse("accounts:profile"))
         self.assertContains(response, "rotating-quotes-data")
         self.assertContains(response, "Frase de prueba sin caracteres especiales")
+
+    def test_el_perfil_tiene_boton_de_cerrar_sesion(self):
+        response = self.client.get(reverse("accounts:profile"))
+        self.assertContains(response, reverse("accounts:logout"))
+        self.assertContains(response, "Cerrar sesión")
+
+    def test_cerrar_sesion_desde_el_perfil_desloguea(self):
+        self.client.post(reverse("accounts:logout"))
+        response = self.client.get(reverse("accounts:profile"))
+        self.assertNotEqual(response.status_code, 200)
 
     def test_sin_frases_celebres_el_perfil_no_falla(self):
         response = self.client.get(reverse("accounts:profile"))

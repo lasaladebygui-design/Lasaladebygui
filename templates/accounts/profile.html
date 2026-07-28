@@ -71,6 +71,11 @@
         <p class="muted" style="margin-top:1.5rem;">
             ¿Quieres cambiar el tema visual? Usa el icono 🌙 de la cabecera — se aplica al momento y se guarda en tu cuenta.
         </p>
+
+        <form method="post" action="{% url 'accounts:logout' %}" style="margin-top:1.5rem;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn--ghost btn--block">Cerrar sesión</button>
+        </form>
     </div>
 </div>
 {% endblock %}

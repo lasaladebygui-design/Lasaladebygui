@@ -36,6 +36,7 @@ if RENDER_EXTERNAL_HOSTNAME:
 # --- Apps --------------------------------------------------------------
 
 INSTALLED_APPS = [
+    "jazzmin",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -240,3 +241,56 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# --- Panel de administración (django-jazzmin) ----------------------------
+# Deliberadamente NO usa el tema visual de la propia web (theme.css): es un
+# panel de control "de verdad", con su propio aspecto profesional, para que
+# quede claro que es una herramienta distinta de la web pública. El acceso
+# ya está restringido a Admin (is_superuser) en apps/core/apps.py — Jazzmin
+# solo cambia el aspecto, no los permisos.
+
+JAZZMIN_SETTINGS = {
+    "site_title": "Panel — La Sala de Bygui",
+    "site_header": "La Sala de Bygui",
+    "site_brand": "Panel de control",
+    "welcome_sign": "Panel de administración de La Sala de Bygui",
+    "copyright": "La Sala de Bygui",
+    "show_sidebar": True,
+    "navigation_expanded": True,
+    "changeform_format": "horizontal_tabs",
+    # Orden de las secciones en el menú lateral, de lo más operativo (usuarios,
+    # contenido) a lo más de "trastienda" (sitio, Top Secret, social).
+    "order_with_respect_to": [
+        "accounts", "articles", "forum", "movies", "secret", "social", "core", "auth",
+    ],
+    "icons": {
+        "accounts.User": "fas fa-user",
+        "auth.Group": "fas fa-users-cog",
+        "articles.Article": "fas fa-newspaper",
+        "articles.Tag": "fas fa-tags",
+        "forum.Thread": "fas fa-comments",
+        "forum.ThreadComment": "fas fa-comment-dots",
+        "movies.Movie": "fas fa-film",
+        "movies.Vote": "fas fa-star",
+        "movies.SavedMovie": "fas fa-bookmark",
+        "secret.TopSecretConfig": "fas fa-key",
+        "secret.SecretMovie": "fas fa-user-secret",
+        "secret.MovieQuote": "fas fa-quote-right",
+        "secret.TierListEntry": "fas fa-layer-group",
+        "secret.SecretPhoto": "fas fa-images",
+        "social.FriendRequest": "fas fa-user-friends",
+        "social.Message": "fas fa-envelope",
+        "core.SiteConfig": "fas fa-sliders-h",
+        "core.Theme": "fas fa-palette",
+    },
+    "default_icon_parents": "fas fa-folder",
+    "default_icon_children": "fas fa-circle",
+}
+
+JAZZMIN_UI_TWEAKS = {
+    "theme": "flatly",
+    "default_theme_mode": "auto",
+    "navbar_fixed": True,
+    "layout_boxed": False,
+    "sidebar_fixed": True,
+}

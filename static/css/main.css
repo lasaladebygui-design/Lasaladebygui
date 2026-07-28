@@ -996,6 +996,17 @@ main { flex: 1; }
 .tier-row--c .tier-row__label { background: #FFA366; }
 .tier-row--d .tier-row__label { background: #D98C8C; }
 
+.tier-row--u {
+    border-style: dashed;
+    margin-bottom: calc(var(--space-unit) * 1);
+    opacity: 0.85;
+}
+.tier-row--u .tier-row__label { background: transparent; color: var(--color-text-muted); font-size: 1.1rem; }
+.tier-row__hint {
+    font-size: 0.8rem;
+    margin: 0 0 calc(var(--space-unit) * 5);
+}
+
 .tier-row__items {
     display: flex;
     flex-wrap: wrap;
@@ -1239,35 +1250,65 @@ main { flex: 1; }
 
 .avatar-crop-modal__actions { display: flex; gap: calc(var(--space-unit) * 2); }
 
-/* --- Top Secret: tablón de fotos -------------------------------------------- */
+/* --- Top Secret: tablón de fotos (estética de cine) ------------------------ */
+/* Deliberadamente con look propio (carrete de 35mm) en vez del tema activo
+   del sitio, para que se note que es "el cuarto oscuro" del maletín. */
 
 .photo-board {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: calc(var(--space-unit) * 4);
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: calc(var(--space-unit) * 5);
     margin-top: calc(var(--space-unit) * 6);
 }
 
 .photo-board__item {
     margin: 0;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-base);
+    background: #0b0b0b;
+    border-radius: 6px;
     overflow: hidden;
+    padding: 16px 10px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    position: relative;
 }
+
+/* Perforaciones de carrete de cine, arriba y abajo de cada foto. */
+.photo-board__item::before,
+.photo-board__item::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 16px;
+    background-image: radial-gradient(circle, #0b0b0b 3px, #2a2a2a 3px, #2a2a2a 3.5px, transparent 3.5px);
+    background-size: 20px 16px;
+    background-position: 8px center;
+    background-repeat: repeat-x;
+    background-color: #1a1a1a;
+}
+.photo-board__item::before { top: 0; }
+.photo-board__item::after { bottom: 0; }
 
 .photo-board__img {
     width: 100%;
     aspect-ratio: 4/3;
     object-fit: cover;
     display: block;
+    filter: saturate(0.9) contrast(1.05);
+    border: 1px solid #2a2a2a;
 }
 
 .photo-board__caption {
-    padding: calc(var(--space-unit) * 2) calc(var(--space-unit) * 3);
+    padding: calc(var(--space-unit) * 2) calc(var(--space-unit) * 1) 0;
+    color: #e8e8e8;
+    font-family: "Special Elite", monospace;
 }
 
-.photo-board__caption p { margin: 0 0 0.3rem; }
+.photo-board__caption p {
+    margin: 0 0 0.4rem;
+    letter-spacing: 0.02em;
+}
+
+.photo-board__caption .muted { color: #9a9a9a; }
 
 /* --- Social: amigos y mensajes -------------------------------------------- */
 
