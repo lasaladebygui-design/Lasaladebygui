@@ -12,7 +12,7 @@ from apps.articles.models import Article
 from apps.secret.models import MovieQuote
 
 from .forms import ContactForm
-from .models import SESSION_THEME_KEY, SiteConfig, Theme, get_effective_theme
+from .models import SESSION_THEME_KEY, ContactLink, SiteConfig, Theme, get_effective_theme
 
 QUOTE_STREAK_KEY = "quote_streak"
 QUOTE_BEST_ANON_KEY = "quote_streak_best_anon"
@@ -29,9 +29,10 @@ def donations(request):
 
 def contact(request):
     config = SiteConfig.load()
+    contact_links = ContactLink.objects.all()
 
     if not config.contact_email:
-        return render(request, "core/contact.html", {"form": None})
+        return render(request, "core/contact.html", {"form": None, "contact_links": contact_links})
 
     if request.method == "POST":
         form = ContactForm(request.POST)
@@ -51,7 +52,7 @@ def contact(request):
     else:
         form = ContactForm()
 
-    return render(request, "core/contact.html", {"form": form})
+    return render(request, "core/contact.html", {"form": form, "contact_links": contact_links})
 
 
 @cache_control(private=True, no_cache=True)

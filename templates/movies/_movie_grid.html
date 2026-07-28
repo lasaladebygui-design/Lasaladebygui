@@ -1,16 +1,5 @@
 <div class="movie-grid">
     {% for movie in movies %}
-    <a href="{% if local %}{% url 'movies:detail' movie.pk %}{% else %}{% url 'movies:from-tmdb' movie.tmdb_id %}{% endif %}" class="movie-card">
-        {% if movie.poster_url %}
-            <img src="{{ movie.poster_url }}" alt="" class="movie-card__poster">
-        {% else %}
-            <div class="movie-card__poster movie-card__poster--placeholder"><span>🎬</span></div>
-        {% endif %}
-        <div class="movie-card__body">
-            <h3>{{ movie.title }}</h3>
-            <p class="muted">{{ movie.year }}</p>
-            {% if local and movie.imdb_rating %}<span class="tag-pill">IMDb {{ movie.imdb_rating }}</span>{% endif %}
-        </div>
-    </a>
+        {% include "movies/_movie_card.html" with movie=movie local=local %}
     {% endfor %}
 </div>

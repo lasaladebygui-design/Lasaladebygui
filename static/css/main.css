@@ -437,12 +437,13 @@ main { flex: 1; }
 .site-footer__inner {
     padding-block: calc(var(--space-unit) * 8);
     display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
     gap: calc(var(--space-unit) * 4);
 }
 .site-footer p { margin: 0; }
-.site-footer__links { display: flex; gap: calc(var(--space-unit) * 4); flex-wrap: wrap; }
+.site-footer__links { display: flex; justify-content: center; gap: calc(var(--space-unit) * 4); flex-wrap: wrap; }
 .site-footer__links a { color: var(--color-text-muted); }
 .site-footer__links a:hover { color: var(--color-accent); }
 
@@ -626,16 +627,25 @@ main { flex: 1; }
 
 .thread-list { list-style: none; margin: 0; padding: 0; }
 .thread-row {
-    padding: calc(var(--space-unit) * 4) 0;
+    padding: 0;
     border-bottom: 1px solid var(--color-border);
 }
+.thread-row__link {
+    display: block;
+    padding: calc(var(--space-unit) * 4) calc(var(--space-unit) * 2);
+    color: inherit;
+    border-radius: var(--radius-base);
+    transition: background-color 0.15s ease;
+}
+.thread-row__link:hover { background: var(--color-surface); }
+.thread-row__link:hover .thread-row__title { color: var(--color-accent); }
 .thread-row__title {
+    display: block;
     font-family: var(--font-heading);
     font-size: 1.1rem;
     color: var(--color-text);
 }
-.thread-row__title:hover { color: var(--color-accent); }
-.thread-row__meta { font-size: 0.85rem; margin: 0.2rem 0 0; }
+.thread-row__meta { display: block; font-size: 0.85rem; margin: 0.2rem 0 0; }
 
 .thread-header { display: flex; align-items: center; gap: 0.6rem; }
 .thread-body { white-space: pre-line; }
@@ -712,6 +722,11 @@ main { flex: 1; }
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: calc(var(--space-unit) * 5);
+}
+.movie-grid__sentinel {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: calc(var(--space-unit) * 4);
 }
 .movie-card {
     display: flex;
@@ -897,9 +912,29 @@ main { flex: 1; }
 }
 .donation-poster__footer { color: var(--color-text-muted); margin-top: calc(var(--space-unit) * 4); margin-bottom: 0; }
 
-/* --- Contacto (honeypot) ----------------------------------------------------- */
+/* --- Contacto (honeypot + enlaces alternativos) ------------------------------ */
 
 .honeypot-field { position: absolute; left: -9999px; top: -9999px; }
+
+.contact-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: calc(var(--space-unit) * 3);
+    margin: calc(var(--space-unit) * 6) 0;
+}
+.contact-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.1rem;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+.contact-link:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.contact-link__icon { font-size: 1.1rem; }
 
 /* --- Top Secret --------------------------------------------------------------- */
 
@@ -1373,7 +1408,6 @@ main { flex: 1; }
     .hero__actions { flex-direction: column; align-items: stretch; }
     .hero__actions .btn { width: 100%; }
     .section { padding-block: calc(var(--space-unit) * 8); }
-    .site-footer__inner { flex-direction: column; text-align: center; }
 
     .section-header { flex-direction: column; align-items: flex-start; }
     .article-grid { grid-template-columns: 1fr; }

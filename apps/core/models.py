@@ -108,7 +108,7 @@ class SiteConfig(SingletonModel):
 
     tagline = models.CharField(
         "eslogan", max_length=200,
-        default="Cine, debate y recomendaciones con acento propio.",
+        default="Cine, pelis, series y debates. Todo en una misma sala.",
     )
     require_email_verification = models.BooleanField(
         "exigir verificación de email al registrarse",
@@ -148,6 +148,54 @@ class SiteConfig(SingletonModel):
 
     def __str__(self):
         return "Configuración de La Sala de Bygui"
+
+
+class ContactLink(models.Model):
+    """Enlace de contacto alternativo (Instagram, WhatsApp, Twitter...),
+    editable desde el admin: se puede añadir cualquiera que se quiera, no
+    hay una lista cerrada de plataformas ("Otro" cubre cualquier caso no
+    listado). Se muestra en /contacto/ como un botón con icono que lleva
+    directo a esa red al pulsarlo."""
+
+    class Platform(models.TextChoices):
+        INSTAGRAM = "instagram", "Instagram"
+        WHATSAPP = "whatsapp", "WhatsApp"
+        TWITTER = "twitter", "Twitter/X"
+        FACEBOOK = "facebook", "Facebook"
+        TIKTOK = "tiktok", "TikTok"
+        YOUTUBE = "youtube", "YouTube"
+        TELEGRAM = "telegram", "Telegram"
+        DISCORD = "discord", "Discord"
+        EMAIL = "email", "Email"
+        OTRO = "otro", "Otro"
+
+    PLATFORM_ICONS = {
+        "instagram": "📷", "whatsapp": "💬", "twitter": "🐦", "facebook": "📘",
+        "tiktok": "🎵", "youtube": "▶️", "telegram": "✈️", "discord": "🎮",
+        "email": "✉️", "otro": "🔗",
+    }
+
+    platform = models.CharField("plataforma", max_length=20, choices=Platform.choices, default=Platform.OTRO)
+    label = models.CharField(
+        "usuario o nombre a mostrar", max_length=100,
+        help_text="Lo que se ve en el botón, ej: @lasaladebygui",
+    )
+    url = models.URLField(
+        "enlace", help_text="A dónde lleva al pulsarlo: perfil, https://wa.me/34..., mailto:..., etc.",
+    )
+    order = models.PositiveIntegerField("orden", default=0)
+
+    class Meta:
+        verbose_name = "enlace de contacto"
+        verbose_name_plural = "Sitio: enlaces de contacto"
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return f"{self.get_platform_display()}: {self.label}"
+
+    @property
+    def icon(self):
+        return self.PLATFORM_ICONS.get(self.platform, "🔗")
 
 
 SESSION_THEME_KEY = "theme_slug"

@@ -1,0 +1,12 @@
+{% for movie in page_obj %}
+    {% include "movies/_movie_card.html" with movie=movie local=True %}
+{% endfor %}
+{% if page_obj.has_next %}
+<div class="movie-grid__sentinel"
+     hx-get="{% url 'movies:list' %}?page={{ page_obj.next_page_number }}{% if query %}&query={{ query|urlencode }}{% endif %}"
+     hx-trigger="revealed"
+     hx-swap="outerHTML"
+     hx-target="this">
+    <span class="muted">Cargando más…</span>
+</div>
+{% endif %}

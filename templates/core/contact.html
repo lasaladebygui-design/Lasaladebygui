@@ -8,6 +8,17 @@
         <span class="card__tag">Contacto</span>
         <h1>Escríbenos</h1>
 
+        {% if contact_links %}
+        <div class="contact-links">
+            {% for link in contact_links %}
+            <a href="{{ link.url }}" class="contact-link" target="_blank" rel="noopener noreferrer">
+                <span class="contact-link__icon" aria-hidden="true">{{ link.icon }}</span>
+                <span class="contact-link__label">{{ link.label }}</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         {% if form is None %}
         <p class="muted">El formulario de contacto todavía no está activo: falta configurar un email de contacto en el admin.</p>
         {% else %}

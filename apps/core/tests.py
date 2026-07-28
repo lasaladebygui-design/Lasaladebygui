@@ -7,7 +7,7 @@ from apps.accounts.models import User
 from apps.secret.models import MovieQuote
 from config.storage import supabase_public_domain
 
-from .models import SESSION_THEME_KEY, SiteConfig, Theme, get_effective_theme
+from .models import SESSION_THEME_KEY, ContactLink, SiteConfig, Theme, get_effective_theme
 
 
 class ContactFormTests(TestCase):
@@ -44,6 +44,46 @@ class ContactFormTests(TestCase):
         })
         self.assertRedirects(response, reverse("core:contact"))
         self.assertEqual(len(mail.outbox), 0)
+
+
+class ContactLinkTests(TestCase):
+    """Enlaces de contacto alternativos (Instagram, WhatsApp...): deben
+    verse en /contacto/ tanto si el email de contacto está configurado
+    como si no, ya que son una vía aparte."""
+
+    def test_se_muestran_sin_email_de_contacto_configurado(self):
+        ContactLink.objects.create(
+            platform=ContactLink.Platform.INSTAGRAM, label="@lasaladebygui", url="https://instagram.com/lasaladebygui",
+        )
+        response = self.client.get(reverse("core:contact"))
+        self.assertIsNone(response.context["form"])
+        self.assertContains(response, "@lasaladebygui")
+        self.assertContains(response, "https://instagram.com/lasaladebygui")
+
+    def test_se_muestran_con_email_de_contacto_configurado(self):
+        config = SiteConfig.load()
+        config.contact_email = "contacto@lasaladebygui.local"
+        config.save()
+        ContactLink.objects.create(
+            platform=ContactLink.Platform.WHATSAPP, label="600 000 000", url="https://wa.me/34600000000",
+        )
+        response = self.client.get(reverse("core:contact"))
+        self.assertIsNotNone(response.context["form"])
+        self.assertContains(response, "https://wa.me/34600000000")
+
+    def test_orden_respeta_el_campo_order(self):
+        segundo = ContactLink.objects.create(platform=ContactLink.Platform.OTRO, label="Segundo", url="https://b.example.com", order=2)
+        primero = ContactLink.objects.create(platform=ContactLink.Platform.OTRO, label="Primero", url="https://a.example.com", order=1)
+        response = self.client.get(reverse("core:contact"))
+        self.assertEqual(list(response.context["contact_links"]), [primero, segundo])
+
+    def test_icono_por_defecto_para_plataforma_no_reconocida(self):
+        link = ContactLink.objects.create(platform="algo-raro", label="X", url="https://example.com")
+        self.assertEqual(link.icon, "🔗")
+
+    def test_icono_de_una_plataforma_conocida(self):
+        link = ContactLink(platform=ContactLink.Platform.INSTAGRAM)
+        self.assertEqual(link.icon, "📷")
 
 
 class DonationsPageTests(TestCase):

@@ -243,6 +243,38 @@ class MovieListLiveSearchTests(TestCase):
         self.assertRedirects(response, reverse("movies:detail", args=[mock_get_or_create.return_value.pk]))
 
 
+class MovieListInfiniteScrollTests(TestCase):
+    """El catálogo ya no pagina con botones "anterior/siguiente" (llegaba a
+    16 páginas): la primera carga trae un tramo y un "sensor" al final que,
+    al aparecer en pantalla, pide el siguiente tramo por HTMX."""
+
+    def setUp(self):
+        for i in range(1, 30):
+            make_movie(i, f"Película {i}", None)
+
+    def test_primera_carga_trae_un_tramo_y_el_sensor_de_la_siguiente(self):
+        response = self.client.get(reverse("movies:list"))
+        self.assertEqual(len(response.context["page_obj"].object_list), 24)
+        self.assertContains(response, "movie-grid__sentinel")
+        self.assertContains(response, "?page=2")
+
+    def test_htmx_devuelve_solo_el_fragmento_sin_la_pagina_completa(self):
+        response = self.client.get(
+            reverse("movies:list"), {"page": 2}, HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(len(response.context["page_obj"].object_list), 5)
+        self.assertContains(response, "movie-card")
+        self.assertNotContains(response, "<html")
+        self.assertNotContains(response, "movie-grid__sentinel")
+
+    @patch("apps.movies.views.tmdb_search")
+    def test_htmx_no_repite_la_busqueda_en_tmdb(self, mock_search):
+        self.client.get(
+            reverse("movies:list"), {"page": 1, "query": "película"}, HTTP_HX_REQUEST="true",
+        )
+        mock_search.assert_not_called()
+
+
 class SeedMoviesCommandTests(TestCase):
     """`seed_movies` debe combinar populares/mejor valoradas con discover por
     franja de nota, para que el catálogo no quede sesgado hacia notas altas

@@ -2,7 +2,7 @@ from django import forms
 from django.contrib import admin
 from django.shortcuts import redirect
 
-from .models import SiteConfig, Theme
+from .models import ContactLink, SiteConfig, Theme
 
 COLOR_FIELDS = (
     "color_bg", "color_surface", "color_border",
@@ -66,3 +66,10 @@ class SiteConfigAdmin(SingletonAdmin):
             "description": "El tema elegido aquí se aplica a toda la web, salvo que un usuario elija otro distinto en su perfil.",
         }),
     )
+
+
+@admin.register(ContactLink)
+class ContactLinkAdmin(admin.ModelAdmin):
+    list_display = ("platform", "label", "url", "order")
+    list_editable = ("order",)
+    list_filter = ("platform",)

@@ -27,8 +27,7 @@
         {% if query %}
             {% if page_obj.object_list %}
                 <h2 class="movie-section-title">En el catálogo</h2>
-                {% include "movies/_movie_grid.html" with movies=page_obj local=True %}
-                {% include "partials/pagination.html" with page_obj=page_obj %}
+                {% include "movies/_movie_grid_infinite.html" %}
             {% endif %}
 
             {% if search_error %}
@@ -43,8 +42,7 @@
             {% endif %}
         {% else %}
             {% if page_obj.object_list %}
-                {% include "movies/_movie_grid.html" with movies=page_obj local=True %}
-                {% include "partials/pagination.html" with page_obj=page_obj %}
+                {% include "movies/_movie_grid_infinite.html" %}
             {% else %}
                 <p class="muted">
                     El catálogo está vacío todavía. Busca cualquier película arriba, o ejecuta <code>python manage.py seed_movies</code> para poblarlo de golpe.

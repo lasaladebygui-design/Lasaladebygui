@@ -141,7 +141,9 @@ El desplegable de la cabecera sigue este orden: Artículos, Foro, Social (solo s
 
 `/admin/` está restringido de verdad al rol Admin: Gestor y Editor son `is_staff` internamente (para tener permisos Django puntuales, como el Gestor con el foro — ver más abajo), pero **no pueden entrar a `/admin/` aunque escriban la URL a mano**. Esto se hace sobrescribiendo `admin.site.has_permission` en `apps/core/apps.py` (`CoreConfig.ready()`) para exigir `is_superuser` en vez del `is_staff` que usa Django por defecto; no afecta a los permisos Django reales de Gestor sobre el foro, solo a si puede entrar al panel a usarlos.
 
-El panel usa **django-jazzmin** para un aspecto de panel de control "de verdad" (menú lateral con iconos por sección, tema propio) en vez del estilo de la propia web — es una herramienta de trabajo distinta de la web pública, así que deliberadamente no comparte su identidad visual. Se configura en `JAZZMIN_SETTINGS`/`JAZZMIN_UI_TWEAKS` (`config/settings.py`): orden de las secciones del menú, iconos por modelo, tema Bootswatch "flatly".
+El panel usa **django-jazzmin** para un aspecto de panel de control "de verdad" (menú lateral con iconos por sección, tema propio) en vez del estilo de la propia web — es una herramienta de trabajo distinta de la web pública, así que deliberadamente no comparte su identidad visual. Se configura en `JAZZMIN_SETTINGS`/`JAZZMIN_UI_TWEAKS` (`config/settings.py`): orden de las secciones del menú, iconos por modelo, tema Bootswatch "flatly". Arriba del todo hay un botón bien visible "← Volver a la web" (`topmenu_links`) para salir del panel sin tener que usar el desplegable de usuario.
+
+`static/css/admin_custom.css` (cargado vía `JAZZMIN_SETTINGS["custom_css"]`) son pequeños retoques sobre el tema de jazzmin/AdminLTE — por ahora, que el widget "Recent actions" del dashboard envuelva el texto largo (usernames/emails largos en `object_repr`) en vez de salirse de su tarjeta.
 
 **Nota técnica — por qué los estáticos usan `CompressedStaticFilesStorage` y no `CompressedManifestStaticFilesStorage`:** jazzmin referencia `vendor/bootswatch` como un prefijo de ruta (para componer `<tema>/bootstrap.min.css` en JS), no como un archivo real. El storage "Manifest" de Django/whitenoise (el que añade un hash al nombre de cada archivo para que el navegador no cachee versiones viejas tras un deploy) intenta resolver esa ruta contra su manifiesto y no la encuentra, y **eso rompía todo `/admin/` con un 500** (`ValueError: Missing staticfiles manifest entry for 'vendor/bootswatch'`) en producción (`DEBUG=False`) — en local no se notaba porque con `DEBUG=True` se usa el storage simple, sin manifiesto. La variante sin manifiesto sigue comprimiendo los estáticos (gzip) pero no les añade hash al nombre; el único coste es que, tras desplegar un cambio de CSS/JS, quien tenga la página ya cacheada por el navegador puede necesitar refrescar sin caché (Ctrl+F5) para ver el cambio — no vuelvas a `CompressedManifestStaticFilesStorage` sin resolver antes este problema de jazzmin.
 
@@ -208,7 +210,7 @@ CRUD completo respetando los permisos de la tabla de roles anterior. El cuerpo s
 
 ### Foro de debate (`/foro/`)
 
-Cualquier usuario logueado (no baneado) puede abrir un hilo o responder, a cualquier profundidad: los comentarios se guardan con un `parent` opcional y la vista arma el árbol completo en memoria (una sola consulta por hilo, sin problema N+1) antes de pintarlo de forma recursiva, indentado como en Reddit.
+Cualquier usuario logueado (no baneado) puede abrir un hilo o responder, a cualquier profundidad: los comentarios se guardan con un `parent` opcional y la vista arma el árbol completo en memoria (una sola consulta por hilo, sin problema N+1) antes de pintarlo de forma recursiva, indentado como en Reddit. En el listado (`/foro/`), toda la fila de cada hilo es clicable (no solo el título) — el título y los metadatos van dentro de un único `<a>` que ocupa toda la fila.
 
 **Moderación (Gestor/Admin):** pueden cerrar un hilo (deja de admitir respuestas nuevas, ya publicadas se conservan) o eliminarlo por completo, y borrar cualquier comentario. El propio autor también puede borrar su comentario. Borrar un comentario es un **borrado lógico** (queda como "[comentario eliminado]") para no romper las respuestas que cuelguen de él; eliminar un hilo sí borra todo en cascada.
 
@@ -229,6 +231,8 @@ Cada película se cachea una sola vez en el modelo `Movie` (`apps.movies.models.
 Si ya habías ejecutado `seed_movies` antes de este cambio y notas huecos en ciertos rangos de nota, vuelve a ejecutarlo (es idempotente: no duplica lo que ya existe) para completar el catálogo con las franjas nuevas.
 
 **Buscar en `/peliculas/` no se limita al catálogo local:** si buscas un título que no está cacheado todavía, la página también consulta TMDb en vivo y muestra esos resultados en una sección aparte ("Más resultados"); al abrir uno se cachea igual que cualquier otra (título, portada, sinopsis y nota IMDb) y a partir de ahí ya cuenta para el Modo 1 de la ruleta y las votaciones.
+
+**Scroll infinito en vez de paginación con números:** con el catálogo creciendo (seed_movies puede dejarlo en varias decenas de películas), pasar página a página con "1 2 3 ... 16" dejó de ser representativo. En su lugar, `/peliculas/` carga un primer tramo (24 películas) y, al llegar al final con el scroll, un "sensor" invisible (`hx-trigger="revealed"` de HTMX) pide el siguiente tramo y lo añade a la cuadrícula sin recargar la página — así hasta que no queden más. La vista (`apps.movies.views.movie_list`) detecta si la petición es HTMX para devolver solo el fragmento de esa página (sin repetir la búsqueda en vivo a TMDb en cada tramo, que solo se hace en la carga inicial).
 
 Los dos modos de la ruleta están agrupados, junto con "Frases célebres", en un apartado **Juegos** (`/juegos/`, enlazado en el desplegable de la cabecera) — ver sección 9.
 
@@ -278,6 +282,8 @@ Apartado de acceso libre (ni cuenta ni código de Top Secret) que agrupa lo que 
 - **Ruleta** (`/peliculas/ruleta/`): los Modos 1 y 2 descritos en la sección 7.
 - **Frases célebres** (`/juegos/frases/`, `apps.secret.models.MovieQuote` — el modelo se queda en `apps.secret` porque las frases se siguen editando desde **Admin → Top Secret → Frases célebres**, pero la vista y la plantilla viven en `apps.core`): la web muestra una frase de película y tres opciones (la correcta + dos incorrectas); aciertas y sigue la racha, fallas y se reinicia a 0. La racha en curso se guarda en la sesión del navegador; la **mejor racha** se guarda de forma permanente en la cuenta (`User.quote_streak_best`) si has iniciado sesión — y se muestra en tu página de perfil — o solo para esa sesión de navegador si entras sin cuenta. Al fallar se muestra una pantalla de fin de partida con la racha conseguida, un botón "Jugar de nuevo" y, si esa racha ha superado tu mejor marca anterior, un mensaje de felicitación.
 
+  El pool de `seed_quotes` tiene **80 frases** (`apps/secret/management/commands/seed_quotes.py`), revisadas para que sean completas (con el pronombre cuando la frase famosa lo lleva, ej. "Yo soy Iron Man." y no "Soy Iron Man.") y en castellano de España. El comando también trae un pequeño mecanismo de corrección (`QUOTE_FIXES`): si una base de datos ya tenía sembradas versiones antiguas/incorrectas de alguna frase, `seed_quotes` las actualiza in situ la próxima vez que se ejecute (buscándolas por su texto anterior), en vez de dejarlas huérfanas junto a la versión corregida.
+
 ## 10. Social: buscador, amigos y mensajes (`/social/`)
 
 `/social/` es la página central del apartado social (enlazada como "Social" en el desplegable de la cabecera), con dos cosas a la vez: un **buscador de usuarios por nombre** (`?q=...`, coincidencia parcial, para encontrar a cualquiera aunque nunca haya escrito en el foro) y la lista de **tus chats** (conversaciones existentes, con cuántos mensajes sin leer hay en cada una).
@@ -293,6 +299,8 @@ Cartel estilo cine antiguo con el número de Bizum. El número no está hardcode
 ### Contacto (`/contacto/`)
 
 Formulario (nombre, email, mensaje) que se envía por email a `SiteConfig.contact_email` (**Admin → Sitio → Configuración del sitio**) — ese campo empieza vacío a propósito; mientras no se rellene, la página muestra un aviso en vez del formulario. Anti-spam por **honeypot**: un campo (`website`) invisible por CSS que un usuario real nunca rellena; si llega relleno, se descarta el envío mostrando igualmente el mensaje de éxito (para no darle pistas a un bot de que fue detectado).
+
+**Enlaces de contacto alternativos** (`apps.core.models.ContactLink`, **Admin → Sitio → Enlaces de contacto**): además del formulario por email, se pueden añadir tantos enlaces como se quiera a otras plataformas (Instagram, WhatsApp, Twitter/X, Telegram, Discord...; "Otro" cubre cualquiera no listada). Cada uno tiene una plataforma (con su icono, un emoji — sin depender de ninguna librería de iconos), un texto a mostrar (ej. `@lasaladebygui`) y la URL a la que lleva al pulsarlo (perfil, `https://wa.me/34...`, `mailto:...`, etc.); se abren en pestaña nueva. Se muestran en `/contacto/` tanto si el email de contacto está configurado como si no, ya que son una vía aparte.
 
 ## 11. Animación de proyector al entrar
 

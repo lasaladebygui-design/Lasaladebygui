@@ -20,13 +20,15 @@
         <ul class="thread-list">
             {% for thread in page_obj %}
             <li class="thread-row">
-                <a href="{{ thread.get_absolute_url }}" class="thread-row__title">
-                    {% if thread.is_locked %}<span class="tag-pill" title="Hilo cerrado">🔒</span>{% endif %}
-                    {{ thread.title }}
+                <a href="{{ thread.get_absolute_url }}" class="thread-row__link">
+                    <span class="thread-row__title">
+                        {% if thread.is_locked %}<span class="tag-pill" title="Hilo cerrado">🔒</span>{% endif %}
+                        {{ thread.title }}
+                    </span>
+                    <span class="muted thread-row__meta">
+                        {% username_badge thread.author "usuario eliminado" %} · {{ thread.created_at|date:"d/m/Y H:i" }} · {{ thread.comment_count }} respuesta{{ thread.comment_count|pluralize }}
+                    </span>
                 </a>
-                <p class="muted thread-row__meta">
-                    {% username_badge thread.author "usuario eliminado" %} · {{ thread.created_at|date:"d/m/Y H:i" }} · {{ thread.comment_count }} respuesta{{ thread.comment_count|pluralize }}
-                </p>
             </li>
             {% endfor %}
         </ul>

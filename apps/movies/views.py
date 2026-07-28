@@ -33,13 +33,23 @@ def movie_list(request):
     form = MovieSearchForm(request.GET or None)
     movies = Movie.objects.all()
     query = ""
-    external_results = []
-    search_error = None
 
     if form.is_valid() and form.cleaned_data["query"]:
         query = form.cleaned_data["query"]
         movies = movies.filter(title__icontains=query)
 
+    paginator = Paginator(movies, 24)
+    page = paginator.get_page(request.GET.get("page"))
+
+    if _is_htmx(request):
+        # Scroll infinito: cada tramo siguiente solo necesita las tarjetas
+        # de esa página y, si hay más, el próximo "sensor" — no hace falta
+        # repetir la búsqueda en vivo a TMDb en cada tramo.
+        return render(request, "movies/_movie_grid_page.html", {"page_obj": page, "query": query})
+
+    external_results = []
+    search_error = None
+    if query:
         # El catálogo local solo tiene lo ya sembrado/visto antes: se
         # complementa con una búsqueda en vivo a TMDb para que cualquier
         # película que se busque aparezca, no solo las ya cacheadas.
@@ -51,8 +61,6 @@ def movie_list(request):
         else:
             external_results = [r for r in tmdb_results if r.tmdb_id not in local_tmdb_ids][:12]
 
-    paginator = Paginator(movies, 12)
-    page = paginator.get_page(request.GET.get("page"))
     return render(request, "movies/list.html", {
         "page_obj": page,
         "form": form,

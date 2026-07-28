@@ -11,7 +11,7 @@ MOVIE_QUOTES = [
     ("Hasta el infinito y más allá.", "Toy Story", "Wall-E", "Los Increíbles"),
     ("Aquí hay algo que no encaja... y ese algo soy yo.", "Reservoir Dogs", "Pulp Fiction", "Kill Bill"),
     ("Con un gran poder viene una gran responsabilidad.", "Spider-Man", "Batman Begins", "El caballero oscuro"),
-    ("Soy el rey del mundo.", "Titanic", "El renacido", "Náufrago"),
+    ("¡Yo soy el rey del mundo!", "Titanic", "El renacido", "Náufrago"),
     ("La vida es como una caja de bombones, nunca sabes lo que te va a tocar.", "Forrest Gump", "Big", "El curioso caso de Benjamin Button"),
     ("Hakuna Matata.", "El rey león", "Madagascar", "Tarzán"),
     ("Hasta la vista, baby.", "Terminator 2: El juicio final", "RoboCop", "Depredador"),
@@ -40,14 +40,14 @@ MOVIE_QUOTES = [
     ("Volveré.", "Terminator", "Depredador", "RoboCop"),
     ("Sigue nadando.", "Buscando a Nemo", "Buscando a Dory", "Shark Tale"),
     ("Francamente, querida, me importa un bledo.", "Lo que el viento se llevó", "Casablanca", "Cantando bajo la lluvia"),
-    ("¡Tú no puedes manejar la verdad!", "Algunos hombres buenos", "Doce hombres sin piedad", "Erin Brockovich"),
+    ("¡Tú no puedes soportar la verdad!", "Algunos hombres buenos", "Doce hombres sin piedad", "Erin Brockovich"),
     ("Solo hay una regla: no se habla del Club de la Lucha.", "El club de la lucha", "American Psycho", "Seven"),
 
     # Segunda tanda: para que repetir la misma frase sea casi imposible sin
     # perder la premisa del juego (frases realmente famosas, no rellenar por rellenar).
     ("¿Me estás hablando a mí?", "Taxi Driver", "El padrino", "Uno de los nuestros"),
     ("Houston, tenemos un problema.", "Apolo 13", "Interestelar", "Gravedad"),
-    ("Soy Iron Man.", "Iron Man", "Los Vengadores", "Capitán América: El primer vengador"),
+    ("Yo soy Iron Man.", "Iron Man", "Los Vengadores", "Capitán América: El primer vengador"),
     ("¡Esto. Es. Esparta!", "300", "Troya", "Gladiator"),
     ("Yippee-ki-yay, hijo de perra.", "Duro de matar", "Arma letal", "Speed: máxima potencia"),
     ("Alégrame el día.", "Impacto súbito", "Harry el sucio", "El fugitivo"),
@@ -78,17 +78,32 @@ MOVIE_QUOTES = [
     ("Yo soy inevitable.", "Vengadores: Endgame", "Vengadores: Infinity War", "Doctor Strange"),
     ("Ya sabes cómo silbar, ¿verdad? Solo tienes que juntar los labios... y soplar.", "Tener y no tener", "Casablanca", "La reina africana"),
     ("Que la Fuerza esté contigo, siempre... para todos nosotros.", "Star Wars: El ascenso de Skywalker", "Star Wars: El retorno del Jedi", "Star Wars: Los últimos Jedi"),
-    ("En un mundo antiguo... nace una leyenda.", "Conan el bárbaro", "300", "Troya"),
+    ("Son más que reglas, son más bien... pautas.", "Piratas del Caribe: La maldición de la Perla Negra", "Piratas del Caribe: El cofre del hombre muerto", "Piratas del Caribe: En el fin del mundo"),
     ("Yo veo gente muerta.", "El sexto sentido", "Los otros", "Actividad paranormal"),
-    ("La verdad está ahí fuera.", "Contact", "Interestelar", "Encuentros en la tercera fase"),
-    ("Un pequeño paso para el hombre, un gran salto para la humanidad.", "Apolo 13", "Interestelar", "El primer hombre"),
-    ("No llores porque se terminó, sonríe porque sucedió.", "El diario de Noa", "Titanic", "Bajo la misma estrella"),
+    ("Aquí abajo, todos flotan.", "Eso", "El resplandor", "Actividad paranormal"),
+    ("Fracasar no es una opción.", "Apolo 13", "Interestelar", "El primer hombre"),
+    ("Si tú eres un pájaro, yo también soy un pájaro.", "El diario de Noa", "Titanic", "Bajo la misma estrella"),
     ("El amor significa nunca tener que decir lo siento.", "Love Story", "El diario de Noa", "Titanic"),
     ("Si lo construyes, él vendrá.", "Campo de sueños", "El indomable Will Hunting", "Forrest Gump"),
     ("Algunos hombres solo quieren ver arder el mundo.", "El caballero oscuro", "Batman Begins", "Joker"),
     ("O mueres como un héroe, o vives lo suficiente para verte convertido en villano.", "El caballero oscuro", "Batman Begins", "El caballero oscuro: La leyenda renace"),
     ("Ríndete, Dorothy.", "El mago de Oz", "Hocus Pocus", "Blancanieves y los siete enanitos"),
     ("Elemental, querido Watson.", "Sherlock Holmes", "El nombre de la rosa", "Los crímenes de la calle Morgue"),
+]
+
+
+# Frases sembradas antes con texto incompleto o datos equivocados: en vez de
+# dejarlas huérfanas en cualquier base de datos donde ya se hubieran cargado
+# (incluida la de producción), este comando las corrige in situ la próxima
+# vez que se ejecute, buscándolas por su texto anterior.
+QUOTE_FIXES = [
+    ("Soy Iron Man.", "Yo soy Iron Man."),
+    ("Soy el rey del mundo.", "¡Yo soy el rey del mundo!"),
+    ("¡Tú no puedes manejar la verdad!", "¡Tú no puedes soportar la verdad!"),
+    ("En un mundo antiguo... nace una leyenda.", "Son más que reglas, son más bien... pautas."),
+    ("La verdad está ahí fuera.", "Aquí abajo, todos flotan."),
+    ("Un pequeño paso para el hombre, un gran salto para la humanidad.", "Fracasar no es una opción."),
+    ("No llores porque se terminó, sonríe porque sucedió.", "Si tú eres un pájaro, yo también soy un pájaro."),
 ]
 
 
@@ -99,7 +114,19 @@ class Command(BaseCommand):
         "que es seguro ejecutarlo también contra una base de datos de producción."
     )
 
+    def _apply_fixes(self):
+        quotes_by_new_text = {q: (c, w1, w2) for q, c, w1, w2 in MOVIE_QUOTES}
+        for old_text, new_text in QUOTE_FIXES:
+            correct, wrong1, wrong2 = quotes_by_new_text[new_text]
+            updated = MovieQuote.objects.filter(quote=old_text).update(
+                quote=new_text, correct_title=correct, wrong_title_1=wrong1, wrong_title_2=wrong2,
+            )
+            if updated:
+                self.stdout.write(self.style.WARNING(f"Corregida: «{old_text}» -> «{new_text}»"))
+
     def handle(self, *args, **options):
+        self._apply_fixes()
+
         created_count = 0
         for quote, correct, wrong1, wrong2 in MOVIE_QUOTES:
             _, created = MovieQuote.objects.get_or_create(

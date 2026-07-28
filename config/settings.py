@@ -266,6 +266,12 @@ JAZZMIN_SETTINGS = {
     "show_sidebar": True,
     "navigation_expanded": True,
     "changeform_format": "horizontal_tabs",
+    # Botón bien visible para volver a la web pública (además del enlace
+    # "Ver sitio" que Django ya pone en el desplegable de usuario).
+    "topmenu_links": [
+        {"name": "← Volver a la web", "url": "core:home", "new_window": False},
+    ],
+    "custom_css": "css/admin_custom.css",
     # Orden de las secciones en el menú lateral, de lo más operativo (usuarios,
     # contenido) a lo más de "trastienda" (sitio, Top Secret, social).
     "order_with_respect_to": [
