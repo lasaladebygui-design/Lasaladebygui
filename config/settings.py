@@ -179,7 +179,15 @@ STORAGES = {
         "BACKEND": (
             "django.contrib.staticfiles.storage.StaticFilesStorage"
             if DEBUG
-            else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+            # django-jazzmin referencia "vendor/bootswatch" como prefijo de
+            # ruta (para componer <tema>/bootstrap.min.css), no como un
+            # archivo real — el storage "Manifest" de Django/whitenoise
+            # intenta resolverlo contra el manifiesto y revienta con
+            # ValueError: Missing staticfiles manifest entry. La variante
+            # sin manifiesto (solo comprime, no hashea nombres de archivo)
+            # evita el crash; el coste es no invalidar caché de navegador
+            # por nombre de archivo tras cada deploy.
+            else "whitenoise.storage.CompressedStaticFilesStorage"
         )
     },
 }
