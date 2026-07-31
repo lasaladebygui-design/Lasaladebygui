@@ -1511,6 +1511,12 @@ main { flex: 1; }
     border-bottom: 1px solid var(--color-border);
 }
 
+.chat-row__profile-link {
+    font-size: 1.1rem;
+    opacity: 0.7;
+}
+.chat-row__profile-link:hover { opacity: 1; }
+
 .conversation-thread {
     display: flex;
     flex-direction: column;

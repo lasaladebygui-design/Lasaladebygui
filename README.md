@@ -305,7 +305,7 @@ Apartado de acceso libre (ni cuenta ni código de Top Secret) que agrupa lo que 
 
 ## 10. Social: buscador, amigos y mensajes (`/social/`)
 
-`/social/` es la página central del apartado social (enlazada como "Social" en el desplegable de la cabecera), con dos cosas a la vez: un **buscador de usuarios por nombre** (`?q=...`, coincidencia parcial, para encontrar a cualquiera aunque nunca haya escrito en el foro) y la lista de **tus chats** (conversaciones existentes, con cuántos mensajes sin leer hay en cada una).
+`/social/` es la página central del apartado social (enlazada como "Social" en el desplegable de la cabecera), con dos cosas a la vez: un **buscador de usuarios por nombre** (`?q=...`, coincidencia parcial, para encontrar a cualquiera aunque nunca haya escrito en el foro) y la lista de **tus chats** (conversaciones existentes, con cuántos mensajes sin leer hay en cada una). En cada chat de la lista, el icono 👤 lleva al perfil público de esa persona (para ver su racha, el marcador de duelos contra ti, etc.) y el nombre lleva a la conversación — dos destinos distintos a propósito, ya que dentro de la propia conversación no hace falta ese enlace de nuevo.
 
 Desde el buscador (o desde los nombres de autor del foro, que también enlazan al perfil) se llega al perfil público de cualquiera (`/social/usuarios/<username>/`), donde se puede enviar una solicitud de amistad. Si el otro usuario ya te había enviado una solicitud pendiente, aceptarla en ese momento os hace amigos directamente en vez de crear una segunda solicitud cruzada. `/social/amigos/` (enlazado desde la página Social, con un contador de solicitudes pendientes) lista solicitudes recibidas/enviadas y tus amigos actuales, con opción de eliminar la amistad.
 

@@ -141,6 +141,14 @@ class MessagingTests(TestCase):
         self.assertEqual(len(conversations), 1)
         self.assertEqual(conversations[0]["user"], self.bea)
 
+    def test_home_enlaza_al_perfil_ademas_de_a_la_conversacion(self):
+        FriendRequest.objects.create(from_user=self.ana, to_user=self.bea, accepted=True)
+        Message.objects.create(sender=self.ana, recipient=self.bea, body="Uno")
+        self.client.login(username="ana@test.local", password="Testpass123!")
+        response = self.client.get(reverse("social:home"))
+        self.assertContains(response, reverse("social:public-profile", kwargs={"username": self.bea.username}))
+        self.assertContains(response, reverse("social:conversation", kwargs={"username": self.bea.username}))
+
 
 class MessageEditDeleteTests(TestCase):
     def setUp(self):
