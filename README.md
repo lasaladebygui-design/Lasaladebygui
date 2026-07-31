@@ -326,7 +326,7 @@ La web se puede instalar como app (icono en el escritorio/pantalla de inicio, se
 - Cuenta "inicios" (cargas de página en una pestaña/sesión de navegador nueva, vía `sessionStorage` + un contador persistente en `localStorage`) y solo muestra el banner de instalación **una vez cada 3 inicios** (`EVERY_N_VISITS` en el propio archivo), y solo si el navegador ha disparado `beforeinstallprompt` (o sea, solo si de verdad se puede instalar).
 - El banner (esquina inferior, con botones "Instalar" / "Ahora no") no bloquea nada de la página; al pulsar "Instalar" se lanza el diálogo nativo del navegador.
 
-**Nota sobre el icono:** `static/img/pwa-icon-192.png` y `pwa-icon-512.png` son un icono provisional generado por código (silueta de sillón + lámpara sobre fondo morado oscuro, a falta del logo real). Para usar el logo definitivo, sustituye esos dos archivos por el export en PNG a esos mismos tamaños (192×192 y 512×512) — no hace falta tocar `manifest.json` ni ningún otro código.
+**Icono:** `static/img/pwa-icon-192.png` y `pwa-icon-512.png` se generan (redimensionados) a partir del logo real en `docs/design-refs/ChatGPT Image 25 jul 2026, 13_26_30.png`. Si en algún momento cambia el logo, basta con volver a exportar esos dos tamaños (192×192 y 512×512) a esos mismos archivos — no hace falta tocar `manifest.json` ni ningún otro código.
 
 ## 12. Animación de proyector al entrar
 
