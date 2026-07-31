@@ -5,7 +5,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from apps.accounts.models import User
+from apps.accounts.models import FavoriteMovie, User
 from apps.games.models import DuelRecord
 
 from .models import FriendRequest, Message, friends_of, friendship_status
@@ -29,9 +29,13 @@ def public_profile(request, username):
     duel_losses = duel_record.losses_for(request.user) if duel_record else 0
     duel_draws = duel_record.draws if duel_record else 0
 
+    favorites = FavoriteMovie.objects.filter(user=profile_user).select_related("movie")
+
     return render(request, "social/public_profile.html", {
         "profile_user": profile_user, "status": status, "incoming_request": incoming_request,
         "duel_wins": duel_wins, "duel_losses": duel_losses, "duel_draws": duel_draws,
+        "essentials": [f for f in favorites if f.category == FavoriteMovie.Category.ESSENTIAL],
+        "suggested": [f for f in favorites if f.category == FavoriteMovie.Category.SUGGESTED],
     })
 
 

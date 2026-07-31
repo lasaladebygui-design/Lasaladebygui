@@ -52,6 +52,9 @@
                 </form>
             {% endif %}
         </div>
+
+        {% include "accounts/_favorite_movies_section.html" with title="🎬 Sus imprescindibles" favorites=essentials limit=5 editable=False %}
+        {% include "accounts/_favorite_movies_section.html" with title="✨ Sugeridas" favorites=suggested limit=10 editable=False %}
     </div>
 </div>
 {% endblock %}

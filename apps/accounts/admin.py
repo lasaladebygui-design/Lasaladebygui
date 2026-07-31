@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import EmailVerificationToken, User
+from .models import EmailVerificationToken, FavoriteMovie, User
 
 
 @admin.register(User)
@@ -60,3 +60,11 @@ class EmailVerificationTokenAdmin(admin.ModelAdmin):
     list_display = ("user", "created_at", "used_at")
     readonly_fields = ("token", "created_at")
     search_fields = ("user__email",)
+
+
+@admin.register(FavoriteMovie)
+class FavoriteMovieAdmin(admin.ModelAdmin):
+    list_display = ("user", "category", "movie", "order")
+    list_filter = ("category",)
+    search_fields = ("user__username", "movie__title")
+    autocomplete_fields = ("movie",)

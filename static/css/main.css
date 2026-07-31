@@ -1187,6 +1187,56 @@ main { flex: 1; }
 }
 .tier-item__title { font-size: 0.75rem; margin-top: 0.3rem; color: var(--color-text-muted); }
 
+/* --- Perfil: imprescindibles y sugeridas -------------------------------- */
+
+.favorites-section { margin-top: calc(var(--space-unit) * 6); }
+.favorites-section__title { font-size: 1.1rem; margin-bottom: calc(var(--space-unit) * 3); }
+.favorites-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: calc(var(--space-unit) * 3);
+    margin-bottom: calc(var(--space-unit) * 4);
+}
+.favorite-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100px;
+    text-align: center;
+}
+.favorite-card__poster {
+    width: 100px;
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    border-radius: var(--radius-base);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+}
+.favorite-card__poster--placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+}
+.favorite-card__title { font-size: 0.8rem; margin-top: 0.4rem; color: var(--color-text-muted); }
+.favorite-card__remove {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+}
+.favorite-card__remove .link-btn {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
 /* --- Juego: Frases célebres --------------------------------------------------- */
 
 .quote-game__score { color: var(--color-text-muted); margin-bottom: calc(var(--space-unit) * 6); }

@@ -1,6 +1,7 @@
 import io
 import re
 import tempfile
+from unittest.mock import patch
 
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -8,8 +9,10 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from apps.forum.models import Thread
+from apps.movies.models import Movie
+from apps.movies.services import MovieAPIError
 
-from .models import User
+from .models import FavoriteMovie, User
 
 try:
     from PIL import Image
@@ -286,3 +289,82 @@ class ProfileEmailVerificationStatusTests(TestCase):
         response = self.client.get(reverse("accounts:profile"))
         self.assertNotContains(response, "no has verificado")
         self.assertNotContains(response, "Email verificado")
+
+
+class FavoriteMovieTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create(email="favoritos@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+    @patch("apps.accounts.views.tmdb_search")
+    def test_buscar_usa_el_servicio_tmdb(self, mock_search):
+        mock_search.return_value = []
+        response = self.client.get(reverse("accounts:favorite-search", args=["essential"]), {"query": "matrix"})
+        self.assertEqual(response.status_code, 200)
+        mock_search.assert_called_once_with("matrix")
+
+    def test_categoria_invalida_da_404(self):
+        response = self.client.get(reverse("accounts:favorite-search", args=["otra-cosa"]), {"query": "matrix"})
+        self.assertEqual(response.status_code, 404)
+
+    @patch("apps.accounts.views.Movie.get_or_create_from_tmdb")
+    def test_anadir_a_imprescindibles(self, mock_get_or_create):
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=1, title="Matrix")
+        response = self.client.post(reverse("accounts:favorite-add", args=["essential", 1]))
+        self.assertRedirects(response, reverse("accounts:profile"))
+        self.assertTrue(FavoriteMovie.objects.filter(user=self.user, category="essential", movie__tmdb_id=1).exists())
+
+    @patch("apps.accounts.views.Movie.get_or_create_from_tmdb")
+    def test_no_se_puede_superar_el_limite_de_imprescindibles(self, mock_get_or_create):
+        for i in range(5):
+            movie = Movie.objects.create(tmdb_id=i, title=f"Película {i}")
+            FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie, order=i)
+
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=99, title="La que sobra")
+        self.client.post(reverse("accounts:favorite-add", args=["essential", 99]))
+
+        self.assertEqual(FavoriteMovie.objects.filter(user=self.user, category="essential").count(), 5)
+        self.assertFalse(FavoriteMovie.objects.filter(user=self.user, movie__tmdb_id=99).exists())
+
+    @patch("apps.accounts.views.Movie.get_or_create_from_tmdb")
+    def test_el_limite_de_sugeridas_es_diez(self, mock_get_or_create):
+        for i in range(10):
+            movie = Movie.objects.create(tmdb_id=i, title=f"Película {i}")
+            FavoriteMovie.objects.create(user=self.user, category="suggested", movie=movie, order=i)
+
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=99, title="La que sobra")
+        self.client.post(reverse("accounts:favorite-add", args=["suggested", 99]))
+
+        self.assertEqual(FavoriteMovie.objects.filter(user=self.user, category="suggested").count(), 10)
+
+    def test_quitar_una_favorita(self):
+        movie = Movie.objects.create(tmdb_id=5, title="Se va")
+        favorite = FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie)
+        response = self.client.post(reverse("accounts:favorite-remove", args=[favorite.pk]))
+        self.assertRedirects(response, reverse("accounts:profile"))
+        self.assertFalse(FavoriteMovie.objects.filter(pk=favorite.pk).exists())
+
+    def test_no_se_puede_quitar_una_favorita_ajena(self):
+        other = User.objects.create(email="otro_fav@test.local", role=User.Role.LECTOR)
+        movie = Movie.objects.create(tmdb_id=6, title="No es tuya")
+        favorite = FavoriteMovie.objects.create(user=other, category="essential", movie=movie)
+        response = self.client.post(reverse("accounts:favorite-remove", args=[favorite.pk]))
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(FavoriteMovie.objects.filter(pk=favorite.pk).exists())
+
+    def test_el_perfil_muestra_las_favoritas(self):
+        movie = Movie.objects.create(tmdb_id=7, title="Mi favorita", poster_path="/x.jpg")
+        FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie)
+        response = self.client.get(reverse("accounts:profile"))
+        self.assertContains(response, "Mi favorita")
+
+    def test_el_perfil_publico_muestra_las_favoritas_de_otro_sin_boton_de_quitar(self):
+        other = User.objects.create(email="visto_fav@test.local", role=User.Role.LECTOR, username="vistofav")
+        movie = Movie.objects.create(tmdb_id=8, title="Favorita ajena")
+        FavoriteMovie.objects.create(user=other, category="essential", movie=movie)
+
+        response = self.client.get(reverse("social:public-profile", kwargs={"username": "vistofav"}))
+        self.assertContains(response, "Favorita ajena")
+        self.assertNotContains(response, "favorite-remove")

@@ -181,6 +181,8 @@ Cada usuario puede subir una foto de perfil (`User.avatar`), visible en su propi
 
 **Frase de perfil dinámica:** el antiguo campo de texto libre ("frase mítica de cine") se sustituyó por una frase que rota sola cada 6 segundos, tomada del mismo pool que usa el juego Frases célebres (`apps.games.models.MovieQuote`) — así el pool crece automáticamente si se añaden frases nuevas al juego, sin mantener dos listados. Se ve tanto en tu propio perfil como en el perfil público de cualquier otro usuario (`templates/partials/rotating_quote.html` + `static/js/rotating_quote.js`): cada carga de página empieza en una frase al azar y rota por todo el pool.
 
+**🎬 Mis imprescindibles (hasta 5) y ✨ Sugeridas (hasta 10)** (`apps.accounts.models.FavoriteMovie`): dos apartados con portada y título debajo, reutilizando el catálogo de `apps.movies` (misma búsqueda en vivo contra TMDb que la tier list de Top Secret: escribes, salen resultados, le das a "Añadir"). Solo puedes editar los tuyos (buscador + botón "✕" para quitar); en el perfil público de otro usuario (`/social/usuarios/<username>/`) se ven en modo solo lectura, sin buscador ni botón de quitar. Al llegar al límite de cada apartado, "Añadir" deja de funcionar (con un aviso) hasta que quites alguna.
+
 Al final de la página hay un botón **"Cerrar sesión"**, además del que ya había en el desplegable de la cabecera.
 
 ## 5. Sistema de temas (`theme.css`)

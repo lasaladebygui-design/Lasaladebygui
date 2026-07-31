@@ -1,0 +1,37 @@
+<div class="favorites-section">
+    <h2 class="favorites-section__title">{{ title }} <span class="muted">({{ favorites|length }}/{{ limit }})</span></h2>
+    {% if favorites %}
+    <div class="favorites-grid">
+        {% for fav in favorites %}
+        <div class="favorite-card">
+            {% if fav.movie.poster_url %}
+                <img src="{{ fav.movie.poster_url }}" alt="" class="favorite-card__poster">
+            {% else %}
+                <div class="favorite-card__poster favorite-card__poster--placeholder"><span>🎬</span></div>
+            {% endif %}
+            <span class="favorite-card__title">{{ fav.movie.title }}</span>
+            {% if editable %}
+            <form method="post" action="{% url 'accounts:favorite-remove' pk=fav.pk %}" class="favorite-card__remove">
+                {% csrf_token %}
+                <button type="submit" class="link-btn link-btn--danger" title="Quitar">✕</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted">Todavía no hay ninguna aquí.</p>
+    {% endif %}
+
+    {% if editable %}
+    <div class="field">
+        <label for="id_favorite_query_{{ category }}">Buscar y añadir una película</label>
+        <input type="text" id="id_favorite_query_{{ category }}" name="query" placeholder="Título de la película…" autocomplete="off"
+               hx-get="{% url 'accounts:favorite-search' category=category %}"
+               hx-trigger="keyup changed delay:400ms, search"
+               hx-target="#favorite-search-results-{{ category }}"
+               hx-swap="innerHTML">
+    </div>
+    <div id="favorite-search-results-{{ category }}"></div>
+    {% endif %}
+</div>

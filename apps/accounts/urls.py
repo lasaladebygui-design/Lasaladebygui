@@ -10,6 +10,9 @@ urlpatterns = [
     path("login/", views.EmailLoginView.as_view(), name="login"),
     path("logout/", views.logout_view, name="logout"),
     path("perfil/", views.profile, name="profile"),
+    path("perfil/favoritas/<str:category>/buscar/", views.favorite_search, name="favorite-search"),
+    path("perfil/favoritas/<str:category>/anadir/<int:tmdb_id>/", views.favorite_add, name="favorite-add"),
+    path("perfil/favoritas/<int:pk>/quitar/", views.favorite_remove, name="favorite-remove"),
     path("verificar/<uuid:token>/", views.verify_email, name="verify-email"),
     path("verificar/reenviar/", views.resend_verification, name="resend-verification"),
 

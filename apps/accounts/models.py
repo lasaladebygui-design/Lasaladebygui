@@ -131,6 +131,41 @@ class User(AbstractUser):
         return self.role == self.Role.BANEADO
 
 
+class FavoriteMovie(models.Model):
+    """Película destacada en el perfil de un usuario: "Mis imprescindibles"
+    (hasta 5) o "Sugeridas" (hasta 10, recomendaciones). Reutiliza el
+    catálogo de `apps.movies` (misma búsqueda en vivo contra TMDb que ya
+    se usa en la tier list de Top Secret) para tener título y portada
+    sin duplicar datos."""
+
+    class Category(models.TextChoices):
+        ESSENTIAL = "essential", "Imprescindible"
+        SUGGESTED = "suggested", "Sugerida"
+
+    LIMITS = {Category.ESSENTIAL: 5, Category.SUGGESTED: 10}
+
+    user = models.ForeignKey(
+        "accounts.User", verbose_name="usuario", on_delete=models.CASCADE, related_name="favorite_movies",
+    )
+    category = models.CharField("categoría", max_length=10, choices=Category.choices)
+    movie = models.ForeignKey(
+        "movies.Movie", verbose_name="película", on_delete=models.CASCADE, related_name="+",
+    )
+    order = models.PositiveIntegerField("orden", default=0)
+    created_at = models.DateTimeField("añadida", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "película destacada del perfil"
+        verbose_name_plural = "perfiles: películas destacadas"
+        ordering = ["category", "order", "created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["user", "category", "movie"], name="una_vez_por_usuario_y_categoria"),
+        ]
+
+    def __str__(self):
+        return f"{self.user} — {self.get_category_display()}: {self.movie}"
+
+
 class EmailVerificationToken(models.Model):
     """Token de un solo uso para confirmar el email de un usuario."""
 

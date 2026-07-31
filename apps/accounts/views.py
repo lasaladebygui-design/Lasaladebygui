@@ -4,14 +4,17 @@ from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.core.mail import send_mail
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
 
 from apps.core.models import SiteConfig
+from apps.movies.models import Movie
+from apps.movies.services import MovieAPIError, tmdb_search
 
 from .forms import EmailAuthenticationForm, ProfileForm, RegisterForm
-from .models import EmailVerificationToken, User
+from .models import EmailVerificationToken, FavoriteMovie, User
 
 
 def _send_verification_email(request, user):
@@ -95,7 +98,60 @@ def profile(request):
             return redirect("accounts:profile")
     else:
         form = ProfileForm(instance=request.user)
-    return render(request, "accounts/profile.html", {"form": form})
+
+    favorites = FavoriteMovie.objects.filter(user=request.user).select_related("movie")
+    return render(request, "accounts/profile.html", {
+        "form": form,
+        "essentials": [f for f in favorites if f.category == FavoriteMovie.Category.ESSENTIAL],
+        "suggested": [f for f in favorites if f.category == FavoriteMovie.Category.SUGGESTED],
+    })
+
+
+@login_required
+def favorite_search(request, category):
+    if category not in FavoriteMovie.Category.values:
+        raise Http404
+
+    query = request.GET.get("query", "").strip()
+    results = []
+    error = None
+    if query:
+        try:
+            results = tmdb_search(query)[:8]
+        except MovieAPIError as exc:
+            error = str(exc)
+    return render(request, "accounts/_favorite_search_results.html", {
+        "results": results, "error": error, "query": query, "category": category,
+    })
+
+
+@login_required
+def favorite_add(request, category, tmdb_id):
+    if request.method == "POST" and category in FavoriteMovie.Category.values:
+        current_count = FavoriteMovie.objects.filter(user=request.user, category=category).count()
+        if current_count >= FavoriteMovie.LIMITS[category]:
+            messages.error(request, "Ya has llegado al máximo para ese apartado.")
+        else:
+            try:
+                movie = Movie.get_or_create_from_tmdb(tmdb_id)
+            except MovieAPIError as exc:
+                messages.error(request, str(exc))
+            else:
+                _, created = FavoriteMovie.objects.get_or_create(
+                    user=request.user, category=category, movie=movie,
+                    defaults={"order": current_count},
+                )
+                if not created:
+                    messages.info(request, "Esa película ya estaba en la lista.")
+    return redirect("accounts:profile")
+
+
+@login_required
+def favorite_remove(request, pk):
+    favorite = get_object_or_404(FavoriteMovie, pk=pk, user=request.user)
+    if request.method == "POST":
+        favorite.delete()
+    return redirect("accounts:profile")
 
 
 @login_required
