@@ -4,7 +4,7 @@ from django.urls import reverse
 from apps.accounts.models import User
 from apps.social.models import FriendRequest, Message
 
-from .models import Duel, MovieQuote
+from .models import Duel, DuelRecord, MovieQuote
 
 
 class GamesHubTests(TestCase):
@@ -146,7 +146,7 @@ class DuelTests(TestCase):
                 quote=f"Frase número {i}", correct_title=f"Película {i}",
                 wrong_title_1="Otra", wrong_title_2="Otra más",
             )
-            for i in range(Duel.QUOTE_COUNT)
+            for i in range(10)
         ]
         self.alice = User.objects.create(email="alice@test.local", role=User.Role.LECTOR, username="alice")
         self.alice.set_password("Testpass123!")
@@ -169,7 +169,7 @@ class DuelTests(TestCase):
         self.assertEqual(duel.challenger, self.alice)
         self.assertEqual(duel.opponent, self.bob)
         self.assertEqual(duel.status, Duel.Status.PENDING)
-        self.assertEqual(len(duel.quote_ids), Duel.QUOTE_COUNT)
+        self.assertEqual(len(duel.quote_ids), 1)
         self.assertRedirects(response, reverse("games:duel-detail", kwargs={"pk": duel.pk}))
 
     def test_el_retador_ve_pantalla_de_espera_mientras_esta_pendiente(self):
@@ -273,6 +273,69 @@ class DuelTests(TestCase):
         self.assertFalse(duel.opponent_answered)
         self.assertEqual(duel.challenger_streak, 1)
         self.assertEqual(duel.opponent_streak, 1)
+
+    def test_no_hay_tanda_fija_se_juega_hasta_fallar(self):
+        """Si los dos aciertan y ya no quedan más frases guardadas en el
+        duelo, se añade una nueva en vez de terminar el duelo — no hay
+        límite de preguntas, solo el fallo lo acaba."""
+        duel = Duel.objects.create(
+            challenger=self.alice, opponent=self.bob, quote_ids=[self.quotes[0].pk],
+            status=Duel.Status.ACTIVE,
+        )
+        self.client.login(username="alice@test.local", password="Testpass123!")
+        self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
+            "quote_id": self.quotes[0].pk, "answer": "Película 0",
+        })
+        self.client.login(username="bob@test.local", password="Testpass123!")
+        self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
+            "quote_id": self.quotes[0].pk, "answer": "Película 0",
+        })
+        duel.refresh_from_db()
+        self.assertEqual(duel.status, Duel.Status.ACTIVE)
+        self.assertEqual(duel.current_index, 1)
+        self.assertEqual(len(duel.quote_ids), 2)
+
+    def test_no_muestra_pregunta_x_de_n(self):
+        duel = Duel.objects.create(
+            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            status=Duel.Status.ACTIVE,
+        )
+        self.client.login(username="alice@test.local", password="Testpass123!")
+        response = self.client.get(reverse("games:duel-detail", kwargs={"pk": duel.pk}))
+        self.assertNotContains(response, " de 10")
+
+    def test_terminar_el_duelo_actualiza_el_marcador(self):
+        duel = Duel.objects.create(
+            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            status=Duel.Status.ACTIVE,
+        )
+        self.client.login(username="alice@test.local", password="Testpass123!")
+        self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
+            "quote_id": self.quotes[0].pk, "answer": "Otra",
+        })
+        record = DuelRecord.get_for(self.alice, self.bob)
+        self.assertIsNotNone(record)
+        self.assertEqual(record.wins_for(self.bob), 1)
+        self.assertEqual(record.losses_for(self.bob), 0)
+
+    def test_salir_de_un_duelo_terminado_lo_borra(self):
+        duel = Duel.objects.create(
+            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            status=Duel.Status.FINISHED, challenger_lost=True,
+        )
+        self.client.login(username="bob@test.local", password="Testpass123!")
+        response = self.client.post(reverse("games:duel-leave", kwargs={"pk": duel.pk}))
+        self.assertRedirects(response, reverse("games:hub"))
+        self.assertFalse(Duel.objects.filter(pk=duel.pk).exists())
+
+    def test_no_se_puede_salir_de_un_duelo_todavia_activo(self):
+        duel = Duel.objects.create(
+            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            status=Duel.Status.ACTIVE,
+        )
+        self.client.login(username="bob@test.local", password="Testpass123!")
+        self.client.post(reverse("games:duel-leave", kwargs={"pk": duel.pk}))
+        self.assertTrue(Duel.objects.filter(pk=duel.pk).exists())
 
     def test_fallar_termina_el_duelo_al_instante_para_los_dos(self):
         duel = Duel.objects.create(

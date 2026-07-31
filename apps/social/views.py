@@ -6,6 +6,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from apps.accounts.models import User
+from apps.games.models import DuelRecord
 
 from .models import FriendRequest, Message, friends_of, friendship_status
 
@@ -23,8 +24,14 @@ def public_profile(request, username):
             from_user=profile_user, to_user=request.user, accepted=False
         ).first()
 
+    duel_record = DuelRecord.get_for(request.user, profile_user)
+    duel_wins = duel_record.wins_for(request.user) if duel_record else 0
+    duel_losses = duel_record.losses_for(request.user) if duel_record else 0
+    duel_draws = duel_record.draws if duel_record else 0
+
     return render(request, "social/public_profile.html", {
         "profile_user": profile_user, "status": status, "incoming_request": incoming_request,
+        "duel_wins": duel_wins, "duel_losses": duel_losses, "duel_draws": duel_draws,
     })
 
 

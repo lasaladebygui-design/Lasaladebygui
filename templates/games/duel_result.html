@@ -34,7 +34,10 @@
         </form>
         {% endif %}
 
-        <a href="{% url 'games:hub' %}" class="btn btn--ghost btn--block">Volver a Juegos</a>
+        <form method="post" action="{% url 'games:duel-leave' pk=duel.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn--ghost btn--block">Volver a Juegos</button>
+        </form>
     </div>
 </section>
 {% endblock %}

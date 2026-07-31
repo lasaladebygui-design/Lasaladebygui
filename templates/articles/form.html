@@ -2,13 +2,16 @@
 
 {% block title %}{% if is_new %}Escribir artículo{% else %}Editar artículo{% endif %}{% endblock %}
 
+{% load static %}
+
 {% block extra_head %}
 {{ form.media }}
+<script src="{% static 'js/cover_cropper.js' %}"></script>
 {% endblock %}
 
 {% block content %}
 <section class="section">
-    <div class="wrap wrap--narrow">
+    <div class="wrap">
         <h1>{% if is_new %}Escribir artículo{% else %}Editar artículo{% endif %}</h1>
 
         {% if form.non_field_errors %}
@@ -22,11 +25,36 @@
                 {{ form.title }}
                 {% for error in form.title.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
             </div>
-            <div class="field">
-                <label for="{{ form.cover.id_for_label }}">{{ form.cover.label }}</label>
-                {{ form.cover }}
-                {% if article.cover %}<p class="field-help">Portada actual: {{ article.cover.name }}</p>{% endif %}
+            <div class="field cover-editor" x-data="coverCropper('{% if article.cover %}{{ article.cover.url }}{% endif %}')">
+                <label>{{ form.cover.label }}</label>
+                <button type="button" class="cover-editor__button" @click="$refs.fileInput.click()">
+                    <template x-if="previewUrl">
+                        <img :src="previewUrl" alt="" class="cover-editor__preview">
+                    </template>
+                    <template x-if="!previewUrl">
+                        <span class="cover-editor__preview cover-editor__preview--placeholder" aria-hidden="true">🎬 Añadir portada</span>
+                    </template>
+                    <span class="avatar-editor__label">{% if article.cover %}Cambiar portada{% else %}Elegir portada{% endif %}</span>
+                </button>
+                <input type="file" name="cover" accept="image/*" x-ref="fileInput" @change="onFileSelected($event)" class="visually-hidden">
                 {% for error in form.cover.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
+
+                <div class="avatar-crop-modal" x-show="cropping" x-cloak style="display:none;">
+                    <div class="avatar-crop-modal__card" @click.outside="cancelCrop()">
+                        <p class="avatar-crop-modal__title">Encuadra la portada</p>
+                        <div class="cover-crop-modal__stage"
+                             @mousedown="startDrag($event)" @mousemove="onDrag($event)" @mouseup="endDrag()" @mouseleave="endDrag()"
+                             @touchstart="startDrag($event)" @touchmove="onDrag($event)" @touchend="endDrag()">
+                            <img x-ref="cropImg" :src="rawImageUrl" @load="onImageLoad()" :style="imageStyle()" draggable="false" class="avatar-crop-modal__image">
+                        </div>
+                        <input type="range" min="1" max="3" step="0.01" x-model.number="zoom" @input="onZoom()" class="avatar-crop-modal__zoom">
+                        <div class="avatar-crop-modal__actions">
+                            <button type="button" class="btn btn--ghost btn--sm" @click="cancelCrop()">Cancelar</button>
+                            <button type="button" class="btn btn--accent btn--sm" @click="applyCrop()">Aplicar recorte</button>
+                        </div>
+                    </div>
+                </div>
+                <canvas x-ref="canvas" width="1200" height="675" class="visually-hidden"></canvas>
             </div>
             <div class="field">
                 <label for="{{ form.tags_input.id_for_label }}">{{ form.tags_input.label }}</label>

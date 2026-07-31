@@ -9,7 +9,7 @@ MOVIE_QUOTES = [
     ("Que la Fuerza te acompañe.", "Star Wars", "Regreso al futuro", "El padrino"),
     ("Voy a hacerle una oferta que no podrá rechazar.", "El padrino", "Uno de los nuestros", "Scarface"),
     ("Hasta el infinito y más allá.", "Toy Story", "Wall-E", "Los Increíbles"),
-    ("Aquí hay algo que no encaja... y ese algo soy yo.", "Reservoir Dogs", "Pulp Fiction", "Kill Bill"),
+    ("De todos los bares de todas las ciudades del mundo, entra en el mío.", "Casablanca", "El sueño eterno", "La ventana indiscreta"),
     ("Con un gran poder viene una gran responsabilidad.", "Spider-Man", "Batman Begins", "El caballero oscuro"),
     ("¡Yo soy el rey del mundo!", "Titanic", "El renacido", "Náufrago"),
     ("La vida es como una caja de bombones, nunca sabes lo que te va a tocar.", "Forrest Gump", "Big", "El curioso caso de Benjamin Button"),
@@ -41,7 +41,7 @@ MOVIE_QUOTES = [
     ("Sigue nadando.", "Buscando a Nemo", "Buscando a Dory", "Shark Tale"),
     ("Francamente, querida, me importa un bledo.", "Lo que el viento se llevó", "Casablanca", "Cantando bajo la lluvia"),
     ("¡Tú no puedes soportar la verdad!", "Algunos hombres buenos", "Doce hombres sin piedad", "Erin Brockovich"),
-    ("Solo hay una regla: no se habla del Club de la Lucha.", "El club de la lucha", "American Psycho", "Seven"),
+    ("La primera regla del Club de la Lucha es que no se habla del Club de la Lucha.", "El club de la lucha", "American Psycho", "Seven"),
 
     # Segunda tanda: para que repetir la misma frase sea casi imposible sin
     # perder la premisa del juego (frases realmente famosas, no rellenar por rellenar).
@@ -73,11 +73,11 @@ MOVIE_QUOTES = [
     ("La vida se abre camino.", "Parque Jurásico", "El mundo perdido: Jurassic Park", "Jurassic World"),
     ("Bienvenidos a Jurassic Park.", "Parque Jurásico", "Jurassic World", "King Kong"),
     ("Yo soy Groot.", "Guardianes de la Galaxia", "Los Vengadores", "Iron Man"),
-    ("Vengadores... reunidos.", "Vengadores: Infinity War", "Los Vengadores", "Vengadores: Endgame"),
-    ("Haz lo que sea necesario.", "Vengadores: Endgame", "Vengadores: Infinity War", "Capitán América: Civil War"),
+    ("Vengadores... reunidos.", "Vengadores: Endgame", "Los Vengadores", "Vengadores: Infinity War"),
+    ("Perfectamente equilibrado, como todo debería estar.", "Vengadores: Infinity War", "Vengadores: Endgame", "Doctor Strange"),
     ("Yo soy inevitable.", "Vengadores: Endgame", "Vengadores: Infinity War", "Doctor Strange"),
     ("Ya sabes cómo silbar, ¿verdad? Solo tienes que juntar los labios... y soplar.", "Tener y no tener", "Casablanca", "La reina africana"),
-    ("Que la Fuerza esté contigo, siempre... para todos nosotros.", "Star Wars: El ascenso de Skywalker", "Star Wars: El retorno del Jedi", "Star Wars: Los últimos Jedi"),
+    ("Que la Fuerza esté contigo. Siempre.", "Star Wars: El ascenso de Skywalker", "Star Wars: El retorno del Jedi", "Star Wars: Los últimos Jedi"),
     ("Son más que reglas, son más bien... pautas.", "Piratas del Caribe: La maldición de la Perla Negra", "Piratas del Caribe: El cofre del hombre muerto", "Piratas del Caribe: En el fin del mundo"),
     ("Yo veo gente muerta.", "El sexto sentido", "Los otros", "Actividad paranormal"),
     ("Aquí abajo, todos flotan.", "Eso", "El resplandor", "Actividad paranormal"),
@@ -88,7 +88,7 @@ MOVIE_QUOTES = [
     ("Algunos hombres solo quieren ver arder el mundo.", "El caballero oscuro", "Batman Begins", "Joker"),
     ("O mueres como un héroe, o vives lo suficiente para verte convertido en villano.", "El caballero oscuro", "Batman Begins", "El caballero oscuro: La leyenda renace"),
     ("Ríndete, Dorothy.", "El mago de Oz", "Hocus Pocus", "Blancanieves y los siete enanitos"),
-    ("Elemental, querido Watson.", "Sherlock Holmes", "El nombre de la rosa", "Los crímenes de la calle Morgue"),
+    ("¿Por qué nos caemos? Para aprender a levantarnos.", "Batman Begins", "El caballero oscuro", "El caballero oscuro: La leyenda renace"),
 
     # Tercera tanda: ampliando el catálogo con otro medio centenar de frases
     # igual de reconocibles, sin repetir ninguna de las anteriores.
@@ -175,6 +175,12 @@ QUOTE_FIXES = [
     ("Un pequeño paso para el hombre, un gran salto para la humanidad.", "Fracasar no es una opción."),
     ("No llores porque se terminó, sonríe porque sucedió.", "Si tú eres un pájaro, yo también soy un pájaro."),
     ("Yippee-ki-yay, hijo de perra.", "Si sangra, podemos matarlo."),
+    ("Aquí hay algo que no encaja... y ese algo soy yo.", "De todos los bares de todas las ciudades del mundo, entra en el mío."),
+    ("Solo hay una regla: no se habla del Club de la Lucha.", "La primera regla del Club de la Lucha es que no se habla del Club de la Lucha."),
+    ("Vengadores... reunidos.", "Vengadores... reunidos."),
+    ("Haz lo que sea necesario.", "Perfectamente equilibrado, como todo debería estar."),
+    ("Que la Fuerza esté contigo, siempre... para todos nosotros.", "Que la Fuerza esté contigo. Siempre."),
+    ("Elemental, querido Watson.", "¿Por qué nos caemos? Para aprender a levantarnos."),
 ]
 
 

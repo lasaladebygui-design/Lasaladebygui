@@ -585,7 +585,7 @@ main { flex: 1; }
 
 .article-detail__cover {
     width: 100%;
-    max-height: 420px;
+    aspect-ratio: 16 / 9;
     object-fit: cover;
     border-radius: var(--radius-base);
     margin-bottom: calc(var(--space-unit) * 5);
@@ -633,6 +633,8 @@ main { flex: 1; }
     background: var(--color-bg);
     color: var(--color-text);
     font-family: var(--font-body);
+    font-size: 1.05rem;
+    line-height: 1.7;
 }
 .ck.ck-content h1, .ck.ck-content h2, .ck.ck-content h3,
 .ck.ck-content h4, .ck.ck-content h5, .ck.ck-content h6 {
@@ -640,6 +642,13 @@ main { flex: 1; }
     color: var(--color-text);
 }
 .ck.ck-content a { color: var(--color-accent); }
+
+/* Comodidad "de Word": más aire y una zona de escritura amplia, en vez de
+   una caja pequeña y apretada. */
+.ck.ck-editor__editable.ck-editor__editable_inline {
+    min-height: 480px;
+    padding: calc(var(--space-unit) * 4) calc(var(--space-unit) * 5) !important;
+}
 
 /* --- Comentarios de artículo ---------------------------------------------- */
 
@@ -1368,6 +1377,51 @@ main { flex: 1; }
 .avatar-crop-modal__zoom { width: 240px; }
 
 .avatar-crop-modal__actions { display: flex; gap: calc(var(--space-unit) * 2); }
+
+/* --- Artículos: recorte de portada (16:9, misma proporción que la web) ----- */
+
+.cover-editor__button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: calc(var(--space-unit) * 1);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    width: 100%;
+}
+
+.cover-editor__preview {
+    width: 100%;
+    max-width: 480px;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: var(--radius-base);
+    background: var(--color-surface);
+}
+
+.cover-editor__preview--placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed var(--color-border);
+    color: var(--color-text-muted);
+}
+
+.cover-crop-modal__stage {
+    width: 320px;
+    height: 180px;
+    border-radius: var(--radius-base);
+    overflow: hidden;
+    position: relative;
+    background: var(--color-bg);
+    border: 2px solid var(--color-accent);
+    cursor: grab;
+    touch-action: none;
+}
 
 /* --- Top Secret: tablón de fotos (estética de cine) ------------------------ */
 /* Deliberadamente con look propio (carrete de 35mm) en vez del tema activo

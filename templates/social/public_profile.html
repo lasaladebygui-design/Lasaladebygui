@@ -20,6 +20,12 @@
             🏆 Mejor racha en Frases célebres: <strong>{{ profile_user.quote_streak_best }}</strong>
         </p>
 
+        {% if status == "friends" %}
+        <p class="muted" style="text-align:center;">
+            ⚔️ Duelos contra ti: ganaste <strong>{{ duel_wins }}</strong>, perdiste <strong>{{ duel_losses }}</strong>{% if duel_draws %}, {{ duel_draws }} empate{{ duel_draws|pluralize }}{% endif %}
+        </p>
+        {% endif %}
+
         <div style="text-align:center; margin-top:1.5rem;">
             {% if status == "friends" %}
                 <span class="tag-pill">✓ Amigos</span>

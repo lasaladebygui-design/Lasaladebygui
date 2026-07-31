@@ -31,15 +31,16 @@ class Duel(models.Model):
     """Duelo de Frases célebres entre dos amigos: los dos ven la MISMA
     pregunta a la vez (`current_index`, compartido) y avanzan juntos ronda
     a ronda — en cuanto uno responde mal, el duelo termina ahí mismo para
-    los dos. Empieza como invitación (`PENDING`): el retado tiene que
-    aceptarla antes de que arranque la partida."""
+    los dos. No hay una tanda de tamaño fijo: se juega hasta fallar, igual
+    que el modo en solitario, así que `quote_ids` crece sobre la marcha en
+    vez de generarse entero de golpe al crear el duelo. Empieza como
+    invitación (`PENDING`): el retado tiene que aceptarla antes de que
+    arranque la partida."""
 
     class Status(models.TextChoices):
         PENDING = "pending", "Pendiente"
         ACTIVE = "active", "En curso"
         FINISHED = "finished", "Terminado"
-
-    QUOTE_COUNT = 10
 
     challenger = models.ForeignKey(
         settings.AUTH_USER_MODEL, verbose_name="retador", on_delete=models.CASCADE, related_name="duels_started",
@@ -48,7 +49,7 @@ class Duel(models.Model):
         settings.AUTH_USER_MODEL, verbose_name="rival", on_delete=models.CASCADE, related_name="duels_received",
     )
     status = models.CharField("estado", max_length=10, choices=Status.choices, default=Status.PENDING)
-    quote_ids = models.JSONField("frases del duelo (orden fijo, compartido)", default=list)
+    quote_ids = models.JSONField("frases jugadas hasta ahora (compartidas)", default=list)
     current_index = models.PositiveIntegerField("ronda actual (compartida)", default=0)
     challenger_streak = models.PositiveIntegerField("racha del retador", default=0)
     opponent_streak = models.PositiveIntegerField("racha del rival", default=0)
@@ -91,9 +92,7 @@ class Duel(models.Model):
         return self.opponent if self.role_for(user) == "challenger" else self.challenger
 
     def reset_for_rematch(self):
-        self.quote_ids = list(
-            MovieQuote.objects.order_by("?").values_list("pk", flat=True)[: self.QUOTE_COUNT]
-        )
+        self.quote_ids = [MovieQuote.objects.order_by("?").values_list("pk", flat=True).first()]
         self.current_index = 0
         self.challenger_streak = 0
         self.opponent_streak = 0
@@ -115,3 +114,57 @@ class Duel(models.Model):
         if self.opponent_lost and not self.challenger_lost:
             return self.challenger
         return None  # empate: ninguno falló (completaron la tanda juntos) o fallaron los dos a la vez
+
+
+class DuelRecord(models.Model):
+    """Marcador histórico de duelos entre dos usuarios: cuántas veces ha
+    ganado cada uno contra el otro. El `Duel` en sí se borra al terminar
+    (para no acumular partidas viejas en "Tus duelos"), pero este marcador
+    se queda — se actualiza en el momento exacto en que un duelo termina,
+    no cuando se borra la fila. `player_low`/`player_high` son solo un
+    orden interno (por pk) para que cada pareja de usuarios tenga una
+    única fila, sin que importe quién retó a quién esta vez."""
+
+    player_low = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
+    player_high = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
+    player_low_wins = models.PositiveIntegerField("victorias de player_low", default=0)
+    player_high_wins = models.PositiveIntegerField("victorias de player_high", default=0)
+    draws = models.PositiveIntegerField("empates", default=0)
+
+    class Meta:
+        verbose_name = "marcador de duelos"
+        verbose_name_plural = "Juegos: marcadores de duelos"
+        constraints = [
+            models.UniqueConstraint(fields=["player_low", "player_high"], name="un_marcador_por_pareja"),
+        ]
+
+    def __str__(self):
+        return f"{self.player_low} {self.player_low_wins}-{self.player_high_wins} {self.player_high}"
+
+    @staticmethod
+    def _ordered_pair(user_a, user_b):
+        return (user_a, user_b) if user_a.pk < user_b.pk else (user_b, user_a)
+
+    @classmethod
+    def record_result(cls, user_a, user_b, winner):
+        low, high = cls._ordered_pair(user_a, user_b)
+        record, _ = cls.objects.get_or_create(player_low=low, player_high=high)
+        if winner is None:
+            record.draws += 1
+        elif winner.pk == low.pk:
+            record.player_low_wins += 1
+        else:
+            record.player_high_wins += 1
+        record.save()
+        return record
+
+    @classmethod
+    def get_for(cls, user_a, user_b):
+        low, high = cls._ordered_pair(user_a, user_b)
+        return cls.objects.filter(player_low=low, player_high=high).first()
+
+    def wins_for(self, user):
+        return self.player_low_wins if user.pk == self.player_low_id else self.player_high_wins
+
+    def losses_for(self, user):
+        return self.player_high_wins if user.pk == self.player_low_id else self.player_low_wins

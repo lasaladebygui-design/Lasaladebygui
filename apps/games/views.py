@@ -10,7 +10,7 @@ from django.urls import reverse
 from apps.accounts.models import User
 from apps.social.models import Message, are_friends, friends_of
 
-from .models import Duel, MovieQuote
+from .models import Duel, DuelRecord, MovieQuote
 
 QUOTE_STREAK_KEY = "quote_streak"
 QUOTE_BEST_ANON_KEY = "quote_streak_best_anon"
@@ -87,19 +87,19 @@ def quote_game(request):
 # en cuanto uno falla, el duelo termina ahí mismo para los dos. Empieza
 # como invitación (PENDING) hasta que el retado la acepta.
 
-def _random_quote_ids():
-    return list(MovieQuote.objects.order_by("?").values_list("pk", flat=True)[: Duel.QUOTE_COUNT])
+def _pick_quote_id():
+    return MovieQuote.objects.order_by("?").values_list("pk", flat=True).first()
 
 
 @login_required
 def duel_invite(request, username):
     other = get_object_or_404(User, username=username)
     if request.method == "POST" and other.pk != request.user.pk and are_friends(request.user, other):
-        quote_ids = _random_quote_ids()
-        if len(quote_ids) < Duel.QUOTE_COUNT:
-            messages.error(request, "Todavía no hay frases suficientes para un duelo.")
+        quote_id = _pick_quote_id()
+        if quote_id is None:
+            messages.error(request, "Todavía no hay frases cargadas para un duelo.")
         else:
-            duel = Duel.objects.create(challenger=request.user, opponent=other, quote_ids=quote_ids)
+            duel = Duel.objects.create(challenger=request.user, opponent=other, quote_ids=[quote_id])
             duel_url = request.build_absolute_uri(reverse("games:duel-detail", args=[duel.pk]))
             Message.objects.create(
                 sender=request.user, recipient=other,
@@ -127,6 +127,19 @@ def duel_decline(request, pk):
         messages.info(request, "Duelo rechazado.")
         return redirect("games:hub")
     return redirect("games:duel-detail", pk=pk)
+
+
+@login_required
+def duel_leave(request, pk):
+    """Al salir de un duelo ya terminado, se borra: el resultado ya quedó
+    registrado en el marcador (`DuelRecord`) en el momento en que acabó, así
+    que no hace falta seguir acumulando duelos viejos en "Tus duelos"."""
+    duel = get_object_or_404(Duel, pk=pk)
+    if duel.role_for(request.user) is None:
+        raise Http404
+    if request.method == "POST" and duel.status == Duel.Status.FINISHED:
+        duel.delete()
+    return redirect("games:hub")
 
 
 @login_required
@@ -163,6 +176,7 @@ def duel_detail(request, pk):
                 duel.opponent_lost = True
             duel.status = Duel.Status.FINISHED
             duel.save()
+            DuelRecord.record_result(duel.challenger, duel.opponent, duel.winner)
             return render(request, "games/duel_result.html", {"duel": duel, "role": role})
 
         if role == "challenger":
@@ -177,11 +191,8 @@ def duel_detail(request, pk):
             duel.challenger_answered = False
             duel.opponent_answered = False
             if duel.current_index >= len(duel.quote_ids):
-                duel.status = Duel.Status.FINISHED  # empate: ninguno falló
+                duel.quote_ids.append(_pick_quote_id())  # se juega hasta fallar, no hay tanda fija
         duel.save()
-
-        if duel.status == Duel.Status.FINISHED:
-            return render(request, "games/duel_result.html", {"duel": duel, "role": role})
 
     if duel.answered_for(request.user):
         return render(request, "games/duel_waiting.html", {
@@ -194,5 +205,4 @@ def duel_detail(request, pk):
     return render(request, "games/duel_play.html", {
         "duel": duel, "quote": quote, "options": options,
         "streak": duel.streak_for(request.user),
-        "position": duel.current_index + 1, "total": len(duel.quote_ids),
     })

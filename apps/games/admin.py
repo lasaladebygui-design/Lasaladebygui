@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Duel, MovieQuote
+from .models import Duel, DuelRecord, MovieQuote
 
 
 @admin.register(MovieQuote)
@@ -14,3 +14,9 @@ class DuelAdmin(admin.ModelAdmin):
     list_display = ("challenger", "opponent", "status", "challenger_streak", "opponent_streak", "created_at")
     list_filter = ("status",)
     search_fields = ("challenger__username", "opponent__username")
+
+
+@admin.register(DuelRecord)
+class DuelRecordAdmin(admin.ModelAdmin):
+    list_display = ("player_low", "player_high", "player_low_wins", "player_high_wins", "draws")
+    search_fields = ("player_low__username", "player_high__username")
