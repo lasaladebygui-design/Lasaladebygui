@@ -11,11 +11,17 @@ from .models import SESSION_THEME_KEY, ContactLink, SiteConfig, Theme, get_effec
 
 
 class HomeTests(TestCase):
-    def test_muestra_como_mucho_los_tres_ultimos_articulos(self):
-        for i in range(5):
+    def test_muestra_como_mucho_los_cinco_ultimos_articulos(self):
+        for i in range(7):
             Article.objects.create(title=f"Artículo {i}", body="Cuerpo")
         response = self.client.get(reverse("core:home"))
-        self.assertEqual(len(response.context["featured_articles"]), 3)
+        self.assertEqual(len(response.context["featured_articles"]), 5)
+
+    def test_el_titulo_enlaza_al_articulo(self):
+        article = Article.objects.create(title="Mi artículo de prueba", body="Cuerpo")
+        response = self.client.get(reverse("core:home"))
+        self.assertContains(response, article.get_absolute_url())
+        self.assertContains(response, "Mi artículo de prueba")
 
 
 class ContactFormTests(TestCase):
