@@ -202,7 +202,7 @@ CKEDITOR_5_CONFIGS = {
         "toolbar": [
             "heading", "|",
             "bold", "italic", "underline", "link", "|",
-            "bulletedList", "numberedList", "blockQuote", "|",
+            "alignment", "bulletedList", "numberedList", "blockQuote", "|",
             "imageUpload", "insertTable", "|",
             "undo", "redo",
         ],

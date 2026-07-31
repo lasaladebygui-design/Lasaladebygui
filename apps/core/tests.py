@@ -4,9 +4,18 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.accounts.models import User
+from apps.articles.models import Article
 from config.storage import supabase_public_domain
 
 from .models import SESSION_THEME_KEY, ContactLink, SiteConfig, Theme, get_effective_theme
+
+
+class HomeTests(TestCase):
+    def test_muestra_como_mucho_los_tres_ultimos_articulos(self):
+        for i in range(5):
+            Article.objects.create(title=f"Artículo {i}", body="Cuerpo")
+        response = self.client.get(reverse("core:home"))
+        self.assertEqual(len(response.context["featured_articles"]), 3)
 
 
 class ContactFormTests(TestCase):

@@ -14,7 +14,7 @@ from .models import SESSION_THEME_KEY, ContactLink, SiteConfig, Theme, get_effec
 
 
 def home(request):
-    articles = Article.objects.select_related("author").prefetch_related("tags")[:4]
+    articles = Article.objects.select_related("author").prefetch_related("tags")[:3]
     return TemplateResponse(request, "core/home.html", {"featured_articles": articles})
 
 
