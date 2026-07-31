@@ -2,25 +2,15 @@
 
 from django.conf import settings
 from django.contrib import admin
-from django.http import JsonResponse
 from django.urls import include, path, re_path
 from django.views.static import serve as serve_static
 
 from apps.core.views import service_worker, theme_css
 
-
-def _debug_ckeditor_config(request):
-    """Endpoint temporal de diagnóstico: qué configuración de CKEditor tiene
-    cargada el proceso ahora mismo en memoria, para descartar de un plumazo
-    cualquier duda de caché/despliegue. Se borra en cuanto se resuelva."""
-    return JsonResponse(getattr(settings, "CKEDITOR_5_CONFIGS", {}))
-
-
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("theme.css", theme_css, name="theme-css"),
     path("sw.js", service_worker, name="service-worker"),
-    path("__debug_ckeditor_config__/", _debug_ckeditor_config),
     path("cuenta/", include("apps.accounts.urls")),
     path("articulos/", include("apps.articles.urls")),
     path("foro/", include("apps.forum.urls")),

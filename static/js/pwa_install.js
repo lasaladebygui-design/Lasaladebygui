@@ -9,7 +9,13 @@
 
     if ("serviceWorker" in navigator) {
         window.addEventListener("load", function () {
-            navigator.serviceWorker.register("/sw.js").catch(function () {});
+            navigator.serviceWorker.register("/sw.js").then(function (registration) {
+                // Comprueba si hay una versión nueva del service worker en
+                // cada carga, en vez de esperar a la revisión periódica que
+                // hace el navegador por su cuenta (puede tardar hasta 24h) —
+                // así un despliegue nuevo se nota lo antes posible.
+                registration.update().catch(function () {});
+            }).catch(function () {});
         });
     }
 
