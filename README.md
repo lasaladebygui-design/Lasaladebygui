@@ -142,7 +142,7 @@ Gestión desde el admin: **Usuarios → Usuarios**. La columna *rol* es editable
 
 El desplegable de la cabecera empieza con **Sala principal** (enlaza a `/`) y sigue con: Artículos, Foro, Social (solo si has iniciado sesión), Películas, Juegos, Tienda, Top Secret y, al final, **Panel** — pero este último enlace a `/admin/` solo lo ve el **Admin** (`user.is_superuser`), no Gestor ni Editor.
 
-**Volver al inicio sin abrir el desplegable:** en cualquier página (menos en la propia home) hay un botón discreto flotante (🏠, esquina inferior izquierda, `templates/base.html` + `.home-fab` en `main.css`) que lleva directamente a `/` — para no depender de abrir el menú solo para volver atrás.
+**Volver al inicio sin abrir el desplegable:** justo al lado del botón "☰ Menú" (fuera del propio desplegable, así que siempre está visible) hay un enlace "Volver al menú" que lleva directamente a `/` — en cualquier página menos en la propia home (`templates/base.html`, `.nav-home-link` en `main.css`).
 
 ### El panel de administración (`/admin/`) — solo para el Admin
 
