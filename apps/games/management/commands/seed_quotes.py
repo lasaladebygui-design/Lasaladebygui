@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 
-from apps.secret.models import MovieQuote
+from apps.games.models import MovieQuote
 
 # Tanda inicial de frases para "Frases célebres". No hay límite real: desde
 # el admin (Top Secret → Frases célebres) se pueden añadir tantas como se
@@ -89,6 +89,45 @@ MOVIE_QUOTES = [
     ("O mueres como un héroe, o vives lo suficiente para verte convertido en villano.", "El caballero oscuro", "Batman Begins", "El caballero oscuro: La leyenda renace"),
     ("Ríndete, Dorothy.", "El mago de Oz", "Hocus Pocus", "Blancanieves y los siete enanitos"),
     ("Elemental, querido Watson.", "Sherlock Holmes", "El nombre de la rosa", "Los crímenes de la calle Morgue"),
+
+    # Tercera tanda: ampliando el catálogo con otro medio centenar de frases
+    # igual de reconocibles, sin repetir ninguna de las anteriores.
+    ("Ayúdame, Obi-Wan Kenobi. Eres mi única esperanza.", "Star Wars: Una nueva esperanza", "Star Wars: El imperio contraataca", "Star Wars: El retorno del Jedi"),
+    ("Mantén cerca a tus amigos, pero aún más cerca a tus enemigos.", "El padrino: Parte II", "El padrino", "Uno de los nuestros"),
+    ("¿No estáis entretenidos?", "Gladiator", "Troya", "300"),
+    ("Dibújame como una de tus chicas francesas.", "Titanic", "El renacido", "Náufrago"),
+    ("Ven conmigo si quieres vivir.", "Terminator 2: El juicio final", "Terminator", "RoboCop"),
+    ("O te ocupas de vivir, o te ocupas de morir.", "Cadena perpetua", "El indomable Will Hunting", "American History X"),
+    ("Tonto es el que hace tonterías.", "Forrest Gump", "Big", "El curioso caso de Benjamin Button"),
+    ("¿Carreteras? A donde vamos, no necesitamos carreteras.", "Regreso al futuro", "Regreso al futuro: Parte II", "Los Goonies"),
+    ("Elige la vida.", "Trainspotting", "El club de la lucha", "Réquiem por un sueño"),
+    ("¡Saluda a mi amiguito!", "Scarface", "El padrino", "Uno de los nuestros"),
+    ("Nadie mete a Baby en un rincón.", "Dirty Dancing", "Grease", "Flashdance"),
+    ("Antes pensaba que mi vida era una tragedia, pero ahora me doy cuenta de que es una comedia.", "Joker", "El caballero oscuro", "Batman Begins"),
+    ("Si todos son especiales... entonces nadie lo será.", "Los Increíbles", "Big Hero 6", "Zootrópolis"),
+    ("Los ogros son como las cebollas: tienen capas.", "Shrek", "Shrek 2", "El gato con botas"),
+    ("Suéltalo, suéltalo.", "Frozen: El reino del hielo", "Enredados", "Vaiana"),
+    ("¿Por qué siempre se acaba el ron?", "Piratas del Caribe: La maldición de la Perla Negra", "Piratas del Caribe: El cofre del hombre muerto", "Piratas del Caribe: En el fin del mundo"),
+    ("No existe el bien ni el mal, solo el poder, y quienes son demasiado débiles para buscarlo.", "Harry Potter y la piedra filosofal", "Harry Potter y la cámara secreta", "Harry Potter y el prisionero de Azkaban"),
+    ("No todo el que vaga está perdido.", "El señor de los anillos: La comunidad del anillo", "El hobbit: Un viaje inesperado", "El señor de los anillos: Las dos torres"),
+    ("Tenemos que ir más profundo.", "Origen", "Matrix", "El show de Truman"),
+    ("Buenos días. Y por si no os vuelvo a ver... ¡buenas tardes, buenas noches y buenas noches!", "El show de Truman", "Origen", "Múltiple"),
+    ("¿Te hago gracia? ¿Gracia cómo? ¿Como un payaso, te divierto?", "Uno de los nuestros", "El padrino", "Scarface"),
+    ("Un gran error. Grande. Enorme.", "Pretty Woman", "Dirty Dancing", "Cuando Harry encontró a Sally"),
+    ("Yo quiero lo que está tomando ella.", "Cuando Harry encontró a Sally", "Pretty Woman", "Algo pasa con Mary"),
+    ("¡Esta noche cenaremos en el infierno!", "300", "Troya", "Gladiator"),
+    ("No es culpa tuya.", "El indomable Will Hunting", "Cadena perpetua", "American History X"),
+    ("Y entonces el león se enamoró del cordero.", "Crepúsculo", "Luna nueva", "Amanecer"),
+    ("Véndeme este bolígrafo.", "El lobo de Wall Street", "Wall Street", "Wall Street: El dinero nunca duerme"),
+    ("Cualquiera puede ser lo que quiera.", "Zootrópolis", "Los Increíbles", "Vaiana"),
+    ("¡Hay una serpiente en mi bota!", "Toy Story", "Toy Story 2", "Cars"),
+    ("El amor es lo único que trasciende el tiempo y el espacio.", "Interestelar", "Contact", "Origen"),
+    ("¡Wilson! ¡Lo siento mucho, Wilson!", "Náufrago", "El renacido", "Vidas al límite"),
+    ("Cueste lo que cueste.", "Vengadores: Endgame", "Vengadores: Infinity War", "Capitán América: Civil War"),
+    ("¡Wakanda por siempre!", "Black Panther", "Vengadores: Infinity War", "Doctor Strange"),
+    ("El miedo es el asesino de la mente.", "Dune", "Interestelar", "Blade Runner 2049"),
+    ("Le llaman Baba Yaga.", "John Wick", "Kill Bill", "Sicario"),
+    ("¡Qué día tan maravilloso!", "Mad Max: Furia en la carretera", "Mad Max", "Waterworld"),
 ]
 
 
@@ -109,9 +148,9 @@ QUOTE_FIXES = [
 
 class Command(BaseCommand):
     help = (
-        "Carga las frases de ejemplo del juego 'Frases célebres' (Top Secret → "
-        "Juegos). A diferencia de seed_content, no crea usuarios de ejemplo, así "
-        "que es seguro ejecutarlo también contra una base de datos de producción."
+        "Carga las frases de ejemplo del juego 'Frases célebres' (Juegos). A "
+        "diferencia de seed_content, no crea usuarios de ejemplo, así que es "
+        "seguro ejecutarlo también contra una base de datos de producción."
     )
 
     def _apply_fixes(self):

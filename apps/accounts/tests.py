@@ -131,6 +131,35 @@ class PasswordResetTests(TestCase):
         self.assertEqual(len(mail.outbox), 0)
 
 
+class BanKicksActiveSessionTests(TestCase):
+    """Banear no solo bloquea futuros inicios de sesión: si el usuario ya
+    tenía una sesión abierta, se corta al instante."""
+
+    def setUp(self):
+        self.user = User.objects.create(email="activo@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+
+    def test_banear_desloguea_una_sesion_activa(self):
+        self.client.login(username=self.user.email, password="Testpass123!")
+        response = self.client.get(reverse("accounts:profile"))
+        self.assertEqual(response.status_code, 200)
+
+        self.user.role = User.Role.BANEADO
+        self.user.save()
+
+        response = self.client.get(reverse("accounts:profile"))
+        self.assertRedirects(response, f"{reverse('accounts:login')}?next={reverse('accounts:profile')}")
+
+    def test_guardar_sin_cambiar_el_rol_no_afecta_la_sesion(self):
+        self.client.login(username=self.user.email, password="Testpass123!")
+        self.user.bio = "Actualizando el perfil"
+        self.user.save()
+
+        response = self.client.get(reverse("accounts:profile"))
+        self.assertEqual(response.status_code, 200)
+
+
 def _fake_image():
     buffer = io.BytesIO()
     Image.new("RGB", (1, 1)).save(buffer, format="PNG")
@@ -159,7 +188,7 @@ class ProfileTests(TestCase):
         self.assertContains(response, "profile-avatar--placeholder")
 
     def test_el_perfil_incluye_el_pool_de_frases_para_la_frase_dinamica(self):
-        from apps.secret.models import MovieQuote
+        from apps.games.models import MovieQuote
 
         MovieQuote.objects.create(
             quote="Frase de prueba sin caracteres especiales",

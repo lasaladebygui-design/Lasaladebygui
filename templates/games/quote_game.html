@@ -22,7 +22,7 @@
             {% endif %}
             <p>Fallaste — era «{{ wrong_answer_title }}».</p>
             <p class="quote-game__final">Racha final: <strong>{{ final_streak }}</strong></p>
-            <a href="{% url 'core:quote-game' %}" class="btn btn--accent btn--block">Jugar de nuevo</a>
+            <a href="{% url 'games:quote-game' %}" class="btn btn--accent btn--block">Jugar de nuevo</a>
         </div>
         {% elif quote %}
         <blockquote class="quote-game__quote">“{{ quote.quote }}”</blockquote>
@@ -34,7 +34,7 @@
             {% endfor %}
         </form>
         {% else %}
-        <p class="muted">Todavía no hay frases cargadas. Se añaden desde el admin (Top Secret → Frases célebres).</p>
+        <p class="muted">Todavía no hay frases cargadas. Se añaden desde el admin (Juegos → Frases célebres).</p>
         {% endif %}
     </div>
 </section>

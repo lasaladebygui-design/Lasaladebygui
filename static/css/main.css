@@ -1389,6 +1389,37 @@ main { flex: 1; }
     border-color: var(--color-accent);
 }
 
+.conversation-message__actions {
+    margin-top: calc(var(--space-unit) * 1);
+}
+
+.conversation-message__actions form {
+    display: flex;
+    gap: calc(var(--space-unit) * 1);
+    margin-top: calc(var(--space-unit) * 1);
+}
+
+.conversation-message__actions textarea {
+    flex: 1;
+}
+
+.pwa-install-banner {
+    position: fixed;
+    left: 50%;
+    bottom: calc(var(--space-unit) * 3);
+    transform: translateX(-50%);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: calc(var(--space-unit) * 2);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    padding: calc(var(--space-unit) * 2) calc(var(--space-unit) * 3);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    max-width: calc(100vw - var(--space-unit) * 4);
+}
+
 /* --- Responsive ----------------------------------------------------------
    Tres franjas: móvil (<640px), tablet (640–1024px) y escritorio (>1024px).
    El grid/flexbox ya es fluido por defecto; aquí solo se ajustan casos
@@ -1431,4 +1462,6 @@ main { flex: 1; }
     .briefcase { width: 160px; }
 
     .intro__skip { right: calc(var(--space-unit) * 3); bottom: calc(var(--space-unit) * 3); }
+
+    .pwa-install-banner { flex-direction: column; align-items: stretch; text-align: center; }
 }

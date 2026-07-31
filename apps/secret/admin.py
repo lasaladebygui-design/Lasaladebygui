@@ -4,7 +4,7 @@ from django.contrib import admin
 from apps.core.admin import SingletonAdmin
 
 from .forms import SecretMovieForm
-from .models import Genre, MovieQuote, SecretMovie, SecretPhoto, TierListEntry, TopSecretConfig
+from .models import Genre, SecretMovie, SecretPhoto, TierListEntry, TopSecretConfig
 
 
 class TopSecretConfigForm(forms.ModelForm):
@@ -54,12 +54,6 @@ class SecretMovieAdmin(admin.ModelAdmin):
     @admin.display(description="géneros")
     def genre_list(self, obj):
         return ", ".join(obj.genres.values_list("name", flat=True))
-
-
-@admin.register(MovieQuote)
-class MovieQuoteAdmin(admin.ModelAdmin):
-    list_display = ("quote", "correct_title")
-    search_fields = ("quote", "correct_title")
 
 
 @admin.register(SecretPhoto)

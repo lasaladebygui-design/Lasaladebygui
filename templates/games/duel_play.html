@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Duelo: {{ duel.challenger.username }} vs {{ duel.opponent.username }}{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <span class="card__tag">Juegos · Duelo</span>
+        <h1>{{ duel.challenger.username }} vs {{ duel.opponent.username }}</h1>
+        <p class="quote-game__score">Frase <strong>{{ position }}</strong> de <strong>{{ total }}</strong> · Racha: <strong>{{ streak }}</strong></p>
+
+        <blockquote class="quote-game__quote">“{{ quote.quote }}”</blockquote>
+        <form method="post" class="quote-game__options">
+            {% csrf_token %}
+            <input type="hidden" name="quote_id" value="{{ quote.pk }}">
+            {% for option in options %}
+                <button type="submit" name="answer" value="{{ option }}" class="btn btn--ghost btn--block">{{ option }}</button>
+            {% endfor %}
+        </form>
+    </div>
+</section>
+{% endblock %}

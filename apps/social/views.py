@@ -117,6 +117,26 @@ def social_home(request):
 
 
 @login_required
+def message_edit(request, pk):
+    msg = get_object_or_404(Message, pk=pk, sender=request.user)
+    if request.method == "POST":
+        body = request.POST.get("body", "").strip()
+        if body:
+            msg.body = body
+            msg.save(update_fields=["body"])
+    return redirect("social:conversation", username=msg.recipient.username)
+
+
+@login_required
+def message_delete(request, pk):
+    msg = get_object_or_404(Message, pk=pk, sender=request.user)
+    other_username = msg.recipient.username
+    if request.method == "POST":
+        msg.delete()
+    return redirect("social:conversation", username=other_username)
+
+
+@login_required
 def conversation(request, username):
     other = get_object_or_404(User, username=username)
     if friendship_status(request.user, other) != "friends":

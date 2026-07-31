@@ -16,9 +16,9 @@ def username_badge(user, fallback="usuario eliminado"):
 @register.simple_tag
 def rotating_quotes():
     """Pool de frases para el widget de 'frase de perfil' dinámica: se
-    reutilizan las de Top Secret → Frases célebres (apps.secret) en vez de
+    reutilizan las de Juegos → Frases célebres (apps.games) en vez de
     mantener un segundo listado, así el pool crece solo al añadir frases
     al juego."""
-    from apps.secret.models import MovieQuote
+    from apps.games.models import MovieQuote
 
     return list(MovieQuote.objects.values_list("quote", flat=True))

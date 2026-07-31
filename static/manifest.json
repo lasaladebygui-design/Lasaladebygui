@@ -1,0 +1,16 @@
+{
+  "name": "La Sala de Bygui",
+  "short_name": "Bygui",
+  "description": "Cine, pelis, series y debates. Todo en una misma sala.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#2a143d",
+  "theme_color": "#2a143d",
+  "icons": [
+    { "src": "/static/img/pwa-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/img/pwa-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/static/img/pwa-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/static/img/pwa-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

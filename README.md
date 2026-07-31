@@ -27,7 +27,10 @@ bygui/
 │   ├── articles/            # Tablón de artículos (CRUD, tags, comentarios)
 │   ├── forum/                # Foro de debate (hilos, árbol de comentarios, moderación)
 │   ├── movies/                # Catálogo, ruleta (TMDb/OMDb) y votaciones
-│   └── secret/                # Top Secret: maletín Tarantino, código de acceso, lista personal
+│   ├── secret/                # Top Secret: maletín Tarantino, código de acceso, lista personal
+│   ├── social/                # Buscador de usuarios, amigos y mensajería privada
+│   ├── games/                 # Frases célebres y Duelos
+│   └── shop/                  # Tienda: escaparate de artículos
 ├── templates/               # base.html + plantillas por app
 ├── static/
 │   ├── css/main.css         # Estilos estructurales (usan las variables de theme.css)
@@ -133,9 +136,11 @@ El modelo de usuario (`apps.accounts.User`) tiene un campo `role` con 5 valores.
 
 Gestión desde el admin: **Usuarios → Usuarios**. La columna *rol* es editable en línea desde el listado, y hay acciones masivas "Banear usuarios seleccionados" / "Desbanear usuarios seleccionados". Al guardar un usuario como Gestor, `User._sync_gestor_group()` lo añade automáticamente a un grupo Django "Gestor" con permisos sobre el foro (y lo quita si deja de serlo) — no hace falta tocar Grupos/Permisos a mano.
 
+**El baneo es inmediato, no solo preventivo:** si el usuario baneado ya tenía una sesión abierta en el navegador, no hace falta esperar a que caduque — `User.save()` detecta la transición a `Baneado` y borra al momento sus sesiones activas (`User._kick_active_sessions()`, busca en `django.contrib.sessions.models.Session` cuáles tienen su `_auth_user_id`). En su siguiente petición, Django ya no lo reconoce como logueado. Esto se dispara tanto al editar el rol en línea desde el listado como al usar la acción masiva "Banear usuarios seleccionados", porque ambos caminos acaban llamando a `user.save()`.
+
 ### Menú de navegación
 
-El desplegable de la cabecera sigue este orden: Artículos, Foro, Social (solo si has iniciado sesión), Películas, Juegos, Top Secret y, al final, **Panel** — pero este último enlace a `/admin/` solo lo ve el **Admin** (`user.is_superuser`), no Gestor ni Editor.
+El desplegable de la cabecera sigue este orden: Artículos, Foro, Social (solo si has iniciado sesión), Películas, Juegos, Tienda, Top Secret y, al final, **Panel** — pero este último enlace a `/admin/` solo lo ve el **Admin** (`user.is_superuser`), no Gestor ni Editor.
 
 ### El panel de administración (`/admin/`) — solo para el Admin
 
@@ -172,7 +177,7 @@ Cada usuario puede subir una foto de perfil (`User.avatar`), visible en su propi
 
 **Recorte de la foto de perfil:** al elegir una imagen se abre un editor de encuadre (`static/js/avatar_cropper.js`, sin dependencias externas) sobre un lienzo circular: se puede arrastrar la imagen para reposicionarla y hay una barra para hacer zoom. Al pulsar "Aplicar recorte" se dibuja la selección en un `<canvas>` oculto (480×480), se convierte a un `Blob`/`File` con `canvas.toBlob` y se inyecta en el campo de archivo real del formulario mediante `DataTransfer` — así el recorte ya se sube como si el usuario hubiera seleccionado directamente esa imagen cuadrada, sin tocar nada en el backend (`ProfileForm` sigue recibiendo un `ImageField` normal).
 
-**Frase de perfil dinámica:** el antiguo campo de texto libre ("frase mítica de cine") se sustituyó por una frase que rota sola cada 6 segundos, tomada del mismo pool que usa el juego Frases célebres (`apps.secret.models.MovieQuote`) — así el pool crece automáticamente si se añaden frases nuevas al juego, sin mantener dos listados. Se ve tanto en tu propio perfil como en el perfil público de cualquier otro usuario (`templates/partials/rotating_quote.html` + `static/js/rotating_quote.js`): cada carga de página empieza en una frase al azar y rota por todo el pool.
+**Frase de perfil dinámica:** el antiguo campo de texto libre ("frase mítica de cine") se sustituyó por una frase que rota sola cada 6 segundos, tomada del mismo pool que usa el juego Frases célebres (`apps.games.models.MovieQuote`) — así el pool crece automáticamente si se añaden frases nuevas al juego, sin mantener dos listados. Se ve tanto en tu propio perfil como en el perfil público de cualquier otro usuario (`templates/partials/rotating_quote.html` + `static/js/rotating_quote.js`): cada carga de página empieza en una frase al azar y rota por todo el pool.
 
 Al final de la página hay un botón **"Cerrar sesión"**, además del que ya había en el desplegable de la cabecera.
 
@@ -273,16 +278,18 @@ Dentro hay tres secciones, todas editables desde **Admin → Top Secret → Pel�
 - **d) Tier list:** un ranking de películas por niveles S/A/B/C/D (`apps.secret.models.TierListEntry`). Editable directamente desde la propia página: un buscador (TMDb en vivo, como en el catálogo) para añadir una película nueva, y arrastrar y soltar (`static/js/tier_list.js`, drag-and-drop nativo del navegador, sin librerías) cualquier entrada para cambiarla de nivel — se coloca al final del nivel de destino. Las películas recién añadidas por búsqueda caen en un nivel especial **"Sin clasificar"** (por encima de S/A/B/C/D, con borde discontinuo) en vez de colarse directamente en un nivel real, hasta que se arrastran a donde corresponda. Un botón **"Vaciar tier list"** (con confirmación) borra todas las entradas para volver a empezar de cero. También se puede editar desde **Admin → Top Secret → Tier list** (título, nivel, orden y película enlazada).
 - **e) Tablón de fotos** (`/top-secret/dentro/tablon/`): a diferencia del resto de Top Secret, **esto sí se sube desde la propia web, no desde el admin** — cualquiera que haya entrado con el código puede subir una foto con una pequeña descripción (`apps.secret.models.SecretPhoto`). No hace falta tener cuenta para subir una; si el visitante ha iniciado sesión, se guarda y se muestra quién la subió (con su nombre coloreado por rango), y si no, aparece como "Anónimo". Con estética de cine propia (carrete de 35mm: fondo oscuro, perforaciones arriba y abajo de cada foto, texto a máquina de escribir) en vez del tema visual activo del sitio, deliberadamente distinta para que se note que es "el cuarto oscuro" del maletín.
 
-Nota: "Frases célebres" vivía antes aquí, como un juego más de Top Secret — se sacó al apartado **Juegos** (sección 9) para que jugarlo no dependa del código de acceso.
+Nota: "Frases célebres" vivía antes aquí, como un juego más de Top Secret — se sacó al apartado **Juegos** (sección 9) para que jugarlo no dependa del código de acceso, y de paso a su propia app (`apps.games`) para que el admin la agrupe bajo "Juegos" en vez de bajo "Top Secret".
 
 ## 9. Juegos (`/juegos/`)
 
-Apartado de acceso libre (ni cuenta ni código de Top Secret) que agrupa lo que antes estaba repartido entre el enlace "Ruleta" de la cabecera y la sección de Juegos de Top Secret — de ahí que ahora sea un único punto de entrada, enlazado como "Juegos" en el desplegable.
+Apartado de acceso libre (ni cuenta ni código de Top Secret) que agrupa lo que antes estaba repartido entre el enlace "Ruleta" de la cabecera y la sección de Juegos de Top Secret — de ahí que ahora sea un único punto de entrada, enlazado como "Juegos" en el desplegable. Vive entero en `apps.games` (modelos, vistas, plantillas y el comando `seed_quotes`), app propia creada para esto: antes `MovieQuote` vivía en `apps.secret` (por eso aparecía bajo "Top Secret" en el admin) y las vistas en `apps.core` — la migración que las trasladó (`apps/secret/migrations/0007_delete_moviequote.py` + `apps/games/migrations/0001_initial.py`) usa `SeparateDatabaseAndState` para que sea solo un cambio de qué app "es dueña" del modelo, sin tocar ni un dato de la tabla física existente.
 
 - **Ruleta** (`/peliculas/ruleta/`): los Modos 1 y 2 descritos en la sección 7.
-- **Frases célebres** (`/juegos/frases/`, `apps.secret.models.MovieQuote` — el modelo se queda en `apps.secret` porque las frases se siguen editando desde **Admin → Top Secret → Frases célebres**, pero la vista y la plantilla viven en `apps.core`): la web muestra una frase de película y tres opciones (la correcta + dos incorrectas); aciertas y sigue la racha, fallas y se reinicia a 0. La racha en curso se guarda en la sesión del navegador; la **mejor racha** se guarda de forma permanente en la cuenta (`User.quote_streak_best`) si has iniciado sesión — y se muestra en tu página de perfil — o solo para esa sesión de navegador si entras sin cuenta. Al fallar se muestra una pantalla de fin de partida con la racha conseguida, un botón "Jugar de nuevo" y, si esa racha ha superado tu mejor marca anterior, un mensaje de felicitación.
+- **Frases célebres** (`/juegos/frases/`, **Admin → Juegos → Frases célebres**): la web muestra una frase de película y tres opciones (la correcta + dos incorrectas); aciertas y sigue la racha, fallas y se reinicia a 0. La racha en curso se guarda en la sesión del navegador; la **mejor racha** se guarda de forma permanente en la cuenta (`User.quote_streak_best`) si has iniciado sesión — y se muestra en tu página de perfil — o solo para esa sesión de navegador si entras sin cuenta. Al fallar se muestra una pantalla de fin de partida con la racha conseguida, un botón "Jugar de nuevo" y, si esa racha ha superado tu mejor marca anterior, un mensaje de felicitación.
 
-  El pool de `seed_quotes` tiene **80 frases** (`apps/secret/management/commands/seed_quotes.py`), revisadas para que sean completas (con el pronombre cuando la frase famosa lo lleva, ej. "Yo soy Iron Man." y no "Soy Iron Man.") y en castellano de España. El comando también trae un pequeño mecanismo de corrección (`QUOTE_FIXES`): si una base de datos ya tenía sembradas versiones antiguas/incorrectas de alguna frase, `seed_quotes` las actualiza in situ la próxima vez que se ejecute (buscándolas por su texto anterior), en vez de dejarlas huérfanas junto a la versión corregida.
+  El pool de `seed_quotes` tiene **116 frases** (`apps/games/management/commands/seed_quotes.py`), revisadas para que sean completas (con el pronombre cuando la frase famosa lo lleva, ej. "Yo soy Iron Man." y no "Soy Iron Man.") y en castellano de España. El comando también trae un pequeño mecanismo de corrección (`QUOTE_FIXES`): si una base de datos ya tenía sembradas versiones antiguas/incorrectas de alguna frase, `seed_quotes` las actualiza in situ la próxima vez que se ejecute (buscándolas por su texto anterior), en vez de dejarlas huérfanas junto a la versión corregida.
+
+- **Duelos** (`/juegos/duelos/<username>/invitar/`, `/juegos/duelos/<id>/`, `apps.games.models.Duel`): reto 1 contra 1 entre dos amigos (hace falta amistad aceptada en Social, sección 10 — botón "🎬 Retar a un duelo" en el perfil público del otro). Al invitar se crea el duelo con una tanda fija de 10 frases elegidas al azar (mismo orden para los dos, guardado en `Duel.quote_ids`); cada uno la juega por su lado, a su ritmo, sin ver lo que hace el otro. Fallar una frase termina tu tanda y fija tu racha (`challenger_streak`/`opponent_streak`); cuando los dos han terminado (`Duel.both_finished`), el duelo pasa a "Terminado" y se muestra quién llegó más lejos (`Duel.winner`, o empate si coinciden). Tus duelos en curso y terminados aparecen listados en `/juegos/`.
 
 ## 10. Social: buscador, amigos y mensajes (`/social/`)
 
@@ -292,6 +299,12 @@ Desde el buscador (o desde los nombres de autor del foro, que también enlazan a
 
 La mensajería está **limitada a amigos**: solo se puede abrir o escribir en una conversación con alguien con quien ya existe una amistad aceptada (`apps.social.models.FriendRequest` con `accepted=True`); intentarlo con quien no es amigo da 404. Al abrir una conversación, los mensajes recibidos se marcan como leídos.
 
+Cada mensaje propio tiene un enlace **"Editar"** (despliega un formulario en el sitio, sin JavaScript, con `<details>`/`<summary>`) y un botón **"Borrar"** directamente en la conversación; solo el autor del mensaje puede editarlo o borrarlo (`apps.social.views.message_edit`/`message_delete` comprueban `sender=request.user`, si no da 404).
+
+### Tienda (`/tienda/`)
+
+Escaparate puro: se muestran los artículos que ponga el admin (**Admin → Tienda → Artículos**: nombre, descripción, imagen, precio orientativo y un enlace externo opcional), sin carrito ni botón de compra de ningún tipo — es para enseñar cosas (merchandising, deseos...), no para venderlas. Vive en su propia app (`apps.shop`).
+
 ### Donaciones (`/donaciones/`)
 
 Cartel estilo cine antiguo con el número de Bizum. El número no está hardcodeado: vive en `SiteConfig.bizum_number` (**Admin → Sitio → Configuración del sitio → Donaciones**) y por defecto trae el que se indicó en el encargo (684 127 181).
@@ -300,9 +313,22 @@ Cartel estilo cine antiguo con el número de Bizum. El número no está hardcode
 
 Formulario (nombre, email, mensaje) que se envía por email a `SiteConfig.contact_email` (**Admin → Sitio → Configuración del sitio**) — ese campo empieza vacío a propósito; mientras no se rellene, la página muestra un aviso en vez del formulario. Anti-spam por **honeypot**: un campo (`website`) invisible por CSS que un usuario real nunca rellena; si llega relleno, se descarta el envío mostrando igualmente el mensaje de éxito (para no darle pistas a un bot de que fue detectado).
 
-**Enlaces de contacto alternativos** (`apps.core.models.ContactLink`, **Admin → Sitio → Enlaces de contacto**): además del formulario por email, se pueden añadir tantos enlaces como se quiera a otras plataformas (Instagram, WhatsApp, Twitter/X, Telegram, Discord...; "Otro" cubre cualquiera no listada). Cada uno tiene una plataforma (con su icono, un emoji — sin depender de ninguna librería de iconos), un texto a mostrar (ej. `@lasaladebygui`) y la URL a la que lleva al pulsarlo (perfil, `https://wa.me/34...`, `mailto:...`, etc.); se abren en pestaña nueva. Se muestran en `/contacto/` tanto si el email de contacto está configurado como si no, ya que son una vía aparte.
+**Enlaces de contacto alternativos** (`apps.core.models.ContactLink`, **Admin → Sitio → Enlaces de contacto**): además del formulario por email, se pueden añadir tantos enlaces como se quiera a otras plataformas (Instagram, WhatsApp, Twitter/X, Telegram, Discord, Spotify...; "Otro" cubre cualquiera no listada). Cada uno tiene una plataforma (con su icono, un emoji — sin depender de ninguna librería de iconos), un texto a mostrar (ej. `@lasaladebygui`) y la URL a la que lleva al pulsarlo (perfil, `https://wa.me/34...`, `mailto:...`, etc.); se abren en pestaña nueva. Se muestran en `/contacto/` tanto si el email de contacto está configurado como si no, ya que son una vía aparte.
 
-## 11. Animación de proyector al entrar
+## 11. Instalar como aplicación (PWA)
+
+La web se puede instalar como app (icono en el escritorio/pantalla de inicio, se abre en su propia ventana sin barra del navegador) gracias a un manifest (`static/manifest.json`, enlazado en `base.html`) y un service worker mínimo (`static/js/sw.js`, cachea el shell básico — CSS y el icono — para cumplir el requisito de instalabilidad, no pretende dar soporte offline completo del sitio).
+
+**El service worker se sirve en `/sw.js` (raíz), no en `/static/js/sw.js`:** el scope por defecto de un service worker es el directorio de su propia URL, así que si se sirviera desde `/static/js/` nunca podría controlar el resto del sitio. `apps.core.views.service_worker` (registrado en `config/urls.py`, fuera de cualquier prefijo de app) busca el archivo real con `django.contrib.staticfiles.finders.find` y lo sirve con el header `Service-Worker-Allowed: /`.
+
+**El aviso de instalación no es invasivo** (`static/js/pwa_install.js`):
+- Si el navegador detecta que ya está instalada (`display-mode: standalone` o `navigator.standalone` en iOS), no hace nada.
+- Cuenta "inicios" (cargas de página en una pestaña/sesión de navegador nueva, vía `sessionStorage` + un contador persistente en `localStorage`) y solo muestra el banner de instalación **una vez cada 3 inicios** (`EVERY_N_VISITS` en el propio archivo), y solo si el navegador ha disparado `beforeinstallprompt` (o sea, solo si de verdad se puede instalar).
+- El banner (esquina inferior, con botones "Instalar" / "Ahora no") no bloquea nada de la página; al pulsar "Instalar" se lanza el diálogo nativo del navegador.
+
+**Nota sobre el icono:** `static/img/pwa-icon-192.png` y `pwa-icon-512.png` son un icono provisional generado por código (silueta de sillón + lámpara sobre fondo morado oscuro, a falta del logo real). Para usar el logo definitivo, sustituye esos dos archivos por el export en PNG a esos mismos tamaños (192×192 y 512×512) — no hace falta tocar `manifest.json` ni ningún otro código.
+
+## 12. Animación de proyector al entrar
 
 Al cargar la web (`templates/partials/intro.html` + `static/js/intro.js`) se muestra un proyector encendiéndose: parpadeo inicial, haz de luz que barre la pantalla, grano de película y las perforaciones del carrete desplazándose arriba y abajo, con un "clack" mecánico sintetizado por Web Audio API (si el navegador bloquea el autoplay de sonido sin interacción previa, simplemente no suena — la animación visual no depende de ello). Tras ~3,4s hace un fundido y desaparece, revelando la home.
 
@@ -311,7 +337,7 @@ Al cargar la web (`templates/partials/intro.html` + `static/js/intro.js`) se mue
 - **Configurable desde el admin:** **Sitio → Configuración del sitio → Animación de entrada → "mostrar animación de proyector al entrar"**. Desactivarla la quita de toda la web sin tocar código.
 - Respeta `prefers-reduced-motion`: si el sistema operativo del visitante tiene activada la reducción de movimiento, se omiten el parpadeo, el barrido de luz y el sonido, y solo queda un fundido simple.
 
-## 12. Despliegue en Render
+## 13. Despliegue en Render
 
 El repositorio incluye `render.yaml` (Blueprint): Render lee ese archivo y crea el servicio con la configuración correcta sin tener que rellenar el formulario a mano.
 

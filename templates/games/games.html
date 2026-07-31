@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Juegos{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <span class="card__tag">Juegos</span>
+        <h1>¿A qué jugamos?</h1>
+        <p class="muted">Nada de códigos secretos aquí: entra y juega.</p>
+
+        <div class="card-grid">
+            <a href="{% url 'movies:roulette-home' %}" class="card card--link">
+                <span class="card__tag">🎰</span>
+                <h3>Ruleta de películas</h3>
+                <p>Por rango de nota IMDb o con tu propia lista de candidatas.</p>
+            </a>
+            <a href="{% url 'games:quote-game' %}" class="card card--link">
+                <span class="card__tag">🎬</span>
+                <h3>Frases célebres</h3>
+                <p>Te damos una frase, tú aciertas la película. A ver cuánto dura tu racha.</p>
+            </a>
+        </div>
+
+        {% if user.is_authenticated %}
+        <h2 style="margin-top:2.5rem;">Tus duelos</h2>
+        <p class="muted">Retos 1 contra 1: mismas frases, en el mismo orden, cada uno por su lado. Gana quien llegue más lejos sin fallar. Invita a un duelo desde el perfil de un amigo.</p>
+        {% if duels %}
+        <div class="card-grid">
+            {% for duel in duels %}
+            <a href="{% url 'games:duel-detail' pk=duel.pk %}" class="card card--link">
+                <span class="card__tag">{% if duel.status == "finished" %}🏁{% else %}⚔️{% endif %}</span>
+                <h3>{{ duel.challenger.username }} vs {{ duel.opponent.username }}</h3>
+                {% if duel.status == "finished" %}
+                    {% if duel.winner %}
+                        <p>Ganó <strong>{{ duel.winner.username }}</strong> ({{ duel.challenger_streak }} - {{ duel.opponent_streak }})</p>
+                    {% else %}
+                        <p>Empate ({{ duel.challenger_streak }} - {{ duel.opponent_streak }})</p>
+                    {% endif %}
+                {% else %}
+                    <p>En curso — entra para jugar tu tanda.</p>
+                {% endif %}
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">Todavía no tienes duelos. Ve al perfil de un amigo y dale a "Retar a un duelo".</p>
+        {% endif %}
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

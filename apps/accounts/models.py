@@ -2,6 +2,7 @@ import uuid
 
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
 
 from apps.core.models import Theme
 
@@ -55,6 +56,10 @@ class User(AbstractUser):
         return self.username or self.email
 
     def save(self, *args, **kwargs):
+        previous_role = None
+        if self.pk:
+            previous_role = type(self).objects.filter(pk=self.pk).values_list("role", flat=True).first()
+
         if not self.username:
             self.username = self._generate_username()
 
@@ -70,6 +75,20 @@ class User(AbstractUser):
 
         super().save(*args, **kwargs)
         self._sync_gestor_group()
+
+        # El baneo no solo bloquea futuros inicios de sesión (is_active):
+        # si ya había una sesión abierta, se corta al instante borrando sus
+        # sesiones activas — en su siguiente petición, Django ya no lo
+        # reconoce como logueado.
+        if self.role == self.Role.BANEADO and previous_role != self.Role.BANEADO:
+            self._kick_active_sessions()
+
+    def _kick_active_sessions(self):
+        from django.contrib.sessions.models import Session
+
+        for session in Session.objects.filter(expire_date__gte=timezone.now()):
+            if str(session.get_decoded().get("_auth_user_id")) == str(self.pk):
+                session.delete()
 
     def _sync_gestor_group(self):
         """El rol Gestor da además acceso de gestión del foro (Thread y

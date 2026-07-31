@@ -51,6 +51,8 @@ INSTALLED_APPS = [
     "apps.movies",
     "apps.secret",
     "apps.social",
+    "apps.games",
+    "apps.shop",
 ]
 
 MIDDLEWARE = [
@@ -275,7 +277,7 @@ JAZZMIN_SETTINGS = {
     # Orden de las secciones en el menú lateral, de lo más operativo (usuarios,
     # contenido) a lo más de "trastienda" (sitio, Top Secret, social).
     "order_with_respect_to": [
-        "accounts", "articles", "forum", "movies", "secret", "social", "core", "auth",
+        "accounts", "articles", "forum", "movies", "games", "shop", "secret", "social", "core", "auth",
     ],
     "icons": {
         "accounts.User": "fas fa-user",
@@ -287,15 +289,19 @@ JAZZMIN_SETTINGS = {
         "movies.Movie": "fas fa-film",
         "movies.Vote": "fas fa-star",
         "movies.SavedMovie": "fas fa-bookmark",
+        "games.MovieQuote": "fas fa-quote-right",
+        "games.Duel": "fas fa-swords",
+        "shop.Product": "fas fa-store",
         "secret.TopSecretConfig": "fas fa-key",
         "secret.SecretMovie": "fas fa-user-secret",
-        "secret.MovieQuote": "fas fa-quote-right",
         "secret.TierListEntry": "fas fa-layer-group",
         "secret.SecretPhoto": "fas fa-images",
+        "secret.Genre": "fas fa-icons",
         "social.FriendRequest": "fas fa-user-friends",
         "social.Message": "fas fa-envelope",
         "core.SiteConfig": "fas fa-sliders-h",
         "core.Theme": "fas fa-palette",
+        "core.ContactLink": "fas fa-share-alt",
     },
     "default_icon_parents": "fas fa-folder",
     "default_icon_children": "fas fa-circle",

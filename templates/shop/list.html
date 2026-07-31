@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Tienda{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <span class="card__tag">Tienda</span>
+        <h1>Escaparate</h1>
+        <p class="muted">Un rincón para enseñar cosas, no para venderlas.</p>
+
+        {% if products %}
+        <div class="card-grid">
+            {% for product in products %}
+            <div class="card">
+                {% if product.image %}
+                    <img src="{{ product.image.url }}" alt="" class="card__img">
+                {% endif %}
+                <h3>{{ product.name }}</h3>
+                {% if product.price %}<p class="card__tag">{{ product.price }} €</p>{% endif %}
+                {% if product.description %}<p>{{ product.description }}</p>{% endif %}
+                {% if product.url %}<a href="{{ product.url }}" class="btn btn--ghost btn--sm" target="_blank" rel="noopener">Más info</a>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">Todavía no hay artículos en el escaparate.</p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

@@ -28,6 +28,10 @@
                     <button type="submit" class="btn btn--ghost btn--sm">Eliminar amistad</button>
                 </form>
                 <a href="{% url 'social:conversation' username=profile_user.username %}" class="btn btn--accent btn--sm">Enviar mensaje</a>
+                <form method="post" action="{% url 'games:duel-invite' username=profile_user.username %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn--accent btn--sm">🎬 Retar a un duelo</button>
+                </form>
             {% elif status == "pending_outgoing" %}
                 <span class="muted">Solicitud enviada, esperando respuesta.</span>
             {% elif status == "pending_incoming" %}

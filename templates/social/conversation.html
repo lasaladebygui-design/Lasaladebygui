@@ -13,10 +13,26 @@
 
         <div class="conversation-thread">
             {% for msg in thread %}
-                <p class="conversation-message{% if msg.sender_id == user.pk %} conversation-message--mine{% endif %}">
-                    <span class="muted">{{ msg.created_at|date:"d/m/Y H:i" }}</span><br>
-                    {{ msg.body|linebreaksbr }}
-                </p>
+                <div class="conversation-message{% if msg.sender_id == user.pk %} conversation-message--mine{% endif %}">
+                    <p>
+                        <span class="muted">{{ msg.created_at|date:"d/m/Y H:i" }}</span><br>
+                        {{ msg.body|linebreaksbr }}
+                    </p>
+                    {% if msg.sender_id == user.pk %}
+                    <details class="conversation-message__actions">
+                        <summary class="btn btn--ghost btn--sm">Editar</summary>
+                        <form method="post" action="{% url 'social:message-edit' pk=msg.pk %}">
+                            {% csrf_token %}
+                            <textarea name="body" rows="2" required>{{ msg.body }}</textarea>
+                            <button type="submit" class="btn btn--accent btn--sm">Guardar</button>
+                        </form>
+                    </details>
+                    <form method="post" action="{% url 'social:message-delete' pk=msg.pk %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn--ghost btn--sm">Borrar</button>
+                    </form>
+                    {% endif %}
+                </div>
             {% empty %}
                 <p class="muted">Todavía no os habéis escrito nada.</p>
             {% endfor %}

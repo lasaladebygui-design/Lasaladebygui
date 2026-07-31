@@ -142,6 +142,38 @@ class MessagingTests(TestCase):
         self.assertEqual(conversations[0]["user"], self.bea)
 
 
+class MessageEditDeleteTests(TestCase):
+    def setUp(self):
+        self.ana = make_user("ana2@test.local")
+        self.bea = make_user("bea2@test.local")
+        FriendRequest.objects.create(from_user=self.ana, to_user=self.bea, accepted=True)
+        self.msg = Message.objects.create(sender=self.ana, recipient=self.bea, body="Original")
+
+    def test_el_autor_puede_editar_su_mensaje(self):
+        self.client.login(username="ana2@test.local", password="Testpass123!")
+        self.client.post(reverse("social:message-edit", kwargs={"pk": self.msg.pk}), {"body": "Editado"})
+        self.msg.refresh_from_db()
+        self.assertEqual(self.msg.body, "Editado")
+
+    def test_no_se_puede_editar_un_mensaje_ajeno(self):
+        self.client.login(username="bea2@test.local", password="Testpass123!")
+        response = self.client.post(reverse("social:message-edit", kwargs={"pk": self.msg.pk}), {"body": "Hackeado"})
+        self.assertEqual(response.status_code, 404)
+        self.msg.refresh_from_db()
+        self.assertEqual(self.msg.body, "Original")
+
+    def test_el_autor_puede_borrar_su_mensaje(self):
+        self.client.login(username="ana2@test.local", password="Testpass123!")
+        self.client.post(reverse("social:message-delete", kwargs={"pk": self.msg.pk}))
+        self.assertFalse(Message.objects.filter(pk=self.msg.pk).exists())
+
+    def test_no_se_puede_borrar_un_mensaje_ajeno(self):
+        self.client.login(username="bea2@test.local", password="Testpass123!")
+        response = self.client.post(reverse("social:message-delete", kwargs={"pk": self.msg.pk}))
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(Message.objects.filter(pk=self.msg.pk).exists())
+
+
 class UserSearchTests(TestCase):
     def setUp(self):
         self.ana = make_user("ana@test.local")

@@ -10,6 +10,4 @@ urlpatterns = [
     path("contacto/", views.contact, name="contact"),
     path("tema/reset/", views.reset_theme, name="reset-theme"),
     path("tema/<slug:slug>/", views.set_theme, name="set-theme"),
-    path("juegos/", views.games_hub, name="games"),
-    path("juegos/frases/", views.quote_game, name="quote-game"),
 ]

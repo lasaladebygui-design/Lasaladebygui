@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Duelo: {{ duel.challenger.username }} vs {{ duel.opponent.username }}{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <span class="card__tag">Juegos · Duelo</span>
+        <h1>{{ duel.challenger.username }} vs {{ duel.opponent.username }}</h1>
+
+        <p class="quote-game__score">
+            {{ duel.challenger.username }}: <strong>{{ duel.challenger_streak }}</strong>
+            {% if not duel.challenger_finished %}(todavía jugando){% endif %}
+            · {{ duel.opponent.username }}: <strong>{{ duel.opponent_streak }}</strong>
+            {% if not duel.opponent_finished %}(todavía jugando){% endif %}
+        </p>
+
+        {% if duel.both_finished %}
+            {% if duel.winner %}
+                <p class="quote-game__record">🏆 Ganó <strong>{{ duel.winner.username }}</strong>.</p>
+            {% else %}
+                <p>Empate.</p>
+            {% endif %}
+        {% else %}
+            <p class="muted">Esperando a que el rival termine su tanda.</p>
+        {% endif %}
+
+        <a href="{% url 'games:hub' %}" class="btn btn--accent btn--block">Volver a Juegos</a>
+    </div>
+</section>
+{% endblock %}

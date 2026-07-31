@@ -166,13 +166,14 @@ class ContactLink(models.Model):
         YOUTUBE = "youtube", "YouTube"
         TELEGRAM = "telegram", "Telegram"
         DISCORD = "discord", "Discord"
+        SPOTIFY = "spotify", "Spotify"
         EMAIL = "email", "Email"
         OTRO = "otro", "Otro"
 
     PLATFORM_ICONS = {
         "instagram": "📷", "whatsapp": "💬", "twitter": "🐦", "facebook": "📘",
         "tiktok": "🎵", "youtube": "▶️", "telegram": "✈️", "discord": "🎮",
-        "email": "✉️", "otro": "🔗",
+        "spotify": "🎧", "email": "✉️", "otro": "🔗",
     }
 
     platform = models.CharField("plataforma", max_length=20, choices=Platform.choices, default=Platform.OTRO)
