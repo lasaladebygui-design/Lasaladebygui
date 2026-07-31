@@ -222,12 +222,21 @@ CKEDITOR_5_CONFIGS = {
                 "resizeImage",
             ],
             "styles": ["alignLeft", "alignCenter", "alignRight"],
-            # Permite arrastrar/echoger un tamaño de la imagen (25/50/75/original)
+            # Permite arrastrar/elegir un tamaño de la imagen (50/75/100%)
             # además de colocarla a la izquierda/centro/derecha — el estilo
             # alineado a un lado es lo que hace que el texto la rodee (ver
             # `.richtext .image-style-align-left/right` en main.css).
+            #
+            # OJO: la opción "original" de CKEditor5 se representa oficialmente
+            # con `value: None` (JSON null) — pero el script de arranque de
+            # django-ckeditor-5 parsea esta config con un reviver que hace
+            # `valor.toString()` sin comprobar null, así que ese único `None`
+            # tira abajo TODO el editor nada más cargar la página (crash en
+            # `createEditors`, "Cannot read properties of null (reading
+            # 'toString')") — nunca lo pongas en esta config. Por eso aquí se
+            # usa "100" (texto) en vez de None para la opción "original".
             "resizeOptions": [
-                {"name": "resizeImage:original", "value": None, "icon": "original"},
+                {"name": "resizeImage:100", "value": "100", "icon": "original"},
                 {"name": "resizeImage:50", "value": "50", "icon": "medium"},
                 {"name": "resizeImage:75", "value": "75", "icon": "large"},
             ],
