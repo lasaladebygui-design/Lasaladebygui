@@ -603,26 +603,43 @@ main { flex: 1; }
 }
 
 .richtext { margin-top: calc(var(--space-unit) * 6); overflow: hidden; }
-.richtext img { max-width: 100%; height: auto; border-radius: var(--radius-base); }
+.richtext img, .ck-content img { max-width: 100%; height: auto; border-radius: var(--radius-base); }
 .richtext p { color: var(--color-text); }
-.richtext figure.image { margin: calc(var(--space-unit) * 2) 0; }
-.richtext .image-style-align-left {
+.richtext figure.image, .ck-content figure.image { margin: calc(var(--space-unit) * 2) 0; }
+.richtext .image-style-align-left, .ck-content .image-style-align-left {
     float: left;
     margin: calc(var(--space-unit) * 1) calc(var(--space-unit) * 4) calc(var(--space-unit) * 2) 0;
 }
-.richtext .image-style-align-right {
+.richtext .image-style-align-right, .ck-content .image-style-align-right {
     float: right;
     margin: calc(var(--space-unit) * 1) 0 calc(var(--space-unit) * 2) calc(var(--space-unit) * 4);
 }
-.richtext .image-style-align-center { margin-left: auto; margin-right: auto; }
-.richtext blockquote {
+.richtext .image-style-align-center, .ck-content .image-style-align-center { margin-left: auto; margin-right: auto; }
+.richtext blockquote, .ck-content blockquote {
     border-left: 3px solid var(--color-accent);
     margin: 0 0 calc(var(--space-unit) * 4);
     padding-left: calc(var(--space-unit) * 4);
     color: var(--color-text-muted);
 }
-.richtext table { width: 100%; border-collapse: collapse; margin-bottom: calc(var(--space-unit) * 4); }
-.richtext table td, .richtext table th { border: 1px solid var(--color-border); padding: 0.5rem; }
+.richtext table, .ck-content table { width: 100%; border-collapse: collapse; margin-bottom: calc(var(--space-unit) * 4); }
+.richtext table td, .richtext table th,
+.ck-content table td, .ck-content table th { border: 1px solid var(--color-border); padding: 0.5rem; }
+
+/* El editor de Artículos reutiliza los mismos estilos que la página
+   pública (arriba): así, mientras escribes y mueves imágenes, ya ves
+   exactamente cómo va a quedar publicado, sin necesidad de una vista
+   previa aparte. */
+.ck.ck-content {
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-body);
+}
+.ck.ck-content h1, .ck.ck-content h2, .ck.ck-content h3,
+.ck.ck-content h4, .ck.ck-content h5, .ck.ck-content h6 {
+    font-family: var(--font-heading);
+    color: var(--color-text);
+}
+.ck.ck-content a { color: var(--color-accent); }
 
 /* --- Comentarios de artículo ---------------------------------------------- */
 

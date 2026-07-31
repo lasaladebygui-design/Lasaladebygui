@@ -64,6 +64,21 @@ class RatingSearchForm(forms.Form):
         return cleaned
 
 
+class FullListFilterForm(forms.Form):
+    genre = forms.ModelChoiceField(
+        label="Género/subgénero", queryset=Genre.objects.all(), to_field_name="slug",
+        required=False, empty_label="Todos",
+    )
+    rating = forms.ChoiceField(label="Nota", required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        ratings = SecretMovie.objects.order_by("-personal_rating").values_list(
+            "personal_rating", flat=True
+        ).distinct()
+        self.fields["rating"].choices = [("", "Todas")] + [(str(r), str(r)) for r in ratings]
+
+
 class TierLevelForm(forms.ModelForm):
     class Meta:
         model = TierLevel

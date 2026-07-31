@@ -23,44 +23,56 @@
         </div>
 
         {% if user.is_authenticated %}
-        <h2 style="margin-top:2.5rem;">🎯 Desafía a amigos</h2>
-        <p class="muted">Reto 1 contra 1: mismas frases, en el mismo orden, cada uno por su lado. Gana quien llegue más lejos sin fallar. Al retar a un amigo le llega el enlace en un mensaje de Social.</p>
-        {% if friends %}
-        <div class="card-grid">
-            {% for friend in friends %}
-            <form method="post" action="{% url 'games:duel-invite' username=friend.username %}" class="card">
-                {% csrf_token %}
-                <span class="card__tag">⚔️</span>
-                <h3>{{ friend.username }}</h3>
-                <button type="submit" class="btn btn--accent btn--sm">Retar</button>
-            </form>
-            {% endfor %}
-        </div>
-        {% else %}
-        <p class="muted">Todavía no tienes amigos para retar — añade alguno desde <a href="{% url 'social:home' %}">Social</a>.</p>
-        {% endif %}
-
         <h2 style="margin-top:2.5rem;">Tus duelos</h2>
         {% if duels %}
         <div class="card-grid">
             {% for duel in duels %}
             <a href="{% url 'games:duel-detail' pk=duel.pk %}" class="card card--link">
-                <span class="card__tag">{% if duel.status == "finished" %}🏁{% else %}⚔️{% endif %}</span>
+                <span class="card__tag">
+                    {% if duel.status == "pending" %}✉️{% elif duel.status == "finished" %}🏁{% else %}⚔️{% endif %}
+                </span>
                 <h3>{{ duel.challenger.username }} vs {{ duel.opponent.username }}</h3>
-                {% if duel.status == "finished" %}
+                {% if duel.status == "pending" %}
+                    <p>Pendiente de aceptar.</p>
+                {% elif duel.status == "finished" %}
                     {% if duel.winner %}
                         <p>Ganó <strong>{{ duel.winner.username }}</strong> ({{ duel.challenger_streak }} - {{ duel.opponent_streak }})</p>
                     {% else %}
                         <p>Empate ({{ duel.challenger_streak }} - {{ duel.opponent_streak }})</p>
                     {% endif %}
                 {% else %}
-                    <p>En curso — entra para jugar tu tanda.</p>
+                    <p>En curso — entra a jugar tu ronda.</p>
                 {% endif %}
             </a>
             {% endfor %}
         </div>
         {% else %}
-        <p class="muted">Todavía no tienes duelos. Reta a un amigo arriba para empezar uno.</p>
+        <p class="muted">Todavía no tienes duelos.</p>
+        {% endif %}
+
+        <h2 style="margin-top:2.5rem;">🎯 Desafía a amigos</h2>
+        <p class="muted">Reto 1 contra 1 en directo: los dos veis la misma pregunta a la vez y jugáis juntos, ronda a ronda — en cuanto uno falla, se acaba el duelo. A tu amigo le llega la invitación en un mensaje de Social.</p>
+        {% if friends %}
+        <details class="tier-add-level">
+            <summary class="btn btn--accent">🎮 Jugar con amigos</summary>
+            <form method="post" action="" class="tier-row__edit-form" id="duel-challenge-form">
+                {% csrf_token %}
+                <select name="username" id="id_duel_friend" required>
+                    {% for friend in friends %}
+                    <option value="{{ friend.username }}">{{ friend.username }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn--accent btn--sm">Enviar solicitud</button>
+            </form>
+        </details>
+        <script>
+            document.getElementById("duel-challenge-form").addEventListener("submit", function (event) {
+                var username = document.getElementById("id_duel_friend").value;
+                this.action = "/juegos/duelos/" + encodeURIComponent(username) + "/invitar/";
+            });
+        </script>
+        {% else %}
+        <p class="muted">Todavía no tienes amigos para retar — añade alguno desde <a href="{% url 'social:home' %}">Social</a>.</p>
         {% endif %}
         {% endif %}
     </div>

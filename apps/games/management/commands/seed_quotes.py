@@ -49,7 +49,7 @@ MOVIE_QUOTES = [
     ("Houston, tenemos un problema.", "Apolo 13", "Interestelar", "Gravedad"),
     ("Yo soy Iron Man.", "Iron Man", "Los Vengadores", "Capitán América: El primer vengador"),
     ("¡Esto. Es. Esparta!", "300", "Troya", "Gladiator"),
-    ("Yippee-ki-yay, hijo de perra.", "Duro de matar", "Arma letal", "Speed: máxima potencia"),
+    ("Si sangra, podemos matarlo.", "Depredador", "Terminator", "Arma letal"),
     ("Alégrame el día.", "Impacto súbito", "Harry el sucio", "El fugitivo"),
     ("Larga vida y prosperidad.", "Star Trek", "Star Wars: Una nueva esperanza", "Interestelar"),
     ("Pude haber sido un contendiente, en vez de un don nadie.", "La ley del silencio", "Toro salvaje", "Rocky"),
@@ -128,6 +128,37 @@ MOVIE_QUOTES = [
     ("El miedo es el asesino de la mente.", "Dune", "Interestelar", "Blade Runner 2049"),
     ("Le llaman Baba Yaga.", "John Wick", "Kill Bill", "Sicario"),
     ("¡Qué día tan maravilloso!", "Mad Max: Furia en la carretera", "Mad Max", "Waterworld"),
+
+    # Cuarta tanda: animación, terror, western y un poco de todo, sin
+    # repetir ninguna de las anteriores.
+    ("No hay ningún ingrediente secreto.", "Kung Fu Panda", "Mulán", "Los Increíbles"),
+    ("Cualquiera puede cocinar.", "Ratatouille", "Kung Fu Panda", "Wall-E"),
+    ("No se habla de Bruno.", "Encanto", "Vaiana", "Coco"),
+    ("El océano me eligió por una razón.", "Vaiana", "Frozen: El reino del hielo", "Encanto"),
+    ("Gracias por la aventura. Ahora ve a tener una nueva.", "Up", "Del revés", "Coco"),
+    ("Un mundo ideal, nada que ocultar.", "Aladdín", "La Bella y la Bestia", "Pocahontas"),
+    ("Espejito, espejito mágico, ¿quién es la más bella del reino?", "Blancanieves y los siete enanitos", "La bella durmiente", "Cenicienta"),
+    ("Quiero ser parte de ese mundo.", "La sirenita", "Pocahontas", "Vaiana"),
+    ("Basta un poco de polvo de hada y un pensamiento feliz.", "Peter Pan", "Alicia en el país de las maravillas", "La sirenita"),
+    ("Todos estamos locos aquí.", "Alicia en el país de las maravillas", "El mago de Oz", "Coraline"),
+    ("¿Cuál es tu película de miedo favorita?", "Scream", "Destino final", "Actividad paranormal"),
+    ("Uno, dos, Freddy viene a por ti.", "Pesadilla en Elm Street", "Viernes 13", "La matanza de Texas"),
+    ("Hola, soy Chucky. ¿Quieres jugar?", "Chucky, el muñeco diabólico", "El juego del miedo", "Annabelle"),
+    ("Sé lo que hicisteis el último verano.", "Sé lo que hicisteis el último verano", "Scream", "Destino final"),
+    ("Regla número dos: doble tiro.", "Zombieland", "Guerra Mundial Z", "Resident Evil"),
+    ("¿A quién vas a llamar? ¡Cazafantasmas!", "Los Cazafantasmas", "Los Goonies", "Gremlins"),
+    ("Los Goonies nunca mueren.", "Los Goonies", "Cazafantasmas", "E.T., el extraterrestre"),
+    ("Hay dos tipos de personas en este mundo, amigo: los que tienen un revólver cargado y los que cavan. Tú cavas.", "El bueno, el feo y el malo", "Por un puñado de dólares", "Río Bravo"),
+    ("Todos nos lo merecemos, chico.", "Sin perdón", "El bueno, el feo y el malo", "Tombstone"),
+    ("La D es muda.", "Django desencadenado", "Grindhouse", "Kill Bill"),
+    ("¡Buenos días, princesa!", "La vida es bella", "Cadena perpetua", "El discurso del rey"),
+    ("Olvídalo, Jake. Es Chinatown.", "Chinatown", "L.A. Confidential", "El padrino"),
+    ("Nadie es perfecto.", "Con faldas y a lo loco", "Cantando bajo la lluvia", "El apartamento"),
+    ("Solo canto bajo la lluvia.", "Cantando bajo la lluvia", "Con faldas y a lo loco", "Chicago"),
+    ("Esa es solo tu opinión, tío.", "El gran Lebowski", "Snatch: cerdos y diamantes", "Old School: universidad de nada"),
+    ("Al fin y al cabo, solo soy una chica, delante de un chico, pidiéndole que la quiera.", "Notting Hill", "Love Actually", "Cuatro bodas y un funeral"),
+    ("Estas son algunas de mis cosas favoritas.", "Sonrisas y lágrimas", "Mary Poppins", "Chitty Chitty Bang Bang"),
+    ("Un poco de azúcar ayuda a que la medicina baje mejor.", "Mary Poppins", "Sonrisas y lágrimas", "El regreso de Mary Poppins"),
 ]
 
 
@@ -143,6 +174,7 @@ QUOTE_FIXES = [
     ("La verdad está ahí fuera.", "Aquí abajo, todos flotan."),
     ("Un pequeño paso para el hombre, un gran salto para la humanidad.", "Fracasar no es una opción."),
     ("No llores porque se terminó, sonríe porque sucedió.", "Si tú eres un pájaro, yo también soy un pájaro."),
+    ("Yippee-ki-yay, hijo de perra.", "Si sangra, podemos matarlo."),
 ]
 
 

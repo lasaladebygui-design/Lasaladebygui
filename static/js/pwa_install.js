@@ -1,9 +1,7 @@
 (function () {
     "use strict";
 
-    var VISITS_KEY = "bygui_pwa_visits";
-    var SESSION_FLAG = "bygui_pwa_session_counted";
-    var EVERY_N_VISITS = 3;
+    var SESSION_SHOWN_FLAG = "bygui_pwa_prompt_shown";
 
     function isStandalone() {
         return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
@@ -17,15 +15,11 @@
 
     if (isStandalone()) return;
 
-    if (!sessionStorage.getItem(SESSION_FLAG)) {
-        sessionStorage.setItem(SESSION_FLAG, "1");
-        var visits = parseInt(localStorage.getItem(VISITS_KEY) || "0", 10) + 1;
-        localStorage.setItem(VISITS_KEY, String(visits));
-    }
-
     var deferredPrompt = null;
 
     function showInstallBanner() {
+        sessionStorage.setItem(SESSION_SHOWN_FLAG, "1");
+
         var banner = document.createElement("div");
         banner.className = "pwa-install-banner";
         banner.innerHTML =
@@ -51,8 +45,11 @@
         event.preventDefault();
         deferredPrompt = event;
 
-        var visits = parseInt(localStorage.getItem(VISITS_KEY) || "0", 10);
-        if (visits % EVERY_N_VISITS !== 0) return;
+        // Como mucho una vez por sesión de navegador: si ya se mostró (se
+        // instalase o se le diera a "Ahora no"), no se vuelve a insistir
+        // hasta la próxima vez que se abra el sitio (sessionStorage se
+        // reinicia solo al cerrar la pestaña/navegador).
+        if (sessionStorage.getItem(SESSION_SHOWN_FLAG)) return;
 
         showInstallBanner();
     });

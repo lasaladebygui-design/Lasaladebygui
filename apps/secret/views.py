@@ -9,7 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError, tmdb_search
 
-from .forms import CodeForm, NumberSelectForm, RatingSearchForm, SecretPhotoForm, TierLevelForm
+from .forms import CodeForm, FullListFilterForm, NumberSelectForm, RatingSearchForm, SecretPhotoForm, TierLevelForm
 from .models import Genre, SecretMovie, SecretPhoto, TierLevel, TierListEntry, TopSecretConfig
 
 SESSION_KEY = "top_secret_unlocked"
@@ -88,8 +88,16 @@ def by_rating(request):
 
 @secret_required
 def full_list(request):
+    form = FullListFilterForm(request.GET or None)
     movies = SecretMovie.objects.prefetch_related("genres").all()
-    return render(request, "secret/list.html", {"movies": movies})
+    if form.is_valid():
+        genre = form.cleaned_data.get("genre")
+        rating = form.cleaned_data.get("rating")
+        if genre:
+            movies = movies.filter(genres=genre)
+        if rating:
+            movies = movies.filter(personal_rating=rating)
+    return render(request, "secret/list.html", {"movies": movies, "form": form})
 
 
 @secret_required

@@ -28,11 +28,14 @@ class MovieQuote(models.Model):
 
 
 class Duel(models.Model):
-    """Duelo de Frases célebres entre dos amigos: ambos juegan la misma
-    tanda de frases (mismo orden) por separado, y al terminar los dos se
-    compara quién llegó más lejos sin fallar."""
+    """Duelo de Frases célebres entre dos amigos: los dos ven la MISMA
+    pregunta a la vez (`current_index`, compartido) y avanzan juntos ronda
+    a ronda — en cuanto uno responde mal, el duelo termina ahí mismo para
+    los dos. Empieza como invitación (`PENDING`): el retado tiene que
+    aceptarla antes de que arranque la partida."""
 
     class Status(models.TextChoices):
+        PENDING = "pending", "Pendiente"
         ACTIVE = "active", "En curso"
         FINISHED = "finished", "Terminado"
 
@@ -44,12 +47,17 @@ class Duel(models.Model):
     opponent = models.ForeignKey(
         settings.AUTH_USER_MODEL, verbose_name="rival", on_delete=models.CASCADE, related_name="duels_received",
     )
-    status = models.CharField("estado", max_length=10, choices=Status.choices, default=Status.ACTIVE)
-    quote_ids = models.JSONField("frases del duelo (orden fijo)", default=list)
+    status = models.CharField("estado", max_length=10, choices=Status.choices, default=Status.PENDING)
+    quote_ids = models.JSONField("frases del duelo (orden fijo, compartido)", default=list)
+    current_index = models.PositiveIntegerField("ronda actual (compartida)", default=0)
     challenger_streak = models.PositiveIntegerField("racha del retador", default=0)
     opponent_streak = models.PositiveIntegerField("racha del rival", default=0)
-    challenger_finished = models.BooleanField("el retador ha terminado", default=False)
-    opponent_finished = models.BooleanField("el rival ha terminado", default=False)
+    challenger_answered = models.BooleanField("el retador ya respondió esta ronda", default=False)
+    opponent_answered = models.BooleanField("el rival ya respondió esta ronda", default=False)
+    challenger_lost = models.BooleanField("el retador falló", default=False)
+    opponent_lost = models.BooleanField("el rival falló", default=False)
+    challenger_wants_rematch = models.BooleanField("el retador quiere revancha", default=False)
+    opponent_wants_rematch = models.BooleanField("el rival quiere revancha", default=False)
     created_at = models.DateTimeField("creado", auto_now_add=True)
 
     class Meta:
@@ -70,22 +78,40 @@ class Duel(models.Model):
     def streak_for(self, user):
         return self.challenger_streak if self.role_for(user) == "challenger" else self.opponent_streak
 
-    def has_finished(self, user):
-        return self.challenger_finished if self.role_for(user) == "challenger" else self.opponent_finished
+    def answered_for(self, user):
+        return self.challenger_answered if self.role_for(user) == "challenger" else self.opponent_answered
+
+    def lost_for(self, user):
+        return self.challenger_lost if self.role_for(user) == "challenger" else self.opponent_lost
+
+    def wants_rematch_for(self, user):
+        return self.challenger_wants_rematch if self.role_for(user) == "challenger" else self.opponent_wants_rematch
 
     def opponent_of(self, user):
         return self.opponent if self.role_for(user) == "challenger" else self.challenger
 
-    @property
-    def both_finished(self):
-        return self.challenger_finished and self.opponent_finished
+    def reset_for_rematch(self):
+        self.quote_ids = list(
+            MovieQuote.objects.order_by("?").values_list("pk", flat=True)[: self.QUOTE_COUNT]
+        )
+        self.current_index = 0
+        self.challenger_streak = 0
+        self.opponent_streak = 0
+        self.challenger_answered = False
+        self.opponent_answered = False
+        self.challenger_lost = False
+        self.opponent_lost = False
+        self.challenger_wants_rematch = False
+        self.opponent_wants_rematch = False
+        self.status = self.Status.ACTIVE
+        self.save()
 
     @property
     def winner(self):
-        if not self.both_finished:
+        if self.status != self.Status.FINISHED:
             return None
-        if self.challenger_streak > self.opponent_streak:
-            return self.challenger
-        if self.opponent_streak > self.challenger_streak:
+        if self.challenger_lost and not self.opponent_lost:
             return self.opponent
-        return None  # empate
+        if self.opponent_lost and not self.challenger_lost:
+            return self.challenger
+        return None  # empate: ninguno falló (completaron la tanda juntos) o fallaron los dos a la vez

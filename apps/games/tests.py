@@ -136,8 +136,9 @@ class QuoteGameTests(TestCase):
 
 
 class DuelTests(TestCase):
-    """Duelo: mismo reto, misma tanda de frases (orden fijo), cada jugador
-    la juega por su lado; al final se compara quién llegó más lejos."""
+    """Duelo: los dos ven la misma pregunta a la vez y avanzan juntos ronda
+    a ronda; en cuanto uno falla, se acaba para los dos. Empieza como
+    invitación (PENDING) hasta que el retado la acepta."""
 
     def setUp(self):
         self.quotes = [
@@ -161,15 +162,49 @@ class DuelTests(TestCase):
         self.client.post(reverse("games:duel-invite", kwargs={"username": carol.username}))
         self.assertFalse(Duel.objects.exists())
 
-    def test_retar_a_un_amigo_crea_un_duelo_activo(self):
+    def test_retar_a_un_amigo_crea_un_duelo_pendiente(self):
         self.client.login(username="alice@test.local", password="Testpass123!")
         response = self.client.post(reverse("games:duel-invite", kwargs={"username": self.bob.username}))
         duel = Duel.objects.get()
         self.assertEqual(duel.challenger, self.alice)
         self.assertEqual(duel.opponent, self.bob)
-        self.assertEqual(duel.status, Duel.Status.ACTIVE)
+        self.assertEqual(duel.status, Duel.Status.PENDING)
         self.assertEqual(len(duel.quote_ids), Duel.QUOTE_COUNT)
         self.assertRedirects(response, reverse("games:duel-detail", kwargs={"pk": duel.pk}))
+
+    def test_el_retador_ve_pantalla_de_espera_mientras_esta_pendiente(self):
+        self.client.login(username="alice@test.local", password="Testpass123!")
+        self.client.post(reverse("games:duel-invite", kwargs={"username": self.bob.username}))
+        duel = Duel.objects.get()
+
+        response = self.client.get(reverse("games:duel-detail", kwargs={"pk": duel.pk}))
+        self.assertContains(response, "Esperando a que")
+
+    def test_el_retado_puede_aceptar_el_duelo(self):
+        duel = Duel.objects.create(
+            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+        )
+        self.client.login(username="bob@test.local", password="Testpass123!")
+        self.client.post(reverse("games:duel-accept", kwargs={"pk": duel.pk}))
+        duel.refresh_from_db()
+        self.assertEqual(duel.status, Duel.Status.ACTIVE)
+
+    def test_el_retado_puede_rechazar_el_duelo(self):
+        duel = Duel.objects.create(
+            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+        )
+        self.client.login(username="bob@test.local", password="Testpass123!")
+        response = self.client.post(reverse("games:duel-decline", kwargs={"pk": duel.pk}))
+        self.assertRedirects(response, reverse("games:hub"))
+        self.assertFalse(Duel.objects.filter(pk=duel.pk).exists())
+
+    def test_el_retador_no_puede_aceptar_su_propio_duelo(self):
+        duel = Duel.objects.create(
+            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+        )
+        self.client.login(username="alice@test.local", password="Testpass123!")
+        response = self.client.post(reverse("games:duel-accept", kwargs={"pk": duel.pk}))
+        self.assertEqual(response.status_code, 404)
 
     def test_retar_a_un_amigo_le_manda_el_enlace_por_social(self):
         self.client.login(username="alice@test.local", password="Testpass123!")
@@ -183,7 +218,7 @@ class DuelTests(TestCase):
         self.client.login(username="alice@test.local", password="Testpass123!")
         response = self.client.get(reverse("games:hub"))
         self.assertContains(response, "bob")
-        self.assertContains(response, reverse("games:duel-invite", kwargs={"username": "bob"}))
+        self.assertContains(response, "Jugar con amigos")
 
     def test_el_hub_de_juegos_sin_amigos_lo_indica(self):
         self.client.login(username="bob@test.local", password="Testpass123!")
@@ -191,9 +226,10 @@ class DuelTests(TestCase):
         response = self.client.get(reverse("games:hub"))
         self.assertContains(response, "Todavía no tienes amigos para retar")
 
-    def test_ambos_juegan_la_misma_tanda_en_el_mismo_orden(self):
+    def test_los_dos_ven_la_misma_pregunta_a_la_vez(self):
         duel = Duel.objects.create(
             challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            status=Duel.Status.ACTIVE,
         )
         self.client.login(username="alice@test.local", password="Testpass123!")
         response = self.client.get(reverse("games:duel-detail", kwargs={"pk": duel.pk}))
@@ -203,43 +239,90 @@ class DuelTests(TestCase):
         response = self.client.get(reverse("games:duel-detail", kwargs={"pk": duel.pk}))
         self.assertEqual(response.context["quote"], self.quotes[0])
 
-    def test_fallar_termina_la_tanda_y_fija_la_racha(self):
+    def test_responder_bien_y_esperar_al_rival(self):
         duel = Duel.objects.create(
             challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            status=Duel.Status.ACTIVE,
         )
         self.client.login(username="alice@test.local", password="Testpass123!")
-        self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
+        response = self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
             "quote_id": self.quotes[0].pk, "answer": "Película 0",
-        })
-        self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
-            "quote_id": self.quotes[1].pk, "answer": "Otra",
         })
         duel.refresh_from_db()
         self.assertEqual(duel.challenger_streak, 1)
-        self.assertTrue(duel.challenger_finished)
-        self.assertFalse(duel.opponent_finished)
+        self.assertTrue(duel.challenger_answered)
+        self.assertEqual(duel.current_index, 0)
+        self.assertTemplateUsed(response, "games/duel_waiting.html")
 
-    def test_se_marca_terminado_cuando_ambos_acaban_y_hay_ganador(self):
+    def test_cuando_los_dos_aciertan_avanza_la_ronda_para_los_dos(self):
         duel = Duel.objects.create(
             challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
-            challenger_streak=0, opponent_streak=0,
+            status=Duel.Status.ACTIVE,
         )
         self.client.login(username="alice@test.local", password="Testpass123!")
         self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
-            "quote_id": self.quotes[0].pk, "answer": "Otra",
+            "quote_id": self.quotes[0].pk, "answer": "Película 0",
         })
-
         self.client.login(username="bob@test.local", password="Testpass123!")
         self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
             "quote_id": self.quotes[0].pk, "answer": "Película 0",
         })
-        response = self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
-            "quote_id": self.quotes[1].pk, "answer": "Otra",
-        })
+        duel.refresh_from_db()
+        self.assertEqual(duel.current_index, 1)
+        self.assertFalse(duel.challenger_answered)
+        self.assertFalse(duel.opponent_answered)
+        self.assertEqual(duel.challenger_streak, 1)
+        self.assertEqual(duel.opponent_streak, 1)
 
+    def test_fallar_termina_el_duelo_al_instante_para_los_dos(self):
+        duel = Duel.objects.create(
+            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            status=Duel.Status.ACTIVE,
+        )
+        self.client.login(username="alice@test.local", password="Testpass123!")
+        response = self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
+            "quote_id": self.quotes[0].pk, "answer": "Otra",
+        })
         duel.refresh_from_db()
         self.assertEqual(duel.status, Duel.Status.FINISHED)
+        self.assertTrue(duel.challenger_lost)
         self.assertEqual(duel.winner, self.bob)
+        self.assertTemplateUsed(response, "games/duel_result.html")
+
+    def test_ganador_ve_has_ganado_y_perdedor_ve_ganador_contrario(self):
+        duel = Duel.objects.create(
+            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            status=Duel.Status.FINISHED, challenger_lost=True,
+        )
+        self.client.login(username="bob@test.local", password="Testpass123!")
+        response = self.client.get(reverse("games:duel-detail", kwargs={"pk": duel.pk}))
+        self.assertContains(response, "¡Has ganado!")
+
+        self.client.login(username="alice@test.local", password="Testpass123!")
+        response = self.client.get(reverse("games:duel-detail", kwargs={"pk": duel.pk}))
+        self.assertContains(response, "Has perdido")
+
+    def test_revancha_necesita_que_los_dos_le_den(self):
+        duel = Duel.objects.create(
+            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            status=Duel.Status.FINISHED, challenger_lost=True,
+            challenger_streak=3, opponent_streak=5,
+        )
+        self.client.login(username="alice@test.local", password="Testpass123!")
+        self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}))
+        duel.refresh_from_db()
+        self.assertTrue(duel.challenger_wants_rematch)
+        self.assertEqual(duel.status, Duel.Status.FINISHED)
+
+        self.client.login(username="bob@test.local", password="Testpass123!")
+        self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}))
+        duel.refresh_from_db()
+        self.assertEqual(duel.status, Duel.Status.ACTIVE)
+        self.assertEqual(duel.current_index, 0)
+        self.assertEqual(duel.challenger_streak, 0)
+        self.assertEqual(duel.opponent_streak, 0)
+        self.assertFalse(duel.challenger_lost)
+        self.assertFalse(duel.challenger_wants_rematch)
 
     def test_un_desconocido_no_puede_ver_el_duelo(self):
         duel = Duel.objects.create(

@@ -2,6 +2,10 @@
 
 {% block title %}Duelo: {{ duel.challenger.username }} vs {{ duel.opponent.username }}{% endblock %}
 
+{% if wants_rematch %}
+{% block extra_head %}<meta http-equiv="refresh" content="3">{% endblock %}
+{% endif %}
+
 {% block content %}
 <section class="section">
     <div class="wrap wrap--narrow">
@@ -10,22 +14,27 @@
 
         <p class="quote-game__score">
             {{ duel.challenger.username }}: <strong>{{ duel.challenger_streak }}</strong>
-            {% if not duel.challenger_finished %}(todavía jugando){% endif %}
             · {{ duel.opponent.username }}: <strong>{{ duel.opponent_streak }}</strong>
-            {% if not duel.opponent_finished %}(todavía jugando){% endif %}
         </p>
 
-        {% if duel.both_finished %}
-            {% if duel.winner %}
-                <p class="quote-game__record">🏆 Ganó <strong>{{ duel.winner.username }}</strong>.</p>
-            {% else %}
-                <p>Empate.</p>
-            {% endif %}
+        {% if duel.winner == user %}
+            <p class="quote-game__record">🏆 ¡Has ganado!</p>
+        {% elif duel.winner %}
+            <p>Has perdido — ganó {{ duel.winner.username }}.</p>
         {% else %}
-            <p class="muted">Esperando a que el rival termine su tanda.</p>
+            <p>Empate.</p>
         {% endif %}
 
-        <a href="{% url 'games:hub' %}" class="btn btn--accent btn--block">Volver a Juegos</a>
+        {% if wants_rematch %}
+        <p class="muted">Esperando a que tu rival también quiera la revancha…</p>
+        {% else %}
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn--accent btn--block">Jugar de nuevo</button>
+        </form>
+        {% endif %}
+
+        <a href="{% url 'games:hub' %}" class="btn btn--ghost btn--block">Volver a Juegos</a>
     </div>
 </section>
 {% endblock %}

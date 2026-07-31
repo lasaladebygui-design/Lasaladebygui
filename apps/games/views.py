@@ -82,14 +82,20 @@ def quote_game(request):
 
 
 # --- Duelos --------------------------------------------------------------
-# Duelo de Frases célebres entre dos amigos: mismo duelo, misma tanda de
-# frases (orden fijo) jugada por separado, y al final se compara la racha.
+# Duelo de Frases célebres entre dos amigos: los dos ven la misma pregunta
+# a la vez y avanzan juntos ronda a ronda (Duel.current_index, compartido);
+# en cuanto uno falla, el duelo termina ahí mismo para los dos. Empieza
+# como invitación (PENDING) hasta que el retado la acepta.
+
+def _random_quote_ids():
+    return list(MovieQuote.objects.order_by("?").values_list("pk", flat=True)[: Duel.QUOTE_COUNT])
+
 
 @login_required
 def duel_invite(request, username):
     other = get_object_or_404(User, username=username)
     if request.method == "POST" and other.pk != request.user.pk and are_friends(request.user, other):
-        quote_ids = list(MovieQuote.objects.order_by("?").values_list("pk", flat=True)[:Duel.QUOTE_COUNT])
+        quote_ids = _random_quote_ids()
         if len(quote_ids) < Duel.QUOTE_COUNT:
             messages.error(request, "Todavía no hay frases suficientes para un duelo.")
         else:
@@ -99,9 +105,28 @@ def duel_invite(request, username):
                 sender=request.user, recipient=other,
                 body=f"¡Te reto a un duelo de Frases célebres! {duel_url}",
             )
-            messages.success(request, f"Duelo enviado a {other.username}.")
+            messages.success(request, f"Solicitud de duelo enviada a {other.username}.")
             return redirect("games:duel-detail", pk=duel.pk)
     return redirect("games:hub")
+
+
+@login_required
+def duel_accept(request, pk):
+    duel = get_object_or_404(Duel, pk=pk, opponent=request.user, status=Duel.Status.PENDING)
+    if request.method == "POST":
+        duel.status = Duel.Status.ACTIVE
+        duel.save(update_fields=["status"])
+    return redirect("games:duel-detail", pk=pk)
+
+
+@login_required
+def duel_decline(request, pk):
+    duel = get_object_or_404(Duel, pk=pk, opponent=request.user, status=Duel.Status.PENDING)
+    if request.method == "POST":
+        duel.delete()
+        messages.info(request, "Duelo rechazado.")
+        return redirect("games:hub")
+    return redirect("games:duel-detail", pk=pk)
 
 
 @login_required
@@ -111,43 +136,63 @@ def duel_detail(request, pk):
     if role is None:
         raise Http404
 
-    if duel.has_finished(request.user):
-        return render(request, "games/duel_result.html", {"duel": duel, "role": role})
+    if duel.status == Duel.Status.PENDING:
+        return render(request, "games/duel_pending.html", {"duel": duel, "role": role})
 
-    position_key = f"duel_{duel.pk}_position"
-    streak_key = f"duel_{duel.pk}_streak"
-    position = request.session.get(position_key, 0)
-    streak = request.session.get(streak_key, 0)
+    if duel.status == Duel.Status.FINISHED:
+        if request.method == "POST" and not duel.wants_rematch_for(request.user):
+            field = "challenger_wants_rematch" if role == "challenger" else "opponent_wants_rematch"
+            setattr(duel, field, True)
+            duel.save(update_fields=[field])
+            if duel.challenger_wants_rematch and duel.opponent_wants_rematch:
+                duel.reset_for_rematch()
+                return redirect("games:duel-detail", pk=pk)
+        return render(request, "games/duel_result.html", {
+            "duel": duel, "role": role, "wants_rematch": duel.wants_rematch_for(request.user),
+        })
 
-    if request.method == "POST":
+    # ACTIVE: los dos juegan la misma ronda (duel.current_index) a la vez.
+    if request.method == "POST" and not duel.answered_for(request.user):
         quote = get_object_or_404(MovieQuote, pk=request.POST.get("quote_id"))
         correct = request.POST.get("answer") == quote.correct_title
-        if correct:
-            streak += 1
-            position += 1
-            request.session[position_key] = position
-            request.session[streak_key] = streak
-        else:
-            position = len(duel.quote_ids)
 
-        if not correct or position >= len(duel.quote_ids):
+        if not correct:
             if role == "challenger":
-                duel.challenger_streak = streak
-                duel.challenger_finished = True
+                duel.challenger_lost = True
             else:
-                duel.opponent_streak = streak
-                duel.opponent_finished = True
-            if duel.both_finished:
-                duel.status = Duel.Status.FINISHED
+                duel.opponent_lost = True
+            duel.status = Duel.Status.FINISHED
             duel.save()
-            request.session.pop(position_key, None)
-            request.session.pop(streak_key, None)
             return render(request, "games/duel_result.html", {"duel": duel, "role": role})
 
-    quote = get_object_or_404(MovieQuote, pk=duel.quote_ids[position])
+        if role == "challenger":
+            duel.challenger_answered = True
+            duel.challenger_streak += 1
+        else:
+            duel.opponent_answered = True
+            duel.opponent_streak += 1
+
+        if duel.challenger_answered and duel.opponent_answered:
+            duel.current_index += 1
+            duel.challenger_answered = False
+            duel.opponent_answered = False
+            if duel.current_index >= len(duel.quote_ids):
+                duel.status = Duel.Status.FINISHED  # empate: ninguno falló
+        duel.save()
+
+        if duel.status == Duel.Status.FINISHED:
+            return render(request, "games/duel_result.html", {"duel": duel, "role": role})
+
+    if duel.answered_for(request.user):
+        return render(request, "games/duel_waiting.html", {
+            "duel": duel, "role": role, "streak": duel.streak_for(request.user),
+        })
+
+    quote = get_object_or_404(MovieQuote, pk=duel.quote_ids[duel.current_index])
     options = [quote.correct_title, quote.wrong_title_1, quote.wrong_title_2]
     random.shuffle(options)
     return render(request, "games/duel_play.html", {
-        "duel": duel, "quote": quote, "options": options, "streak": streak,
-        "position": position + 1, "total": len(duel.quote_ids),
+        "duel": duel, "quote": quote, "options": options,
+        "streak": duel.streak_for(request.user),
+        "position": duel.current_index + 1, "total": len(duel.quote_ids),
     })

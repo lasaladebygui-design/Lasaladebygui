@@ -82,6 +82,25 @@ class SecretMovieViewTests(TestCase):
         response = self.client.get(reverse("secret:list"))
         self.assertEqual(list(response.context["movies"]), [self.a, self.b])
 
+    def test_lista_completa_filtra_por_genero(self):
+        terror = Genre.objects.create(name="Terror")
+        self.a.genres.add(terror)
+
+        response = self.client.get(reverse("secret:list"), {"genre": terror.slug})
+        self.assertEqual(list(response.context["movies"]), [self.a])
+
+    def test_lista_completa_filtra_por_nota(self):
+        response = self.client.get(reverse("secret:list"), {"rating": "8.5"})
+        self.assertEqual(list(response.context["movies"]), [self.b])
+
+    def test_lista_completa_combina_genero_y_nota(self):
+        terror = Genre.objects.create(name="Terror")
+        self.a.genres.add(terror)
+        self.b.genres.add(terror)
+
+        response = self.client.get(reverse("secret:list"), {"genre": terror.slug, "rating": "9.0"})
+        self.assertEqual(list(response.context["movies"]), [self.a])
+
     def test_buscador_por_nota_filtra_por_genero(self):
         terror = Genre.objects.create(name="Terror")
         self.a.genres.add(terror)
