@@ -85,23 +85,38 @@ class SecretMovie(models.Model):
         return self.movie.poster_url if self.movie else ""
 
 
+class TierLevel(models.Model):
+    """Un nivel/columna del tier list (S, A, B... o el nombre que se quiera).
+    Nombre, color y orden se gestionan enteros desde la propia página del
+    Tier List — no hace falta pasar por el admin para nada de esto."""
+
+    name = models.CharField("nombre", max_length=30)
+    color = models.CharField("color", max_length=7, default="#2DD4BF")
+    order = models.PositiveIntegerField("orden", default=0)
+
+    class Meta:
+        verbose_name = "nivel de tier list"
+        verbose_name_plural = "Top Secret: niveles de tier list"
+        ordering = ["order", "pk"]
+
+    def __str__(self):
+        return self.name
+
+
 class TierListEntry(models.Model):
-    """Tier list personal: películas agrupadas en niveles S/A/B/C/D,
+    """Tier list personal: películas agrupadas en niveles (ver `TierLevel`),
     ordenables dentro de cada nivel, editable tanto desde la propia web
     (buscar y añadir, arrastrar entre niveles) como desde el admin.
-    Las que se acaban de añadir caen en "Sin clasificar" (U) hasta que se
-    arrastran a un nivel real — así nunca se cuela una entrada nueva
-    directamente en un nivel S/A/B/C/D sin que nadie la haya puesto ahí."""
+    `tier=None` es "Sin clasificar": donde caen las que se acaban de añadir
+    hasta que se arrastran a un nivel real — así nunca se cuela una entrada
+    nueva directamente en un nivel sin que nadie la haya puesto ahí. Al
+    borrar un `TierLevel` (on_delete=SET_NULL), sus entradas vuelven aquí
+    en vez de perderse."""
 
-    class Tier(models.TextChoices):
-        UNSORTED = "U", "Sin clasificar"
-        S = "S", "S"
-        A = "A", "A"
-        B = "B", "B"
-        C = "C", "C"
-        D = "D", "D"
-
-    tier = models.CharField("nivel", max_length=1, choices=Tier.choices, default=Tier.UNSORTED)
+    tier = models.ForeignKey(
+        TierLevel, verbose_name="nivel", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="entries",
+    )
     title = models.CharField("título", max_length=255)
     order = models.PositiveIntegerField("orden dentro del nivel", default=0)
     movie = models.ForeignKey(
@@ -112,7 +127,7 @@ class TierListEntry(models.Model):
     class Meta:
         verbose_name = "entrada de tier list"
         verbose_name_plural = "Top Secret: tier list"
-        ordering = ["tier", "order", "title"]
+        ordering = ["tier__order", "order", "title"]
 
     def __str__(self):
         return f"[{self.tier}] {self.title}"

@@ -16,7 +16,7 @@
                 <div class="conversation-message{% if msg.sender_id == user.pk %} conversation-message--mine{% endif %}">
                     <p>
                         <span class="muted">{{ msg.created_at|date:"d/m/Y H:i" }}</span><br>
-                        {{ msg.body|linebreaksbr }}
+                        {{ msg.body|urlize|linebreaksbr }}
                     </p>
                     {% if msg.sender_id == user.pk %}
                     <details class="conversation-message__actions">

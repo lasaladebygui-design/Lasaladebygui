@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.accounts.models import User
-from apps.social.models import FriendRequest
+from apps.social.models import FriendRequest, Message
 
 from .models import Duel, MovieQuote
 
@@ -170,6 +170,26 @@ class DuelTests(TestCase):
         self.assertEqual(duel.status, Duel.Status.ACTIVE)
         self.assertEqual(len(duel.quote_ids), Duel.QUOTE_COUNT)
         self.assertRedirects(response, reverse("games:duel-detail", kwargs={"pk": duel.pk}))
+
+    def test_retar_a_un_amigo_le_manda_el_enlace_por_social(self):
+        self.client.login(username="alice@test.local", password="Testpass123!")
+        self.client.post(reverse("games:duel-invite", kwargs={"username": self.bob.username}))
+        duel = Duel.objects.get()
+
+        message = Message.objects.get(sender=self.alice, recipient=self.bob)
+        self.assertIn(reverse("games:duel-detail", kwargs={"pk": duel.pk}), message.body)
+
+    def test_el_hub_de_juegos_lista_amigos_para_desafiar(self):
+        self.client.login(username="alice@test.local", password="Testpass123!")
+        response = self.client.get(reverse("games:hub"))
+        self.assertContains(response, "bob")
+        self.assertContains(response, reverse("games:duel-invite", kwargs={"username": "bob"}))
+
+    def test_el_hub_de_juegos_sin_amigos_lo_indica(self):
+        self.client.login(username="bob@test.local", password="Testpass123!")
+        FriendRequest.objects.filter(from_user=self.alice, to_user=self.bob).delete()
+        response = self.client.get(reverse("games:hub"))
+        self.assertContains(response, "Todavía no tienes amigos para retar")
 
     def test_ambos_juegan_la_misma_tanda_en_el_mismo_orden(self):
         duel = Duel.objects.create(

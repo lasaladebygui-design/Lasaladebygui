@@ -207,8 +207,22 @@ CKEDITOR_5_CONFIGS = {
             "undo", "redo",
         ],
         "image": {
-            "toolbar": ["imageTextAlternative", "|", "imageStyle:alignLeft", "imageStyle:alignCenter", "imageStyle:alignRight"],
+            "toolbar": [
+                "imageTextAlternative", "|",
+                "imageStyle:alignLeft", "imageStyle:alignCenter", "imageStyle:alignRight", "|",
+                "resizeImage",
+            ],
             "styles": ["alignLeft", "alignCenter", "alignRight"],
+            # Permite arrastrar/echoger un tamaño de la imagen (25/50/75/original)
+            # además de colocarla a la izquierda/centro/derecha — el estilo
+            # alineado a un lado es lo que hace que el texto la rodee (ver
+            # `.richtext .image-style-align-left/right` en main.css).
+            "resizeOptions": [
+                {"name": "resizeImage:original", "value": None, "icon": "original"},
+                {"name": "resizeImage:50", "value": "50", "icon": "medium"},
+                {"name": "resizeImage:75", "value": "75", "icon": "large"},
+            ],
+            "resizeUnit": "%",
         },
         "table": {
             "contentToolbar": ["tableColumn", "tableRow", "mergeTableCells"],

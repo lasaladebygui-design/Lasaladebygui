@@ -10,10 +10,6 @@ from .models import SESSION_THEME_KEY, ContactLink, SiteConfig, Theme, get_effec
 
 
 class ContactFormTests(TestCase):
-    def test_sin_email_de_contacto_configurado_no_muestra_formulario(self):
-        response = self.client.get(reverse("core:contact"))
-        self.assertIsNone(response.context["form"])
-
     def test_envio_valido_llega_al_email_configurado(self):
         config = SiteConfig.load()
         config.contact_email = "contacto@lasaladebygui.local"
@@ -55,7 +51,6 @@ class ContactLinkTests(TestCase):
             platform=ContactLink.Platform.INSTAGRAM, label="@lasaladebygui", url="https://instagram.com/lasaladebygui",
         )
         response = self.client.get(reverse("core:contact"))
-        self.assertIsNone(response.context["form"])
         self.assertContains(response, "@lasaladebygui")
         self.assertContains(response, "https://instagram.com/lasaladebygui")
 

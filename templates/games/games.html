@@ -23,8 +23,24 @@
         </div>
 
         {% if user.is_authenticated %}
+        <h2 style="margin-top:2.5rem;">🎯 Desafía a amigos</h2>
+        <p class="muted">Reto 1 contra 1: mismas frases, en el mismo orden, cada uno por su lado. Gana quien llegue más lejos sin fallar. Al retar a un amigo le llega el enlace en un mensaje de Social.</p>
+        {% if friends %}
+        <div class="card-grid">
+            {% for friend in friends %}
+            <form method="post" action="{% url 'games:duel-invite' username=friend.username %}" class="card">
+                {% csrf_token %}
+                <span class="card__tag">⚔️</span>
+                <h3>{{ friend.username }}</h3>
+                <button type="submit" class="btn btn--accent btn--sm">Retar</button>
+            </form>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">Todavía no tienes amigos para retar — añade alguno desde <a href="{% url 'social:home' %}">Social</a>.</p>
+        {% endif %}
+
         <h2 style="margin-top:2.5rem;">Tus duelos</h2>
-        <p class="muted">Retos 1 contra 1: mismas frases, en el mismo orden, cada uno por su lado. Gana quien llegue más lejos sin fallar. Invita a un duelo desde el perfil de un amigo.</p>
         {% if duels %}
         <div class="card-grid">
             {% for duel in duels %}
@@ -44,7 +60,7 @@
             {% endfor %}
         </div>
         {% else %}
-        <p class="muted">Todavía no tienes duelos. Ve al perfil de un amigo y dale a "Retar a un duelo".</p>
+        <p class="muted">Todavía no tienes duelos. Reta a un amigo arriba para empezar uno.</p>
         {% endif %}
         {% endif %}
     </div>

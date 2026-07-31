@@ -34,6 +34,13 @@ def are_friends(user_a, user_b):
     ).exists()
 
 
+def friends_of(user):
+    accepted = FriendRequest.objects.filter(
+        Q(from_user=user, accepted=True) | Q(to_user=user, accepted=True)
+    ).select_related("from_user", "to_user")
+    return [fr.to_user if fr.from_user_id == user.pk else fr.from_user for fr in accepted]
+
+
 def friendship_status(viewer, other):
     """'self' | 'friends' | 'pending_outgoing' | 'pending_incoming' | 'none',
     desde el punto de vista de `viewer` mirando el perfil de `other`."""

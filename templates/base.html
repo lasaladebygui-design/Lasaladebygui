@@ -35,6 +35,10 @@
     {% include "partials/intro.html" %}
     <a class="skip-link" href="#contenido">Saltar al contenido</a>
 
+    {% if not request.resolver_match or request.resolver_match.view_name != "core:home" %}
+    <a href="{% url 'core:home' %}" class="home-fab" title="Volver a la Sala principal" aria-label="Volver a la Sala principal">🏠</a>
+    {% endif %}
+
     <header class="site-header">
         <div class="wrap site-header__inner">
             <div class="site-header__nav" x-data="{ navOpen: false }" @click.outside="navOpen = false">
@@ -43,6 +47,7 @@
                     <span>Menú</span>
                 </button>
                 <nav id="site-nav" class="site-nav" aria-label="Principal" x-show="navOpen" x-cloak x-transition>
+                    <a href="{% url 'core:home' %}">Sala principal</a>
                     <a href="{% url 'articles:list' %}">Artículos</a>
                     <a href="{% url 'forum:list' %}">Foro</a>
                     {% if user.is_authenticated %}

@@ -26,9 +26,6 @@ def contact(request):
     config = SiteConfig.load()
     contact_links = ContactLink.objects.all()
 
-    if not config.contact_email:
-        return render(request, "core/contact.html", {"form": None, "contact_links": contact_links})
-
     if request.method == "POST":
         form = ContactForm(request.POST)
         if form.is_valid():

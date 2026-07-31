@@ -9,8 +9,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError, tmdb_search
 
-from .forms import CodeForm, NumberSelectForm, RatingSearchForm, SecretPhotoForm
-from .models import Genre, SecretMovie, SecretPhoto, TierListEntry, TopSecretConfig
+from .forms import CodeForm, NumberSelectForm, RatingSearchForm, SecretPhotoForm, TierLevelForm
+from .models import Genre, SecretMovie, SecretPhoto, TierLevel, TierListEntry, TopSecretConfig
 
 SESSION_KEY = "top_secret_unlocked"
 
@@ -93,11 +93,22 @@ def full_list(request):
 
 
 @secret_required
+def other(request):
+    return render(request, "secret/other.html")
+
+
+@secret_required
 def tier_list(request):
-    tiers = {choice: [] for choice, _ in TierListEntry.Tier.choices}
+    levels = list(TierLevel.objects.all())
+    buckets = {None: []}
+    buckets.update({level.pk: [] for level in levels})
     for entry in TierListEntry.objects.select_related("movie"):
-        tiers[entry.tier].append(entry)
-    return render(request, "secret/tier_list.html", {"tiers": tiers})
+        buckets[entry.tier_id].append(entry)
+
+    level_rows = [(level, buckets[level.pk]) for level in levels]
+    return render(request, "secret/tier_list.html", {
+        "level_rows": level_rows, "unsorted_entries": buckets[None],
+    })
 
 
 @secret_required
@@ -124,7 +135,7 @@ def tier_list_add(request, tmdb_id):
             messages.error(request, str(exc))
         else:
             TierListEntry.objects.get_or_create(
-                movie=movie, defaults={"title": movie.title, "tier": TierListEntry.Tier.UNSORTED},
+                movie=movie, defaults={"title": movie.title, "tier": None},
             )
     return redirect("secret:tier-list")
 
@@ -134,15 +145,54 @@ def tier_list_move(request, pk):
     if request.method != "POST":
         raise Http404
     entry = get_object_or_404(TierListEntry, pk=pk)
-    new_tier = request.POST.get("tier")
-    if new_tier not in TierListEntry.Tier.values:
-        return JsonResponse({"ok": False, "error": "nivel inválido"}, status=400)
+    raw_tier = request.POST.get("tier", "")
+    level = None
+    if raw_tier:
+        try:
+            level = TierLevel.objects.get(pk=raw_tier)
+        except (TierLevel.DoesNotExist, ValueError):
+            return JsonResponse({"ok": False, "error": "nivel inválido"}, status=400)
 
-    max_order = TierListEntry.objects.filter(tier=new_tier).aggregate(Max("order"))["order__max"] or 0
-    entry.tier = new_tier
+    max_order = TierListEntry.objects.filter(tier=level).aggregate(Max("order"))["order__max"] or 0
+    entry.tier = level
     entry.order = max_order + 1
     entry.save(update_fields=["tier", "order"])
     return JsonResponse({"ok": True})
+
+
+@secret_required
+def tier_level_create(request):
+    if request.method == "POST":
+        form = TierLevelForm(request.POST)
+        if form.is_valid():
+            max_order = TierLevel.objects.aggregate(Max("order"))["order__max"] or 0
+            level = form.save(commit=False)
+            level.order = max_order + 1
+            level.save()
+        else:
+            messages.error(request, "No se pudo añadir el nivel.")
+    return redirect("secret:tier-list")
+
+
+@secret_required
+def tier_level_update(request, pk):
+    level = get_object_or_404(TierLevel, pk=pk)
+    if request.method == "POST":
+        form = TierLevelForm(request.POST, instance=level)
+        if form.is_valid():
+            form.save()
+        else:
+            messages.error(request, "No se pudo guardar el nivel.")
+    return redirect("secret:tier-list")
+
+
+@secret_required
+def tier_level_delete(request, pk):
+    level = get_object_or_404(TierLevel, pk=pk)
+    if request.method == "POST":
+        level.delete()
+        messages.success(request, "Nivel borrado. Sus películas han vuelto a 'Sin clasificar'.")
+    return redirect("secret:tier-list")
 
 
 @secret_required
@@ -159,7 +209,7 @@ def photo_board(request):
         form = SecretPhotoForm(request.POST, request.FILES)
         if form.is_valid():
             photo = form.save(commit=False)
-            if request.user.is_authenticated:
+            if request.user.is_authenticated and not form.cleaned_data["post_as_anonymous"]:
                 photo.uploaded_by = request.user
             photo.save()
             messages.success(request, "Foto subida al tablón.")

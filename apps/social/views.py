@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from apps.accounts.models import User
 
-from .models import FriendRequest, Message, friendship_status
+from .models import FriendRequest, Message, friends_of, friendship_status
 
 
 @login_required
@@ -73,13 +73,7 @@ def remove_friend(request, username):
 
 @login_required
 def friends_list(request):
-    accepted = FriendRequest.objects.filter(
-        Q(from_user=request.user, accepted=True) | Q(to_user=request.user, accepted=True)
-    ).select_related("from_user", "to_user")
-    friends = [
-        fr.to_user if fr.from_user_id == request.user.pk else fr.from_user
-        for fr in accepted
-    ]
+    friends = friends_of(request.user)
     incoming = FriendRequest.objects.filter(to_user=request.user, accepted=False).select_related("from_user")
     outgoing = FriendRequest.objects.filter(from_user=request.user, accepted=False).select_related("to_user")
 

@@ -19,9 +19,6 @@
         </div>
         {% endif %}
 
-        {% if form is None %}
-        <p class="muted">El formulario de contacto todavía no está activo: falta configurar un email de contacto en el admin.</p>
-        {% else %}
         <form method="post" class="stacked-form">
             {% csrf_token %}
             <div class="field">
@@ -45,7 +42,6 @@
             </div>
             <button type="submit" class="btn btn--accent">Enviar</button>
         </form>
-        {% endif %}
     </div>
 </section>
 {% endblock %}

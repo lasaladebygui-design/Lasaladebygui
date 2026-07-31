@@ -4,7 +4,7 @@ from django.contrib import admin
 from apps.core.admin import SingletonAdmin
 
 from .forms import SecretMovieForm
-from .models import Genre, SecretMovie, SecretPhoto, TierListEntry, TopSecretConfig
+from .models import Genre, SecretMovie, SecretPhoto, TierLevel, TierListEntry, TopSecretConfig
 
 
 class TopSecretConfigForm(forms.ModelForm):
@@ -63,6 +63,13 @@ class SecretPhotoAdmin(admin.ModelAdmin):
     search_fields = ("description",)
 
 
+@admin.register(TierLevel)
+class TierLevelAdmin(admin.ModelAdmin):
+    list_display = ("name", "color", "order")
+    list_editable = ("color", "order")
+    ordering = ("order",)
+
+
 @admin.register(TierListEntry)
 class TierListEntryAdmin(admin.ModelAdmin):
     list_display = ("title", "tier", "order")
@@ -71,4 +78,4 @@ class TierListEntryAdmin(admin.ModelAdmin):
     list_filter = ("tier",)
     search_fields = ("title",)
     autocomplete_fields = ("movie",)
-    ordering = ("tier", "order")
+    ordering = ("tier__order", "order")

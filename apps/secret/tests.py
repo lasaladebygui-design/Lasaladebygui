@@ -11,7 +11,7 @@ from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError
 
 from .forms import SecretMovieForm
-from .models import Genre, SecretMovie, SecretPhoto, TierListEntry, TopSecretConfig
+from .models import Genre, SecretMovie, SecretPhoto, TierLevel, TierListEntry, TopSecretConfig
 
 try:
     from PIL import Image
@@ -134,19 +134,25 @@ class SecretMovieFormTests(TestCase):
 
 
 class TierListTests(TestCase):
+    """Los niveles S/A/B/C/D que trae `seed_quotes`/las migraciones por
+    defecto no son relevantes aquí: cada test parte de su propio conjunto
+    de niveles para no depender de ese valor de fábrica."""
+
     def setUp(self):
         self.client.post(reverse("secret:gate"), {"code": "8888"})
+        TierLevel.objects.all().delete()
+        self.s = TierLevel.objects.create(name="S", color="#FFD700", order=0)
+        self.d = TierLevel.objects.create(name="D", color="#D98C8C", order=1)
 
     def test_agrupa_por_nivel(self):
-        TierListEntry.objects.create(tier="S", title="Pulp Fiction", order=1)
-        TierListEntry.objects.create(tier="S", title="Kill Bill", order=2)
-        TierListEntry.objects.create(tier="D", title="Una película mala", order=1)
+        TierListEntry.objects.create(tier=self.s, title="Pulp Fiction", order=1)
+        TierListEntry.objects.create(tier=self.s, title="Kill Bill", order=2)
+        TierListEntry.objects.create(tier=self.d, title="Una película mala", order=1)
 
         response = self.client.get(reverse("secret:tier-list"))
-        tiers = response.context["tiers"]
-        self.assertEqual([e.title for e in tiers["S"]], ["Pulp Fiction", "Kill Bill"])
-        self.assertEqual([e.title for e in tiers["D"]], ["Una película mala"])
-        self.assertEqual(tiers["A"], [])
+        level_rows = dict(response.context["level_rows"])
+        self.assertEqual([e.title for e in level_rows[self.s]], ["Pulp Fiction", "Kill Bill"])
+        self.assertEqual([e.title for e in level_rows[self.d]], ["Una película mala"])
 
     def test_requiere_haber_entrado_al_maletin(self):
         self.client.post(reverse("secret:lock"))
@@ -166,7 +172,7 @@ class TierListTests(TestCase):
         response = self.client.post(reverse("secret:tier-list-add", args=[99]))
         self.assertRedirects(response, reverse("secret:tier-list"))
         entry = TierListEntry.objects.get(movie__tmdb_id=99)
-        self.assertEqual(entry.tier, TierListEntry.Tier.UNSORTED)
+        self.assertIsNone(entry.tier)
         self.assertEqual(entry.title, "Nueva película")
 
     @patch("apps.secret.views.Movie.get_or_create_from_tmdb", side_effect=MovieAPIError("fallo"))
@@ -176,43 +182,97 @@ class TierListTests(TestCase):
         self.assertFalse(TierListEntry.objects.exists())
 
     def test_mover_cambia_de_nivel_y_se_coloca_al_final(self):
-        TierListEntry.objects.create(tier="B", title="Ya en B", order=1)
-        entry = TierListEntry.objects.create(tier="A", title="Se mueve", order=1)
+        TierListEntry.objects.create(tier=self.d, title="Ya en D", order=1)
+        entry = TierListEntry.objects.create(tier=self.s, title="Se mueve", order=1)
 
-        response = self.client.post(reverse("secret:tier-list-move", args=[entry.pk]), {"tier": "B"})
+        response = self.client.post(reverse("secret:tier-list-move", args=[entry.pk]), {"tier": self.d.pk})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"ok": True})
 
         entry.refresh_from_db()
-        self.assertEqual(entry.tier, "B")
+        self.assertEqual(entry.tier, self.d)
         self.assertEqual(entry.order, 2)
 
+    def test_mover_a_sin_clasificar(self):
+        entry = TierListEntry.objects.create(tier=self.s, title="X", order=1)
+        response = self.client.post(reverse("secret:tier-list-move", args=[entry.pk]), {"tier": ""})
+        self.assertEqual(response.status_code, 200)
+        entry.refresh_from_db()
+        self.assertIsNone(entry.tier)
+
     def test_mover_con_nivel_invalido_da_error(self):
-        entry = TierListEntry.objects.create(tier="A", title="X", order=1)
-        response = self.client.post(reverse("secret:tier-list-move", args=[entry.pk]), {"tier": "Z"})
+        entry = TierListEntry.objects.create(tier=self.s, title="X", order=1)
+        response = self.client.post(reverse("secret:tier-list-move", args=[entry.pk]), {"tier": "9999"})
         self.assertEqual(response.status_code, 400)
         entry.refresh_from_db()
-        self.assertEqual(entry.tier, "A")
+        self.assertEqual(entry.tier, self.s)
 
     def test_mover_requiere_haber_entrado_al_maletin(self):
-        entry = TierListEntry.objects.create(tier="A", title="X", order=1)
+        entry = TierListEntry.objects.create(tier=self.s, title="X", order=1)
         self.client.post(reverse("secret:lock"))
         response = self.client.get(reverse("secret:tier-list-move", args=[entry.pk]))
         self.assertRedirects(response, reverse("secret:gate"))
 
     def test_reiniciar_vacia_toda_la_tier_list(self):
-        TierListEntry.objects.create(tier="S", title="Uno", order=1)
-        TierListEntry.objects.create(tier="U", title="Dos", order=1)
+        TierListEntry.objects.create(tier=self.s, title="Uno", order=1)
+        TierListEntry.objects.create(tier=None, title="Dos", order=1)
         response = self.client.post(reverse("secret:tier-list-reset"))
         self.assertRedirects(response, reverse("secret:tier-list"))
         self.assertFalse(TierListEntry.objects.exists())
 
     def test_reiniciar_requiere_haber_entrado_al_maletin(self):
-        TierListEntry.objects.create(tier="S", title="Uno", order=1)
+        TierListEntry.objects.create(tier=self.s, title="Uno", order=1)
         self.client.post(reverse("secret:lock"))
         response = self.client.get(reverse("secret:tier-list-reset"))
         self.assertRedirects(response, reverse("secret:gate"))
         self.assertTrue(TierListEntry.objects.exists())
+
+
+class TierLevelManagementTests(TestCase):
+    """Nombre, color y alta/baja de niveles se gestionan enteros desde la
+    propia página del Tier List, sin pasar por el admin."""
+
+    def setUp(self):
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+        TierLevel.objects.all().delete()
+
+    def test_anadir_nivel(self):
+        response = self.client.post(reverse("secret:tier-level-create"), {"name": "Favoritas", "color": "#ABCDEF"})
+        self.assertRedirects(response, reverse("secret:tier-list"))
+        level = TierLevel.objects.get(name="Favoritas")
+        self.assertEqual(level.color, "#ABCDEF")
+
+    def test_nuevo_nivel_se_coloca_al_final(self):
+        TierLevel.objects.create(name="S", color="#FFD700", order=0)
+        self.client.post(reverse("secret:tier-level-create"), {"name": "Extra", "color": "#000000"})
+        nuevo = TierLevel.objects.get(name="Extra")
+        self.assertEqual(nuevo.order, 1)
+
+    def test_editar_nivel_cambia_nombre_y_color(self):
+        level = TierLevel.objects.create(name="S", color="#FFD700", order=0)
+        response = self.client.post(
+            reverse("secret:tier-level-update", args=[level.pk]), {"name": "Sobresaliente", "color": "#123456"},
+        )
+        self.assertRedirects(response, reverse("secret:tier-list"))
+        level.refresh_from_db()
+        self.assertEqual(level.name, "Sobresaliente")
+        self.assertEqual(level.color, "#123456")
+
+    def test_borrar_nivel_manda_sus_peliculas_a_sin_clasificar(self):
+        level = TierLevel.objects.create(name="S", color="#FFD700", order=0)
+        entry = TierListEntry.objects.create(tier=level, title="Se queda sin nivel", order=1)
+
+        response = self.client.post(reverse("secret:tier-level-delete", args=[level.pk]))
+        self.assertRedirects(response, reverse("secret:tier-list"))
+        self.assertFalse(TierLevel.objects.filter(pk=level.pk).exists())
+
+        entry.refresh_from_db()
+        self.assertIsNone(entry.tier)
+
+    def test_gestion_de_niveles_requiere_haber_entrado_al_maletin(self):
+        self.client.post(reverse("secret:lock"))
+        response = self.client.post(reverse("secret:tier-level-create"), {"name": "X", "color": "#000000"})
+        self.assertRedirects(response, reverse("secret:gate"))
 
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())

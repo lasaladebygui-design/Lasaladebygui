@@ -5,9 +5,10 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from apps.accounts.models import User
-from apps.social.models import are_friends
+from apps.social.models import Message, are_friends, friends_of
 
 from .models import Duel, MovieQuote
 
@@ -17,11 +18,13 @@ QUOTE_BEST_ANON_KEY = "quote_streak_best_anon"
 
 def games_hub(request):
     duels = []
+    friends = []
     if request.user.is_authenticated:
         duels = Duel.objects.filter(
             Q(challenger=request.user) | Q(opponent=request.user)
         ).select_related("challenger", "opponent")
-    return render(request, "games/games.html", {"duels": duels})
+        friends = friends_of(request.user)
+    return render(request, "games/games.html", {"duels": duels, "friends": friends})
 
 
 def _register_best_streak(request, streak):
@@ -91,9 +94,14 @@ def duel_invite(request, username):
             messages.error(request, "Todavía no hay frases suficientes para un duelo.")
         else:
             duel = Duel.objects.create(challenger=request.user, opponent=other, quote_ids=quote_ids)
+            duel_url = request.build_absolute_uri(reverse("games:duel-detail", args=[duel.pk]))
+            Message.objects.create(
+                sender=request.user, recipient=other,
+                body=f"¡Te reto a un duelo de Frases célebres! {duel_url}",
+            )
             messages.success(request, f"Duelo enviado a {other.username}.")
             return redirect("games:duel-detail", pk=duel.pk)
-    return redirect("social:public-profile", username=username)
+    return redirect("games:hub")
 
 
 @login_required

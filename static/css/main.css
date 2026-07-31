@@ -395,6 +395,14 @@ main { flex: 1; }
     color: var(--color-text);
     font: inherit;
 }
+.field--checkbox label {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--space-unit) * 1);
+    color: var(--color-text);
+}
+.field--checkbox input { width: auto; }
+
 .field input:focus,
 .field select:focus {
     outline: none;
@@ -585,9 +593,19 @@ main { flex: 1; }
     margin: calc(var(--space-unit) * 4) 0;
 }
 
-.richtext { margin-top: calc(var(--space-unit) * 6); }
+.richtext { margin-top: calc(var(--space-unit) * 6); overflow: hidden; }
 .richtext img { max-width: 100%; height: auto; border-radius: var(--radius-base); }
 .richtext p { color: var(--color-text); }
+.richtext figure.image { margin: calc(var(--space-unit) * 2) 0; }
+.richtext .image-style-align-left {
+    float: left;
+    margin: calc(var(--space-unit) * 1) calc(var(--space-unit) * 4) calc(var(--space-unit) * 2) 0;
+}
+.richtext .image-style-align-right {
+    float: right;
+    margin: calc(var(--space-unit) * 1) 0 calc(var(--space-unit) * 2) calc(var(--space-unit) * 4);
+}
+.richtext .image-style-align-center { margin-left: auto; margin-right: auto; }
 .richtext blockquote {
     border-left: 3px solid var(--color-accent);
     margin: 0 0 calc(var(--space-unit) * 4);
@@ -1018,18 +1036,58 @@ main { flex: 1; }
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 64px;
+    min-width: 64px;
+    max-width: 110px;
     flex-shrink: 0;
+    padding: calc(var(--space-unit) * 1) calc(var(--space-unit) * 2);
     font-family: var(--font-heading);
-    font-size: 1.6rem;
+    font-size: 1.1rem;
     font-weight: 700;
     color: #1a1a1a;
+    text-align: center;
+    word-break: break-word;
 }
-.tier-row--s .tier-row__label { background: #FFD700; }
-.tier-row--a .tier-row__label { background: #90EE90; }
-.tier-row--b .tier-row__label { background: #87CEEB; }
-.tier-row--c .tier-row__label { background: #FFA366; }
-.tier-row--d .tier-row__label { background: #D98C8C; }
+
+.tier-row__tools {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--space-unit) * 1);
+    padding: 0 calc(var(--space-unit) * 2);
+    flex-shrink: 0;
+    background: var(--color-surface);
+    border-left: 1px solid var(--color-border);
+}
+.tier-row__tools summary { cursor: pointer; list-style: none; }
+.tier-row__tools summary::-webkit-details-marker { display: none; }
+.tier-row__edit { position: relative; }
+.tier-row__edit-form {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--space-unit) * 1);
+    margin-top: calc(var(--space-unit) * 1);
+}
+.tier-row__edit-form input[type="text"] {
+    width: 110px;
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--radius-base);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font: inherit;
+}
+.tier-row__edit-form input[type="color"] {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: none;
+}
+.tier-add-level { margin-top: calc(var(--space-unit) * 2); }
+.tier-add-level .tier-row__edit-form { margin-top: calc(var(--space-unit) * 2); }
+.tier-add-level summary { cursor: pointer; }
 
 .tier-row--u {
     border-style: dashed;
@@ -1403,6 +1461,27 @@ main { flex: 1; }
     flex: 1;
 }
 
+.home-fab {
+    position: fixed;
+    left: calc(var(--space-unit) * 3);
+    bottom: calc(var(--space-unit) * 3);
+    z-index: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    font-size: 1.25rem;
+    text-decoration: none;
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+}
+.home-fab:hover, .home-fab:focus-visible { opacity: 1; }
+
 .pwa-install-banner {
     position: fixed;
     left: 50%;
@@ -1464,4 +1543,13 @@ main { flex: 1; }
     .intro__skip { right: calc(var(--space-unit) * 3); bottom: calc(var(--space-unit) * 3); }
 
     .pwa-install-banner { flex-direction: column; align-items: stretch; text-align: center; }
+
+    /* En móvil, las imágenes ancladas a un lado ocupan todo el ancho en vez
+       de dejar el texto en una columna demasiado estrecha para leerse bien. */
+    .richtext .image-style-align-left,
+    .richtext .image-style-align-right {
+        float: none;
+        margin-left: auto;
+        margin-right: auto;
+    }
 }

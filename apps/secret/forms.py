@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Genre, SecretMovie, SecretPhoto
+from .models import Genre, SecretMovie, SecretPhoto, TierLevel
 
 RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
 
@@ -64,7 +64,20 @@ class RatingSearchForm(forms.Form):
         return cleaned
 
 
+class TierLevelForm(forms.ModelForm):
+    class Meta:
+        model = TierLevel
+        fields = ["name", "color"]
+        labels = {"name": "Nombre", "color": "Color"}
+        widgets = {
+            "name": forms.TextInput(attrs={"maxlength": 30}),
+            "color": forms.TextInput(attrs={"type": "color"}),
+        }
+
+
 class SecretPhotoForm(forms.ModelForm):
+    post_as_anonymous = forms.BooleanField(label="Publicar como anónimo", required=False)
+
     class Meta:
         model = SecretPhoto
         fields = ["image", "description"]
