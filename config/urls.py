@@ -2,15 +2,29 @@
 
 from django.conf import settings
 from django.contrib import admin
+from django.http import HttpResponse
 from django.urls import include, path, re_path
 from django.views.static import serve as serve_static
 
 from apps.core.views import service_worker, theme_css
 
+
+def _debug_ckeditor_widget(request):
+    """Endpoint temporal: renderiza el widget REAL del campo body (tal cual
+    lo hace /articulos/nuevo/) para descartar que el widget se quedara con
+    una copia de la config cacheada desde que arrancó el proceso, en vez de
+    limitarnos a mirar settings.CKEDITOR_5_CONFIGS en crudo."""
+    from apps.articles.forms import ArticleForm
+
+    form = ArticleForm()
+    return HttpResponse(str(form["body"]), content_type="text/plain; charset=utf-8")
+
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("theme.css", theme_css, name="theme-css"),
     path("sw.js", service_worker, name="service-worker"),
+    path("__debug_ckeditor_widget__/", _debug_ckeditor_widget),
     path("cuenta/", include("apps.accounts.urls")),
     path("articulos/", include("apps.articles.urls")),
     path("foro/", include("apps.forum.urls")),
