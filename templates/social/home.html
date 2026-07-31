@@ -38,7 +38,13 @@
         <ul class="plain-list">
             {% for entry in conversations %}
             <li>
-                <a href="{% url 'social:public-profile' username=entry.user.username %}" class="chat-row__profile-link" title="Ver perfil">👤</a>
+                <a href="{% url 'social:public-profile' username=entry.user.username %}" class="chat-row__profile-link" title="Ver perfil">
+                    {% if entry.user.avatar %}
+                        <img src="{{ entry.user.avatar.url }}" alt="" class="profile-avatar profile-avatar--sm">
+                    {% else %}
+                        <span class="profile-avatar profile-avatar--sm profile-avatar--placeholder" aria-hidden="true">🎬</span>
+                    {% endif %}
+                </a>
                 <a href="{% url 'social:conversation' username=entry.user.username %}">
                     {% username_badge entry.user %}
                     {% if entry.unread %}<span class="tag-pill">{{ entry.unread }} sin leer</span>{% endif %}

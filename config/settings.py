@@ -199,12 +199,21 @@ STORAGES = {
 CKEDITOR_5_FILE_UPLOAD_PERMISSION = "staff"
 CKEDITOR_5_CONFIGS = {
     "default": {
+        # Barra de herramientas "de doc": no solo negrita/cursiva/subrayado,
+        # también color de texto y resaltado, listas con casillas, sangría,
+        # imagen (subida o por URL, se puede insertar entre dos frases
+        # cualesquiera, no solo al final), vídeo embebido (pegar un enlace
+        # de YouTube/Vimeo lo convierte en reproductor) y línea horizontal.
         "toolbar": [
+            "undo", "redo", "|",
             "heading", "|",
-            "bold", "italic", "underline", "link", "|",
-            "alignment", "bulletedList", "numberedList", "blockQuote", "|",
-            "imageUpload", "insertTable", "|",
-            "undo", "redo",
+            "bold", "italic", "underline", "strikethrough", "|",
+            "fontColor", "fontBackgroundColor", "highlight", "removeFormat", "|",
+            "alignment", "|",
+            "bulletedList", "numberedList", "todoList", "|",
+            "outdent", "indent", "|",
+            "link", "blockQuote", "insertImage", "insertTable", "mediaEmbed", "horizontalLine", "|",
+            "specialCharacters", "findAndReplace",
         ],
         "image": {
             "toolbar": [
