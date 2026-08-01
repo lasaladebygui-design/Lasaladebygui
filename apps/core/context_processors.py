@@ -9,4 +9,5 @@ def site_context(request):
         "site_config": SiteConfig.load(),
         "site_theme": get_effective_theme(getattr(request, "user", None), getattr(request, "session", None)),
         "all_themes": Theme.objects.all(),
+        "vapid_public_key": settings.VAPID_PUBLIC_KEY,
     }

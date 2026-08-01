@@ -1,12 +1,15 @@
+from unittest.mock import patch
+
 from django.core import mail
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from apps.accounts.models import User
+from apps.accounts.models import PushSubscription, User
 from apps.articles.models import Article
 from config.storage import supabase_public_domain
 
+from . import push as push_module
 from .models import SESSION_THEME_KEY, ContactLink, SiteConfig, Theme, get_effective_theme
 
 
@@ -283,3 +286,46 @@ class AdminAccessTests(TestCase):
     def test_anonimo_no_entra(self):
         response = self.client.get(reverse("admin:index"))
         self.assertRedirects(response, "/admin/login/?next=/admin/", fetch_redirect_response=False)
+
+
+@override_settings(VAPID_PUBLIC_KEY="clave-publica", VAPID_PRIVATE_KEY="clave-privada")
+class PushHelperTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create(email="push_helper@test.local", role=User.Role.LECTOR)
+        self.subscription = PushSubscription.objects.create(
+            user=self.user, endpoint="https://push.example/uno", p256dh="p", auth="a",
+        )
+
+    def test_push_enabled_requiere_claves_vapid(self):
+        self.assertTrue(push_module.push_enabled())
+
+    @override_settings(VAPID_PUBLIC_KEY="", VAPID_PRIVATE_KEY="")
+    def test_push_disabled_sin_claves(self):
+        self.assertFalse(push_module.push_enabled())
+
+    @override_settings(VAPID_PUBLIC_KEY="", VAPID_PRIVATE_KEY="")
+    @patch("apps.core.push.webpush")
+    def test_no_manda_nada_si_esta_desactivado(self, mock_webpush):
+        push_module.send_push_to_user(self.user, "Título", "Cuerpo")
+        mock_webpush.assert_not_called()
+
+    @patch("apps.core.push.webpush")
+    def test_manda_push_a_cada_suscripcion_del_usuario(self, mock_webpush):
+        push_module.send_push_to_user(self.user, "Título", "Cuerpo", url="/algo/")
+        mock_webpush.assert_called_once()
+        kwargs = mock_webpush.call_args.kwargs
+        self.assertEqual(kwargs["subscription_info"]["endpoint"], "https://push.example/uno")
+
+    @patch("apps.core.push.webpush")
+    def test_borra_la_suscripcion_si_el_endpoint_ya_no_es_valido(self, mock_webpush):
+        response = type("Response", (), {"status_code": 410})()
+        mock_webpush.side_effect = push_module.WebPushException("caducada", response=response)
+        push_module.send_push_to_user(self.user, "Título", "Cuerpo")
+        self.assertFalse(PushSubscription.objects.filter(pk=self.subscription.pk).exists())
+
+    @patch("apps.core.push.webpush")
+    def test_conserva_la_suscripcion_si_falla_por_otro_motivo(self, mock_webpush):
+        response = type("Response", (), {"status_code": 500})()
+        mock_webpush.side_effect = push_module.WebPushException("error servidor", response=response)
+        push_module.send_push_to_user(self.user, "Título", "Cuerpo")
+        self.assertTrue(PushSubscription.objects.filter(pk=self.subscription.pk).exists())

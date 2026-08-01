@@ -274,6 +274,18 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="") or (
 TMDB_API_KEY = env("TMDB_API_KEY", default="")
 OMDB_API_KEY = env("OMDB_API_KEY", default="")
 
+# --- Notificaciones push (Web Push / VAPID) -------------------------------
+# Se generan una sola vez con `python manage.py generate_vapid_keys` y se
+# guardan como variables de entorno (nunca en el código). Si faltan, el
+# sitio sigue funcionando con normalidad — simplemente no se envía ningún
+# push (apps.core.push.send_push_to_user no hace nada sin credenciales).
+VAPID_PUBLIC_KEY = env("VAPID_PUBLIC_KEY", default="")
+# El PEM se guarda en una variable de entorno como una sola línea con "\n"
+# literales (así lo imprime generate_vapid_keys); aquí se convierten de
+# vuelta a saltos de línea reales, que es lo que espera el formato PEM.
+VAPID_PRIVATE_KEY = env("VAPID_PRIVATE_KEY", default="").replace("\\n", "\n")
+VAPID_CONTACT_EMAIL = env("VAPID_CONTACT_EMAIL", default="contacto@lasaladebygui.local")
+
 # --- Identidad del sitio --------------------------------------------------
 
 SITE_NAME = "La Sala de Bygui"

@@ -68,17 +68,25 @@
             <button type="submit" class="btn btn--accent btn--block">Guardar</button>
         </form>
 
-        {% include "accounts/_favorite_movies_section.html" with title="🎬 Mis imprescindibles" category="essential" favorites=essentials limit=5 editable=True %}
-        {% include "accounts/_favorite_movies_section.html" with title="✨ Sugeridas" category="suggested" favorites=suggested limit=10 editable=True %}
-
         <p class="muted" style="margin-top:1.5rem;">
             ¿Quieres cambiar el tema visual? Usa el icono 🌙 de la cabecera — se aplica al momento y se guarda en tu cuenta.
         </p>
+
+        {% if vapid_public_key %}
+        <button type="button" class="btn btn--ghost btn--block" style="margin-top:1rem;"
+                data-push-subscribe data-subscribe-url="{% url 'accounts:push-subscribe' %}">
+            🔔 Activar notificaciones
+        </button>
+        {% endif %}
 
         <form method="post" action="{% url 'accounts:logout' %}" style="margin-top:1.5rem;">
             {% csrf_token %}
             <button type="submit" class="btn btn--ghost btn--block">Cerrar sesión</button>
         </form>
     </div>
+</div>
+
+<div class="wrap">
+    {% include "accounts/_favorite_movies_tabs.html" with editable=True %}
 </div>
 {% endblock %}

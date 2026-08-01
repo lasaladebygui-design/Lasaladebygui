@@ -14,7 +14,7 @@
         <div class="search-result__body">
             <strong>{{ movie.title }}</strong> <span class="muted">{{ movie.year }}</span>
         </div>
-        <form method="post" action="{% url 'accounts:favorite-add' category=category media_type=media_type tmdb_id=movie.tmdb_id %}">
+        <form method="post" action="{% url 'games:tier-list-add' movie.tmdb_id %}">
             {% csrf_token %}
             <button type="submit" class="btn btn--ghost btn--sm">Añadir</button>
         </form>

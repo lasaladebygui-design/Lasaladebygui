@@ -9,6 +9,9 @@
     <meta property="og:description" content="{{ site_config.tagline }}">
     <meta property="og:type" content="website">
     <meta name="theme-color" content="{{ site_theme.color_bg }}">
+    {% if user.is_authenticated and vapid_public_key %}
+    <meta name="vapid-public-key" content="{{ vapid_public_key }}">
+    {% endif %}
     <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
     <link rel="manifest" href="{% static 'manifest.json' %}">
     <link rel="apple-touch-icon" href="{% static 'img/pwa-icon-192.png' %}">
@@ -20,6 +23,7 @@
     <script src="{% static 'js/theme_switcher.js' %}"></script>
     <script src="{% static 'js/rotating_quote.js' %}"></script>
     <script src="{% static 'js/pwa_install.js' %}"></script>
+    {% if user.is_authenticated %}<script src="{% static 'js/push_subscribe.js' %}"></script>{% endif %}
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
     <script>

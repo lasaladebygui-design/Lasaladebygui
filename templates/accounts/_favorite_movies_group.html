@@ -1,0 +1,47 @@
+<div class="favorites-group">
+    <h3 class="favorites-group__title">{{ group_title }} <span class="muted">({{ favorites|length }}/{{ limit }})</span></h3>
+    {% if favorites %}
+    <div class="favorites-grid favorites-grid--3col">
+        {% for fav in favorites %}
+        <div class="favorite-card">
+            {% if fav.movie.poster_url %}
+                <img src="{{ fav.movie.poster_url }}" alt="" class="favorite-card__poster">
+            {% else %}
+                <div class="favorite-card__poster favorite-card__poster--placeholder"><span>🎬</span></div>
+            {% endif %}
+            <span class="favorite-card__title">{{ fav.movie.title }}</span>
+            {% if editable %}
+            <div class="favorite-card__tools">
+                <form method="post" action="{% url 'accounts:favorite-move' pk=fav.pk direction='up' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="link-btn" title="Mover antes" {% if forloop.first %}disabled{% endif %}>◀</button>
+                </form>
+                <form method="post" action="{% url 'accounts:favorite-remove' pk=fav.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="link-btn link-btn--danger" title="Quitar">✕</button>
+                </form>
+                <form method="post" action="{% url 'accounts:favorite-move' pk=fav.pk direction='down' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="link-btn" title="Mover después" {% if forloop.last %}disabled{% endif %}>▶</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted">Todavía no hay ninguna aquí.</p>
+    {% endif %}
+
+    {% if editable %}
+    <div class="field">
+        <label for="id_favorite_query_{{ category }}_{{ media_type }}">Buscar y añadir {% if media_type == "tv" %}una serie{% else %}una película{% endif %}</label>
+        <input type="text" id="id_favorite_query_{{ category }}_{{ media_type }}" name="query" placeholder="Título…" autocomplete="off"
+               hx-get="{% url 'accounts:favorite-search' category=category media_type=media_type %}"
+               hx-trigger="keyup changed delay:400ms, search"
+               hx-target="#favorite-search-results-{{ category }}-{{ media_type }}"
+               hx-swap="innerHTML">
+    </div>
+    <div id="favorite-search-results-{{ category }}-{{ media_type }}"></div>
+    {% endif %}
+</div>

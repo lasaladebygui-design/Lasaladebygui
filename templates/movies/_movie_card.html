@@ -1,4 +1,4 @@
-<a href="{% if local %}{% url 'movies:detail' movie.pk %}{% else %}{% url 'movies:from-tmdb' movie.tmdb_id %}{% endif %}" class="movie-card">
+<a href="{% if local %}{% url 'movies:detail' movie.pk %}{% else %}{% url 'movies:from-tmdb' movie.media_type movie.tmdb_id %}{% endif %}" class="movie-card">
     {% if movie.poster_url %}
         <img src="{{ movie.poster_url }}" alt="" class="movie-card__poster">
     {% else %}
@@ -6,7 +6,7 @@
     {% endif %}
     <div class="movie-card__body">
         <h3>{{ movie.title }}</h3>
-        <p class="muted">{{ movie.year }}</p>
+        <p class="muted">{{ movie.year }} {% if movie.media_type == "tv" %}· Serie{% endif %}</p>
         {% if local and movie.imdb_rating %}<span class="tag-pill">IMDb {{ movie.imdb_rating }}</span>{% endif %}
     </div>
 </a>

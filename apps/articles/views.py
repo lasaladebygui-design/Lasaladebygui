@@ -1,8 +1,11 @@
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+
+from apps.core.push import send_push_to_users
 
 from .forms import ArticleCommentForm, ArticleForm
 from .models import Article, Tag
@@ -49,11 +52,14 @@ def article_detail(request, slug):
         else:
             comment_form = ArticleCommentForm()
 
+    latest_articles = Article.objects.exclude(pk=article.pk)[:5]
+
     return render(request, "articles/detail.html", {
         "article": article,
         "comment_form": comment_form,
         "can_edit": can_edit_article(request.user, article),
         "can_delete": can_delete_article(request.user, article),
+        "latest_articles": latest_articles,
     })
 
 
@@ -70,6 +76,14 @@ def article_create(request):
             article.save()
             form.save_m2m()
             messages.success(request, "Artículo publicado.")
+            User = get_user_model()
+            subscribers = User.objects.filter(push_subscriptions__isnull=False).exclude(pk=article.author_id).distinct()
+            send_push_to_users(
+                subscribers,
+                title="Nuevo artículo",
+                body=article.title,
+                url=article.get_absolute_url(),
+            )
             return redirect(article.get_absolute_url())
     else:
         form = ArticleForm()
@@ -102,7 +116,14 @@ def article_delete(request, slug):
         raise Http404
 
     if request.method == "POST":
+        # Un tag que se quede sin ningún artículo tras borrar este ya no
+        # sirve para nada (no hay forma de llegar a él desde ningún sitio),
+        # así que se borra también — salvo que otro artículo lo siga usando.
+        tags = list(article.tags.all())
         article.delete()
+        for tag in tags:
+            if not tag.articles.exists():
+                tag.delete()
         messages.success(request, "Artículo eliminado.")
         return redirect("articles:list")
 

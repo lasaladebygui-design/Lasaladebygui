@@ -51,3 +51,9 @@ services:
         sync: false
       - key: SUPABASE_STORAGE_REGION
         sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_CONTACT_EMAIL
+        sync: false

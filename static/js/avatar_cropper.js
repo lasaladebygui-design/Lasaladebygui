@@ -1,6 +1,7 @@
 function avatarCropper(initialUrl) {
     const STAGE = 240;
     const OUTPUT = 480;
+    const MARGIN = 16; // pequeño margen de sobra al arrastrar, no queda pegado al borde exacto
 
     return {
         previewUrl: initialUrl || null,
@@ -51,10 +52,10 @@ function avatarCropper(initialUrl) {
 
         clampOffsets() {
             const { width, height } = this.displaySize();
-            const minX = Math.min(0, STAGE - width);
-            const minY = Math.min(0, STAGE - height);
-            this.offsetX = Math.max(minX, Math.min(0, this.offsetX));
-            this.offsetY = Math.max(minY, Math.min(0, this.offsetY));
+            const minX = Math.min(0, STAGE - width) - MARGIN;
+            const minY = Math.min(0, STAGE - height) - MARGIN;
+            this.offsetX = Math.max(minX, Math.min(MARGIN, this.offsetX));
+            this.offsetY = Math.max(minY, Math.min(MARGIN, this.offsetY));
         },
 
         onZoom() {

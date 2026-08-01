@@ -168,3 +168,38 @@ class DuelRecord(models.Model):
 
     def losses_for(self, user):
         return self.player_high_wins if user.pk == self.player_low_id else self.player_low_wins
+
+
+class GameTierEntry(models.Model):
+    """Tier list personal de cada usuario, como juego en `/juegos/` — no
+    tiene nada que ver con la de Top Secret (esa es la de Quentin/el dueño
+    del sitio, una sola y con niveles editables); esta es de cualquiera con
+    cuenta, un juego más, con los niveles clásicos S/A/B/C/D fijos."""
+
+    class Tier(models.TextChoices):
+        UNSORTED = "U", "Sin clasificar"
+        S = "S", "S"
+        A = "A", "A"
+        B = "B", "B"
+        C = "C", "C"
+        D = "D", "D"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="usuario", on_delete=models.CASCADE, related_name="game_tier_entries",
+    )
+    movie = models.ForeignKey(
+        "movies.Movie", verbose_name="película", on_delete=models.CASCADE, related_name="+",
+    )
+    tier = models.CharField("nivel", max_length=1, choices=Tier.choices, default=Tier.UNSORTED)
+    order = models.PositiveIntegerField("orden dentro del nivel", default=0)
+
+    class Meta:
+        verbose_name = "tier list de Juegos: entrada"
+        verbose_name_plural = "tier list de Juegos: entradas"
+        ordering = ["tier", "order", "movie__title"]
+        constraints = [
+            models.UniqueConstraint(fields=["user", "movie"], name="una_vez_por_usuario_en_tier_de_juegos"),
+        ]
+
+    def __str__(self):
+        return f"{self.user} — [{self.tier}] {self.movie}"

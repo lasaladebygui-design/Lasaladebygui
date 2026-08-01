@@ -1,4 +1,5 @@
 import io
+import json
 import re
 import tempfile
 from unittest.mock import patch
@@ -12,7 +13,7 @@ from apps.forum.models import Thread
 from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError
 
-from .models import FavoriteMovie, User
+from .models import FavoriteMovie, PushSubscription, User
 
 try:
     from PIL import Image
@@ -301,46 +302,81 @@ class FavoriteMovieTests(TestCase):
     @patch("apps.accounts.views.tmdb_search")
     def test_buscar_usa_el_servicio_tmdb(self, mock_search):
         mock_search.return_value = []
-        response = self.client.get(reverse("accounts:favorite-search", args=["essential"]), {"query": "matrix"})
+        response = self.client.get(
+            reverse("accounts:favorite-search", args=["essential", "movie"]), {"query": "matrix"}
+        )
         self.assertEqual(response.status_code, 200)
-        mock_search.assert_called_once_with("matrix")
+        mock_search.assert_called_once_with("matrix", media_type="movie")
 
     def test_categoria_invalida_da_404(self):
-        response = self.client.get(reverse("accounts:favorite-search", args=["otra-cosa"]), {"query": "matrix"})
+        response = self.client.get(
+            reverse("accounts:favorite-search", args=["otra-cosa", "movie"]), {"query": "matrix"}
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_tipo_invalido_da_404(self):
+        response = self.client.get(
+            reverse("accounts:favorite-search", args=["essential", "libro"]), {"query": "matrix"}
+        )
         self.assertEqual(response.status_code, 404)
 
     @patch("apps.accounts.views.Movie.get_or_create_from_tmdb")
-    def test_anadir_a_imprescindibles(self, mock_get_or_create):
-        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=1, title="Matrix")
-        response = self.client.post(reverse("accounts:favorite-add", args=["essential", 1]))
+    def test_anadir_pelicula_a_imprescindibles(self, mock_get_or_create):
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=1, title="Matrix", media_type="movie")
+        response = self.client.post(reverse("accounts:favorite-add", args=["essential", "movie", 1]))
         self.assertRedirects(response, reverse("accounts:profile"))
         self.assertTrue(FavoriteMovie.objects.filter(user=self.user, category="essential", movie__tmdb_id=1).exists())
+        mock_get_or_create.assert_called_once_with(1, media_type="movie")
 
     @patch("apps.accounts.views.Movie.get_or_create_from_tmdb")
-    def test_no_se_puede_superar_el_limite_de_imprescindibles(self, mock_get_or_create):
-        for i in range(5):
-            movie = Movie.objects.create(tmdb_id=i, title=f"Película {i}")
+    def test_anadir_serie_a_imprescindibles(self, mock_get_or_create):
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=1, title="Dark", media_type="tv")
+        response = self.client.post(reverse("accounts:favorite-add", args=["essential", "tv", 1]))
+        self.assertRedirects(response, reverse("accounts:profile"))
+        self.assertTrue(FavoriteMovie.objects.filter(user=self.user, category="essential", movie__media_type="tv").exists())
+
+    @patch("apps.accounts.views.Movie.get_or_create_from_tmdb")
+    def test_el_limite_de_peliculas_imprescindibles_es_tres(self, mock_get_or_create):
+        for i in range(3):
+            movie = Movie.objects.create(tmdb_id=i, title=f"Película {i}", media_type="movie")
             FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie, order=i)
 
-        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=99, title="La que sobra")
-        self.client.post(reverse("accounts:favorite-add", args=["essential", 99]))
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=99, title="La que sobra", media_type="movie")
+        self.client.post(reverse("accounts:favorite-add", args=["essential", "movie", 99]))
 
-        self.assertEqual(FavoriteMovie.objects.filter(user=self.user, category="essential").count(), 5)
+        self.assertEqual(
+            FavoriteMovie.objects.filter(user=self.user, category="essential", movie__media_type="movie").count(), 3
+        )
         self.assertFalse(FavoriteMovie.objects.filter(user=self.user, movie__tmdb_id=99).exists())
 
     @patch("apps.accounts.views.Movie.get_or_create_from_tmdb")
-    def test_el_limite_de_sugeridas_es_diez(self, mock_get_or_create):
-        for i in range(10):
-            movie = Movie.objects.create(tmdb_id=i, title=f"Película {i}")
+    def test_el_limite_de_series_imprescindibles_es_tres_aunque_haya_hueco_en_peliculas(self, mock_get_or_create):
+        for i in range(3):
+            movie = Movie.objects.create(tmdb_id=i, title=f"Serie {i}", media_type="tv")
+            FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie, order=i)
+
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=99, title="La que sobra", media_type="tv")
+        self.client.post(reverse("accounts:favorite-add", args=["essential", "tv", 99]))
+
+        self.assertEqual(
+            FavoriteMovie.objects.filter(user=self.user, category="essential", movie__media_type="tv").count(), 3
+        )
+
+    @patch("apps.accounts.views.Movie.get_or_create_from_tmdb")
+    def test_el_limite_de_peliculas_sugeridas_es_seis(self, mock_get_or_create):
+        for i in range(6):
+            movie = Movie.objects.create(tmdb_id=i, title=f"Película {i}", media_type="movie")
             FavoriteMovie.objects.create(user=self.user, category="suggested", movie=movie, order=i)
 
-        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=99, title="La que sobra")
-        self.client.post(reverse("accounts:favorite-add", args=["suggested", 99]))
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=99, title="La que sobra", media_type="movie")
+        self.client.post(reverse("accounts:favorite-add", args=["suggested", "movie", 99]))
 
-        self.assertEqual(FavoriteMovie.objects.filter(user=self.user, category="suggested").count(), 10)
+        self.assertEqual(
+            FavoriteMovie.objects.filter(user=self.user, category="suggested", movie__media_type="movie").count(), 6
+        )
 
     def test_quitar_una_favorita(self):
-        movie = Movie.objects.create(tmdb_id=5, title="Se va")
+        movie = Movie.objects.create(tmdb_id=5, title="Se va", media_type="movie")
         favorite = FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie)
         response = self.client.post(reverse("accounts:favorite-remove", args=[favorite.pk]))
         self.assertRedirects(response, reverse("accounts:profile"))
@@ -348,23 +384,100 @@ class FavoriteMovieTests(TestCase):
 
     def test_no_se_puede_quitar_una_favorita_ajena(self):
         other = User.objects.create(email="otro_fav@test.local", role=User.Role.LECTOR)
-        movie = Movie.objects.create(tmdb_id=6, title="No es tuya")
+        movie = Movie.objects.create(tmdb_id=6, title="No es tuya", media_type="movie")
         favorite = FavoriteMovie.objects.create(user=other, category="essential", movie=movie)
         response = self.client.post(reverse("accounts:favorite-remove", args=[favorite.pk]))
         self.assertEqual(response.status_code, 404)
         self.assertTrue(FavoriteMovie.objects.filter(pk=favorite.pk).exists())
 
+    def test_mover_una_favorita_cambia_el_orden(self):
+        movie_a = Movie.objects.create(tmdb_id=10, title="A", media_type="movie")
+        movie_b = Movie.objects.create(tmdb_id=11, title="B", media_type="movie")
+        fav_a = FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie_a, order=0)
+        fav_b = FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie_b, order=1)
+
+        self.client.post(reverse("accounts:favorite-move", args=[fav_b.pk, "up"]))
+
+        fav_a.refresh_from_db()
+        fav_b.refresh_from_db()
+        self.assertEqual(fav_b.order, 0)
+        self.assertEqual(fav_a.order, 1)
+
     def test_el_perfil_muestra_las_favoritas(self):
-        movie = Movie.objects.create(tmdb_id=7, title="Mi favorita", poster_path="/x.jpg")
+        movie = Movie.objects.create(tmdb_id=7, title="Mi favorita", poster_path="/x.jpg", media_type="movie")
         FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie)
         response = self.client.get(reverse("accounts:profile"))
         self.assertContains(response, "Mi favorita")
 
     def test_el_perfil_publico_muestra_las_favoritas_de_otro_sin_boton_de_quitar(self):
         other = User.objects.create(email="visto_fav@test.local", role=User.Role.LECTOR, username="vistofav")
-        movie = Movie.objects.create(tmdb_id=8, title="Favorita ajena")
+        movie = Movie.objects.create(tmdb_id=8, title="Favorita ajena", media_type="movie")
         FavoriteMovie.objects.create(user=other, category="essential", movie=movie)
 
         response = self.client.get(reverse("social:public-profile", kwargs={"username": "vistofav"}))
         self.assertContains(response, "Favorita ajena")
         self.assertNotContains(response, "favorite-remove")
+
+
+class PushSubscriptionTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create(email="push@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+    def _payload(self, endpoint="https://push.example/abc"):
+        return {"endpoint": endpoint, "keys": {"p256dh": "clave-p256dh", "auth": "clave-auth"}}
+
+    def test_requiere_login(self):
+        self.client.logout()
+        response = self.client.post(
+            reverse("accounts:push-subscribe"), data=json.dumps(self._payload()), content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 302)
+
+    def test_suscribir_crea_una_suscripcion(self):
+        response = self.client.post(
+            reverse("accounts:push-subscribe"), data=json.dumps(self._payload()), content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            PushSubscription.objects.filter(user=self.user, endpoint="https://push.example/abc").exists()
+        )
+
+    def test_suscribir_con_el_mismo_endpoint_actualiza_en_vez_de_duplicar(self):
+        self.client.post(
+            reverse("accounts:push-subscribe"), data=json.dumps(self._payload()), content_type="application/json",
+        )
+        self.client.post(
+            reverse("accounts:push-subscribe"), data=json.dumps(self._payload()), content_type="application/json",
+        )
+        self.assertEqual(PushSubscription.objects.filter(endpoint="https://push.example/abc").count(), 1)
+
+    def test_datos_invalidos_da_400(self):
+        response = self.client.post(
+            reverse("accounts:push-subscribe"), data=json.dumps({"algo": "raro"}), content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_desuscribir_borra_la_suscripcion(self):
+        PushSubscription.objects.create(
+            user=self.user, endpoint="https://push.example/abc", p256dh="p", auth="a",
+        )
+        response = self.client.post(
+            reverse("accounts:push-unsubscribe"),
+            data=json.dumps({"endpoint": "https://push.example/abc"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(PushSubscription.objects.filter(endpoint="https://push.example/abc").exists())
+
+    def test_no_se_puede_desuscribir_una_suscripcion_ajena(self):
+        other = User.objects.create(email="otro_push@test.local", role=User.Role.LECTOR)
+        PushSubscription.objects.create(user=other, endpoint="https://push.example/ajena", p256dh="p", auth="a")
+        self.client.post(
+            reverse("accounts:push-unsubscribe"),
+            data=json.dumps({"endpoint": "https://push.example/ajena"}),
+            content_type="application/json",
+        )
+        self.assertTrue(PushSubscription.objects.filter(endpoint="https://push.example/ajena").exists())

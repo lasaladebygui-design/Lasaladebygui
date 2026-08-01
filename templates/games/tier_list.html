@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Juegos — Tu tier list{% endblock %}
+
+{% block extra_head %}
+<script src="{% static 'js/tier_list.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap" data-tier-move-url-base="{% url 'games:tier-list' %}">
+        <div class="section-header">
+            <div>
+                <span class="card__tag">Juegos</span>
+                <h1>Tu tier list</h1>
+                <p class="muted">Tu propio ranking personal — nada que ver con la de Top Secret. Busca una película para añadirla, y arrastra las que ya tienes de un nivel a otro.</p>
+            </div>
+            <form method="post" action="{% url 'games:tier-list-reset' %}" class="inline-form"
+                  onsubmit="return confirm('¿Vaciar tu tier list? No se puede deshacer.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn--ghost btn--sm">Vaciar tier list</button>
+            </form>
+        </div>
+
+        <div class="field">
+            <label for="id_game_tier_query">Buscar y añadir una película</label>
+            <input type="text" id="id_game_tier_query" name="query" placeholder="Título de la película…" autocomplete="off"
+                   hx-get="{% url 'games:tier-list-search' %}"
+                   hx-trigger="keyup changed delay:400ms, search"
+                   hx-target="#game-tier-search-results"
+                   hx-swap="innerHTML">
+        </div>
+        <div id="game-tier-search-results"></div>
+
+        <div class="tier-row tier-row--u">
+            <span class="tier-row__label">?</span>
+            <div class="tier-row__items" data-tier="U">
+                {% for entry in unsorted_entries %}
+                <div class="tier-item" data-entry-id="{{ entry.pk }}">
+                    {% if entry.movie.poster_url %}
+                        <img src="{{ entry.movie.poster_url }}" alt="" class="tier-item__poster">
+                    {% else %}
+                        <div class="tier-item__poster tier-item__poster--placeholder"><span>🎬</span></div>
+                    {% endif %}
+                    <span class="tier-item__title">{{ entry.movie.title }}</span>
+                </div>
+                {% empty %}
+                <span class="muted tier-row__empty">Nada sin clasificar por ahora.</span>
+                {% endfor %}
+            </div>
+        </div>
+        <p class="muted tier-row__hint">↑ Sin clasificar — arrastra estas a un nivel real.</p>
+
+        {% for value, label, entries in tier_rows %}
+        <div class="tier-row">
+            <span class="tier-row__label tier-row__label--{{ value }}">{{ label }}</span>
+            <div class="tier-row__items" data-tier="{{ value }}">
+                {% for entry in entries %}
+                <div class="tier-item" data-entry-id="{{ entry.pk }}">
+                    {% if entry.movie.poster_url %}
+                        <img src="{{ entry.movie.poster_url }}" alt="" class="tier-item__poster">
+                    {% else %}
+                        <div class="tier-item__poster tier-item__poster--placeholder"><span>🎬</span></div>
+                    {% endif %}
+                    <span class="tier-item__title">{{ entry.movie.title }}</span>
+                </div>
+                {% empty %}
+                <span class="muted tier-row__empty">Sin películas todavía en este nivel.</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

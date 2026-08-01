@@ -1,11 +1,12 @@
 from django.contrib import admin
 
-from .models import Movie, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, Vote
+from .models import Movie, ReleaseEvent, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, Vote
 
 
 @admin.register(Movie)
 class MovieAdmin(admin.ModelAdmin):
-    list_display = ("title", "year", "imdb_rating", "votes_count_display", "created_at")
+    list_display = ("title", "media_type", "year", "imdb_rating", "votes_count_display", "created_at")
+    list_filter = ("media_type",)
     search_fields = ("title", "tmdb_id", "imdb_id")
     readonly_fields = ("tmdb_id", "imdb_id", "created_at")
 
@@ -34,3 +35,12 @@ class RouletteSavedSeenAdmin(admin.ModelAdmin):
 @admin.register(SavedMovie)
 class SavedMovieAdmin(admin.ModelAdmin):
     list_display = ("user", "movie", "saved_at")
+
+
+@admin.register(ReleaseEvent)
+class ReleaseEventAdmin(admin.ModelAdmin):
+    list_display = ("movie", "date", "note")
+    list_filter = ("date",)
+    search_fields = ("movie__title",)
+    autocomplete_fields = ("movie",)
+    ordering = ("date",)

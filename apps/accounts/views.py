@@ -1,20 +1,23 @@
+import json
+
 from django.contrib import messages
 from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.core.mail import send_mail
-from django.http import Http404
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.views.decorators.http import require_POST
 
 from apps.core.models import SiteConfig
 from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError, tmdb_search
 
 from .forms import EmailAuthenticationForm, ProfileForm, RegisterForm
-from .models import EmailVerificationToken, FavoriteMovie, User
+from .models import EmailVerificationToken, FavoriteMovie, PushSubscription, User
 
 
 def _send_verification_email(request, user):
@@ -100,16 +103,24 @@ def profile(request):
         form = ProfileForm(instance=request.user)
 
     favorites = FavoriteMovie.objects.filter(user=request.user).select_related("movie")
-    return render(request, "accounts/profile.html", {
-        "form": form,
-        "essentials": [f for f in favorites if f.category == FavoriteMovie.Category.ESSENTIAL],
-        "suggested": [f for f in favorites if f.category == FavoriteMovie.Category.SUGGESTED],
-    })
+    return render(request, "accounts/profile.html", _favorites_context(favorites))
+
+
+def _favorites_context(favorites):
+    def group(category, media_type):
+        return [f for f in favorites if f.category == category and f.movie.media_type == media_type]
+
+    return {
+        "essential_movies": group(FavoriteMovie.Category.ESSENTIAL, "movie"),
+        "essential_tv": group(FavoriteMovie.Category.ESSENTIAL, "tv"),
+        "suggested_movies": group(FavoriteMovie.Category.SUGGESTED, "movie"),
+        "suggested_tv": group(FavoriteMovie.Category.SUGGESTED, "tv"),
+    }
 
 
 @login_required
-def favorite_search(request, category):
-    if category not in FavoriteMovie.Category.values:
+def favorite_search(request, category, media_type):
+    if category not in FavoriteMovie.Category.values or media_type not in ("movie", "tv"):
         raise Http404
 
     query = request.GET.get("query", "").strip()
@@ -117,23 +128,26 @@ def favorite_search(request, category):
     error = None
     if query:
         try:
-            results = tmdb_search(query)[:8]
+            results = tmdb_search(query, media_type=media_type)[:8]
         except MovieAPIError as exc:
             error = str(exc)
     return render(request, "accounts/_favorite_search_results.html", {
-        "results": results, "error": error, "query": query, "category": category,
+        "results": results, "error": error, "query": query, "category": category, "media_type": media_type,
     })
 
 
 @login_required
-def favorite_add(request, category, tmdb_id):
-    if request.method == "POST" and category in FavoriteMovie.Category.values:
-        current_count = FavoriteMovie.objects.filter(user=request.user, category=category).count()
-        if current_count >= FavoriteMovie.LIMITS[category]:
+def favorite_add(request, category, media_type, tmdb_id):
+    if request.method == "POST" and category in FavoriteMovie.Category.values and media_type in ("movie", "tv"):
+        current_count = FavoriteMovie.objects.filter(
+            user=request.user, category=category, movie__media_type=media_type,
+        ).count()
+        limit = FavoriteMovie.LIMITS[(category, media_type)]
+        if current_count >= limit:
             messages.error(request, "Ya has llegado al máximo para ese apartado.")
         else:
             try:
-                movie = Movie.get_or_create_from_tmdb(tmdb_id)
+                movie = Movie.get_or_create_from_tmdb(tmdb_id, media_type=media_type)
             except MovieAPIError as exc:
                 messages.error(request, str(exc))
             else:
@@ -142,7 +156,7 @@ def favorite_add(request, category, tmdb_id):
                     defaults={"order": current_count},
                 )
                 if not created:
-                    messages.info(request, "Esa película ya estaba en la lista.")
+                    messages.info(request, "Ya estaba en la lista.")
     return redirect("accounts:profile")
 
 
@@ -155,6 +169,28 @@ def favorite_remove(request, pk):
 
 
 @login_required
+def favorite_move(request, pk, direction):
+    if request.method != "POST" or direction not in ("up", "down"):
+        raise Http404
+    favorite = get_object_or_404(FavoriteMovie, pk=pk, user=request.user)
+    siblings = list(
+        FavoriteMovie.objects.filter(
+            user=request.user, category=favorite.category, movie__media_type=favorite.movie.media_type,
+        ).select_related("movie").order_by("order", "created_at")
+    )
+    index = next((i for i, f in enumerate(siblings) if f.pk == favorite.pk), None)
+    if index is None:
+        raise Http404
+
+    swap_index = index - 1 if direction == "up" else index + 1
+    if 0 <= swap_index < len(siblings):
+        other = siblings[swap_index]
+        favorite.order, other.order = swap_index, index
+        FavoriteMovie.objects.bulk_update([favorite, other], ["order"])
+    return redirect("accounts:profile")
+
+
+@login_required
 def resend_verification(request):
     user = request.user
     if user.email_verified:
@@ -163,3 +199,33 @@ def resend_verification(request):
         _send_verification_email(request, user)
         messages.success(request, "Te hemos reenviado el email de verificación.")
     return redirect("core:home")
+
+
+@login_required
+@require_POST
+def push_subscribe(request):
+    try:
+        data = json.loads(request.body)
+        endpoint = data["endpoint"]
+        p256dh = data["keys"]["p256dh"]
+        auth = data["keys"]["auth"]
+    except (ValueError, KeyError):
+        return JsonResponse({"ok": False, "error": "datos inválidos"}, status=400)
+
+    PushSubscription.objects.update_or_create(
+        endpoint=endpoint,
+        defaults={"user": request.user, "p256dh": p256dh, "auth": auth},
+    )
+    return JsonResponse({"ok": True})
+
+
+@login_required
+@require_POST
+def push_unsubscribe(request):
+    try:
+        endpoint = json.loads(request.body)["endpoint"]
+    except (ValueError, KeyError):
+        return JsonResponse({"ok": False, "error": "datos inválidos"}, status=400)
+
+    PushSubscription.objects.filter(user=request.user, endpoint=endpoint).delete()
+    return JsonResponse({"ok": True})

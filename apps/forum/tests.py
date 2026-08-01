@@ -1,7 +1,9 @@
-from django.test import TestCase
+from unittest.mock import patch
+
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from apps.accounts.models import User
+from apps.accounts.models import PushSubscription, User
 
 from .models import Thread, ThreadComment
 
@@ -101,3 +103,39 @@ class ForumPermissionTests(TestCase):
         self.assertTrue(ThreadComment.objects.filter(pk=self.comment.pk).exists())
         self.comment.refresh_from_db()
         self.assertTrue(self.comment.is_deleted)
+
+
+@override_settings(VAPID_PUBLIC_KEY="clave-publica", VAPID_PRIVATE_KEY="clave-privada")
+class ForumReplyPushTests(TestCase):
+    def setUp(self):
+        self.author = make_user("autor_hilo_push@test.local", User.Role.LECTOR)
+        self.replier = make_user("respondedor_push@test.local", User.Role.LECTOR)
+        self.thread = Thread.objects.create(title="Hilo con push", body="mensaje", author=self.author)
+        PushSubscription.objects.create(user=self.author, endpoint="https://push.example/hilo", p256dh="p", auth="a")
+        self.client.login(username=self.replier.email, password="Testpass123!")
+
+    @patch("apps.forum.views.send_push_to_user")
+    def test_responder_al_hilo_notifica_al_autor_del_hilo(self, mock_send):
+        self.client.post(reverse("forum:detail", args=[self.thread.pk]), {"body": "respuesta"})
+        mock_send.assert_called_once()
+        self.assertEqual(mock_send.call_args.args[0], self.author)
+
+    @patch("apps.forum.views.send_push_to_user")
+    def test_responder_a_un_comentario_notifica_al_autor_de_ese_comentario_no_al_del_hilo(self, mock_send):
+        comment = ThreadComment.objects.create(thread=self.thread, author=self.author, body="raíz")
+        other = make_user("otro_comentarista_push@test.local", User.Role.LECTOR)
+        PushSubscription.objects.create(user=other, endpoint="https://push.example/comentario", p256dh="p", auth="a")
+        child = ThreadComment.objects.create(thread=self.thread, author=other, parent=comment, body="respuesta hija")
+
+        self.client.post(
+            reverse("forum:detail", args=[self.thread.pk]), {"body": "otra respuesta", "parent_id": child.pk}
+        )
+        mock_send.assert_called_once()
+        self.assertEqual(mock_send.call_args.args[0], other)
+
+    @patch("apps.forum.views.send_push_to_user")
+    def test_no_se_notifica_a_si_mismo(self, mock_send):
+        self.client.logout()
+        self.client.login(username=self.author.email, password="Testpass123!")
+        self.client.post(reverse("forum:detail", args=[self.thread.pk]), {"body": "me respondo a mi hilo"})
+        mock_send.assert_not_called()

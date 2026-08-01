@@ -4,6 +4,9 @@ from django.core.paginator import Paginator
 from django.db.models import Count
 from django.http import Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+
+from apps.core.push import send_push_to_user
 
 from .forms import ThreadCommentForm, ThreadForm
 from .models import Thread, ThreadComment
@@ -53,6 +56,15 @@ def thread_detail(request, pk):
                     comment.parent = get_object_or_404(ThreadComment, pk=parent_id, thread=thread)
                 comment.save()
                 messages.success(request, "Respuesta publicada.")
+                notify_user = comment.parent.author if comment.parent_id else thread.author
+                if notify_user_id := getattr(notify_user, "pk", None):
+                    if notify_user_id != request.user.pk:
+                        send_push_to_user(
+                            notify_user,
+                            title="Nueva respuesta en el foro",
+                            body=f"{request.user} ha respondido en «{thread.title}»",
+                            url=reverse("forum:detail", args=[thread.pk]),
+                        )
                 return redirect("forum:detail", pk=thread.pk)
         else:
             reply_form = ThreadCommentForm()

@@ -10,11 +10,14 @@ urlpatterns = [
     path("login/", views.EmailLoginView.as_view(), name="login"),
     path("logout/", views.logout_view, name="logout"),
     path("perfil/", views.profile, name="profile"),
-    path("perfil/favoritas/<str:category>/buscar/", views.favorite_search, name="favorite-search"),
-    path("perfil/favoritas/<str:category>/anadir/<int:tmdb_id>/", views.favorite_add, name="favorite-add"),
+    path("perfil/favoritas/<str:category>/<str:media_type>/buscar/", views.favorite_search, name="favorite-search"),
+    path("perfil/favoritas/<str:category>/<str:media_type>/anadir/<int:tmdb_id>/", views.favorite_add, name="favorite-add"),
     path("perfil/favoritas/<int:pk>/quitar/", views.favorite_remove, name="favorite-remove"),
+    path("perfil/favoritas/<int:pk>/mover/<str:direction>/", views.favorite_move, name="favorite-move"),
     path("verificar/<uuid:token>/", views.verify_email, name="verify-email"),
     path("verificar/reenviar/", views.resend_verification, name="resend-verification"),
+    path("notificaciones/suscribir/", views.push_subscribe, name="push-subscribe"),
+    path("notificaciones/desuscribir/", views.push_unsubscribe, name="push-unsubscribe"),
 
     path(
         "password/reset/",

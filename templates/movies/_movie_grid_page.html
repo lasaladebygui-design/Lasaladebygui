@@ -3,7 +3,7 @@
 {% endfor %}
 {% if page_obj.has_next %}
 <div class="movie-grid__sentinel"
-     hx-get="{% url 'movies:list' %}?page={{ page_obj.next_page_number }}{% if query %}&query={{ query|urlencode }}{% endif %}"
+     hx-get="{% url 'movies:list' %}?page={{ page_obj.next_page_number }}{% if query %}&query={{ query|urlencode }}{% endif %}{% if media_type %}&type={{ media_type }}{% endif %}"
      hx-trigger="revealed"
      hx-swap="outerHTML"
      hx-target="this">

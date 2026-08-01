@@ -1,22 +1,32 @@
+import calendar as calendar_module
 import json
 import random
+from datetime import date, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from django.utils.text import slugify
 
 from .forms import MovieSearchForm, RatingRangeForm, VoteForm
-from .models import Movie, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, Vote
+from .models import Movie, ReleaseEvent, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, Vote
 from .services import MovieAPIError, tmdb_search
 
 SPIN_DECOYS = 5
+MEDIA_TYPES = ("movie", "tv", "all")
 
 
 def _is_htmx(request):
     return request.headers.get("HX-Request") == "true"
+
+
+def _media_type_from_request(request):
+    value = request.GET.get("type", "movie")
+    return value if value in MEDIA_TYPES else "movie"
 
 
 def _build_reel(final_movie, decoy_pool):
@@ -31,7 +41,8 @@ def _build_reel(final_movie, decoy_pool):
 
 def movie_list(request):
     form = MovieSearchForm(request.GET or None)
-    movies = Movie.objects.all()
+    media_type = _media_type_from_request(request)
+    movies = Movie.objects.all() if media_type == "all" else Movie.objects.filter(media_type=media_type)
     query = ""
 
     if form.is_valid() and form.cleaned_data["query"]:
@@ -45,21 +56,29 @@ def movie_list(request):
         # Scroll infinito: cada tramo siguiente solo necesita las tarjetas
         # de esa página y, si hay más, el próximo "sensor" — no hace falta
         # repetir la búsqueda en vivo a TMDb en cada tramo.
-        return render(request, "movies/_movie_grid_page.html", {"page_obj": page, "query": query})
+        return render(request, "movies/_movie_grid_page.html", {"page_obj": page, "query": query, "media_type": media_type})
 
     external_results = []
     search_error = None
     if query:
         # El catálogo local solo tiene lo ya sembrado/visto antes: se
         # complementa con una búsqueda en vivo a TMDb para que cualquier
-        # película que se busque aparezca, no solo las ya cacheadas.
-        local_tmdb_ids = set(Movie.objects.values_list("tmdb_id", flat=True))
+        # título que se busque aparezca, no solo los ya cacheados. Si el
+        # tipo elegido es "all" se busca en los dos catálogos de TMDb.
+        types_to_search = ("movie", "tv") if media_type == "all" else (media_type,)
+        local_ids = set(
+            Movie.objects.filter(media_type__in=types_to_search).values_list("tmdb_id", "media_type")
+        )
         try:
-            tmdb_results = tmdb_search(query)
+            tmdb_results = []
+            for t in types_to_search:
+                tmdb_results += tmdb_search(query, media_type=t)
         except MovieAPIError as exc:
             search_error = str(exc)
         else:
-            external_results = [r for r in tmdb_results if r.tmdb_id not in local_tmdb_ids][:12]
+            external_results = [
+                r for r in tmdb_results if (r.tmdb_id, r.media_type) not in local_ids
+            ][:12]
 
     return render(request, "movies/list.html", {
         "page_obj": page,
@@ -67,12 +86,15 @@ def movie_list(request):
         "query": query,
         "external_results": external_results,
         "search_error": search_error,
+        "media_type": media_type,
     })
 
 
-def movie_from_tmdb(request, tmdb_id):
+def movie_from_tmdb(request, media_type, tmdb_id):
+    if media_type not in ("movie", "tv"):
+        raise Http404
     try:
-        movie = Movie.get_or_create_from_tmdb(tmdb_id)
+        movie = Movie.get_or_create_from_tmdb(tmdb_id, media_type=media_type)
     except MovieAPIError as exc:
         messages.error(request, str(exc))
         return redirect("movies:list")
@@ -107,14 +129,38 @@ def movie_save_toggle(request, pk):
 
 @login_required
 def my_movies(request):
+    media_type = _media_type_from_request(request)
     votes = Vote.objects.filter(user=request.user).select_related("movie").order_by("-updated_at")
-    return render(request, "movies/my_movies.html", {"votes": votes})
+    if media_type != "all":
+        votes = votes.filter(movie__media_type=media_type)
+    return render(request, "movies/my_movies.html", {"votes": votes, "media_type": media_type})
 
 
 @login_required
 def saved_movies(request):
-    saved = SavedMovie.objects.filter(user=request.user).select_related("movie")
-    return render(request, "movies/saved_movies.html", {"saved": saved})
+    media_type = _media_type_from_request(request)
+    saved = SavedMovie.objects.filter(user=request.user).select_related("movie").order_by("order", "-saved_at")
+    if media_type != "all":
+        saved = saved.filter(movie__media_type=media_type)
+    return render(request, "movies/saved_movies.html", {"saved": saved, "media_type": media_type})
+
+
+@login_required
+def saved_movie_move(request, pk, direction):
+    if request.method != "POST" or direction not in ("up", "down"):
+        raise Http404
+    saved = get_object_or_404(SavedMovie, pk=pk, user=request.user)
+    ordered = list(SavedMovie.objects.filter(user=request.user).order_by("order", "-saved_at"))
+    index = next((i for i, s in enumerate(ordered) if s.pk == saved.pk), None)
+    if index is None:
+        raise Http404
+
+    swap_index = index - 1 if direction == "up" else index + 1
+    if 0 <= swap_index < len(ordered):
+        other = ordered[swap_index]
+        saved.order, other.order = swap_index, index
+        SavedMovie.objects.bulk_update([saved, other], ["order"])
+    return redirect("movies:saved-movies")
 
 
 @login_required
@@ -246,3 +292,99 @@ def roulette_list_reset(request):
         RouletteSavedSeen.objects.filter(user=request.user).delete()
         messages.success(request, "Reiniciado: volverás a ver todas tus guardadas.")
     return redirect("movies:roulette-list")
+
+
+# --- Calendario de estrenos --------------------------------------------------
+# Un calendario dentro de la propia web (el admin sube fecha + película/
+# serie) con un botón por evento para descargar un .ics — cualquier app de
+# calendario externa (Google Calendar, Apple Calendar, Outlook...) lo
+# importa con un clic, sin necesidad de credenciales OAuth ni cuentas de
+# desarrollador.
+
+MONTH_NAMES_ES = [
+    "", "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+]
+
+
+def release_calendar(request):
+    today = timezone.localdate()
+    try:
+        year = int(request.GET.get("year", today.year))
+        month = int(request.GET.get("month", today.month))
+        first_of_month = date(year, month, 1)
+    except (TypeError, ValueError):
+        raise Http404
+
+    raw_weeks = calendar_module.Calendar(firstweekday=0).monthdatescalendar(year, month)
+    events = ReleaseEvent.objects.filter(date__year=year, date__month=month).select_related("movie")
+    events_by_date = {}
+    for event in events:
+        events_by_date.setdefault(event.date, []).append(event)
+
+    # Se arma aquí, no en la plantilla, para no depender de un filtro
+    # propio de "diccionario[variable]" (Django no lo trae de serie).
+    weeks = [
+        [
+            {
+                "date": day,
+                "in_month": day.month == month,
+                "is_today": day == today,
+                "events": events_by_date.get(day, []),
+            }
+            for day in week
+        ]
+        for week in raw_weeks
+    ]
+
+    prev_month_date = first_of_month - timedelta(days=1)
+    next_month_date = (first_of_month + timedelta(days=32)).replace(day=1)
+
+    return render(request, "movies/calendar.html", {
+        "weeks": weeks,
+        "year": year,
+        "month": month,
+        "month_label": f"{MONTH_NAMES_ES[month]} {year}",
+        "prev_year": prev_month_date.year,
+        "prev_month": prev_month_date.month,
+        "next_year": next_month_date.year,
+        "next_month": next_month_date.month,
+    })
+
+
+def _ics_escape(value):
+    """Escapa una cadena para incrustarla en un campo de texto de un
+    archivo .ics (RFC 5545): la barra invertida y los separadores propios
+    del formato (coma, punto y coma, salto de línea) van escapados con \\."""
+    return (
+        value.replace("\\", "\\\\")
+        .replace(",", "\\,")
+        .replace(";", "\\;")
+        .replace("\n", "\\n")
+    )
+
+
+def release_event_ics(request, pk):
+    event = get_object_or_404(ReleaseEvent, pk=pk)
+    summary = _ics_escape(event.movie.title)
+    description = _ics_escape(event.note) if event.note else ""
+    stamp = timezone.now().strftime("%Y%m%dT%H%M%SZ")
+
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//La Sala de Bygui//Calendario//ES",
+        "BEGIN:VEVENT",
+        f"UID:release-{event.pk}@lasaladebygui",
+        f"DTSTAMP:{stamp}",
+        f"DTSTART;VALUE=DATE:{event.date:%Y%m%d}",
+        f"SUMMARY:{summary}",
+    ]
+    if description:
+        lines.append(f"DESCRIPTION:{description}")
+    lines += ["END:VEVENT", "END:VCALENDAR"]
+
+    response = HttpResponse("\r\n".join(lines), content_type="text/calendar; charset=utf-8")
+    filename = slugify(event.movie.title) or "evento"
+    response["Content-Disposition"] = f'attachment; filename="{filename}.ics"'
+    return response

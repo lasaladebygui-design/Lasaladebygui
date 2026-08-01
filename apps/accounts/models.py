@@ -132,17 +132,24 @@ class User(AbstractUser):
 
 
 class FavoriteMovie(models.Model):
-    """Película destacada en el perfil de un usuario: "Mis imprescindibles"
-    (hasta 5) o "Sugeridas" (hasta 10, recomendaciones). Reutiliza el
-    catálogo de `apps.movies` (misma búsqueda en vivo contra TMDb que ya
-    se usa en la tier list de Top Secret) para tener título y portada
-    sin duplicar datos."""
+    """Película o serie destacada en el perfil de un usuario: "Mis
+    imprescindibles" (3 películas + 3 series) o "Sugeridas" (6 películas +
+    3 series, recomendaciones). Reutiliza el catálogo de `apps.movies`
+    (misma búsqueda en vivo contra TMDb que ya se usa en la tier list de
+    Top Secret) para tener título y portada sin duplicar datos."""
 
     class Category(models.TextChoices):
         ESSENTIAL = "essential", "Imprescindible"
         SUGGESTED = "suggested", "Sugerida"
 
-    LIMITS = {Category.ESSENTIAL: 5, Category.SUGGESTED: 10}
+    # Límite por (categoría, tipo de contenido) — no es el mismo número de
+    # películas que de series en cada apartado.
+    LIMITS = {
+        (Category.ESSENTIAL, "movie"): 3,
+        (Category.ESSENTIAL, "tv"): 3,
+        (Category.SUGGESTED, "movie"): 6,
+        (Category.SUGGESTED, "tv"): 3,
+    }
 
     user = models.ForeignKey(
         "accounts.User", verbose_name="usuario", on_delete=models.CASCADE, related_name="favorite_movies",
@@ -180,3 +187,23 @@ class EmailVerificationToken(models.Model):
     @property
     def is_used(self):
         return self.used_at is not None
+
+
+class PushSubscription(models.Model):
+    """Suscripción de un dispositivo/navegador a las notificaciones push
+    (Web Push estándar — funciona en Android/escritorio directamente, y en
+    iPhone si la web está instalada como app en la pantalla de inicio). Un
+    mismo usuario puede tener varias, una por dispositivo/navegador."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="push_subscriptions")
+    endpoint = models.URLField("endpoint", max_length=500, unique=True)
+    p256dh = models.CharField("clave p256dh", max_length=255)
+    auth = models.CharField("clave auth", max_length=255)
+    created_at = models.DateTimeField("creada", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "suscripción push"
+        verbose_name_plural = "suscripciones push"
+
+    def __str__(self):
+        return f"Suscripción de {self.user}"

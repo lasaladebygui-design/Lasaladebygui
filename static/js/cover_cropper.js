@@ -3,6 +3,7 @@ function coverCropper(initialUrl) {
     const STAGE_H = 180; // 16:9, igual proporción que la portada publicada
     const OUTPUT_W = 1200;
     const OUTPUT_H = 675;
+    const MARGIN = 16; // pequeño margen de sobra al arrastrar, no queda pegado al borde exacto
 
     return {
         previewUrl: initialUrl || null,
@@ -53,10 +54,10 @@ function coverCropper(initialUrl) {
 
         clampOffsets() {
             const { width, height } = this.displaySize();
-            const minX = Math.min(0, STAGE_W - width);
-            const minY = Math.min(0, STAGE_H - height);
-            this.offsetX = Math.max(minX, Math.min(0, this.offsetX));
-            this.offsetY = Math.max(minY, Math.min(0, this.offsetY));
+            const minX = Math.min(0, STAGE_W - width) - MARGIN;
+            const minY = Math.min(0, STAGE_H - height) - MARGIN;
+            this.offsetX = Math.max(minX, Math.min(MARGIN, this.offsetX));
+            this.offsetY = Math.max(minY, Math.min(MARGIN, this.offsetY));
         },
 
         onZoom() {

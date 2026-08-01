@@ -1,7 +1,9 @@
-from django.test import TestCase
+from unittest.mock import patch
+
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from apps.accounts.models import User
+from apps.accounts.models import PushSubscription, User
 
 from .models import FriendRequest, Message, are_friends, friendship_status
 
@@ -122,6 +124,19 @@ class MessagingTests(TestCase):
             {"body": "Hola Bea"},
         )
         self.assertTrue(Message.objects.filter(sender=self.ana, recipient=self.bea, body="Hola Bea").exists())
+
+    @override_settings(VAPID_PUBLIC_KEY="clave-publica", VAPID_PRIVATE_KEY="clave-privada")
+    @patch("apps.social.views.send_push_to_user")
+    def test_enviar_mensaje_notifica_al_destinatario(self, mock_send):
+        FriendRequest.objects.create(from_user=self.ana, to_user=self.bea, accepted=True)
+        PushSubscription.objects.create(user=self.bea, endpoint="https://push.example/bea", p256dh="p", auth="a")
+        self.client.login(username="ana@test.local", password="Testpass123!")
+        self.client.post(
+            reverse("social:conversation", kwargs={"username": self.bea.username}),
+            {"body": "Hola Bea"},
+        )
+        mock_send.assert_called_once()
+        self.assertEqual(mock_send.call_args.args[0], self.bea)
 
     def test_leer_conversacion_marca_como_leidos_los_mensajes_recibidos(self):
         FriendRequest.objects.create(from_user=self.ana, to_user=self.bea, accepted=True)

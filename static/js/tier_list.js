@@ -12,6 +12,13 @@ function ensureEmptyPlaceholder(zone) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+    // La misma pantalla de tier list se reutiliza en dos sitios (Top Secret
+    // y el juego personal en Juegos); cada página indica su propia base de
+    // URL para "mover" en data-tier-move-url-base, así este script no
+    // necesita duplicarse solo por cambiar la ruta.
+    const moveUrlBase = document.querySelector("[data-tier-move-url-base]")?.dataset.tierMoveUrlBase
+        || "/top-secret/dentro/tierlist/";
+
     document.querySelectorAll(".tier-item").forEach((item) => {
         item.setAttribute("draggable", "true");
         item.addEventListener("dragstart", (event) => {
@@ -38,7 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const sourceZone = item.parentElement;
             if (sourceZone === zone) return;
 
-            fetch(`/top-secret/dentro/tierlist/${id}/mover/`, {
+            fetch(`${moveUrlBase}${id}/mover/`, {
                 method: "POST",
                 headers: {
                     "X-CSRFToken": csrfToken(),

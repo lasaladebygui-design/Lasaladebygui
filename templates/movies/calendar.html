@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Calendario de estrenos{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap">
+        <div class="section-header">
+            <div>
+                <span class="card__tag">Películas</span>
+                <h1>Calendario de estrenos</h1>
+                <p class="muted">Fechas en las que tocan estrenos o novedades. Descarga el .ics de cualquier evento para añadirlo a tu calendario (Google Calendar, Apple Calendar, Outlook...).</p>
+            </div>
+            <a href="{% url 'movies:list' %}" class="btn btn--ghost">Volver al catálogo</a>
+        </div>
+
+        <div class="calendar-nav">
+            <a href="?year={{ prev_year }}&month={{ prev_month }}" class="btn btn--ghost btn--sm">← Anterior</a>
+            <span class="calendar-nav__label">{{ month_label|capfirst }}</span>
+            <a href="?year={{ next_year }}&month={{ next_month }}" class="btn btn--ghost btn--sm">Siguiente →</a>
+        </div>
+
+        <div class="calendar-grid">
+            <div class="calendar-grid__weekday">Lun</div>
+            <div class="calendar-grid__weekday">Mar</div>
+            <div class="calendar-grid__weekday">Mié</div>
+            <div class="calendar-grid__weekday">Jue</div>
+            <div class="calendar-grid__weekday">Vie</div>
+            <div class="calendar-grid__weekday">Sáb</div>
+            <div class="calendar-grid__weekday">Dom</div>
+
+            {% for week in weeks %}
+                {% for day in week %}
+                <div class="calendar-day {% if not day.in_month %}calendar-day--outside{% endif %} {% if day.is_today %}calendar-day--today{% endif %}">
+                    <span class="calendar-day__number">{{ day.date.day }}</span>
+                    {% for event in day.events %}
+                    <div class="calendar-event">
+                        <a href="{% url 'movies:detail' event.movie.pk %}" class="calendar-event__title">{{ event.movie.title }}</a>
+                        {% if event.note %}<span class="muted calendar-event__note">{{ event.note }}</span>{% endif %}
+                        <a href="{% url 'movies:release-ics' event.pk %}" class="calendar-event__ics" title="Añadir a mi calendario">📅</a>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}

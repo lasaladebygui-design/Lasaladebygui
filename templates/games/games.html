@@ -20,6 +20,11 @@
                 <h3>Frases célebres</h3>
                 <p>Te damos una frase, tú aciertas la película. A ver cuánto dura tu racha.</p>
             </a>
+            <a href="{% url 'games:tier-list' %}" class="card card--link">
+                <span class="card__tag">📊</span>
+                <h3>Tu tier list</h3>
+                <p>Tu propio ranking personal de películas, de S a D — nada que ver con la de Top Secret.</p>
+            </a>
         </div>
 
         {% if user.is_authenticated %}

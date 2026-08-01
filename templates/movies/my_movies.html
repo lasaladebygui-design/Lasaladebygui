@@ -13,6 +13,12 @@
             <a href="{% url 'movies:list' %}" class="btn btn--ghost">Volver al catálogo</a>
         </div>
 
+        <div class="media-type-toggle">
+            <a href="?type=movie" class="btn btn--sm {% if media_type == 'movie' %}btn--accent{% else %}btn--ghost{% endif %}">Películas</a>
+            <a href="?type=tv" class="btn btn--sm {% if media_type == 'tv' %}btn--accent{% else %}btn--ghost{% endif %}">Series</a>
+            <a href="?type=all" class="btn btn--sm {% if media_type == 'all' %}btn--accent{% else %}btn--ghost{% endif %}">Ambas</a>
+        </div>
+
         {% if votes %}
         <div class="movie-grid">
             {% for vote in votes %}
@@ -24,7 +30,7 @@
                 {% endif %}
                 <div class="movie-card__body">
                     <h3>{{ vote.movie.title }}</h3>
-                    <p class="muted">{{ vote.movie.year }}</p>
+                    <p class="muted">{{ vote.movie.year }} {% if vote.movie.media_type == "tv" %}· Serie{% endif %}</p>
                     <span class="tag-pill">Tu nota: {{ vote.score }}</span>
                 </div>
             </a>

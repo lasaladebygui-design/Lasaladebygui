@@ -3,9 +3,12 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 
 from apps.accounts.models import FavoriteMovie, User
+from apps.accounts.views import _favorites_context
+from apps.core.push import send_push_to_user
 from apps.games.models import DuelRecord
 
 from .models import FriendRequest, Message, friends_of, friendship_status
@@ -34,8 +37,7 @@ def public_profile(request, username):
     return render(request, "social/public_profile.html", {
         "profile_user": profile_user, "status": status, "incoming_request": incoming_request,
         "duel_wins": duel_wins, "duel_losses": duel_losses, "duel_draws": duel_draws,
-        "essentials": [f for f in favorites if f.category == FavoriteMovie.Category.ESSENTIAL],
-        "suggested": [f for f in favorites if f.category == FavoriteMovie.Category.SUGGESTED],
+        **_favorites_context(favorites),
     })
 
 
@@ -151,6 +153,12 @@ def conversation(request, username):
         body = request.POST.get("body", "").strip()
         if body:
             Message.objects.create(sender=request.user, recipient=other, body=body)
+            send_push_to_user(
+                other,
+                title="Nuevo mensaje",
+                body=f"{request.user}: {body[:80]}",
+                url=reverse("social:conversation", args=[request.user.username]),
+            )
         return redirect("social:conversation", username=username)
 
     Message.objects.filter(sender=other, recipient=request.user, read_at__isnull=True).update(read_at=timezone.now())

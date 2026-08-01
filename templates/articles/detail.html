@@ -65,4 +65,17 @@
         </ul>
     </div>
 </section>
+
+{% if latest_articles %}
+<section class="section section--tight">
+    <div class="wrap wrap--narrow">
+        <h2>Últimos artículos</h2>
+        <ul class="plain-list">
+            {% for other in latest_articles %}
+            <li><a href="{{ other.get_absolute_url }}">{{ other.title }}</a></li>
+            {% endfor %}
+        </ul>
+    </div>
+</section>
+{% endif %}
 {% endblock %}

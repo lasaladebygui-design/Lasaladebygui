@@ -15,26 +15,44 @@
                 <a href="{% url 'movies:list' %}" class="btn btn--ghost">Volver al catálogo</a>
             </div>
         </div>
-        <p class="muted">Estas son las que puede ofrecerte la ruleta (Modo 2). Guarda o quita alguna desde su ficha.</p>
+        <p class="muted">Estas son las que puede ofrecerte la ruleta (Modo 2). Guarda o quita alguna desde su ficha, y usa ▲▼ para ordenarlas por importancia.</p>
+
+        <div class="media-type-toggle">
+            <a href="?type=movie" class="btn btn--sm {% if media_type == 'movie' %}btn--accent{% else %}btn--ghost{% endif %}">Películas</a>
+            <a href="?type=tv" class="btn btn--sm {% if media_type == 'tv' %}btn--accent{% else %}btn--ghost{% endif %}">Series</a>
+            <a href="?type=all" class="btn btn--sm {% if media_type == 'all' %}btn--accent{% else %}btn--ghost{% endif %}">Ambas</a>
+        </div>
 
         {% if saved %}
-        <div class="movie-grid">
+        <ul class="plain-list">
             {% for item in saved %}
-            <a href="{% url 'movies:detail' item.movie.pk %}" class="movie-card">
-                {% if item.movie.poster_url %}
-                    <img src="{{ item.movie.poster_url }}" alt="" class="movie-card__poster">
-                {% else %}
-                    <div class="movie-card__poster movie-card__poster--placeholder"><span>🎬</span></div>
-                {% endif %}
-                <div class="movie-card__body">
-                    <h3>{{ item.movie.title }}</h3>
-                    <p class="muted">{{ item.movie.year }}</p>
+            <li>
+                <div class="reorder-buttons">
+                    <form method="post" action="{% url 'movies:saved-movie-move' pk=item.pk direction='up' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="link-btn" title="Subir" {% if forloop.first %}disabled{% endif %}>▲</button>
+                    </form>
+                    <form method="post" action="{% url 'movies:saved-movie-move' pk=item.pk direction='down' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="link-btn" title="Bajar" {% if forloop.last %}disabled{% endif %}>▼</button>
+                    </form>
                 </div>
-            </a>
+                <a href="{% url 'movies:detail' item.movie.pk %}" class="movie-card movie-card--row">
+                    {% if item.movie.poster_url %}
+                        <img src="{{ item.movie.poster_url }}" alt="" class="movie-card__poster">
+                    {% else %}
+                        <div class="movie-card__poster movie-card__poster--placeholder"><span>🎬</span></div>
+                    {% endif %}
+                    <div class="movie-card__body">
+                        <h3>{{ item.movie.title }}</h3>
+                        <p class="muted">{{ item.movie.year }} {% if item.movie.media_type == "tv" %}· Serie{% endif %}</p>
+                    </div>
+                </a>
+            </li>
             {% endfor %}
-        </div>
+        </ul>
         {% else %}
-        <p class="muted">Todavía no has guardado ninguna película. Hazlo desde la ficha de cualquier película.</p>
+        <p class="muted">Todavía no has guardado ninguna. Hazlo desde su ficha.</p>
         {% endif %}
     </div>
 </section>

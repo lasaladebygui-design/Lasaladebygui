@@ -32,3 +32,35 @@ self.addEventListener("fetch", (event) => {
             .catch(() => caches.match(event.request))
     );
 });
+
+self.addEventListener("push", (event) => {
+    let payload = { title: "La Sala de Bygui", body: "Tienes algo nuevo.", url: "/" };
+    if (event.data) {
+        try {
+            payload = { ...payload, ...event.data.json() };
+        } catch (err) {
+            payload.body = event.data.text();
+        }
+    }
+    event.waitUntil(
+        self.registration.showNotification(payload.title, {
+            body: payload.body,
+            icon: "/static/img/pwa-icon-192.png",
+            badge: "/static/img/pwa-icon-192.png",
+            data: { url: payload.url },
+        })
+    );
+});
+
+self.addEventListener("notificationclick", (event) => {
+    event.notification.close();
+    const url = event.notification.data && event.notification.data.url ? event.notification.data.url : "/";
+    event.waitUntil(
+        clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
+            for (const client of windowClients) {
+                if (client.url === url && "focus" in client) return client.focus();
+            }
+            if (clients.openWindow) return clients.openWindow(url);
+        })
+    );
+});

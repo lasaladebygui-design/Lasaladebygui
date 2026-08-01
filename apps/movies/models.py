@@ -6,12 +6,20 @@ from . import services
 
 
 class Movie(models.Model):
-    """Ficha de película cacheada localmente a partir de TMDb (título,
-    portada, sinopsis) y OMDb (nota IMDb). Se resuelve una sola vez por
-    tmdb_id y se reutiliza después: ni la ruleta ni las votaciones necesitan
-    volver a golpear las APIs externas para una misma película."""
+    """Ficha de película o serie cacheada localmente a partir de TMDb
+    (título, portada, sinopsis) y OMDb (nota IMDb). Se resuelve una sola vez
+    por (tmdb_id, media_type) y se reutiliza después — ni la ruleta ni las
+    votaciones necesitan volver a golpear las APIs externas para la misma
+    ficha. Películas y series comparten el mismo modelo porque TMDb/OMDb
+    devuelven prácticamente la misma forma de datos para ambas; lo único que
+    cambia es qué endpoint de TMDb se consulta (`/movie/...` o `/tv/...`)."""
 
-    tmdb_id = models.PositiveIntegerField("id de TMDb", unique=True)
+    class MediaType(models.TextChoices):
+        MOVIE = "movie", "Película"
+        TV = "tv", "Serie"
+
+    media_type = models.CharField("tipo", max_length=5, choices=MediaType.choices, default=MediaType.MOVIE)
+    tmdb_id = models.PositiveIntegerField("id de TMDb")
     imdb_id = models.CharField("id de IMDb", max_length=20, blank=True)
     title = models.CharField("título", max_length=255)
     year = models.CharField("año", max_length=4, blank=True)
@@ -27,6 +35,12 @@ class Movie(models.Model):
         verbose_name = "película"
         verbose_name_plural = "películas"
         ordering = ["title"]
+        constraints = [
+            # Los ids de TMDb son independientes entre películas y series:
+            # una película y una serie pueden compartir el mismo tmdb_id
+            # sin ser la misma ficha, así que la unicidad va por la pareja.
+            models.UniqueConstraint(fields=["tmdb_id", "media_type"], name="unico_tmdb_id_por_tipo"),
+        ]
 
     def __str__(self):
         return f"{self.title} ({self.year})" if self.year else self.title
@@ -35,21 +49,33 @@ class Movie(models.Model):
     def poster_url(self):
         return services.poster_url(self.poster_path)
 
+    @property
+    def is_tv(self):
+        return self.media_type == self.MediaType.TV
+
     @classmethod
-    def get_or_create_from_tmdb(cls, tmdb_id):
-        existing = cls.objects.filter(tmdb_id=tmdb_id).first()
+    def get_or_create_from_tmdb(cls, tmdb_id, media_type=MediaType.MOVIE):
+        existing = cls.objects.filter(tmdb_id=tmdb_id, media_type=media_type).first()
         if existing:
             return existing
 
-        details = services.tmdb_get_details(tmdb_id)
+        details = services.tmdb_get_details(tmdb_id, media_type=media_type)
         imdb_id = (details.get("external_ids") or {}).get("imdb_id") or ""
         imdb_rating = services.omdb_get_imdb_rating(imdb_id) if imdb_id else None
 
+        if media_type == cls.MediaType.TV:
+            title = details.get("name") or details.get("original_name") or "(sin título)"
+            date = details.get("first_air_date") or ""
+        else:
+            title = details.get("title") or details.get("original_title") or "(sin título)"
+            date = details.get("release_date") or ""
+
         return cls.objects.create(
             tmdb_id=tmdb_id,
+            media_type=media_type,
             imdb_id=imdb_id,
-            title=details.get("title") or details.get("original_title") or "(sin título)",
-            year=(details.get("release_date") or "")[:4],
+            title=title,
+            year=date[:4],
             poster_path=details.get("poster_path") or "",
             overview=details.get("overview") or "",
             imdb_rating=imdb_rating,
@@ -85,17 +111,20 @@ class Vote(models.Model):
 
 class SavedMovie(models.Model):
     """Película guardada por un usuario en 'Mis películas' (independiente de
-    si la ha votado o de si es candidata en la ruleta Modo 2)."""
+    si la ha votado o de si es candidata en la ruleta Modo 2). `order` es el
+    orden de importancia que el propio usuario le da (0 = más importante),
+    editable con los botones ▲▼ en la página de Guardadas."""
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_movies")
     movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name="+")
+    order = models.PositiveIntegerField("orden de importancia", default=0)
     saved_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name = "película guardada"
         verbose_name_plural = "películas guardadas"
         constraints = [models.UniqueConstraint(fields=["user", "movie"], name="una_guardada_por_usuario")]
-        ordering = ["-saved_at"]
+        ordering = ["order", "-saved_at"]
 
     def __str__(self):
         return f"{self.movie} guardada por {self.user}"
@@ -128,3 +157,23 @@ class RouletteSavedSeen(models.Model):
         verbose_name = "película vista en ruleta (modo lista)"
         verbose_name_plural = "películas vistas en ruleta (modo lista)"
         constraints = [models.UniqueConstraint(fields=["user", "movie"], name="una_vista_por_usuario_modo_lista")]
+
+
+class ReleaseEvent(models.Model):
+    """Fecha en la que una película o serie "toca" (estreno, capítulo
+    nuevo...) — el calendario de la sección Películas. Lo gestiona el
+    admin; cada evento se puede añadir al calendario personal de quien
+    visite la web descargando su archivo .ics (funciona con Google
+    Calendar, Apple Calendar, Outlook... cualquiera que importe .ics)."""
+
+    movie = models.ForeignKey(Movie, verbose_name="película/serie", on_delete=models.CASCADE, related_name="release_events")
+    date = models.DateField("fecha")
+    note = models.CharField("nota", max_length=200, blank=True, help_text="Ej: 'Estreno', 'Temporada 2', 'Capítulo final'...")
+
+    class Meta:
+        verbose_name = "estreno en el calendario"
+        verbose_name_plural = "calendario: estrenos"
+        ordering = ["date"]
+
+    def __str__(self):
+        return f"{self.movie} — {self.date:%d/%m/%Y}"

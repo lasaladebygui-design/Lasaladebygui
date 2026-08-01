@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import EmailVerificationToken, FavoriteMovie, User
+from .models import EmailVerificationToken, FavoriteMovie, PushSubscription, User
 
 
 @admin.register(User)
@@ -68,3 +68,10 @@ class FavoriteMovieAdmin(admin.ModelAdmin):
     list_filter = ("category",)
     search_fields = ("user__username", "movie__title")
     autocomplete_fields = ("movie",)
+
+
+@admin.register(PushSubscription)
+class PushSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ("user", "created_at")
+    search_fields = ("user__username", "user__email")
+    readonly_fields = ("endpoint", "p256dh", "auth", "created_at")

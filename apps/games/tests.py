@@ -1,10 +1,14 @@
+from unittest.mock import patch
+
 from django.test import TestCase
 from django.urls import reverse
 
 from apps.accounts.models import User
+from apps.movies.models import Movie
+from apps.movies.services import MovieAPIError
 from apps.social.models import FriendRequest, Message
 
-from .models import Duel, DuelRecord, MovieQuote
+from .models import Duel, DuelRecord, GameTierEntry, MovieQuote
 
 
 class GamesHubTests(TestCase):
@@ -397,3 +401,94 @@ class DuelTests(TestCase):
         self.client.login(username="carol2@test.local", password="Testpass123!")
         response = self.client.get(reverse("games:duel-detail", kwargs={"pk": duel.pk}))
         self.assertEqual(response.status_code, 404)
+
+
+class GameTierListTests(TestCase):
+    """Tier list personal por usuario, en Juegos — distinta de la de Top
+    Secret (esa es una sola, del dueño del sitio)."""
+
+    def setUp(self):
+        self.user = User.objects.create(email="tierlist@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+    def test_requiere_login(self):
+        self.client.logout()
+        response = self.client.get(reverse("games:tier-list"))
+        self.assertIn("/cuenta/login/", response.url)
+
+    def test_cada_usuario_ve_solo_las_suyas(self):
+        other = User.objects.create(email="otro_tier@test.local", role=User.Role.LECTOR)
+        movie_a = Movie.objects.create(tmdb_id=1, title="Mía", media_type="movie")
+        movie_b = Movie.objects.create(tmdb_id=2, title="Ajena", media_type="movie")
+        GameTierEntry.objects.create(user=self.user, movie=movie_a, tier="S")
+        GameTierEntry.objects.create(user=other, movie=movie_b, tier="S")
+
+        response = self.client.get(reverse("games:tier-list"))
+        tier_rows = dict((value, entries) for value, label, entries in response.context["tier_rows"])
+        self.assertEqual([e.movie for e in tier_rows["S"]], [movie_a])
+
+    def test_nueva_entrada_cae_en_sin_clasificar(self):
+        movie = Movie.objects.create(tmdb_id=3, title="Nueva", media_type="movie")
+        GameTierEntry.objects.create(user=self.user, movie=movie)
+        response = self.client.get(reverse("games:tier-list"))
+        self.assertEqual([e.movie for e in response.context["unsorted_entries"]], [movie])
+
+    @patch("apps.games.views.tmdb_search")
+    def test_buscar_usa_el_servicio_tmdb(self, mock_search):
+        mock_search.return_value = []
+        response = self.client.get(reverse("games:tier-list-search"), {"query": "matrix"})
+        self.assertEqual(response.status_code, 200)
+        mock_search.assert_called_once_with("matrix")
+
+    @patch("apps.games.views.Movie.get_or_create_from_tmdb")
+    def test_anadir_desde_busqueda_cae_en_sin_clasificar(self, mock_get_or_create):
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=99, title="Nueva película")
+        response = self.client.post(reverse("games:tier-list-add", args=[99]))
+        self.assertRedirects(response, reverse("games:tier-list"))
+        entry = GameTierEntry.objects.get(user=self.user, movie__tmdb_id=99)
+        self.assertEqual(entry.tier, GameTierEntry.Tier.UNSORTED)
+
+    @patch("apps.games.views.Movie.get_or_create_from_tmdb", side_effect=MovieAPIError("fallo"))
+    def test_error_de_tmdb_al_anadir_no_rompe_la_pagina(self, mock_get_or_create):
+        response = self.client.post(reverse("games:tier-list-add", args=[99]))
+        self.assertRedirects(response, reverse("games:tier-list"))
+        self.assertFalse(GameTierEntry.objects.exists())
+
+    def test_mover_cambia_de_nivel(self):
+        movie = Movie.objects.create(tmdb_id=4, title="Se mueve", media_type="movie")
+        entry = GameTierEntry.objects.create(user=self.user, movie=movie)
+
+        response = self.client.post(reverse("games:tier-list-move", args=[entry.pk]), {"tier": "S"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"ok": True})
+
+        entry.refresh_from_db()
+        self.assertEqual(entry.tier, "S")
+
+    def test_no_se_puede_mover_una_entrada_ajena(self):
+        other = User.objects.create(email="otro_tier2@test.local", role=User.Role.LECTOR)
+        movie = Movie.objects.create(tmdb_id=5, title="No es tuya", media_type="movie")
+        entry = GameTierEntry.objects.create(user=other, movie=movie)
+
+        response = self.client.post(reverse("games:tier-list-move", args=[entry.pk]), {"tier": "S"})
+        self.assertEqual(response.status_code, 404)
+
+    def test_nivel_invalido_da_error(self):
+        movie = Movie.objects.create(tmdb_id=6, title="X", media_type="movie")
+        entry = GameTierEntry.objects.create(user=self.user, movie=movie)
+        response = self.client.post(reverse("games:tier-list-move", args=[entry.pk]), {"tier": "Z"})
+        self.assertEqual(response.status_code, 400)
+
+    def test_reiniciar_borra_solo_las_del_usuario(self):
+        other = User.objects.create(email="otro_tier3@test.local", role=User.Role.LECTOR)
+        movie_a = Movie.objects.create(tmdb_id=7, title="Mía", media_type="movie")
+        movie_b = Movie.objects.create(tmdb_id=8, title="Ajena", media_type="movie")
+        GameTierEntry.objects.create(user=self.user, movie=movie_a)
+        GameTierEntry.objects.create(user=other, movie=movie_b)
+
+        self.client.post(reverse("games:tier-list-reset"))
+
+        self.assertFalse(GameTierEntry.objects.filter(user=self.user).exists())
+        self.assertTrue(GameTierEntry.objects.filter(user=other).exists())

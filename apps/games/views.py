@@ -2,15 +2,17 @@ import random
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
-from django.http import Http404
+from django.db.models import Max, Q
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from apps.accounts.models import User
+from apps.movies.models import Movie
+from apps.movies.services import MovieAPIError, tmdb_search
 from apps.social.models import Message, are_friends, friends_of
 
-from .models import Duel, DuelRecord, MovieQuote
+from .models import Duel, DuelRecord, GameTierEntry, MovieQuote
 
 QUOTE_STREAK_KEY = "quote_streak"
 QUOTE_BEST_ANON_KEY = "quote_streak_best_anon"
@@ -206,3 +208,77 @@ def duel_detail(request, pk):
         "duel": duel, "quote": quote, "options": options,
         "streak": duel.streak_for(request.user),
     })
+
+
+# --- Tier list personal (juego) ------------------------------------------
+# Cada usuario tiene la suya propia, con niveles fijos S/A/B/C/D — distinta
+# de la de Top Secret (esa es una sola, la del dueño del sitio, con niveles
+# personalizables).
+
+@login_required
+def tier_list(request):
+    buckets = {choice: [] for choice, _ in GameTierEntry.Tier.choices}
+    for entry in GameTierEntry.objects.filter(user=request.user).select_related("movie"):
+        buckets[entry.tier].append(entry)
+
+    tier_rows = [
+        (value, label, buckets[value])
+        for value, label in GameTierEntry.Tier.choices
+        if value != GameTierEntry.Tier.UNSORTED
+    ]
+    return render(request, "games/tier_list.html", {
+        "tier_rows": tier_rows, "unsorted_entries": buckets[GameTierEntry.Tier.UNSORTED],
+    })
+
+
+@login_required
+def tier_list_search(request):
+    query = request.GET.get("query", "").strip()
+    results = []
+    error = None
+    if query:
+        try:
+            results = tmdb_search(query)[:8]
+        except MovieAPIError as exc:
+            error = str(exc)
+    return render(request, "games/_tier_search_results.html", {
+        "results": results, "error": error, "query": query,
+    })
+
+
+@login_required
+def tier_list_add(request, tmdb_id):
+    if request.method == "POST":
+        try:
+            movie = Movie.get_or_create_from_tmdb(tmdb_id)
+        except MovieAPIError as exc:
+            messages.error(request, str(exc))
+        else:
+            GameTierEntry.objects.get_or_create(user=request.user, movie=movie)
+    return redirect("games:tier-list")
+
+
+@login_required
+def tier_list_move(request, pk):
+    if request.method != "POST":
+        raise Http404
+    entry = get_object_or_404(GameTierEntry, pk=pk, user=request.user)
+    new_tier = request.POST.get("tier")
+    if new_tier not in GameTierEntry.Tier.values:
+        return JsonResponse({"ok": False, "error": "nivel inválido"}, status=400)
+
+    max_order = GameTierEntry.objects.filter(
+        user=request.user, tier=new_tier,
+    ).aggregate(Max("order"))["order__max"] or 0
+    entry.tier = new_tier
+    entry.order = max_order + 1
+    entry.save(update_fields=["tier", "order"])
+    return JsonResponse({"ok": True})
+
+
+@login_required
+def tier_list_reset(request):
+    if request.method == "POST":
+        GameTierEntry.objects.filter(user=request.user).delete()
+        messages.success(request, "Tu tier list se ha vaciado. Puedes empezar de nuevo.")
+    return redirect("games:tier-list")

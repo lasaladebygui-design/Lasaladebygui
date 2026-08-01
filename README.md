@@ -109,6 +109,7 @@ Todas están documentadas en [.env.example](.env.example). Resumen:
 | `REQUIRE_EMAIL_VERIFICATION` | Valor inicial de la opción "exigir verificación de email"; después se gestiona desde el admin (**Sitio → Configuración del sitio**). |
 | `TMDB_API_KEY` / `OMDB_API_KEY` | Búsqueda/portadas/sinopsis (TMDb) y nota IMDb (OMDb) para el catálogo y la ruleta. Instrucciones abajo. |
 | `SUPABASE_STORAGE_*` | Opcional: almacenamiento persistente de imágenes subidas (avatares, portadas...) en el Storage de Supabase. Vacío = disco local (no persistente en Render free). Instrucciones en la sección de despliegue. |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_CONTACT_EMAIL` | Claves de las notificaciones push (Web Push estándar). Genera un par nuevo con `python manage.py generate_vapid_keys`. Vacío = las notificaciones quedan desactivadas sin afectar al resto del sitio. |
 | `RENDER_EXTERNAL_HOSTNAME` | La rellena Render automáticamente en producción. |
 
 ### Obtener las API keys de películas
@@ -181,7 +182,9 @@ Cada usuario puede subir una foto de perfil (`User.avatar`), visible en su propi
 
 **Frase de perfil dinámica:** el antiguo campo de texto libre ("frase mítica de cine") se sustituyó por una frase que rota sola cada 6 segundos, tomada del mismo pool que usa el juego Frases célebres (`apps.games.models.MovieQuote`) — así el pool crece automáticamente si se añaden frases nuevas al juego, sin mantener dos listados. Se ve tanto en tu propio perfil como en el perfil público de cualquier otro usuario (`templates/partials/rotating_quote.html` + `static/js/rotating_quote.js`): cada carga de página empieza en una frase al azar y rota por todo el pool.
 
-**🎬 Mis imprescindibles (hasta 5) y ✨ Sugeridas (hasta 10)** (`apps.accounts.models.FavoriteMovie`): dos apartados con portada y título debajo, reutilizando el catálogo de `apps.movies` (misma búsqueda en vivo contra TMDb que la tier list de Top Secret: escribes, salen resultados, le das a "Añadir"). Solo puedes editar los tuyos (buscador + botón "✕" para quitar); en el perfil público de otro usuario (`/social/usuarios/<username>/`) se ven en modo solo lectura, sin buscador ni botón de quitar. Al llegar al límite de cada apartado, "Añadir" deja de funcionar (con un aviso) hasta que quites alguna.
+**🎬 Mis imprescindibles y ✨ Sugeridas** (`apps.accounts.models.FavoriteMovie`): dos pestañas paralelas (Alpine.js) y, dentro de cada una, dos grupos de 3 en 3 — Imprescindibles admite 3 películas + 3 series, Sugeridas admite 6 películas + 3 series (`FavoriteMovie.LIMITS`, por `(categoría, media_type)`). Reutiliza el catálogo de `apps.movies` (misma búsqueda en vivo contra TMDb que la tier list de Top Secret: escribes, salen resultados, le das a "Añadir"). Cada tarjeta tiene botones ◀ ✕ ▶ para reordenarla dentro de su grupo. Solo puedes editar las tuyas; en el perfil público de otro usuario (`/social/usuarios/<username>/`) se ven en modo solo lectura. Al llegar al límite de un grupo, "Añadir" deja de funcionar (con un aviso) hasta que quites alguna.
+
+**🔔 Notificaciones push:** el botón "Activar notificaciones" pide permiso al navegador y registra la suscripción (Web Push estándar, con claves VAPID — `apps.core.push`) para avisar de artículos nuevos, respuestas en el foro y mensajes en Social, incluso con la web cerrada (en Android/escritorio directamente; en iPhone, solo si la web está instalada como app — ver sección 11). Si el sitio no tiene configuradas `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`, el botón no aparece y el resto del sitio funciona igual.
 
 Al final de la página hay un botón **"Cerrar sesión"**, además del que ya había en el desplegable de la cabecera.
 
@@ -215,7 +218,7 @@ Si un tema nuevo necesita una tipografía de Google Fonts que no esté entre las
 
 ### Tablón de artículos (`/articulos/`)
 
-CRUD completo respetando los permisos de la tabla de roles anterior. El cuerpo se escribe con **CKEditor 5** (negrita, enlaces, listas, imágenes, tablas...); las imágenes que se suban desde el editor requieren `is_staff` (Admin/Gestor/Editor). Los tags se escriben como texto separado por comas y se crean sobre la marcha si no existen. Los comentarios al pie solo son visibles/escribibles por usuarios logueados; cualquiera puede leer los artículos sin cuenta.
+CRUD completo respetando los permisos de la tabla de roles anterior. El cuerpo se escribe con **CKEditor 5** (negrita, enlaces, listas, imágenes, tablas...); las imágenes que se suban desde el editor requieren `is_staff` (Admin/Gestor/Editor). Los tags se escriben como texto separado por comas y se crean sobre la marcha si no existen; al borrar un artículo, sus tags se borran también salvo que otro artículo los siga usando (así no se acumulan tags huérfanos, pero tampoco se rompe un tag compartido). Cada ficha de artículo enlaza además a los **5 últimos artículos** publicados (excluyéndose a sí misma), para no depender solo del listado para seguir navegando. Los comentarios al pie solo son visibles/escribibles por usuarios logueados; cualquiera puede leer los artículos sin cuenta. Publicar un artículo nuevo notifica por push (sección 11) a todos los usuarios suscritos, salvo al propio autor.
 
 **Imágenes dentro del texto, no solo la portada:** desde la barra de CKEditor se puede insertar una imagen en cualquier punto del cuerpo (donde esté el cursor, o arrastrándola a otro punto del texto para moverla), cambiarle el tamaño (dropdown `resizeImage`: original/50%/75%, o arrastrando la esquina) y alinearla a la izquierda/centro/derecha (`imageStyle`); el tamaño del texto se controla con el desplegable "heading" (títulos H1/H2/H3 o texto normal). Alinear a un lado es lo que hace que el texto la rodee — eso lo da el CSS de `.richtext` (`config/settings.py::CKEDITOR_5_CONFIGS` + `.richtext .image-style-align-left/right` en `static/css/main.css`, con `float` y un margen alrededor); sin esas reglas CKEditor guarda la alineación pero no se vería ningún efecto visual en la web pública. En móvil las imágenes alineadas a un lado pasan a ocupar todo el ancho (no flotan) para no dejar columnas de texto demasiado estrechas.
 
@@ -230,6 +233,8 @@ Cualquier usuario logueado (no baneado) puede abrir un hilo o responder, a cualq
 **Moderación (Gestor/Admin):** pueden cerrar un hilo (deja de admitir respuestas nuevas, ya publicadas se conservan) o eliminarlo por completo, y borrar cualquier comentario. El propio autor también puede borrar su comentario. Borrar un comentario es un **borrado lógico** (queda como "[comentario eliminado]") para no romper las respuestas que cuelguen de él; eliminar un hilo sí borra todo en cascada.
 
 **Doble borrado (Gestor/Admin):** sobre un comentario que ya está en "[comentario eliminado]", un Gestor o Admin ve un segundo botón, "Eliminar definitivamente", que esta vez sí lo borra de la base de datos sin posibilidad de deshacerlo. El autor del comentario no tiene este segundo paso, solo el borrado lógico.
+
+Responder a un hilo notifica por push (sección 11) a quien corresponda: al autor del comentario padre si es una respuesta anidada, o al autor del hilo si es una respuesta de primer nivel — nunca a ti mismo si te respondes a tu propio hilo/comentario.
 
 ### Imágenes y almacenamiento
 
@@ -270,7 +275,15 @@ Cualquier usuario logueado vota una película del 1 al 10 desde su ficha (`/peli
 Dos apartados separados, ambos enlazados desde la cabecera del catálogo (solo para usuarios logueados):
 
 - **Mis películas:** solo lo que has votado, con tu nota.
-- **Guardadas:** lo que has guardado desde la ficha de cualquier película (botón "Guardar película" / "✓ Guardada", `apps.movies.models.SavedMovie` — una fila única por usuario+película, pensado para marcar "quiero verla" sin necesidad de puntuarla todavía). Esta es la lista de la que tira el Modo 2 de la ruleta, de ahí que tenga su propio apartado en vez de ser una sección más dentro de "Mis películas".
+- **Guardadas:** lo que has guardado desde la ficha de cualquier película (botón "Guardar película" / "✓ Guardada", `apps.movies.models.SavedMovie` — una fila única por usuario+película, pensado para marcar "quiero verla" sin necesidad de puntuarla todavía). Esta es la lista de la que tira el Modo 2 de la ruleta, de ahí que tenga su propio apartado en vez de ser una sección más dentro de "Mis películas". Tiene botones ▲/▼ para reordenarlas según su orden de importancia (`SavedMovie.order`).
+
+### Series, además de películas
+
+Todo el catálogo (búsqueda, ficha, guardadas, votaciones, imprescindibles/sugeridas del perfil) admite también series, no solo películas: `Movie.media_type` (`movie`/`tv`) distingue unas de otras — como los IDs de TMDb para películas y series son namespaces independientes, la unicidad real es la pareja `(tmdb_id, media_type)`, no `tmdb_id` a secas. En cada apartado hay un selector **Películas / Series / Ambas** que filtra tanto el catálogo local como la búsqueda en vivo contra TMDb (`/search/movie` o `/search/tv` según el caso).
+
+### Calendario de estrenos (`/peliculas/calendario/`)
+
+Vista de mes con las películas/series que tocan cada día (`apps.movies.models.ReleaseEvent`, gestionado desde el admin). No hay integración real con Google Calendar (requeriría OAuth y credenciales por usuario); en su lugar, cada evento tiene un botón para descargar un `.ics` (`apps.movies.views.release_event_ics`, generado a mano sin librerías externas) que cualquier calendario (Google, Apple, Outlook...) puede importar con "Añadir a mi calendario".
 
 ## 8. Top Secret, donaciones y contacto
 
@@ -296,6 +309,7 @@ Nota: "Frases célebres" vivía antes aquí, como un juego más de Top Secret �
 Apartado de acceso libre (ni cuenta ni código de Top Secret) que agrupa lo que antes estaba repartido entre el enlace "Ruleta" de la cabecera y la sección de Juegos de Top Secret — de ahí que ahora sea un único punto de entrada, enlazado como "Juegos" en el desplegable. Vive entero en `apps.games` (modelos, vistas, plantillas y el comando `seed_quotes`), app propia creada para esto: antes `MovieQuote` vivía en `apps.secret` (por eso aparecía bajo "Top Secret" en el admin) y las vistas en `apps.core` — la migración que las trasladó (`apps/secret/migrations/0007_delete_moviequote.py` + `apps/games/migrations/0001_initial.py`) usa `SeparateDatabaseAndState` para que sea solo un cambio de qué app "es dueña" del modelo, sin tocar ni un dato de la tabla física existente.
 
 - **Ruleta** (`/peliculas/ruleta/`): los Modos 1 y 2 descritos en la sección 7.
+- **Tu tier list** (`/juegos/tierlist/`, `apps.games.models.GameTierEntry`): un ranking S/A/B/C/D **personal y privado** de cada usuario logueado — nada que ver con el Tier list de Top Secret (sección 8): ese es único y global, con niveles personalizables, gestionado dentro del maletín; este es por cuenta, con los cinco niveles fijos, no se usa para duelos ni lo ve nadie más. Mismo patrón de búsqueda-y-añadir (TMDb en vivo) y arrastrar-y-soltar que el de Top Secret — de hecho comparten el mismo script (`static/js/tier_list.js`, generalizado con un atributo `data-tier-move-url-base` para apuntar a la vista de cada uno).
 - **Frases célebres** (`/juegos/frases/`, **Admin → Juegos → Frases célebres**): la web muestra una frase de película y tres opciones (la correcta + dos incorrectas); aciertas y sigue la racha, fallas y se reinicia a 0. La racha en curso se guarda en la sesión del navegador; la **mejor racha** se guarda de forma permanente en la cuenta (`User.quote_streak_best`) si has iniciado sesión — y se muestra en tu página de perfil — o solo para esa sesión de navegador si entras sin cuenta. Al fallar se muestra una pantalla de fin de partida con la racha conseguida, un botón "Jugar de nuevo" y, si esa racha ha superado tu mejor marca anterior, un mensaje de felicitación.
 
   El pool de `seed_quotes` tiene **144 frases** (`apps/games/management/commands/seed_quotes.py`, con variedad de animación, terror, western y clásicos de todo tipo), revisadas para que sean completas (con el pronombre cuando la frase famosa lo lleva, ej. "Yo soy Iron Man." y no "Soy Iron Man.") y en castellano de verdad — sin dejar palabras sueltas en inglés colándose en medio de la frase (por eso, por ejemplo, la de *Duro de matar* se cambió por otra igual de reconocible). El comando también trae un pequeño mecanismo de corrección (`QUOTE_FIXES`): si una base de datos ya tenía sembradas versiones antiguas/incorrectas de alguna frase, `seed_quotes` las actualiza in situ la próxima vez que se ejecute (buscándolas por su texto anterior), en vez de dejarlas huérfanas junto a la versión corregida.
@@ -313,7 +327,7 @@ Desde el buscador (o desde los nombres de autor del foro, que también enlazan a
 
 La mensajería está **limitada a amigos**: solo se puede abrir o escribir en una conversación con alguien con quien ya existe una amistad aceptada (`apps.social.models.FriendRequest` con `accepted=True`); intentarlo con quien no es amigo da 404. Al abrir una conversación, los mensajes recibidos se marcan como leídos.
 
-Cada mensaje propio tiene un enlace **"Editar"** (despliega un formulario en el sitio, sin JavaScript, con `<details>`/`<summary>`) y un botón **"Borrar"** directamente en la conversación; solo el autor del mensaje puede editarlo o borrarlo (`apps.social.views.message_edit`/`message_delete` comprueban `sender=request.user`, si no da 404).
+Cada mensaje propio tiene un enlace **"Editar"** (despliega un formulario en el sitio, sin JavaScript, con `<details>`/`<summary>`) y un botón **"Borrar"** directamente en la conversación; solo el autor del mensaje puede editarlo o borrarlo (`apps.social.views.message_edit`/`message_delete` comprueban `sender=request.user`, si no da 404). Enviar un mensaje notifica por push (sección 11) al destinatario.
 
 ### Tienda (`/tienda/`)
 
@@ -343,6 +357,15 @@ La web se puede instalar como app (icono en el escritorio/pantalla de inicio, se
 - El banner (esquina inferior, con botones "Instalar" / "Ahora no") no bloquea nada de la página; al pulsar "Instalar" se lanza el diálogo nativo del navegador.
 
 **Icono:** `static/img/pwa-icon-192.png` y `pwa-icon-512.png` se generan (redimensionados) a partir del logo real en `docs/design-refs/ChatGPT Image 25 jul 2026, 13_26_30.png`. Si en algún momento cambia el logo, basta con volver a exportar esos dos tamaños (192×192 y 512×512) a esos mismos archivos — no hace falta tocar `manifest.json` ni ningún otro código.
+
+### Notificaciones push (artículo nuevo, respuestas del foro, mensajes)
+
+Usa el estándar **Web Push** con claves **VAPID** (`pywebpush`), no Firebase ni ningún servicio de terceros — funciona directamente en Android/escritorio; en iPhone, solo si la web está instalada como app (limitación de Apple, no de esta implementación).
+
+- **Claves:** genera un par nuevo con `python manage.py generate_vapid_keys` (comando en `apps/core/management/commands/`) y ponlas en `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_CONTACT_EMAIL` (ver sección 3). Sin ellas, el botón "Activar notificaciones" del perfil no aparece y el resto del sitio sigue funcionando igual — no es un requisito para poder desplegar.
+- **Suscripción:** el botón del perfil (`static/js/push_subscribe.js`) pide permiso al navegador, registra una suscripción con `PushManager.subscribe()` y la manda al backend (`accounts:push-subscribe`), que la guarda en `apps.accounts.models.PushSubscription` (una fila por dispositivo/navegador — un mismo usuario puede tener varias). Si el navegador no soporta Push API, el botón se oculta solo.
+- **Envío:** `apps.core.push.send_push_to_user(s)` manda el push a todas las suscripciones de un usuario; si un endpoint ya no es válido (revocado/expirado, HTTP 404/410), la suscripción se borra sola en vez de quedarse ahí fallando para siempre. Se dispara desde tres sitios: publicar un artículo nuevo (a todos los suscritos menos el autor), responder en el foro (al autor del hilo o del comentario padre, según corresponda) y enviar un mensaje en Social (al destinatario).
+- **Al llegar:** el service worker (`static/js/sw.js`) escucha `push` (muestra la notificación del sistema con `showNotification`) y `notificationclick` (al pulsarla, enfoca una pestaña ya abierta en esa URL o abre una nueva).
 
 ## 12. Animación de proyector al entrar
 
@@ -423,6 +446,7 @@ python manage.py seed_demo        # usuarios de ejemplo (uno por rol)
 python manage.py seed_content     # seed_demo + artículos, hilos de foro, películas de Top Secret y frases célebres de ejemplo
 python manage.py seed_movies      # catálogo de películas desde TMDb/OMDb (--pages N, por defecto 2)
 python manage.py seed_quotes      # frases de ejemplo para "Frases célebres" (seguro en producción, no crea usuarios)
+python manage.py generate_vapid_keys  # genera un par de claves nuevo para las notificaciones push
 python manage.py createsuperuser
 python manage.py collectstatic    # antes de desplegar
 ```

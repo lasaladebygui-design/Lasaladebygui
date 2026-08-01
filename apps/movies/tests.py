@@ -1,3 +1,4 @@
+from datetime import date
 from unittest.mock import patch
 
 from django.test import TestCase, override_settings
@@ -109,6 +110,35 @@ class SavedMovieTests(TestCase):
         response = self.client.get(reverse("movies:saved-movies"))
         self.assertIn("/cuenta/login/", response.url)
 
+    def test_guardadas_filtra_por_tipo(self):
+        serie = Movie.objects.create(tmdb_id=2, title="Serie A", media_type="tv")
+        SavedMovie.objects.create(user=self.user, movie=self.movie)
+        SavedMovie.objects.create(user=self.user, movie=serie)
+
+        response = self.client.get(reverse("movies:saved-movies"), {"type": "tv"})
+        self.assertEqual(list(response.context["saved"].values_list("movie", flat=True)), [serie.pk])
+
+        response = self.client.get(reverse("movies:saved-movies"), {"type": "movie"})
+        self.assertEqual(list(response.context["saved"].values_list("movie", flat=True)), [self.movie.pk])
+
+    def test_mover_guardada_cambia_el_orden(self):
+        other = make_movie(2, "Movie B", "7.0")
+        saved_a = SavedMovie.objects.create(user=self.user, movie=self.movie, order=0)
+        saved_b = SavedMovie.objects.create(user=self.user, movie=other, order=1)
+
+        self.client.post(reverse("movies:saved-movie-move", args=[saved_b.pk, "up"]))
+
+        saved_a.refresh_from_db()
+        saved_b.refresh_from_db()
+        self.assertEqual(saved_b.order, 0)
+        self.assertEqual(saved_a.order, 1)
+
+    def test_no_se_puede_mover_una_guardada_ajena(self):
+        other_user = make_user("otro_guardada@test.local")
+        saved = SavedMovie.objects.create(user=other_user, movie=self.movie, order=0)
+        response = self.client.post(reverse("movies:saved-movie-move", args=[saved.pk, "up"]))
+        self.assertEqual(response.status_code, 404)
+
 
 class RouletteRatingTests(TestCase):
     def setUp(self):
@@ -217,7 +247,7 @@ class MovieListLiveSearchTests(TestCase):
     def test_pelicula_no_cacheada_aparece_como_resultado_externo(self, mock_search):
         mock_search.return_value = [self._tmdb_result(603, "The Matrix")]
         response = self.client.get(reverse("movies:list"), {"query": "matrix"})
-        mock_search.assert_called_once_with("matrix")
+        mock_search.assert_called_once_with("matrix", media_type="movie")
         external = response.context["external_results"]
         self.assertEqual(len(external), 1)
         self.assertEqual(external[0].tmdb_id, 603)
@@ -239,8 +269,34 @@ class MovieListLiveSearchTests(TestCase):
     @patch("apps.movies.views.Movie.get_or_create_from_tmdb")
     def test_ver_ficha_desde_tmdb_crea_y_redirige(self, mock_get_or_create):
         mock_get_or_create.return_value = make_movie(603, "Matrix", None)
-        response = self.client.get(reverse("movies:from-tmdb", args=[603]))
+        response = self.client.get(reverse("movies:from-tmdb", args=["movie", 603]))
         self.assertRedirects(response, reverse("movies:detail", args=[mock_get_or_create.return_value.pk]))
+
+    @patch("apps.movies.views.Movie.get_or_create_from_tmdb")
+    def test_ver_ficha_de_serie_desde_tmdb(self, mock_get_or_create):
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=1, title="Dark", media_type="tv")
+        response = self.client.get(reverse("movies:from-tmdb", args=["tv", 1]))
+        self.assertRedirects(response, reverse("movies:detail", args=[mock_get_or_create.return_value.pk]))
+        mock_get_or_create.assert_called_once_with(1, media_type="tv")
+
+    def test_catalogo_filtra_por_tipo(self):
+        pelicula = make_movie(1, "Una película", None)
+        serie = Movie.objects.create(tmdb_id=2, title="Una serie", media_type="tv")
+
+        response = self.client.get(reverse("movies:list"), {"type": "tv"})
+        self.assertEqual(list(response.context["page_obj"].object_list), [serie])
+
+        response = self.client.get(reverse("movies:list"), {"type": "movie"})
+        self.assertEqual(list(response.context["page_obj"].object_list), [pelicula])
+
+        response = self.client.get(reverse("movies:list"), {"type": "all"})
+        self.assertEqual(set(response.context["page_obj"].object_list), {pelicula, serie})
+
+    @patch("apps.movies.views.tmdb_search")
+    def test_busqueda_en_tv_usa_el_endpoint_de_series(self, mock_search):
+        mock_search.return_value = []
+        self.client.get(reverse("movies:list"), {"query": "dark", "type": "tv"})
+        mock_search.assert_called_once_with("dark", media_type="tv")
 
 
 class MovieListInfiniteScrollTests(TestCase):
@@ -330,3 +386,44 @@ class SeedMoviesCommandTests(TestCase):
 
         call_command("seed_movies")
         self.assertEqual(Movie.objects.count(), 0)
+
+
+class ReleaseCalendarTests(TestCase):
+    def setUp(self):
+        from .models import ReleaseEvent
+        self.ReleaseEvent = ReleaseEvent
+        self.movie = make_movie(1, "Estreno de prueba", None)
+
+    def test_muestra_eventos_del_mes_pedido(self):
+        event = self.ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 3, 15), note="Estreno")
+        response = self.client.get(reverse("movies:calendar"), {"year": 2026, "month": 3})
+        self.assertEqual(response.status_code, 200)
+
+        all_events = [e for week in response.context["weeks"] for day in week for e in day["events"]]
+        self.assertEqual(all_events, [event])
+
+    def test_no_muestra_eventos_de_otro_mes(self):
+        self.ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 4, 1))
+        response = self.client.get(reverse("movies:calendar"), {"year": 2026, "month": 3})
+        all_events = [e for week in response.context["weeks"] for day in week for e in day["events"]]
+        self.assertEqual(all_events, [])
+
+    def test_mes_o_year_invalido_da_404(self):
+        response = self.client.get(reverse("movies:calendar"), {"year": 2026, "month": 13})
+        self.assertEqual(response.status_code, 404)
+
+    def test_descarga_ics(self):
+        event = self.ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 3, 15), note="Estreno")
+        response = self.client.get(reverse("movies:release-ics", args=[event.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/calendar; charset=utf-8")
+        content = response.content.decode("utf-8")
+        self.assertIn("BEGIN:VEVENT", content)
+        self.assertIn("DTSTART;VALUE=DATE:20260315", content)
+        self.assertIn("SUMMARY:Estreno de prueba", content)
+
+    def test_ics_escapa_comas_en_el_titulo(self):
+        movie = Movie.objects.create(tmdb_id=2, title="Uno, Dos y Tres", media_type="movie")
+        event = self.ReleaseEvent.objects.create(movie=movie, date=date(2026, 3, 15))
+        response = self.client.get(reverse("movies:release-ics", args=[event.pk]))
+        self.assertIn("SUMMARY:Uno\\, Dos y Tres", response.content.decode("utf-8"))

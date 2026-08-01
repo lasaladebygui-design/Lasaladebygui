@@ -541,6 +541,11 @@ main { flex: 1; }
     gap: 0.5rem;
     margin-bottom: calc(var(--space-unit) * 6);
 }
+.media-type-toggle {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: calc(var(--space-unit) * 4);
+}
 .tag-pill {
     display: inline-flex;
     align-items: center;
@@ -820,6 +825,21 @@ main { flex: 1; }
 }
 .movie-card__body { padding: calc(var(--space-unit) * 4); }
 .movie-card__body h3 { font-size: 1rem; margin-bottom: 0.2rem; }
+
+.movie-card--row {
+    flex-direction: row;
+    align-items: center;
+    flex: 1;
+}
+.movie-card--row .movie-card__poster { width: 60px; flex-shrink: 0; }
+
+.reorder-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+.reorder-buttons .link-btn { font-size: 0.9rem; }
+.reorder-buttons .link-btn:disabled { opacity: 0.3; cursor: default; }
 
 .movie-detail {
     display: grid;
@@ -1144,6 +1164,13 @@ main { flex: 1; }
     opacity: 0.85;
 }
 .tier-row--u .tier-row__label { background: transparent; color: var(--color-text-muted); font-size: 1.1rem; }
+
+/* Niveles fijos de la tier list de Juegos (S/A/B/C/D, sin color editable) */
+.tier-row__label--S { background: #FFD700; }
+.tier-row__label--A { background: #FFA94D; }
+.tier-row__label--B { background: #A9E34B; }
+.tier-row__label--C { background: #74C0FC; }
+.tier-row__label--D { background: #D98C8C; }
 .tier-row__hint {
     font-size: 0.8rem;
     margin: 0 0 calc(var(--space-unit) * 5);
@@ -1189,16 +1216,35 @@ main { flex: 1; }
 
 /* --- Perfil: imprescindibles y sugeridas -------------------------------- */
 
-.favorites-section { margin-top: calc(var(--space-unit) * 6); }
-.favorites-section__title { font-size: 1.1rem; margin-bottom: calc(var(--space-unit) * 3); }
-.favorites-grid {
+.favorites-tabs { margin-top: calc(var(--space-unit) * 6); }
+.favorites-tabs__nav {
     display: flex;
-    flex-wrap: wrap;
+    gap: calc(var(--space-unit) * 2);
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: calc(var(--space-unit) * 5);
+}
+.favorites-tabs__btn {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: calc(var(--space-unit) * 2) calc(var(--space-unit) * 3);
+    font-size: 1rem;
+    font-family: var(--font-heading);
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+.favorites-tabs__btn:hover { color: var(--color-text); }
+.favorites-tabs__btn--active { color: var(--color-accent); border-bottom-color: var(--color-accent); }
+
+.favorites-group { margin-bottom: calc(var(--space-unit) * 6); }
+.favorites-group__title { font-size: 1rem; margin-bottom: calc(var(--space-unit) * 3); }
+.favorites-grid {
+    display: grid;
     gap: calc(var(--space-unit) * 3);
     margin-bottom: calc(var(--space-unit) * 4);
 }
+.favorites-grid--3col { grid-template-columns: repeat(3, minmax(0, 100px)); }
 .favorite-card {
-    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1220,22 +1266,13 @@ main { flex: 1; }
     font-size: 1.8rem;
 }
 .favorite-card__title { font-size: 0.8rem; margin-top: 0.4rem; color: var(--color-text-muted); }
-.favorite-card__remove {
-    position: absolute;
-    top: -6px;
-    right: -6px;
-}
-.favorite-card__remove .link-btn {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 50%;
-    width: 22px;
-    height: 22px;
-    display: inline-flex;
+.favorite-card__tools {
+    display: flex;
     align-items: center;
-    justify-content: center;
-    line-height: 1;
+    gap: 0.3rem;
+    margin-top: 0.3rem;
 }
+.favorite-card__tools .link-btn { font-size: 0.75rem; }
 
 /* --- Juego: Frases célebres --------------------------------------------------- */
 
@@ -1626,6 +1663,68 @@ main { flex: 1; }
     padding: calc(var(--space-unit) * 2) calc(var(--space-unit) * 3);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
     max-width: calc(100vw - var(--space-unit) * 4);
+}
+
+/* --- Calendario de estrenos ---------------------------------------------- */
+
+.calendar-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--space-unit) * 4);
+    margin-bottom: calc(var(--space-unit) * 4);
+}
+.calendar-nav__label {
+    font-family: var(--font-heading);
+    font-size: 1.2rem;
+    min-width: 160px;
+    text-align: center;
+}
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background: var(--color-border);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    overflow: hidden;
+}
+.calendar-grid__weekday {
+    background: var(--color-surface);
+    padding: calc(var(--space-unit) * 2);
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    font-weight: 600;
+}
+.calendar-day {
+    background: var(--color-bg);
+    min-height: 90px;
+    padding: calc(var(--space-unit) * 1.5);
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+.calendar-day--outside { opacity: 0.35; }
+.calendar-day--today { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+.calendar-day__number { font-size: 0.8rem; color: var(--color-text-muted); }
+.calendar-event {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+    background: var(--color-surface);
+    border-radius: 4px;
+    padding: 0.2rem 0.4rem;
+}
+.calendar-event__title { font-weight: 600; }
+.calendar-event__note { font-size: 0.7rem; }
+.calendar-event__ics { margin-left: auto; text-decoration: none; }
+
+@media (max-width: 640px) {
+    .calendar-day { min-height: 60px; font-size: 0.8rem; }
+    .calendar-grid__weekday { padding: calc(var(--space-unit) * 1); font-size: 0.7rem; }
 }
 
 /* --- Responsive ----------------------------------------------------------
