@@ -18,4 +18,7 @@ urlpatterns = [
     path("tierlist/anadir/<int:tmdb_id>/", views.tier_list_add, name="tier-list-add"),
     path("tierlist/<int:pk>/mover/", views.tier_list_move, name="tier-list-move"),
     path("tierlist/reiniciar/", views.tier_list_reset, name="tier-list-reset"),
+    path("tierlist/niveles/anadir/", views.tier_level_create, name="tier-level-create"),
+    path("tierlist/niveles/<int:pk>/editar/", views.tier_level_update, name="tier-level-update"),
+    path("tierlist/niveles/<int:pk>/borrar/", views.tier_level_delete, name="tier-level-delete"),
 ]

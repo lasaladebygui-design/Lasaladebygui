@@ -22,7 +22,7 @@
                 <form method="post" action="{% url 'movies:save-toggle' movie.pk %}" class="inline-form">
                     {% csrf_token %}
                     <button type="submit" class="btn btn--ghost btn--sm">
-                        {% if is_saved %}✓ Guardada{% else %}Guardar película{% endif %}
+                        {% if is_saved %}✓ Guardada{% elif movie.is_tv %}Guardar serie{% else %}Guardar película{% endif %}
                     </button>
                 </form>
                 {% if is_saved %}

@@ -15,10 +15,10 @@ class Command(BaseCommand):
     - Si DJANGO_SUPERUSER_EMAIL y DJANGO_SUPERUSER_PASSWORD están definidas
       y todavía no existe ningún Admin, crea uno. Si ya existe un Admin, no
       hace nada (seguro de dejar puesto para siempre).
-    - Si RUN_SEED_MOVIES=true, puebla el catálogo de películas desde
-      TMDb/OMDb (equivalente a `seed_movies`). Conviene quitar esta variable
-      después del primer despliegue para no repetir las llamadas a las APIs
-      en cada arranque.
+    - Si RUN_SEED_MOVIES=true, puebla el catálogo de películas y de series
+      desde TMDb/OMDb (equivalente a `seed_movies` + `seed_series`). Conviene
+      quitar esta variable después del primer despliegue para no repetir las
+      llamadas a las APIs en cada arranque.
     - Si RUN_SEED_QUOTES=true, carga las frases de ejemplo del juego "Frases
       célebres" (equivalente a `seed_quotes`). Es idempotente (no duplica si
       ya existen), así que es seguro dejarla activada si prefieres no volver
@@ -54,6 +54,7 @@ class Command(BaseCommand):
     def _maybe_seed_movies(self):
         if os.environ.get("RUN_SEED_MOVIES", "").lower() in ("1", "true", "yes"):
             call_command("seed_movies")
+            call_command("seed_series")
 
     def _maybe_seed_quotes(self):
         if os.environ.get("RUN_SEED_QUOTES", "").lower() in ("1", "true", "yes"):

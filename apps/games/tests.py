@@ -8,7 +8,7 @@ from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError
 from apps.social.models import FriendRequest, Message
 
-from .models import Duel, DuelRecord, GameTierEntry, MovieQuote
+from .models import Duel, DuelRecord, GameTierEntry, GameTierLevel, MovieQuote
 
 
 class GamesHubTests(TestCase):
@@ -202,6 +202,16 @@ class DuelTests(TestCase):
         self.assertRedirects(response, reverse("games:hub"))
         self.assertFalse(Duel.objects.filter(pk=duel.pk).exists())
 
+    def test_rechazar_el_duelo_borra_el_mensaje_de_invitacion_en_social(self):
+        self.client.login(username="alice@test.local", password="Testpass123!")
+        self.client.post(reverse("games:duel-invite", kwargs={"username": self.bob.username}))
+        duel = Duel.objects.get()
+        self.client.logout()
+
+        self.client.login(username="bob@test.local", password="Testpass123!")
+        self.client.post(reverse("games:duel-decline", kwargs={"pk": duel.pk}))
+        self.assertFalse(Message.objects.filter(sender=self.alice, recipient=self.bob).exists())
+
     def test_el_retador_no_puede_aceptar_su_propio_duelo(self):
         duel = Duel.objects.create(
             challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
@@ -332,6 +342,19 @@ class DuelTests(TestCase):
         self.assertRedirects(response, reverse("games:hub"))
         self.assertFalse(Duel.objects.filter(pk=duel.pk).exists())
 
+    def test_salir_de_un_duelo_terminado_borra_el_mensaje_de_invitacion(self):
+        self.client.login(username="alice@test.local", password="Testpass123!")
+        self.client.post(reverse("games:duel-invite", kwargs={"username": self.bob.username}))
+        duel = Duel.objects.get()
+        duel.status = Duel.Status.FINISHED
+        duel.challenger_lost = True
+        duel.save(update_fields=["status", "challenger_lost"])
+        self.client.logout()
+
+        self.client.login(username="bob@test.local", password="Testpass123!")
+        self.client.post(reverse("games:duel-leave", kwargs={"pk": duel.pk}))
+        self.assertFalse(Message.objects.filter(sender=self.alice, recipient=self.bob).exists())
+
     def test_no_se_puede_salir_de_un_duelo_todavia_activo(self):
         duel = Duel.objects.create(
             challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
@@ -405,7 +428,9 @@ class DuelTests(TestCase):
 
 class GameTierListTests(TestCase):
     """Tier list personal por usuario, en Juegos — distinta de la de Top
-    Secret (esa es una sola, del dueño del sitio)."""
+    Secret (esa es una sola, del dueño del sitio). Los niveles son
+    editables por cada usuario, igual que en Top Secret, pero sin
+    compartir ninguno entre usuarios."""
 
     def setUp(self):
         self.user = User.objects.create(email="tierlist@test.local", role=User.Role.LECTOR)
@@ -418,16 +443,28 @@ class GameTierListTests(TestCase):
         response = self.client.get(reverse("games:tier-list"))
         self.assertIn("/cuenta/login/", response.url)
 
+    def test_primera_visita_crea_los_niveles_por_defecto(self):
+        self.client.get(reverse("games:tier-list"))
+        names = list(GameTierLevel.objects.filter(user=self.user).order_by("order").values_list("name", flat=True))
+        self.assertEqual(names, ["S", "A", "B", "C", "D"])
+
+    def test_no_duplica_niveles_en_visitas_siguientes(self):
+        self.client.get(reverse("games:tier-list"))
+        self.client.get(reverse("games:tier-list"))
+        self.assertEqual(GameTierLevel.objects.filter(user=self.user).count(), 5)
+
     def test_cada_usuario_ve_solo_las_suyas(self):
         other = User.objects.create(email="otro_tier@test.local", role=User.Role.LECTOR)
         movie_a = Movie.objects.create(tmdb_id=1, title="Mía", media_type="movie")
         movie_b = Movie.objects.create(tmdb_id=2, title="Ajena", media_type="movie")
-        GameTierEntry.objects.create(user=self.user, movie=movie_a, tier="S")
-        GameTierEntry.objects.create(user=other, movie=movie_b, tier="S")
+        my_level = GameTierLevel.objects.create(user=self.user, name="S", color="#FFD700", order=0)
+        other_level = GameTierLevel.objects.create(user=other, name="S", color="#FFD700", order=0)
+        GameTierEntry.objects.create(user=self.user, movie=movie_a, tier=my_level)
+        GameTierEntry.objects.create(user=other, movie=movie_b, tier=other_level)
 
         response = self.client.get(reverse("games:tier-list"))
-        tier_rows = dict((value, entries) for value, label, entries in response.context["tier_rows"])
-        self.assertEqual([e.movie for e in tier_rows["S"]], [movie_a])
+        level_rows = dict(response.context["level_rows"])
+        self.assertEqual([e.movie for e in level_rows[my_level]], [movie_a])
 
     def test_nueva_entrada_cae_en_sin_clasificar(self):
         movie = Movie.objects.create(tmdb_id=3, title="Nueva", media_type="movie")
@@ -448,7 +485,7 @@ class GameTierListTests(TestCase):
         response = self.client.post(reverse("games:tier-list-add", args=[99]))
         self.assertRedirects(response, reverse("games:tier-list"))
         entry = GameTierEntry.objects.get(user=self.user, movie__tmdb_id=99)
-        self.assertEqual(entry.tier, GameTierEntry.Tier.UNSORTED)
+        self.assertIsNone(entry.tier)
 
     @patch("apps.games.views.Movie.get_or_create_from_tmdb", side_effect=MovieAPIError("fallo"))
     def test_error_de_tmdb_al_anadir_no_rompe_la_pagina(self, mock_get_or_create):
@@ -456,35 +493,53 @@ class GameTierListTests(TestCase):
         self.assertRedirects(response, reverse("games:tier-list"))
         self.assertFalse(GameTierEntry.objects.exists())
 
-    def test_mover_cambia_de_nivel(self):
-        movie = Movie.objects.create(tmdb_id=4, title="Se mueve", media_type="movie")
-        entry = GameTierEntry.objects.create(user=self.user, movie=movie)
+    def test_mover_cambia_de_nivel_y_se_coloca_al_final(self):
+        s = GameTierLevel.objects.create(user=self.user, name="S", color="#FFD700", order=0)
+        d = GameTierLevel.objects.create(user=self.user, name="D", color="#D98C8C", order=1)
+        GameTierEntry.objects.create(user=self.user, movie=Movie.objects.create(tmdb_id=4, title="Ya en D"), tier=d, order=1)
+        entry = GameTierEntry.objects.create(user=self.user, movie=Movie.objects.create(tmdb_id=5, title="Se mueve"), tier=s, order=1)
 
-        response = self.client.post(reverse("games:tier-list-move", args=[entry.pk]), {"tier": "S"})
+        response = self.client.post(reverse("games:tier-list-move", args=[entry.pk]), {"tier": d.pk})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"ok": True})
 
         entry.refresh_from_db()
-        self.assertEqual(entry.tier, "S")
+        self.assertEqual(entry.tier, d)
+        self.assertEqual(entry.order, 2)
+
+    def test_mover_a_sin_clasificar(self):
+        s = GameTierLevel.objects.create(user=self.user, name="S", color="#FFD700", order=0)
+        entry = GameTierEntry.objects.create(user=self.user, movie=Movie.objects.create(tmdb_id=6, title="X"), tier=s, order=1)
+        response = self.client.post(reverse("games:tier-list-move", args=[entry.pk]), {"tier": ""})
+        self.assertEqual(response.status_code, 200)
+        entry.refresh_from_db()
+        self.assertIsNone(entry.tier)
 
     def test_no_se_puede_mover_una_entrada_ajena(self):
         other = User.objects.create(email="otro_tier2@test.local", role=User.Role.LECTOR)
-        movie = Movie.objects.create(tmdb_id=5, title="No es tuya", media_type="movie")
+        movie = Movie.objects.create(tmdb_id=7, title="No es tuya", media_type="movie")
         entry = GameTierEntry.objects.create(user=other, movie=movie)
 
-        response = self.client.post(reverse("games:tier-list-move", args=[entry.pk]), {"tier": "S"})
+        response = self.client.post(reverse("games:tier-list-move", args=[entry.pk]), {"tier": ""})
         self.assertEqual(response.status_code, 404)
 
     def test_nivel_invalido_da_error(self):
-        movie = Movie.objects.create(tmdb_id=6, title="X", media_type="movie")
+        movie = Movie.objects.create(tmdb_id=8, title="X", media_type="movie")
         entry = GameTierEntry.objects.create(user=self.user, movie=movie)
-        response = self.client.post(reverse("games:tier-list-move", args=[entry.pk]), {"tier": "Z"})
+        response = self.client.post(reverse("games:tier-list-move", args=[entry.pk]), {"tier": "9999"})
+        self.assertEqual(response.status_code, 400)
+
+    def test_no_se_puede_mover_al_nivel_de_otro_usuario(self):
+        other = User.objects.create(email="otro_tier4@test.local", role=User.Role.LECTOR)
+        other_level = GameTierLevel.objects.create(user=other, name="S", color="#FFD700", order=0)
+        entry = GameTierEntry.objects.create(user=self.user, movie=Movie.objects.create(tmdb_id=9, title="X"))
+        response = self.client.post(reverse("games:tier-list-move", args=[entry.pk]), {"tier": other_level.pk})
         self.assertEqual(response.status_code, 400)
 
     def test_reiniciar_borra_solo_las_del_usuario(self):
         other = User.objects.create(email="otro_tier3@test.local", role=User.Role.LECTOR)
-        movie_a = Movie.objects.create(tmdb_id=7, title="Mía", media_type="movie")
-        movie_b = Movie.objects.create(tmdb_id=8, title="Ajena", media_type="movie")
+        movie_a = Movie.objects.create(tmdb_id=10, title="Mía", media_type="movie")
+        movie_b = Movie.objects.create(tmdb_id=11, title="Ajena", media_type="movie")
         GameTierEntry.objects.create(user=self.user, movie=movie_a)
         GameTierEntry.objects.create(user=other, movie=movie_b)
 
@@ -492,3 +547,59 @@ class GameTierListTests(TestCase):
 
         self.assertFalse(GameTierEntry.objects.filter(user=self.user).exists())
         self.assertTrue(GameTierEntry.objects.filter(user=other).exists())
+
+    def test_reiniciar_no_borra_los_niveles(self):
+        self.client.get(reverse("games:tier-list"))
+        self.client.post(reverse("games:tier-list-reset"))
+        self.assertEqual(GameTierLevel.objects.filter(user=self.user).count(), 5)
+
+
+class GameTierLevelManagementTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create(email="tierlevel@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+    def test_anadir_nivel(self):
+        response = self.client.post(reverse("games:tier-level-create"), {"name": "SS", "color": "#FF0000"})
+        self.assertRedirects(response, reverse("games:tier-list"))
+        level = GameTierLevel.objects.get(user=self.user, name="SS")
+        self.assertEqual(level.color, "#FF0000")
+
+    def test_nuevo_nivel_se_coloca_al_final(self):
+        GameTierLevel.objects.create(user=self.user, name="S", color="#FFD700", order=0)
+        self.client.post(reverse("games:tier-level-create"), {"name": "SS", "color": "#FF0000"})
+        level = GameTierLevel.objects.get(user=self.user, name="SS")
+        self.assertEqual(level.order, 1)
+
+    def test_editar_nivel(self):
+        level = GameTierLevel.objects.create(user=self.user, name="S", color="#FFD700", order=0)
+        self.client.post(reverse("games:tier-level-update", args=[level.pk]), {"name": "Genial", "color": "#00FF00"})
+        level.refresh_from_db()
+        self.assertEqual(level.name, "Genial")
+        self.assertEqual(level.color, "#00FF00")
+
+    def test_no_se_puede_editar_el_nivel_de_otro_usuario(self):
+        other = User.objects.create(email="otro_nivel@test.local", role=User.Role.LECTOR)
+        level = GameTierLevel.objects.create(user=other, name="S", color="#FFD700", order=0)
+        response = self.client.post(reverse("games:tier-level-update", args=[level.pk]), {"name": "Robado", "color": "#000000"})
+        self.assertEqual(response.status_code, 404)
+
+    def test_borrar_nivel_deja_sus_entradas_sin_clasificar(self):
+        level = GameTierLevel.objects.create(user=self.user, name="S", color="#FFD700", order=0)
+        movie = Movie.objects.create(tmdb_id=1, title="X", media_type="movie")
+        entry = GameTierEntry.objects.create(user=self.user, movie=movie, tier=level)
+
+        self.client.post(reverse("games:tier-level-delete", args=[level.pk]))
+
+        self.assertFalse(GameTierLevel.objects.filter(pk=level.pk).exists())
+        entry.refresh_from_db()
+        self.assertIsNone(entry.tier)
+
+    def test_no_se_puede_borrar_el_nivel_de_otro_usuario(self):
+        other = User.objects.create(email="otro_nivel2@test.local", role=User.Role.LECTOR)
+        level = GameTierLevel.objects.create(user=other, name="S", color="#FFD700", order=0)
+        response = self.client.post(reverse("games:tier-level-delete", args=[level.pk]))
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(GameTierLevel.objects.filter(pk=level.pk).exists())

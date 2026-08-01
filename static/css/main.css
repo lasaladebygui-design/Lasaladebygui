@@ -418,6 +418,14 @@ main { flex: 1; }
 }
 .field--checkbox input { width: auto; }
 
+.field-row {
+    display: flex;
+    gap: calc(var(--space-unit) * 3);
+    flex-wrap: wrap;
+    align-items: flex-end;
+}
+.field-row .field { flex: 1; min-width: 200px; margin-bottom: calc(var(--space-unit) * 4); }
+
 .field input:focus,
 .field select:focus {
     outline: none;
@@ -1165,12 +1173,6 @@ main { flex: 1; }
 }
 .tier-row--u .tier-row__label { background: transparent; color: var(--color-text-muted); font-size: 1.1rem; }
 
-/* Niveles fijos de la tier list de Juegos (S/A/B/C/D, sin color editable) */
-.tier-row__label--S { background: #FFD700; }
-.tier-row__label--A { background: #FFA94D; }
-.tier-row__label--B { background: #A9E34B; }
-.tier-row__label--C { background: #74C0FC; }
-.tier-row__label--D { background: #D98C8C; }
 .tier-row__hint {
     font-size: 0.8rem;
     margin: 0 0 calc(var(--space-unit) * 5);

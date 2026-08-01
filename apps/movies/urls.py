@@ -11,9 +11,6 @@ urlpatterns = [
     path("guardadas/<int:pk>/mover/<str:direction>/", views.saved_movie_move, name="saved-movie-move"),
     path("desde-tmdb/<str:media_type>/<int:tmdb_id>/", views.movie_from_tmdb, name="from-tmdb"),
 
-    path("calendario/", views.release_calendar, name="calendar"),
-    path("calendario/<int:pk>/ics/", views.release_event_ics, name="release-ics"),
-
     path("<int:pk>/", views.movie_detail, name="detail"),
     path("<int:pk>/votar/", views.movie_vote, name="vote"),
     path("<int:pk>/votar/quitar/", views.movie_vote_remove, name="vote-remove"),

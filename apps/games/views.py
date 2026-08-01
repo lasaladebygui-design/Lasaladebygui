@@ -12,7 +12,16 @@ from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError, tmdb_search
 from apps.social.models import Message, are_friends, friends_of
 
-from .models import Duel, DuelRecord, GameTierEntry, MovieQuote
+from .forms import GameTierLevelForm
+from .models import Duel, DuelRecord, GameTierEntry, GameTierLevel, MovieQuote
+
+DEFAULT_TIER_LEVELS = [
+    ("S", "#FFD700"),
+    ("A", "#FFA94D"),
+    ("B", "#A9E34B"),
+    ("C", "#74C0FC"),
+    ("D", "#D98C8C"),
+]
 
 QUOTE_STREAK_KEY = "quote_streak"
 QUOTE_BEST_ANON_KEY = "quote_streak_best_anon"
@@ -121,10 +130,21 @@ def duel_accept(request, pk):
     return redirect("games:duel-detail", pk=pk)
 
 
+def _delete_duel_invite_message(duel):
+    """Borra el mensaje de Social con el que se invitó a este duelo — una
+    vez el duelo termina (rechazado, o jugado hasta el final y cerrado), ese
+    mensaje ya no lleva a ninguna parte (el enlace apuntaba a un duelo que
+    va a dejar de existir), así que no tiene sentido dejarlo en la
+    conversación."""
+    duel_path = reverse("games:duel-detail", args=[duel.pk])
+    Message.objects.filter(body__contains=duel_path).delete()
+
+
 @login_required
 def duel_decline(request, pk):
     duel = get_object_or_404(Duel, pk=pk, opponent=request.user, status=Duel.Status.PENDING)
     if request.method == "POST":
+        _delete_duel_invite_message(duel)
         duel.delete()
         messages.info(request, "Duelo rechazado.")
         return redirect("games:hub")
@@ -140,6 +160,7 @@ def duel_leave(request, pk):
     if duel.role_for(request.user) is None:
         raise Http404
     if request.method == "POST" and duel.status == Duel.Status.FINISHED:
+        _delete_duel_invite_message(duel)
         duel.delete()
     return redirect("games:hub")
 
@@ -211,23 +232,31 @@ def duel_detail(request, pk):
 
 
 # --- Tier list personal (juego) ------------------------------------------
-# Cada usuario tiene la suya propia, con niveles fijos S/A/B/C/D — distinta
-# de la de Top Secret (esa es una sola, la del dueño del sitio, con niveles
-# personalizables).
+# Cada usuario tiene la suya propia — distinta de la de Top Secret (esa es
+# una sola, del dueño del sitio). Los niveles son editables (nombre, color,
+# añadir/borrar) igual que en la de Top Secret, pero cada usuario tiene los
+# suyos, sin compartir ni mostrar nada a nadie más.
+
+def _ensure_default_tier_levels(user):
+    if not GameTierLevel.objects.filter(user=user).exists():
+        GameTierLevel.objects.bulk_create([
+            GameTierLevel(user=user, name=name, color=color, order=order)
+            for order, (name, color) in enumerate(DEFAULT_TIER_LEVELS)
+        ])
+
 
 @login_required
 def tier_list(request):
-    buckets = {choice: [] for choice, _ in GameTierEntry.Tier.choices}
-    for entry in GameTierEntry.objects.filter(user=request.user).select_related("movie"):
-        buckets[entry.tier].append(entry)
+    _ensure_default_tier_levels(request.user)
+    levels = list(GameTierLevel.objects.filter(user=request.user).order_by("order"))
+    buckets = {None: []}
+    buckets.update({level.pk: [] for level in levels})
+    for entry in GameTierEntry.objects.filter(user=request.user).select_related("movie", "tier"):
+        buckets[entry.tier_id].append(entry)
 
-    tier_rows = [
-        (value, label, buckets[value])
-        for value, label in GameTierEntry.Tier.choices
-        if value != GameTierEntry.Tier.UNSORTED
-    ]
+    level_rows = [(level, buckets[level.pk]) for level in levels]
     return render(request, "games/tier_list.html", {
-        "tier_rows": tier_rows, "unsorted_entries": buckets[GameTierEntry.Tier.UNSORTED],
+        "level_rows": level_rows, "unsorted_entries": buckets[None],
     })
 
 
@@ -254,7 +283,7 @@ def tier_list_add(request, tmdb_id):
         except MovieAPIError as exc:
             messages.error(request, str(exc))
         else:
-            GameTierEntry.objects.get_or_create(user=request.user, movie=movie)
+            GameTierEntry.objects.get_or_create(user=request.user, movie=movie, defaults={"tier": None})
     return redirect("games:tier-list")
 
 
@@ -263,17 +292,57 @@ def tier_list_move(request, pk):
     if request.method != "POST":
         raise Http404
     entry = get_object_or_404(GameTierEntry, pk=pk, user=request.user)
-    new_tier = request.POST.get("tier")
-    if new_tier not in GameTierEntry.Tier.values:
-        return JsonResponse({"ok": False, "error": "nivel inválido"}, status=400)
+    raw_tier = request.POST.get("tier", "")
+    level = None
+    if raw_tier:
+        try:
+            level = GameTierLevel.objects.get(pk=raw_tier, user=request.user)
+        except (GameTierLevel.DoesNotExist, ValueError):
+            return JsonResponse({"ok": False, "error": "nivel inválido"}, status=400)
 
     max_order = GameTierEntry.objects.filter(
-        user=request.user, tier=new_tier,
+        user=request.user, tier=level,
     ).aggregate(Max("order"))["order__max"] or 0
-    entry.tier = new_tier
+    entry.tier = level
     entry.order = max_order + 1
     entry.save(update_fields=["tier", "order"])
     return JsonResponse({"ok": True})
+
+
+@login_required
+def tier_level_create(request):
+    if request.method == "POST":
+        form = GameTierLevelForm(request.POST)
+        if form.is_valid():
+            max_order = GameTierLevel.objects.filter(user=request.user).aggregate(Max("order"))["order__max"] or 0
+            level = form.save(commit=False)
+            level.user = request.user
+            level.order = max_order + 1
+            level.save()
+        else:
+            messages.error(request, "No se pudo añadir el nivel.")
+    return redirect("games:tier-list")
+
+
+@login_required
+def tier_level_update(request, pk):
+    level = get_object_or_404(GameTierLevel, pk=pk, user=request.user)
+    if request.method == "POST":
+        form = GameTierLevelForm(request.POST, instance=level)
+        if form.is_valid():
+            form.save()
+        else:
+            messages.error(request, "No se pudo guardar el nivel.")
+    return redirect("games:tier-list")
+
+
+@login_required
+def tier_level_delete(request, pk):
+    level = get_object_or_404(GameTierLevel, pk=pk, user=request.user)
+    if request.method == "POST":
+        level.delete()
+        messages.success(request, "Nivel borrado. Sus películas han vuelto a 'Sin clasificar'.")
+    return redirect("games:tier-list")
 
 
 @login_required

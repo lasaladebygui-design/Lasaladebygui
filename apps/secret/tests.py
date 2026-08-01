@@ -1,13 +1,14 @@
 import io
 import tempfile
+from datetime import date
 from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from apps.accounts.models import User
-from apps.movies.models import Movie
+from apps.accounts.models import PushSubscription, User
+from apps.movies.models import Movie, ReleaseEvent
 from apps.movies.services import MovieAPIError
 
 from .forms import SecretMovieForm
@@ -335,4 +336,93 @@ class PhotoBoardTests(TestCase):
         response = self.client.post(reverse("secret:photo-board"), {"description": "Sin imagen"})
         self.assertEqual(response.status_code, 200)
         self.assertFalse(SecretPhoto.objects.exists())
+
+
+class CalendarTests(TestCase):
+    def setUp(self):
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.movie = Movie.objects.create(tmdb_id=1, title="Estreno de prueba", media_type="movie")
+
+    def test_requiere_haber_entrado_al_maletin(self):
+        self.client.post(reverse("secret:lock"))
+        response = self.client.get(reverse("secret:calendar"))
+        self.assertRedirects(response, reverse("secret:gate"))
+
+    def test_muestra_eventos_del_mes_pedido(self):
+        event = ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 3, 15), note="Estreno")
+        response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
+        self.assertEqual(response.status_code, 200)
+        all_events = [e for week in response.context["weeks"] for day in week for e in day["events"]]
+        self.assertEqual(all_events, [event])
+
+    def test_no_muestra_eventos_de_otro_mes(self):
+        ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 4, 1))
+        response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
+        all_events = [e for week in response.context["weeks"] for day in week for e in day["events"]]
+        self.assertEqual(all_events, [])
+
+    def test_mes_o_year_invalido_da_404(self):
+        response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 13})
+        self.assertEqual(response.status_code, 404)
+
+    def test_descarga_ics(self):
+        event = ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 3, 15), note="Estreno")
+        response = self.client.get(reverse("secret:calendar-ics", args=[event.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/calendar; charset=utf-8")
+        content = response.content.decode("utf-8")
+        self.assertIn("BEGIN:VEVENT", content)
+        self.assertIn("DTSTART;VALUE=DATE:20260315", content)
+        self.assertIn("SUMMARY:Estreno de prueba", content)
+
+    def test_ics_escapa_comas_en_el_titulo(self):
+        movie = Movie.objects.create(tmdb_id=2, title="Uno, Dos y Tres", media_type="movie")
+        event = ReleaseEvent.objects.create(movie=movie, date=date(2026, 3, 15))
+        response = self.client.get(reverse("secret:calendar-ics", args=[event.pk]))
+        self.assertIn("SUMMARY:Uno\\, Dos y Tres", response.content.decode("utf-8"))
+
+    @patch("apps.secret.views.tmdb_search")
+    def test_buscar_combina_peliculas_y_series(self, mock_search):
+        mock_search.side_effect = lambda query, media_type="movie": []
+        response = self.client.get(reverse("secret:calendar-search"), {"query": "matrix", "date": "2026-03-15"})
+        self.assertEqual(response.status_code, 200)
+        mock_search.assert_any_call("matrix", media_type="movie")
+        mock_search.assert_any_call("matrix", media_type="tv")
+
+    @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
+    def test_anadir_crea_un_evento_en_la_fecha_elegida(self, mock_get_or_create):
+        mock_get_or_create.return_value = self.movie
+        response = self.client.post(
+            reverse("secret:calendar-add", args=["movie", 1]), {"date": "2026-03-15"},
+        )
+        self.assertRedirects(response, reverse("secret:calendar") + "?year=2026&month=3")
+        event = ReleaseEvent.objects.get()
+        self.assertEqual(event.movie, self.movie)
+        self.assertEqual(event.date, date(2026, 3, 15))
+        mock_get_or_create.assert_called_once_with(1, media_type="movie")
+
+    def test_anadir_con_fecha_invalida_no_crea_nada(self):
+        response = self.client.post(reverse("secret:calendar-add", args=["movie", 1]), {"date": "no-es-una-fecha"})
+        self.assertRedirects(response, reverse("secret:calendar"))
+        self.assertFalse(ReleaseEvent.objects.exists())
+
+    def test_quitar_borra_el_evento(self):
+        event = ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 3, 15))
+        response = self.client.post(reverse("secret:calendar-remove", args=[event.pk]))
+        self.assertRedirects(response, reverse("secret:calendar") + "?year=2026&month=3")
+        self.assertFalse(ReleaseEvent.objects.filter(pk=event.pk).exists())
+
+    @override_settings(VAPID_PUBLIC_KEY="clave-publica", VAPID_PRIVATE_KEY="clave-privada")
+    @patch("apps.secret.views.send_push_to_users")
+    @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
+    def test_anadir_evento_notifica_a_los_suscritos(self, mock_get_or_create, mock_send):
+        mock_get_or_create.return_value = self.movie
+        subscriber = User.objects.create(email="suscrito_calendario@test.local", role=User.Role.LECTOR)
+        PushSubscription.objects.create(user=subscriber, endpoint="https://push.example/cal", p256dh="p", auth="a")
+
+        self.client.post(reverse("secret:calendar-add", args=["movie", 1]), {"date": "2026-03-15"})
+
+        mock_send.assert_called_once()
+        subscribers = list(mock_send.call_args.args[0])
+        self.assertIn(subscriber, subscribers)
 

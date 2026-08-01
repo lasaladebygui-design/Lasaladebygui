@@ -14,7 +14,7 @@
             <div>
                 <span class="card__tag">Juegos</span>
                 <h1>Tu tier list</h1>
-                <p class="muted">Tu propio ranking personal — nada que ver con la de Top Secret. Busca una película para añadirla, y arrastra las que ya tienes de un nivel a otro.</p>
+                <p class="muted">Tu propio ranking personal, privado — nada que ver con la de Top Secret. Busca una película para añadirla, arrastra las que ya tienes de un nivel a otro, y edita tus propios niveles como quieras.</p>
             </div>
             <form method="post" action="{% url 'games:tier-list-reset' %}" class="inline-form"
                   onsubmit="return confirm('¿Vaciar tu tier list? No se puede deshacer.');">
@@ -35,7 +35,7 @@
 
         <div class="tier-row tier-row--u">
             <span class="tier-row__label">?</span>
-            <div class="tier-row__items" data-tier="U">
+            <div class="tier-row__items" data-tier="">
                 {% for entry in unsorted_entries %}
                 <div class="tier-item" data-entry-id="{{ entry.pk }}">
                     {% if entry.movie.poster_url %}
@@ -52,10 +52,10 @@
         </div>
         <p class="muted tier-row__hint">↑ Sin clasificar — arrastra estas a un nivel real.</p>
 
-        {% for value, label, entries in tier_rows %}
+        {% for level, entries in level_rows %}
         <div class="tier-row">
-            <span class="tier-row__label tier-row__label--{{ value }}">{{ label }}</span>
-            <div class="tier-row__items" data-tier="{{ value }}">
+            <span class="tier-row__label" style="background:{{ level.color }};">{{ level.name }}</span>
+            <div class="tier-row__items" data-tier="{{ level.pk }}">
                 {% for entry in entries %}
                 <div class="tier-item" data-entry-id="{{ entry.pk }}">
                     {% if entry.movie.poster_url %}
@@ -69,8 +69,34 @@
                 <span class="muted tier-row__empty">Sin películas todavía en este nivel.</span>
                 {% endfor %}
             </div>
+            <div class="tier-row__tools">
+                <details class="tier-row__edit">
+                    <summary class="btn btn--ghost btn--sm" title="Editar nivel">✏️</summary>
+                    <form method="post" action="{% url 'games:tier-level-update' pk=level.pk %}" class="tier-row__edit-form">
+                        {% csrf_token %}
+                        <input type="text" name="name" value="{{ level.name }}" maxlength="30" required>
+                        <input type="color" name="color" value="{{ level.color }}">
+                        <button type="submit" class="btn btn--accent btn--sm">Guardar</button>
+                    </form>
+                </details>
+                <form method="post" action="{% url 'games:tier-level-delete' pk=level.pk %}"
+                      onsubmit="return confirm('¿Borrar el nivel {{ level.name }}? Sus películas pasarán a Sin clasificar.');">
+                    {% csrf_token %}
+                    <button type="submit" class="link-btn link-btn--danger" title="Borrar nivel">🗑️</button>
+                </form>
+            </div>
         </div>
         {% endfor %}
+
+        <details class="tier-add-level">
+            <summary class="btn btn--ghost btn--sm">+ Añadir nivel</summary>
+            <form method="post" action="{% url 'games:tier-level-create' %}" class="tier-row__edit-form">
+                {% csrf_token %}
+                <input type="text" name="name" placeholder="Nombre" maxlength="30" required>
+                <input type="color" name="color" value="#2DD4BF">
+                <button type="submit" class="btn btn--accent btn--sm">Añadir</button>
+            </form>
+        </details>
     </div>
 </section>
 {% endblock %}

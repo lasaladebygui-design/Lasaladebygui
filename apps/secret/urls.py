@@ -21,4 +21,9 @@ urlpatterns = [
     path("dentro/tierlist/niveles/<int:pk>/editar/", views.tier_level_update, name="tier-level-update"),
     path("dentro/tierlist/niveles/<int:pk>/borrar/", views.tier_level_delete, name="tier-level-delete"),
     path("dentro/tablon/", views.photo_board, name="photo-board"),
+    path("dentro/calendario/", views.calendar_view, name="calendar"),
+    path("dentro/calendario/buscar/", views.calendar_search, name="calendar-search"),
+    path("dentro/calendario/anadir/<str:media_type>/<int:tmdb_id>/", views.calendar_add, name="calendar-add"),
+    path("dentro/calendario/<int:pk>/quitar/", views.calendar_remove, name="calendar-remove"),
+    path("dentro/calendario/<int:pk>/ics/", views.calendar_ics, name="calendar-ics"),
 ]

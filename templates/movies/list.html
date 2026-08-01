@@ -15,15 +15,14 @@
                     <a href="{% url 'movies:my-movies' %}" class="btn btn--ghost">Mis películas</a>
                     <a href="{% url 'movies:saved-movies' %}" class="btn btn--ghost">Guardadas</a>
                 {% endif %}
-                <a href="{% url 'movies:calendar' %}" class="btn btn--ghost">📅 Calendario</a>
                 <a href="{% url 'movies:roulette-home' %}" class="btn btn--accent">Probar la ruleta</a>
             </div>
         </div>
 
         <div class="media-type-toggle">
-            <a href="?type=movie{% if query %}&query={{ query|urlencode }}{% endif %}" class="btn btn--sm {% if media_type == 'movie' %}btn--accent{% else %}btn--ghost{% endif %}">Películas</a>
-            <a href="?type=tv{% if query %}&query={{ query|urlencode }}{% endif %}" class="btn btn--sm {% if media_type == 'tv' %}btn--accent{% else %}btn--ghost{% endif %}">Series</a>
-            <a href="?type=all{% if query %}&query={{ query|urlencode }}{% endif %}" class="btn btn--sm {% if media_type == 'all' %}btn--accent{% else %}btn--ghost{% endif %}">Ambas</a>
+            <a href="?type=movie" class="btn btn--sm {% if media_type == 'movie' %}btn--accent{% else %}btn--ghost{% endif %}">Películas</a>
+            <a href="?type=tv" class="btn btn--sm {% if media_type == 'tv' %}btn--accent{% else %}btn--ghost{% endif %}">Series</a>
+            <a href="?type=all" class="btn btn--sm {% if media_type == 'all' %}btn--accent{% else %}btn--ghost{% endif %}">Ambas</a>
         </div>
 
         <form method="get" class="search-form">

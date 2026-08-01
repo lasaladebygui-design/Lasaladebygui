@@ -1,4 +1,3 @@
-from datetime import date
 from unittest.mock import patch
 
 from django.test import TestCase, override_settings
@@ -90,6 +89,17 @@ class SavedMovieTests(TestCase):
         self.client.logout()
         response = self.client.post(reverse("movies:save-toggle", args=[self.movie.pk]))
         self.assertIn("/cuenta/login/", response.url)
+
+    def test_la_ficha_de_una_pelicula_dice_guardar_pelicula(self):
+        response = self.client.get(reverse("movies:detail", args=[self.movie.pk]))
+        self.assertContains(response, "Guardar película")
+        self.assertNotContains(response, "Guardar serie")
+
+    def test_la_ficha_de_una_serie_dice_guardar_serie(self):
+        series = Movie.objects.create(tmdb_id=2, title="Serie A", media_type="tv")
+        response = self.client.get(reverse("movies:detail", args=[series.pk]))
+        self.assertContains(response, "Guardar serie")
+        self.assertNotContains(response, "Guardar película")
 
     def test_mis_peliculas_muestra_solo_lo_votado(self):
         other_movie = make_movie(2, "Movie B", "7.0")
@@ -386,44 +396,3 @@ class SeedMoviesCommandTests(TestCase):
 
         call_command("seed_movies")
         self.assertEqual(Movie.objects.count(), 0)
-
-
-class ReleaseCalendarTests(TestCase):
-    def setUp(self):
-        from .models import ReleaseEvent
-        self.ReleaseEvent = ReleaseEvent
-        self.movie = make_movie(1, "Estreno de prueba", None)
-
-    def test_muestra_eventos_del_mes_pedido(self):
-        event = self.ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 3, 15), note="Estreno")
-        response = self.client.get(reverse("movies:calendar"), {"year": 2026, "month": 3})
-        self.assertEqual(response.status_code, 200)
-
-        all_events = [e for week in response.context["weeks"] for day in week for e in day["events"]]
-        self.assertEqual(all_events, [event])
-
-    def test_no_muestra_eventos_de_otro_mes(self):
-        self.ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 4, 1))
-        response = self.client.get(reverse("movies:calendar"), {"year": 2026, "month": 3})
-        all_events = [e for week in response.context["weeks"] for day in week for e in day["events"]]
-        self.assertEqual(all_events, [])
-
-    def test_mes_o_year_invalido_da_404(self):
-        response = self.client.get(reverse("movies:calendar"), {"year": 2026, "month": 13})
-        self.assertEqual(response.status_code, 404)
-
-    def test_descarga_ics(self):
-        event = self.ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 3, 15), note="Estreno")
-        response = self.client.get(reverse("movies:release-ics", args=[event.pk]))
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response["Content-Type"], "text/calendar; charset=utf-8")
-        content = response.content.decode("utf-8")
-        self.assertIn("BEGIN:VEVENT", content)
-        self.assertIn("DTSTART;VALUE=DATE:20260315", content)
-        self.assertIn("SUMMARY:Estreno de prueba", content)
-
-    def test_ics_escapa_comas_en_el_titulo(self):
-        movie = Movie.objects.create(tmdb_id=2, title="Uno, Dos y Tres", media_type="movie")
-        event = self.ReleaseEvent.objects.create(movie=movie, date=date(2026, 3, 15))
-        response = self.client.get(reverse("movies:release-ics", args=[event.pk]))
-        self.assertIn("SUMMARY:Uno\\, Dos y Tres", response.content.decode("utf-8"))

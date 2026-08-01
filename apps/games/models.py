@@ -170,19 +170,36 @@ class DuelRecord(models.Model):
         return self.player_high_wins if user.pk == self.player_low_id else self.player_low_wins
 
 
+class GameTierLevel(models.Model):
+    """Nivel/columna del tier list personal de un usuario en Juegos. Igual
+    de editable (nombre, color, orden, todo desde la propia página) que los
+    niveles del tier list de Top Secret — la diferencia es que aquí cada
+    usuario tiene los suyos propios, sin compartir ni mostrar nada a nadie
+    más."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="usuario", on_delete=models.CASCADE, related_name="game_tier_levels",
+    )
+    name = models.CharField("nombre", max_length=30)
+    color = models.CharField("color", max_length=7, default="#2DD4BF")
+    order = models.PositiveIntegerField("orden", default=0)
+
+    class Meta:
+        verbose_name = "tier list de Juegos: nivel"
+        verbose_name_plural = "tier list de Juegos: niveles"
+        ordering = ["user_id", "order", "pk"]
+
+    def __str__(self):
+        return f"{self.user} — {self.name}"
+
+
 class GameTierEntry(models.Model):
     """Tier list personal de cada usuario, como juego en `/juegos/` — no
     tiene nada que ver con la de Top Secret (esa es la de Quentin/el dueño
-    del sitio, una sola y con niveles editables); esta es de cualquiera con
-    cuenta, un juego más, con los niveles clásicos S/A/B/C/D fijos."""
-
-    class Tier(models.TextChoices):
-        UNSORTED = "U", "Sin clasificar"
-        S = "S", "S"
-        A = "A", "A"
-        B = "B", "B"
-        C = "C", "C"
-        D = "D", "D"
+    del sitio, una sola); esta es de cualquiera con cuenta, un juego más,
+    con niveles (`GameTierLevel`) igual de editables que los de Top Secret
+    pero sin compartir ninguno entre usuarios. `tier=None` es "Sin
+    clasificar", igual que en la tier list de Top Secret."""
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, verbose_name="usuario", on_delete=models.CASCADE, related_name="game_tier_entries",
@@ -190,13 +207,16 @@ class GameTierEntry(models.Model):
     movie = models.ForeignKey(
         "movies.Movie", verbose_name="película", on_delete=models.CASCADE, related_name="+",
     )
-    tier = models.CharField("nivel", max_length=1, choices=Tier.choices, default=Tier.UNSORTED)
+    tier = models.ForeignKey(
+        GameTierLevel, verbose_name="nivel", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="entries",
+    )
     order = models.PositiveIntegerField("orden dentro del nivel", default=0)
 
     class Meta:
         verbose_name = "tier list de Juegos: entrada"
         verbose_name_plural = "tier list de Juegos: entradas"
-        ordering = ["tier", "order", "movie__title"]
+        ordering = ["tier__order", "order", "movie__title"]
         constraints = [
             models.UniqueConstraint(fields=["user", "movie"], name="una_vez_por_usuario_en_tier_de_juegos"),
         ]

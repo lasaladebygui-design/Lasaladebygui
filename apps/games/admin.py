@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Duel, DuelRecord, GameTierEntry, MovieQuote
+from .models import Duel, DuelRecord, GameTierEntry, GameTierLevel, MovieQuote
 
 
 @admin.register(MovieQuote)
@@ -22,8 +22,15 @@ class DuelRecordAdmin(admin.ModelAdmin):
     search_fields = ("player_low__username", "player_high__username")
 
 
+@admin.register(GameTierLevel)
+class GameTierLevelAdmin(admin.ModelAdmin):
+    list_display = ("user", "name", "color", "order")
+    search_fields = ("user__username", "name")
+
+
 @admin.register(GameTierEntry)
 class GameTierEntryAdmin(admin.ModelAdmin):
     list_display = ("user", "movie", "tier", "order")
     list_filter = ("tier",)
     search_fields = ("user__username", "movie__title")
+    autocomplete_fields = ("movie",)
