@@ -79,6 +79,17 @@
         </button>
         {% endif %}
 
+        {% if google_calendar_enabled %}
+            {% if google_calendar_connected %}
+            <form method="post" action="{% url 'accounts:google-calendar-disconnect' %}" style="margin-top:1rem;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn--ghost btn--block">📆 Desconectar Google Calendar</button>
+            </form>
+            {% else %}
+            <a href="{% url 'accounts:google-calendar-connect' %}" class="btn btn--ghost btn--block" style="margin-top:1rem;">📆 Conectar con Google Calendar</a>
+            {% endif %}
+        {% endif %}
+
         <form method="post" action="{% url 'accounts:logout' %}" style="margin-top:1.5rem;">
             {% csrf_token %}
             <button type="submit" class="btn btn--ghost btn--block">Cerrar sesión</button>

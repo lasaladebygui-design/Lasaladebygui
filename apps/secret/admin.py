@@ -46,7 +46,7 @@ class GenreAdmin(admin.ModelAdmin):
 @admin.register(SecretMovie)
 class SecretMovieAdmin(admin.ModelAdmin):
     form = SecretMovieForm
-    list_display = ("number", "title", "personal_rating", "genre_list")
+    list_display = ("number", "title", "personal_rating", "tie_break", "genre_list")
     search_fields = ("title",)
     autocomplete_fields = ("movie",)
     ordering = ("number",)

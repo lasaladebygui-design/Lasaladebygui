@@ -159,6 +159,10 @@ class FavoriteMovie(models.Model):
         "movies.Movie", verbose_name="película", on_delete=models.CASCADE, related_name="+",
     )
     order = models.PositiveIntegerField("orden", default=0)
+    note = models.CharField(
+        "por qué la recomiendas", max_length=280, blank=True,
+        help_text="Opcional — solo tiene sentido en Sugeridas, no en Imprescindibles.",
+    )
     created_at = models.DateTimeField("añadida", auto_now_add=True)
 
     class Meta:
@@ -207,3 +211,24 @@ class PushSubscription(models.Model):
 
     def __str__(self):
         return f"Suscripción de {self.user}"
+
+
+class GoogleCalendarConnection(models.Model):
+    """Conexión OAuth de un usuario con su Google Calendar (integración
+    real, no el .ics manual): guarda el refresh_token que Google entrega al
+    conceder el permiso, que no caduca salvo que el usuario lo revoque desde
+    su cuenta de Google. El access_token sí caduca (normalmente en 1h) y se
+    renueva solo con el refresh_token cuando hace falta."""
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="google_calendar_connection")
+    refresh_token = models.CharField("refresh token", max_length=255)
+    access_token = models.CharField("access token", max_length=255, blank=True)
+    access_token_expires_at = models.DateTimeField("caduca", null=True, blank=True)
+    connected_at = models.DateTimeField("conectado", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "conexión con Google Calendar"
+        verbose_name_plural = "conexiones con Google Calendar"
+
+    def __str__(self):
+        return f"Google Calendar de {self.user}"

@@ -1,14 +1,17 @@
-from unittest.mock import patch
+from datetime import date
+from unittest.mock import Mock, patch
 
 from django.core import mail
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
-from apps.accounts.models import PushSubscription, User
+from apps.accounts.models import GoogleCalendarConnection, PushSubscription, User
 from apps.articles.models import Article
 from config.storage import supabase_public_domain
 
+from . import google_calendar as google_calendar_module
 from . import push as push_module
 from .models import SESSION_THEME_KEY, ContactLink, SiteConfig, Theme, get_effective_theme
 
@@ -329,3 +332,67 @@ class PushHelperTests(TestCase):
         mock_webpush.side_effect = push_module.WebPushException("error servidor", response=response)
         push_module.send_push_to_user(self.user, "Título", "Cuerpo")
         self.assertTrue(PushSubscription.objects.filter(pk=self.subscription.pk).exists())
+
+
+@override_settings(GOOGLE_OAUTH_CLIENT_ID="client-id", GOOGLE_OAUTH_CLIENT_SECRET="client-secret")
+class GoogleCalendarServiceTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create(email="gcal_service@test.local", role=User.Role.LECTOR)
+        self.connection = GoogleCalendarConnection.objects.create(
+            user=self.user, refresh_token="r", access_token="viejo",
+            access_token_expires_at=timezone.now() - timezone.timedelta(hours=1),
+        )
+
+    def test_enabled_requiere_las_dos_credenciales(self):
+        self.assertTrue(google_calendar_module.google_calendar_enabled())
+
+    @override_settings(GOOGLE_OAUTH_CLIENT_ID="", GOOGLE_OAUTH_CLIENT_SECRET="")
+    def test_disabled_sin_credenciales(self):
+        self.assertFalse(google_calendar_module.google_calendar_enabled())
+
+    def test_get_authorization_url_incluye_el_client_id_y_el_state(self):
+        url = google_calendar_module.get_authorization_url("https://example.com/callback", "el-state")
+        self.assertIn("client_id=client-id", url)
+        self.assertIn("state=el-state", url)
+        self.assertIn("access_type=offline", url)
+
+    @patch("apps.core.google_calendar.requests.post")
+    def test_create_event_renueva_el_token_caducado_antes_de_llamar(self, mock_post):
+        token_response = Mock(status_code=200)
+        token_response.json.return_value = {"access_token": "nuevo", "expires_in": 3600}
+        event_response = Mock(status_code=200)
+        event_response.json.return_value = {"id": "google-event-id"}
+        mock_post.side_effect = [token_response, event_response]
+
+        event_id = google_calendar_module.create_event(self.connection, "Título", date(2026, 3, 15))
+
+        self.assertEqual(event_id, "google-event-id")
+        self.connection.refresh_from_db()
+        self.assertEqual(self.connection.access_token, "nuevo")
+        # Primera llamada: refrescar el token. Segunda: crear el evento con
+        # el token ya renovado en la cabecera Authorization.
+        self.assertEqual(mock_post.call_args_list[1].kwargs["headers"]["Authorization"], "Bearer nuevo")
+
+    @patch("apps.core.google_calendar.requests.post")
+    def test_create_event_reutiliza_el_token_si_no_ha_caducado(self, mock_post):
+        self.connection.access_token = "vigente"
+        self.connection.access_token_expires_at = timezone.now() + timezone.timedelta(hours=1)
+        self.connection.save()
+
+        event_response = Mock(status_code=200)
+        event_response.json.return_value = {"id": "e2"}
+        mock_post.return_value = event_response
+
+        google_calendar_module.create_event(self.connection, "Título", date(2026, 3, 15))
+
+        mock_post.assert_called_once()
+        self.assertEqual(mock_post.call_args.kwargs["headers"]["Authorization"], "Bearer vigente")
+
+    @patch("apps.core.google_calendar.requests.delete")
+    def test_delete_event_ignora_un_404_ya_borrado(self, mock_delete):
+        self.connection.access_token = "vigente"
+        self.connection.access_token_expires_at = timezone.now() + timezone.timedelta(hours=1)
+        self.connection.save()
+        mock_delete.return_value = Mock(status_code=404)
+
+        google_calendar_module.delete_event(self.connection, "id-inexistente")  # no debe lanzar excepción

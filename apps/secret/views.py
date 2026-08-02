@@ -3,6 +3,7 @@ import random
 from datetime import date, timedelta
 from functools import wraps
 
+import requests
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db.models import Max
@@ -12,8 +13,12 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
 
+from apps.accounts.models import GoogleCalendarConnection
+from apps.core.google_calendar import create_event as google_create_event
+from apps.core.google_calendar import delete_event as google_delete_event
+from apps.core.google_calendar import google_calendar_enabled
 from apps.core.push import send_push_to_users
-from apps.movies.models import Movie, ReleaseEvent
+from apps.movies.models import Movie, ReleaseEvent, ReleaseEventGoogleLink
 from apps.movies.services import MovieAPIError, tmdb_search
 
 from .forms import CodeForm, FullListFilterForm, NumberSelectForm, RatingSearchForm, SecretPhotoForm, TierLevelForm
@@ -292,7 +297,7 @@ def calendar_view(request):
         "prev_month": prev_month_date.month,
         "next_year": next_month_date.year,
         "next_month": next_month_date.month,
-        "today_iso": today.isoformat(),
+        "google_calendar_connected": request.user.is_authenticated and hasattr(request.user, "google_calendar_connection"),
     })
 
 
@@ -310,6 +315,23 @@ def calendar_search(request):
     return render(request, "secret/_calendar_search_results.html", {
         "results": results, "error": error, "query": query, "date": event_date,
     })
+
+
+def _sync_event_to_connected_calendars(event):
+    """Crea el evento en el Google Calendar real de cada usuario que lo
+    tenga conectado — igual que el aviso push, es una difusión a todos los
+    conectados, no solo a quien lo añadió (así, si dos personas tienen
+    conectado su Google Calendar, a las dos les aparece)."""
+    if not google_calendar_enabled():
+        return
+    for connection in GoogleCalendarConnection.objects.select_related("user"):
+        try:
+            google_event_id = google_create_event(connection, event.movie.title, event.date, description=event.note)
+        except requests.RequestException:
+            continue
+        ReleaseEventGoogleLink.objects.create(
+            release_event=event, user=connection.user, google_event_id=google_event_id,
+        )
 
 
 @secret_required
@@ -330,8 +352,9 @@ def calendar_add(request, media_type, tmdb_id):
         messages.error(request, str(exc))
         return redirect("secret:calendar")
 
-    ReleaseEvent.objects.create(movie=movie, date=event_date)
+    event = ReleaseEvent.objects.create(movie=movie, date=event_date)
     messages.success(request, f"«{movie.title}» añadida al {event_date:%d/%m/%Y}.")
+    _sync_event_to_connected_calendars(event)
 
     User = get_user_model()
     subscribers = User.objects.filter(push_subscriptions__isnull=False).distinct()
@@ -353,6 +376,16 @@ def calendar_remove(request, pk):
     if request.method != "POST":
         raise Http404
     year, month = event.date.year, event.date.month
+
+    if google_calendar_enabled():
+        for link in event.google_links.select_related("user__google_calendar_connection"):
+            if not hasattr(link.user, "google_calendar_connection"):
+                continue  # se desconectó después de crearse el enlace
+            try:
+                google_delete_event(link.user.google_calendar_connection, link.google_event_id)
+            except requests.RequestException:
+                pass
+
     event.delete()
     return redirect(f"{reverse('secret:calendar')}?year={year}&month={month}")
 

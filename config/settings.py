@@ -286,6 +286,15 @@ VAPID_PUBLIC_KEY = env("VAPID_PUBLIC_KEY", default="")
 VAPID_PRIVATE_KEY = env("VAPID_PRIVATE_KEY", default="").replace("\\n", "\n")
 VAPID_CONTACT_EMAIL = env("VAPID_CONTACT_EMAIL", default="contacto@lasaladebygui.local")
 
+# --- Integración real con Google Calendar (OAuth) --------------------------
+# Vacías = el botón "Conectar con Google Calendar" del perfil no aparece y
+# el resto del sitio sigue funcionando igual (los eventos del calendario de
+# Top Secret se siguen pudiendo descargar como .ics de todas formas). Hacen
+# falta un proyecto en Google Cloud y unas credenciales OAuth "Aplicación
+# web" — ver README, sección de despliegue.
+GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID", default="")
+GOOGLE_OAUTH_CLIENT_SECRET = env("GOOGLE_OAUTH_CLIENT_SECRET", default="")
+
 # --- Identidad del sitio --------------------------------------------------
 
 SITE_NAME = "La Sala de Bygui"

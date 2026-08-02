@@ -1239,7 +1239,16 @@ main { flex: 1; }
 .favorites-tabs__btn--active { color: var(--color-accent); border-bottom-color: var(--color-accent); }
 
 .favorites-group { margin-bottom: calc(var(--space-unit) * 6); }
-.favorites-group__title { font-size: 1rem; margin-bottom: calc(var(--space-unit) * 3); }
+.favorites-group__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: calc(var(--space-unit) * 3);
+    flex-wrap: wrap;
+}
+.favorites-group__title { font-size: 1rem; margin: 0; }
+.favorites-group__count { font-size: 0.8rem; white-space: nowrap; }
+.favorites-group .media-type-toggle { margin: calc(var(--space-unit) * 2) 0 calc(var(--space-unit) * 3); }
 .favorites-grid {
     display: grid;
     gap: calc(var(--space-unit) * 3);
@@ -1275,6 +1284,32 @@ main { flex: 1; }
     margin-top: 0.3rem;
 }
 .favorite-card__tools .link-btn { font-size: 0.75rem; }
+.favorite-card__note {
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    margin-top: 0.3rem;
+    text-align: left;
+}
+.favorite-card__note-edit { margin-top: 0.3rem; }
+.favorite-card__note-edit summary { font-size: 0.7rem; cursor: pointer; color: var(--color-accent); }
+.favorite-card__note-edit form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-top: 0.3rem;
+}
+.favorite-card__note-edit textarea {
+    width: 100%;
+    min-height: 4rem;
+    padding: 0.4rem;
+    border-radius: var(--radius-base);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font: inherit;
+    font-size: 0.75rem;
+    resize: vertical;
+}
 
 /* --- Juego: Frases célebres --------------------------------------------------- */
 
@@ -1709,20 +1744,70 @@ main { flex: 1; }
 }
 .calendar-day--outside { opacity: 0.35; }
 .calendar-day--today { outline: 2px solid var(--color-accent); outline-offset: -2px; }
-.calendar-day__number { font-size: 0.8rem; color: var(--color-text-muted); }
+.calendar-day__number {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+}
+.calendar-day__number:hover { color: var(--color-accent); }
 .calendar-event {
     display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.3rem;
+    align-items: center;
+    gap: 0.4rem;
     font-size: 0.75rem;
     background: var(--color-surface);
     border-radius: 4px;
-    padding: 0.2rem 0.4rem;
+    padding: 0.25rem;
 }
-.calendar-event__title { font-weight: 600; }
-.calendar-event__note { font-size: 0.7rem; }
-.calendar-event__ics { margin-left: auto; text-decoration: none; }
+.calendar-event__poster {
+    width: 24px;
+    height: 36px;
+    object-fit: cover;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+.calendar-event__poster--placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg);
+    font-size: 0.9rem;
+}
+.calendar-event__body { display: flex; flex-direction: column; min-width: 0; }
+.calendar-event__title {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.calendar-event__note { font-size: 0.65rem; }
+.calendar-event__tools { margin-left: auto; display: flex; gap: 0.2rem; flex-shrink: 0; }
+.calendar-event__ics { text-decoration: none; }
+.calendar-day__add { margin-top: 0.2rem; }
+.calendar-day__add input {
+    width: 100%;
+    font-size: 0.7rem;
+    padding: 0.25rem 0.4rem;
+    border-radius: var(--radius-base);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+.calendar-search-results { list-style: none; margin: 0.2rem 0 0; padding: 0; }
+.calendar-search-result {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0;
+    font-size: 0.7rem;
+}
+.calendar-search-result__poster { width: 20px; aspect-ratio: 2/3; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
+.calendar-search-result__title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 
 @media (max-width: 640px) {
     .calendar-day { min-height: 60px; font-size: 0.8rem; }

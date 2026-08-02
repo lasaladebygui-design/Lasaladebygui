@@ -7,14 +7,14 @@
 {% if results %}
 <ul class="search-results">
     {% for movie in results %}
-    <li class="search-result">
+    <li class="search-result" x-show="type === '{{ movie.media_type }}' || type === 'all'">
         {% if movie.poster_url %}
             <img src="{{ movie.poster_url }}" alt="" class="search-result__poster">
         {% endif %}
         <div class="search-result__body">
-            <strong>{{ movie.title }}</strong> <span class="muted">{{ movie.year }}</span>
+            <strong>{{ movie.title }}</strong> <span class="muted">{{ movie.year }} · {% if movie.media_type == "tv" %}Serie{% else %}Película{% endif %}</span>
         </div>
-        <form method="post" action="{% url 'accounts:favorite-add' category=category media_type=media_type tmdb_id=movie.tmdb_id %}">
+        <form method="post" action="{% url 'accounts:favorite-add' category=category media_type=movie.media_type tmdb_id=movie.tmdb_id %}">
             {% csrf_token %}
             <button type="submit" class="btn btn--ghost btn--sm">Añadir</button>
         </form>

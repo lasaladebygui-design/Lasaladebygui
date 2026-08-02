@@ -13,7 +13,7 @@ from apps.forum.models import Thread
 from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError
 
-from .models import FavoriteMovie, PushSubscription, User
+from .models import FavoriteMovie, GoogleCalendarConnection, PushSubscription, User
 
 try:
     from PIL import Image
@@ -320,6 +320,22 @@ class FavoriteMovieTests(TestCase):
         )
         self.assertEqual(response.status_code, 404)
 
+    @patch("apps.accounts.views.tmdb_search")
+    def test_buscar_con_tipo_all_combina_pelicula_y_serie(self, mock_search):
+        def fake_search(query, media_type="movie"):
+            from apps.movies.services import TMDbResult
+            return [TMDbResult(tmdb_id=1, title=f"Resultado {media_type}", year="2020", poster_path="", overview="", media_type=media_type)]
+
+        mock_search.side_effect = fake_search
+        response = self.client.get(
+            reverse("accounts:favorite-search", args=["essential", "all"]), {"query": "matrix"}
+        )
+        self.assertEqual(response.status_code, 200)
+        mock_search.assert_any_call("matrix", media_type="movie")
+        mock_search.assert_any_call("matrix", media_type="tv")
+        media_types = [r.media_type for r in response.context["results"]]
+        self.assertEqual(set(media_types), {"movie", "tv"})
+
     @patch("apps.accounts.views.Movie.get_or_create_from_tmdb")
     def test_anadir_pelicula_a_imprescindibles(self, mock_get_or_create):
         mock_get_or_create.return_value = Movie.objects.create(tmdb_id=1, title="Matrix", media_type="movie")
@@ -418,6 +434,42 @@ class FavoriteMovieTests(TestCase):
         self.assertContains(response, "Favorita ajena")
         self.assertNotContains(response, "favorite-remove")
 
+    def test_guardar_nota_de_por_que_la_recomiendas(self):
+        movie = Movie.objects.create(tmdb_id=9, title="Recomendada", media_type="movie")
+        favorite = FavoriteMovie.objects.create(user=self.user, category="suggested", movie=movie)
+
+        response = self.client.post(
+            reverse("accounts:favorite-note", args=[favorite.pk]), {"note": "Porque sí, es genial"}
+        )
+        self.assertRedirects(response, reverse("accounts:profile"))
+        favorite.refresh_from_db()
+        self.assertEqual(favorite.note, "Porque sí, es genial")
+
+    def test_no_se_puede_editar_la_nota_de_una_favorita_ajena(self):
+        other = User.objects.create(email="otro_nota@test.local", role=User.Role.LECTOR)
+        movie = Movie.objects.create(tmdb_id=10, title="Ajena", media_type="movie")
+        favorite = FavoriteMovie.objects.create(user=other, category="suggested", movie=movie)
+
+        response = self.client.post(reverse("accounts:favorite-note", args=[favorite.pk]), {"note": "Robada"})
+        self.assertEqual(response.status_code, 404)
+        favorite.refresh_from_db()
+        self.assertEqual(favorite.note, "")
+
+    def test_la_nota_se_recorta_a_280_caracteres(self):
+        movie = Movie.objects.create(tmdb_id=11, title="Larga", media_type="movie")
+        favorite = FavoriteMovie.objects.create(user=self.user, category="suggested", movie=movie)
+
+        self.client.post(reverse("accounts:favorite-note", args=[favorite.pk]), {"note": "x" * 300})
+        favorite.refresh_from_db()
+        self.assertEqual(len(favorite.note), 280)
+
+    def test_el_perfil_muestra_la_nota_de_una_recomendada(self):
+        movie = Movie.objects.create(tmdb_id=12, title="Con nota", media_type="movie")
+        FavoriteMovie.objects.create(user=self.user, category="suggested", movie=movie, note="Un peliculón")
+
+        response = self.client.get(reverse("accounts:profile"))
+        self.assertContains(response, "Un peliculón")
+
 
 class PushSubscriptionTests(TestCase):
     def setUp(self):
@@ -481,3 +533,67 @@ class PushSubscriptionTests(TestCase):
             content_type="application/json",
         )
         self.assertTrue(PushSubscription.objects.filter(endpoint="https://push.example/ajena").exists())
+
+
+@override_settings(GOOGLE_OAUTH_CLIENT_ID="client-id", GOOGLE_OAUTH_CLIENT_SECRET="client-secret")
+class GoogleCalendarConnectionTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create(email="google_cal@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+    @override_settings(GOOGLE_OAUTH_CLIENT_ID="", GOOGLE_OAUTH_CLIENT_SECRET="")
+    def test_connect_sin_credenciales_da_404(self):
+        response = self.client.get(reverse("accounts:google-calendar-connect"))
+        self.assertEqual(response.status_code, 404)
+
+    def test_connect_redirige_a_google_y_guarda_el_state(self):
+        response = self.client.get(reverse("accounts:google-calendar-connect"))
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith("https://accounts.google.com/o/oauth2/v2/auth"))
+        self.assertIn("google_oauth_state", self.client.session)
+
+    def test_callback_sin_state_no_conecta(self):
+        response = self.client.get(reverse("accounts:google-calendar-callback"), {"code": "abc", "state": "malo"})
+        self.assertRedirects(response, reverse("accounts:profile"))
+        self.assertFalse(GoogleCalendarConnection.objects.filter(user=self.user).exists())
+
+    @patch("apps.accounts.views.exchange_code_for_tokens")
+    def test_callback_crea_la_conexion(self, mock_exchange):
+        session = self.client.session
+        session["google_oauth_state"] = "buen-state"
+        session.save()
+        mock_exchange.return_value = {"access_token": "a", "refresh_token": "r", "expires_in": 3600}
+
+        response = self.client.get(reverse("accounts:google-calendar-callback"), {"code": "abc", "state": "buen-state"})
+        self.assertRedirects(response, reverse("accounts:profile"))
+        connection = GoogleCalendarConnection.objects.get(user=self.user)
+        self.assertEqual(connection.refresh_token, "r")
+
+    @patch("apps.accounts.views.exchange_code_for_tokens")
+    def test_callback_sin_refresh_token_no_conecta(self, mock_exchange):
+        session = self.client.session
+        session["google_oauth_state"] = "buen-state"
+        session.save()
+        mock_exchange.return_value = {"access_token": "a", "expires_in": 3600}
+
+        self.client.get(reverse("accounts:google-calendar-callback"), {"code": "abc", "state": "buen-state"})
+        self.assertFalse(GoogleCalendarConnection.objects.filter(user=self.user).exists())
+
+    def test_desconectar_borra_la_conexion(self):
+        GoogleCalendarConnection.objects.create(user=self.user, refresh_token="r")
+        self.client.post(reverse("accounts:google-calendar-disconnect"))
+        self.assertFalse(GoogleCalendarConnection.objects.filter(user=self.user).exists())
+
+    def test_desconectar_borra_los_enlaces_de_eventos_huerfanos(self):
+        from apps.movies.models import Movie, ReleaseEvent, ReleaseEventGoogleLink
+
+        GoogleCalendarConnection.objects.create(user=self.user, refresh_token="r")
+        movie = Movie.objects.create(tmdb_id=1, title="X", media_type="movie")
+        event = ReleaseEvent.objects.create(movie=movie, date="2026-03-15")
+        ReleaseEventGoogleLink.objects.create(release_event=event, user=self.user, google_event_id="g1")
+
+        self.client.post(reverse("accounts:google-calendar-disconnect"))
+
+        self.assertFalse(ReleaseEventGoogleLink.objects.filter(user=self.user).exists())

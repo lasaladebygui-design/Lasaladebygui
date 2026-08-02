@@ -1,5 +1,7 @@
 import json
+import secrets
 
+import requests
 from django.contrib import messages
 from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
@@ -10,14 +12,16 @@ from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from apps.core.google_calendar import exchange_code_for_tokens, get_authorization_url, google_calendar_enabled
 from apps.core.models import SiteConfig
-from apps.movies.models import Movie
+from apps.movies.models import Movie, ReleaseEventGoogleLink
 from apps.movies.services import MovieAPIError, tmdb_search
 
 from .forms import EmailAuthenticationForm, ProfileForm, RegisterForm
-from .models import EmailVerificationToken, FavoriteMovie, PushSubscription, User
+from .models import EmailVerificationToken, FavoriteMovie, GoogleCalendarConnection, PushSubscription, User
 
 
 def _send_verification_email(request, user):
@@ -103,7 +107,13 @@ def profile(request):
         form = ProfileForm(instance=request.user)
 
     favorites = FavoriteMovie.objects.filter(user=request.user).select_related("movie")
-    return render(request, "accounts/profile.html", _favorites_context(favorites))
+    context = {
+        "form": form,
+        "google_calendar_enabled": google_calendar_enabled(),
+        "google_calendar_connected": hasattr(request.user, "google_calendar_connection"),
+        **_favorites_context(favorites),
+    }
+    return render(request, "accounts/profile.html", context)
 
 
 def _favorites_context(favorites):
@@ -120,17 +130,22 @@ def _favorites_context(favorites):
 
 @login_required
 def favorite_search(request, category, media_type):
-    if category not in FavoriteMovie.Category.values or media_type not in ("movie", "tv"):
+    if category not in FavoriteMovie.Category.values or media_type not in ("movie", "tv", "all"):
         raise Http404
 
     query = request.GET.get("query", "").strip()
     results = []
     error = None
     if query:
+        types_to_search = ("movie", "tv") if media_type == "all" else (media_type,)
         try:
-            results = tmdb_search(query, media_type=media_type)[:8]
+            found = []
+            for t in types_to_search:
+                found += tmdb_search(query, media_type=t)
         except MovieAPIError as exc:
             error = str(exc)
+        else:
+            results = found[:8]
     return render(request, "accounts/_favorite_search_results.html", {
         "results": results, "error": error, "query": query, "category": category, "media_type": media_type,
     })
@@ -191,6 +206,15 @@ def favorite_move(request, pk, direction):
 
 
 @login_required
+def favorite_note(request, pk):
+    favorite = get_object_or_404(FavoriteMovie, pk=pk, user=request.user)
+    if request.method == "POST":
+        favorite.note = request.POST.get("note", "").strip()[:280]
+        favorite.save(update_fields=["note"])
+    return redirect("accounts:profile")
+
+
+@login_required
 def resend_verification(request):
     user = request.user
     if user.email_verified:
@@ -229,3 +253,68 @@ def push_unsubscribe(request):
 
     PushSubscription.objects.filter(user=request.user, endpoint=endpoint).delete()
     return JsonResponse({"ok": True})
+
+
+GOOGLE_OAUTH_STATE_SESSION_KEY = "google_oauth_state"
+
+
+@login_required
+def google_calendar_connect(request):
+    if not google_calendar_enabled():
+        raise Http404
+    state = secrets.token_urlsafe(16)
+    request.session[GOOGLE_OAUTH_STATE_SESSION_KEY] = state
+    redirect_uri = request.build_absolute_uri(reverse("accounts:google-calendar-callback"))
+    return redirect(get_authorization_url(redirect_uri, state))
+
+
+@login_required
+def google_calendar_callback(request):
+    if not google_calendar_enabled():
+        raise Http404
+
+    expected_state = request.session.pop(GOOGLE_OAUTH_STATE_SESSION_KEY, None)
+    state = request.GET.get("state")
+    if not state or state != expected_state:
+        messages.error(request, "No se pudo verificar la conexión con Google. Inténtalo de nuevo.")
+        return redirect("accounts:profile")
+
+    code = request.GET.get("code")
+    if not code:
+        messages.error(request, "Google no autorizó la conexión.")
+        return redirect("accounts:profile")
+
+    redirect_uri = request.build_absolute_uri(reverse("accounts:google-calendar-callback"))
+    try:
+        tokens = exchange_code_for_tokens(code, redirect_uri)
+    except requests.RequestException:
+        messages.error(request, "No se pudo conectar con Google Calendar. Inténtalo de nuevo.")
+        return redirect("accounts:profile")
+
+    refresh_token = tokens.get("refresh_token")
+    if not refresh_token:
+        messages.error(request, "Google no devolvió los permisos esperados. Inténtalo de nuevo.")
+        return redirect("accounts:profile")
+
+    GoogleCalendarConnection.objects.update_or_create(
+        user=request.user,
+        defaults={
+            "refresh_token": refresh_token,
+            "access_token": tokens.get("access_token", ""),
+            "access_token_expires_at": timezone.now() + timezone.timedelta(seconds=tokens.get("expires_in", 3600)),
+        },
+    )
+    messages.success(request, "Google Calendar conectado. Los estrenos que se añadan a partir de ahora se crearán solos en tu calendario.")
+    return redirect("accounts:profile")
+
+
+@login_required
+@require_POST
+def google_calendar_disconnect(request):
+    GoogleCalendarConnection.objects.filter(user=request.user).delete()
+    # Esos enlaces ya no sirven para nada (no hay con qué borrar el evento
+    # del lado de Google si algún día se quita del sitio) — se limpian aquí
+    # en vez de dejarlos huérfanos apuntando a una conexión que ya no existe.
+    ReleaseEventGoogleLink.objects.filter(user=request.user).delete()
+    messages.info(request, "Google Calendar desconectado.")
+    return redirect("accounts:profile")

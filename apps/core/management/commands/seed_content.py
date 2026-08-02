@@ -70,11 +70,14 @@ THREADS = [
     },
 ]
 
+# El número ya no se elige a mano: se recalcula solo según la nota
+# (`SecretMovie._renumber_all`), así que aquí solo hace falta título/nota/
+# comentario — el orden de esta lista no importa para el número final.
 SECRET_MOVIES = [
-    (1, "Reservoir Dogs", "9.0", "El origen de todo. Un atraco que nunca vemos y que no hace falta ver."),
-    (2, "Kill Bill Vol. 1", "8.7", "Venganza, katanas y una lista con nombres tachados. Puro cine de género elevado a arte."),
-    (3, "Jackie Brown", "8.3", "La más adulta y contenida de Tarantino. Infravalorada."),
-    (4, "Malas tierras", "8.0", "No es suya, pero se nota en cada plano por qué la cita tanto."),
+    ("Reservoir Dogs", "9.0", "El origen de todo. Un atraco que nunca vemos y que no hace falta ver."),
+    ("Kill Bill Vol. 1", "8.7", "Venganza, katanas y una lista con nombres tachados. Puro cine de género elevado a arte."),
+    ("Jackie Brown", "8.3", "La más adulta y contenida de Tarantino. Infravalorada."),
+    ("Malas tierras", "8.0", "No es suya, pero se nota en cada plano por qué la cita tanto."),
 ]
 
 class Command(BaseCommand):
@@ -117,15 +120,15 @@ class Command(BaseCommand):
                         thread=thread, parent=comment, author=child_author, body=child["body"]
                     )
 
-        for number, title, rating, comment in SECRET_MOVIES:
-            _, created = SecretMovie.objects.get_or_create(
-                number=number,
-                defaults={"title": title, "personal_rating": rating, "comment": comment},
+        for title, rating, comment in SECRET_MOVIES:
+            movie, created = SecretMovie.objects.get_or_create(
+                title=title,
+                defaults={"personal_rating": rating, "comment": comment},
             )
             if created:
-                self.stdout.write(self.style.SUCCESS(f"Top Secret: #{number} {title}"))
+                self.stdout.write(self.style.SUCCESS(f"Top Secret: #{movie.number} {title}"))
             else:
-                self.stdout.write(f"Ya existía la película secreta #{number}, no se modifica.")
+                self.stdout.write(f"Ya existía la película secreta «{title}», no se modifica.")
 
         call_command("seed_quotes")
 

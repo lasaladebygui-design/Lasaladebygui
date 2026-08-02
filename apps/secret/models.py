@@ -62,9 +62,17 @@ class SecretMovie(models.Model):
     Puede enlazar opcionalmente a una película del catálogo (apps.movies)
     para reutilizar su portada."""
 
-    number = models.PositiveIntegerField("número", unique=True)
+    # No se elige a mano: se recalcula solo en cada guardado/borrado según la
+    # nota (ver `_renumber_all`), así que no es editable desde el
+    # formulario/admin — lo único editable para influir en el número es la
+    # nota misma, o `tie_break` cuando dos tienen la misma nota.
+    number = models.PositiveIntegerField("número", unique=True, editable=False, default=0)
     title = models.CharField("título", max_length=255)
     personal_rating = models.DecimalField("nota personal", max_digits=3, decimal_places=1)
+    tie_break = models.PositiveIntegerField(
+        "orden de desempate", default=0, blank=True,
+        help_text="Solo importa entre dos películas con la misma nota: la de menor valor aquí sale antes en el número.",
+    )
     comment = models.TextField("comentario", blank=True)
     genres = models.ManyToManyField(Genre, verbose_name="géneros/subgéneros", blank=True, related_name="secret_movies")
     movie = models.ForeignKey(
@@ -79,6 +87,51 @@ class SecretMovie(models.Model):
 
     def __str__(self):
         return f"#{self.number} — {self.title}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        type(self)._renumber_all()
+        # `_renumber_all` opera sobre copias propias leídas de la base de
+        # datos, así que no toca este `self` — sin este refresco, quien
+        # acaba de guardar vería `number` desactualizado (p. ej. 0 para una
+        # recién creada) hasta la próxima vez que se recargara desde la BD.
+        self.refresh_from_db(fields=["number"])
+
+    def delete(self, *args, **kwargs):
+        super().delete(*args, **kwargs)
+        type(self)._renumber_all()
+
+    @classmethod
+    def _renumber_all(cls):
+        """El número de cada película es su posición al ordenar todas por
+        nota (de mayor a menor); `tie_break` solo decide el orden entre dos
+        con la misma nota. Se recalcula entero cada vez porque añadir/borrar
+        o cambiar una nota puede desplazar a todas las demás.
+
+        Se hace en dos pasadas (primero a valores temporales muy por encima
+        de cualquier posición real, luego a su posición definitiva) para no
+        chocar con el UniqueConstraint de `number` a media actualización —
+        por ejemplo, si dos entradas intercambian su posición, escribirlas
+        directamente en su sitio final una a una podría dejar un instante
+        con dos filas repitiendo el mismo número. `number` es un
+        PositiveIntegerField, así que el valor temporal tiene que ser
+        positivo (no vale usar negativos)."""
+        ordered = list(cls.objects.order_by("-personal_rating", "tie_break", "pk"))
+        targets = [
+            (movie, position) for position, movie in enumerate(ordered, start=1)
+            if movie.number != position
+        ]
+        if not targets:
+            return
+
+        temp_base = len(ordered) + 1
+        for offset, (movie, _) in enumerate(targets, start=1):
+            movie.number = temp_base + offset
+        cls.objects.bulk_update([movie for movie, _ in targets], ["number"])
+
+        for movie, final_number in targets:
+            movie.number = final_number
+        cls.objects.bulk_update([movie for movie, _ in targets], ["number"])
 
     @property
     def poster_url(self):

@@ -161,10 +161,12 @@ class RouletteSavedSeen(models.Model):
 
 class ReleaseEvent(models.Model):
     """Fecha en la que una película o serie "toca" (estreno, capítulo
-    nuevo...) — el calendario de la sección Películas. Lo gestiona el
-    admin; cada evento se puede añadir al calendario personal de quien
-    visite la web descargando su archivo .ics (funciona con Google
-    Calendar, Apple Calendar, Outlook... cualquiera que importe .ics)."""
+    nuevo...) — el calendario de Top Secret → Otros (privado, no en el
+    catálogo público). Se añade desde la propia web buscando el título; cada
+    evento se puede descargar como .ics (funciona con Google Calendar, Apple
+    Calendar, Outlook...) y, para quien tenga conectado de verdad su Google
+    Calendar (`apps.accounts.models.GoogleCalendarConnection`), se crea solo
+    ahí también — ver `ReleaseEventGoogleLink`."""
 
     movie = models.ForeignKey(Movie, verbose_name="película/serie", on_delete=models.CASCADE, related_name="release_events")
     date = models.DateField("fecha")
@@ -177,3 +179,25 @@ class ReleaseEvent(models.Model):
 
     def __str__(self):
         return f"{self.movie} — {self.date:%d/%m/%Y}"
+
+
+class ReleaseEventGoogleLink(models.Model):
+    """Un evento del calendario, ya creado en el Google Calendar real de un
+    usuario conectado — un enlace por (evento, usuario), porque cada uno
+    tiene su propia copia en su propio calendario. Guarda el id que Google
+    le asigna para poder borrarlo ahí también si el evento se quita del
+    sitio o si el usuario desconecta su cuenta."""
+
+    release_event = models.ForeignKey(ReleaseEvent, on_delete=models.CASCADE, related_name="google_links")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
+    google_event_id = models.CharField("id del evento en Google", max_length=255)
+
+    class Meta:
+        verbose_name = "estreno enlazado a Google Calendar"
+        verbose_name_plural = "calendario: enlaces a Google Calendar"
+        constraints = [
+            models.UniqueConstraint(fields=["release_event", "user"], name="un_evento_de_google_por_usuario"),
+        ]
+
+    def __str__(self):
+        return f"{self.release_event} → Google Calendar de {self.user}"

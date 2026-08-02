@@ -379,6 +379,24 @@ class DuelTests(TestCase):
         self.assertEqual(duel.winner, self.bob)
         self.assertTemplateUsed(response, "games/duel_result.html")
 
+    def test_el_mensaje_de_invitacion_desaparece_en_cuanto_el_duelo_termina(self):
+        self.client.login(username="alice@test.local", password="Testpass123!")
+        self.client.post(reverse("games:duel-invite", kwargs={"username": self.bob.username}))
+        duel = Duel.objects.get()
+        duel.status = Duel.Status.ACTIVE
+        duel.save(update_fields=["status"])
+        self.client.logout()
+
+        self.client.login(username="bob@test.local", password="Testpass123!")
+        self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
+            "quote_id": self.quotes[0].pk, "answer": "Otra",
+        })
+
+        self.assertFalse(Message.objects.filter(sender=self.alice, recipient=self.bob).exists())
+        # El duelo en sí sigue existiendo hasta que alguien pulse "salir" —
+        # solo el mensaje de invitación desaparece al instante.
+        self.assertTrue(Duel.objects.filter(pk=duel.pk).exists())
+
     def test_ganador_ve_has_ganado_y_perdedor_ve_ganador_contrario(self):
         duel = Duel.objects.create(
             challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],

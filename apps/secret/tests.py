@@ -7,8 +7,8 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from apps.accounts.models import PushSubscription, User
-from apps.movies.models import Movie, ReleaseEvent
+from apps.accounts.models import GoogleCalendarConnection, PushSubscription, User
+from apps.movies.models import Movie, ReleaseEvent, ReleaseEventGoogleLink
 from apps.movies.services import MovieAPIError
 
 from .forms import SecretMovieForm
@@ -64,8 +64,8 @@ class GateTests(TestCase):
 class SecretMovieViewTests(TestCase):
     def setUp(self):
         self.client.post(reverse("secret:gate"), {"code": "8888"})
-        self.a = SecretMovie.objects.create(number=1, title="Reservoir Dogs", personal_rating="9.0")
-        self.b = SecretMovie.objects.create(number=2, title="Kill Bill", personal_rating="8.5")
+        self.a = SecretMovie.objects.create(title="Reservoir Dogs", personal_rating="9.0")
+        self.b = SecretMovie.objects.create(title="Kill Bill", personal_rating="8.5")
 
     def test_selector_numerico_devuelve_la_pelicula_correcta(self):
         response = self.client.get(reverse("secret:by-number"), {"number": 1})
@@ -122,6 +122,90 @@ class SecretMovieViewTests(TestCase):
         self.assertIsNone(response.context["result"])
 
 
+class SecretMovieAutoNumberingTests(TestCase):
+    """El número ya no se elige a mano: es la posición al ordenar por nota
+    (de mayor a menor), recalculada sola en cada guardado/borrado."""
+
+    def setUp(self):
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+
+    def test_la_mejor_nota_es_el_numero_uno(self):
+        peor = SecretMovie.objects.create(title="Peor", personal_rating="6.0")
+        mejor = SecretMovie.objects.create(title="Mejor", personal_rating="9.0")
+        self.assertEqual(mejor.number, 1)
+        peor.refresh_from_db()
+        self.assertEqual(peor.number, 2)
+
+    def test_anadir_una_mejor_desplaza_a_las_demas(self):
+        SecretMovie.objects.create(title="A", personal_rating="9.0")
+        b = SecretMovie.objects.create(title="B", personal_rating="8.0")
+        nueva = SecretMovie.objects.create(title="Nueva", personal_rating="9.5")
+        self.assertEqual(nueva.number, 1)
+        b.refresh_from_db()
+        self.assertEqual(b.number, 3)
+
+    def test_cambiar_la_nota_reordena(self):
+        a = SecretMovie.objects.create(title="A", personal_rating="9.0")
+        b = SecretMovie.objects.create(title="B", personal_rating="8.0")
+        self.assertEqual(a.number, 1)
+        self.assertEqual(b.number, 2)
+
+        b.personal_rating = "9.5"
+        b.save()
+        a.refresh_from_db()
+        b.refresh_from_db()
+        self.assertEqual(b.number, 1)
+        self.assertEqual(a.number, 2)
+
+    def test_borrar_una_recoloca_a_las_siguientes(self):
+        a = SecretMovie.objects.create(title="A", personal_rating="9.0")
+        b = SecretMovie.objects.create(title="B", personal_rating="8.0")
+        a.delete()
+        b.refresh_from_db()
+        self.assertEqual(b.number, 1)
+
+    def test_misma_nota_desempata_por_tie_break(self):
+        a = SecretMovie.objects.create(title="A", personal_rating="9.0", tie_break=1)
+        b = SecretMovie.objects.create(title="B", personal_rating="9.0", tie_break=0)
+        a.refresh_from_db()
+        b.refresh_from_db()
+        self.assertEqual(b.number, 1)
+        self.assertEqual(a.number, 2)
+
+    def test_cambiar_el_tie_break_reordena_el_empate(self):
+        a = SecretMovie.objects.create(title="A", personal_rating="9.0", tie_break=0)
+        b = SecretMovie.objects.create(title="B", personal_rating="9.0", tie_break=1)
+        a.refresh_from_db()
+        self.assertEqual(a.number, 1)
+
+        a.tie_break = 5
+        a.save()
+        a.refresh_from_db()
+        b.refresh_from_db()
+        self.assertEqual(b.number, 1)
+        self.assertEqual(a.number, 2)
+
+    def test_la_lista_completa_sale_ordenada_por_nota_sin_filtrar(self):
+        SecretMovie.objects.create(title="Floja", personal_rating="5.0")
+        SecretMovie.objects.create(title="Buenisima", personal_rating="9.5")
+        SecretMovie.objects.create(title="Normal", personal_rating="7.0")
+
+        response = self.client.get(reverse("secret:list"))
+        titles = [m.title for m in response.context["movies"]]
+        self.assertEqual(titles, ["Buenisima", "Normal", "Floja"])
+
+    def test_selector_numerico_refleja_la_posicion_por_nota(self):
+        SecretMovie.objects.create(title="Floja", personal_rating="5.0")
+        buenisima = SecretMovie.objects.create(title="Buenisima", personal_rating="9.5")
+
+        response = self.client.get(reverse("secret:by-number"), {"number": 1})
+        self.assertEqual(response.context["result"], buenisima)
+
+    def test_no_editable_desde_el_formulario(self):
+        from apps.secret.forms import SecretMovieForm
+        self.assertNotIn("number", SecretMovieForm.base_fields)
+
+
 class SecretMovieFormTests(TestCase):
     def test_crea_generos_sobre_la_marcha(self):
         form = SecretMovieForm(data={
@@ -147,7 +231,7 @@ class SecretMovieFormTests(TestCase):
         self.assertEqual(movie.genres.count(), 2)
 
     def test_editar_precarga_los_generos_actuales(self):
-        movie = SecretMovie.objects.create(number=1, title="X", personal_rating="8.0")
+        movie = SecretMovie.objects.create(title="X", personal_rating="8.0")
         movie.genres.add(Genre.objects.create(name="Drama"))
         form = SecretMovieForm(instance=movie)
         self.assertEqual(form.fields["genres_input"].initial, "Drama")
@@ -355,6 +439,13 @@ class CalendarTests(TestCase):
         all_events = [e for week in response.context["weeks"] for day in week for e in day["events"]]
         self.assertEqual(all_events, [event])
 
+    def test_muestra_la_portada_y_el_titulo_del_evento(self):
+        movie = Movie.objects.create(tmdb_id=99, title="Con portada", media_type="movie", poster_path="/abc.jpg")
+        ReleaseEvent.objects.create(movie=movie, date=date(2026, 3, 15))
+        response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
+        self.assertContains(response, "Con portada")
+        self.assertContains(response, movie.poster_url)
+
     def test_no_muestra_eventos_de_otro_mes(self):
         ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 4, 1))
         response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
@@ -425,4 +516,68 @@ class CalendarTests(TestCase):
         mock_send.assert_called_once()
         subscribers = list(mock_send.call_args.args[0])
         self.assertIn(subscriber, subscribers)
+
+
+@override_settings(GOOGLE_OAUTH_CLIENT_ID="client-id", GOOGLE_OAUTH_CLIENT_SECRET="client-secret")
+class CalendarGoogleSyncTests(TestCase):
+    def setUp(self):
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.movie = Movie.objects.create(tmdb_id=1, title="Estreno de prueba", media_type="movie")
+
+    @patch("apps.secret.views.google_create_event")
+    @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
+    def test_anadir_evento_lo_crea_en_cada_calendario_conectado(self, mock_get_or_create, mock_create_event):
+        mock_get_or_create.return_value = self.movie
+        mock_create_event.return_value = "google-event-id-1"
+        connected_user = User.objects.create(email="conectado@test.local", role=User.Role.LECTOR)
+        GoogleCalendarConnection.objects.create(user=connected_user, refresh_token="r")
+
+        self.client.post(reverse("secret:calendar-add", args=["movie", 1]), {"date": "2026-03-15"})
+
+        mock_create_event.assert_called_once()
+        event = ReleaseEvent.objects.get()
+        link = ReleaseEventGoogleLink.objects.get(release_event=event, user=connected_user)
+        self.assertEqual(link.google_event_id, "google-event-id-1")
+
+    @patch("apps.secret.views.google_create_event")
+    @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
+    def test_sin_nadie_conectado_no_llama_a_google(self, mock_get_or_create, mock_create_event):
+        mock_get_or_create.return_value = self.movie
+        self.client.post(reverse("secret:calendar-add", args=["movie", 1]), {"date": "2026-03-15"})
+        mock_create_event.assert_not_called()
+
+    @override_settings(GOOGLE_OAUTH_CLIENT_ID="", GOOGLE_OAUTH_CLIENT_SECRET="")
+    @patch("apps.secret.views.google_create_event")
+    @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
+    def test_sin_credenciales_de_google_no_llama_a_la_api(self, mock_get_or_create, mock_create_event):
+        mock_get_or_create.return_value = self.movie
+        connected_user = User.objects.create(email="conectado2@test.local", role=User.Role.LECTOR)
+        GoogleCalendarConnection.objects.create(user=connected_user, refresh_token="r")
+
+        self.client.post(reverse("secret:calendar-add", args=["movie", 1]), {"date": "2026-03-15"})
+
+        mock_create_event.assert_not_called()
+
+    @patch("apps.secret.views.google_delete_event")
+    def test_quitar_evento_lo_borra_de_cada_calendario_conectado(self, mock_delete_event):
+        connected_user = User.objects.create(email="conectado3@test.local", role=User.Role.LECTOR)
+        GoogleCalendarConnection.objects.create(user=connected_user, refresh_token="r")
+        event = ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 3, 15))
+        ReleaseEventGoogleLink.objects.create(release_event=event, user=connected_user, google_event_id="g1")
+
+        self.client.post(reverse("secret:calendar-remove", args=[event.pk]))
+
+        mock_delete_event.assert_called_once()
+        self.assertEqual(mock_delete_event.call_args.args[1], "g1")
+
+    @patch("apps.secret.views.google_delete_event")
+    def test_quitar_evento_ignora_enlaces_de_usuarios_ya_desconectados(self, mock_delete_event):
+        disconnected_user = User.objects.create(email="desconectado@test.local", role=User.Role.LECTOR)
+        event = ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 3, 15))
+        ReleaseEventGoogleLink.objects.create(release_event=event, user=disconnected_user, google_event_id="g1")
+
+        response = self.client.post(reverse("secret:calendar-remove", args=[event.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        mock_delete_event.assert_not_called()
 

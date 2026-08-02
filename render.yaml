@@ -57,3 +57,7 @@ services:
         sync: false
       - key: VAPID_CONTACT_EMAIL
         sync: false
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false

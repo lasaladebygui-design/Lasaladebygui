@@ -14,7 +14,7 @@ class SecretMovieForm(forms.ModelForm):
 
     class Meta:
         model = SecretMovie
-        fields = ["number", "title", "personal_rating", "comment", "movie"]
+        fields = ["title", "personal_rating", "tie_break", "comment", "movie"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

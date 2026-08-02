@@ -5,11 +5,9 @@
     </div>
 
     <div x-show="tab === 'essential'" x-cloak>
-        {% include "accounts/_favorite_movies_group.html" with group_title="Películas" category="essential" media_type="movie" favorites=essential_movies limit=3 editable=editable %}
-        {% include "accounts/_favorite_movies_group.html" with group_title="Series" category="essential" media_type="tv" favorites=essential_tv limit=3 editable=editable %}
+        {% include "accounts/_favorite_movies_group.html" with group_title="Mis imprescindibles" category="essential" movies=essential_movies series=essential_tv limit_movie=3 limit_tv=3 editable=editable %}
     </div>
     <div x-show="tab === 'suggested'" x-cloak>
-        {% include "accounts/_favorite_movies_group.html" with group_title="Películas" category="suggested" media_type="movie" favorites=suggested_movies limit=6 editable=editable %}
-        {% include "accounts/_favorite_movies_group.html" with group_title="Series" category="suggested" media_type="tv" favorites=suggested_tv limit=3 editable=editable %}
+        {% include "accounts/_favorite_movies_group.html" with group_title="Sugeridas" category="suggested" movies=suggested_movies series=suggested_tv limit_movie=6 limit_tv=3 editable=editable %}
     </div>
 </div>

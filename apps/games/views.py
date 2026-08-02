@@ -200,6 +200,7 @@ def duel_detail(request, pk):
             duel.status = Duel.Status.FINISHED
             duel.save()
             DuelRecord.record_result(duel.challenger, duel.opponent, duel.winner)
+            _delete_duel_invite_message(duel)
             return render(request, "games/duel_result.html", {"duel": duel, "role": role})
 
         if role == "challenger":

@@ -14,10 +14,14 @@ urlpatterns = [
     path("perfil/favoritas/<str:category>/<str:media_type>/anadir/<int:tmdb_id>/", views.favorite_add, name="favorite-add"),
     path("perfil/favoritas/<int:pk>/quitar/", views.favorite_remove, name="favorite-remove"),
     path("perfil/favoritas/<int:pk>/mover/<str:direction>/", views.favorite_move, name="favorite-move"),
+    path("perfil/favoritas/<int:pk>/nota/", views.favorite_note, name="favorite-note"),
     path("verificar/<uuid:token>/", views.verify_email, name="verify-email"),
     path("verificar/reenviar/", views.resend_verification, name="resend-verification"),
     path("notificaciones/suscribir/", views.push_subscribe, name="push-subscribe"),
     path("notificaciones/desuscribir/", views.push_unsubscribe, name="push-unsubscribe"),
+    path("google-calendar/conectar/", views.google_calendar_connect, name="google-calendar-connect"),
+    path("google-calendar/callback/", views.google_calendar_callback, name="google-calendar-callback"),
+    path("google-calendar/desconectar/", views.google_calendar_disconnect, name="google-calendar-disconnect"),
 
     path(
         "password/reset/",

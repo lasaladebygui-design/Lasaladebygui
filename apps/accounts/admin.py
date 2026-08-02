@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import EmailVerificationToken, FavoriteMovie, PushSubscription, User
+from .models import EmailVerificationToken, FavoriteMovie, GoogleCalendarConnection, PushSubscription, User
 
 
 @admin.register(User)
@@ -75,3 +75,10 @@ class PushSubscriptionAdmin(admin.ModelAdmin):
     list_display = ("user", "created_at")
     search_fields = ("user__username", "user__email")
     readonly_fields = ("endpoint", "p256dh", "auth", "created_at")
+
+
+@admin.register(GoogleCalendarConnection)
+class GoogleCalendarConnectionAdmin(admin.ModelAdmin):
+    list_display = ("user", "connected_at")
+    search_fields = ("user__username", "user__email")
+    readonly_fields = ("refresh_token", "access_token", "access_token_expires_at", "connected_at")

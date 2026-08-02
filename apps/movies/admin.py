@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Movie, ReleaseEvent, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, Vote
+from .models import Movie, ReleaseEvent, ReleaseEventGoogleLink, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, Vote
 
 
 @admin.register(Movie)
@@ -44,3 +44,9 @@ class ReleaseEventAdmin(admin.ModelAdmin):
     search_fields = ("movie__title",)
     autocomplete_fields = ("movie",)
     ordering = ("date",)
+
+
+@admin.register(ReleaseEventGoogleLink)
+class ReleaseEventGoogleLinkAdmin(admin.ModelAdmin):
+    list_display = ("release_event", "user", "google_event_id")
+    search_fields = ("user__username", "release_event__movie__title")
