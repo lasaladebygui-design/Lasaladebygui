@@ -7,7 +7,6 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.accounts.models import FavoriteMovie, User
-from apps.accounts.views import _favorites_context
 from apps.core.push import send_push_to_user
 from apps.games.models import DuelRecord
 
@@ -32,12 +31,13 @@ def public_profile(request, username):
     duel_losses = duel_record.losses_for(request.user) if duel_record else 0
     duel_draws = duel_record.draws if duel_record else 0
 
-    favorites = FavoriteMovie.objects.filter(user=profile_user).select_related("movie")
+    favorites = FavoriteMovie.objects.filter(user=profile_user)
 
     return render(request, "social/public_profile.html", {
         "profile_user": profile_user, "status": status, "incoming_request": incoming_request,
         "duel_wins": duel_wins, "duel_losses": duel_losses, "duel_draws": duel_draws,
-        **_favorites_context(favorites),
+        "essential_count": favorites.filter(category="essential").count(),
+        "suggested_count": favorites.filter(category="suggested").count(),
     })
 
 

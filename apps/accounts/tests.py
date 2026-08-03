@@ -340,7 +340,7 @@ class FavoriteMovieTests(TestCase):
     def test_anadir_pelicula_a_imprescindibles(self, mock_get_or_create):
         mock_get_or_create.return_value = Movie.objects.create(tmdb_id=1, title="Matrix", media_type="movie")
         response = self.client.post(reverse("accounts:favorite-add", args=["essential", "movie", 1]))
-        self.assertRedirects(response, reverse("accounts:profile"))
+        self.assertRedirects(response, reverse("accounts:favorites-page", args=["essential"]))
         self.assertTrue(FavoriteMovie.objects.filter(user=self.user, category="essential", movie__tmdb_id=1).exists())
         mock_get_or_create.assert_called_once_with(1, media_type="movie")
 
@@ -348,7 +348,7 @@ class FavoriteMovieTests(TestCase):
     def test_anadir_serie_a_imprescindibles(self, mock_get_or_create):
         mock_get_or_create.return_value = Movie.objects.create(tmdb_id=1, title="Dark", media_type="tv")
         response = self.client.post(reverse("accounts:favorite-add", args=["essential", "tv", 1]))
-        self.assertRedirects(response, reverse("accounts:profile"))
+        self.assertRedirects(response, reverse("accounts:favorites-page", args=["essential"]))
         self.assertTrue(FavoriteMovie.objects.filter(user=self.user, category="essential", movie__media_type="tv").exists())
 
     @patch("apps.accounts.views.Movie.get_or_create_from_tmdb")
@@ -395,7 +395,7 @@ class FavoriteMovieTests(TestCase):
         movie = Movie.objects.create(tmdb_id=5, title="Se va", media_type="movie")
         favorite = FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie)
         response = self.client.post(reverse("accounts:favorite-remove", args=[favorite.pk]))
-        self.assertRedirects(response, reverse("accounts:profile"))
+        self.assertRedirects(response, reverse("accounts:favorites-page", args=["essential"]))
         self.assertFalse(FavoriteMovie.objects.filter(pk=favorite.pk).exists())
 
     def test_no_se_puede_quitar_una_favorita_ajena(self):
@@ -419,19 +419,39 @@ class FavoriteMovieTests(TestCase):
         self.assertEqual(fav_b.order, 0)
         self.assertEqual(fav_a.order, 1)
 
-    def test_el_perfil_muestra_las_favoritas(self):
+    def test_el_perfil_enlaza_a_las_dos_paginas_de_favoritas_con_su_contador(self):
         movie = Movie.objects.create(tmdb_id=7, title="Mi favorita", poster_path="/x.jpg", media_type="movie")
         FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie)
         response = self.client.get(reverse("accounts:profile"))
+        self.assertContains(response, reverse("accounts:favorites-page", args=["essential"]))
+        self.assertContains(response, reverse("accounts:favorites-page", args=["suggested"]))
+        self.assertContains(response, "1 guardadas")
+
+    def test_pagina_de_imprescindibles_muestra_las_favoritas(self):
+        movie = Movie.objects.create(tmdb_id=7, title="Mi favorita", poster_path="/x.jpg", media_type="movie")
+        FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie)
+        response = self.client.get(reverse("accounts:favorites-page", args=["essential"]))
         self.assertContains(response, "Mi favorita")
 
-    def test_el_perfil_publico_muestra_las_favoritas_de_otro_sin_boton_de_quitar(self):
+    def test_pagina_de_categoria_invalida_da_404(self):
+        response = self.client.get(reverse("accounts:favorites-page", args=["otra-cosa"]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_el_perfil_publico_enlaza_a_las_paginas_de_favoritas_de_otro(self):
         other = User.objects.create(email="visto_fav@test.local", role=User.Role.LECTOR, username="vistofav")
         movie = Movie.objects.create(tmdb_id=8, title="Favorita ajena", media_type="movie")
         FavoriteMovie.objects.create(user=other, category="essential", movie=movie)
 
         response = self.client.get(reverse("social:public-profile", kwargs={"username": "vistofav"}))
-        self.assertContains(response, "Favorita ajena")
+        self.assertContains(response, reverse("social:public-favorites-page", args=["vistofav", "essential"]))
+
+    def test_pagina_publica_de_favoritas_de_otro_no_tiene_boton_de_quitar(self):
+        other = User.objects.create(email="visto_fav2@test.local", role=User.Role.LECTOR, username="vistofav2")
+        movie = Movie.objects.create(tmdb_id=13, title="Favorita ajena 2", media_type="movie")
+        FavoriteMovie.objects.create(user=other, category="essential", movie=movie)
+
+        response = self.client.get(reverse("social:public-favorites-page", args=["vistofav2", "essential"]))
+        self.assertContains(response, "Favorita ajena 2")
         self.assertNotContains(response, "favorite-remove")
 
     def test_guardar_nota_de_por_que_la_recomiendas(self):
@@ -441,7 +461,7 @@ class FavoriteMovieTests(TestCase):
         response = self.client.post(
             reverse("accounts:favorite-note", args=[favorite.pk]), {"note": "Porque sí, es genial"}
         )
-        self.assertRedirects(response, reverse("accounts:profile"))
+        self.assertRedirects(response, reverse("accounts:favorites-page", args=["suggested"]))
         favorite.refresh_from_db()
         self.assertEqual(favorite.note, "Porque sí, es genial")
 
@@ -463,11 +483,11 @@ class FavoriteMovieTests(TestCase):
         favorite.refresh_from_db()
         self.assertEqual(len(favorite.note), 280)
 
-    def test_el_perfil_muestra_la_nota_de_una_recomendada(self):
+    def test_la_pagina_de_sugeridas_muestra_la_nota_de_una_recomendada(self):
         movie = Movie.objects.create(tmdb_id=12, title="Con nota", media_type="movie")
         FavoriteMovie.objects.create(user=self.user, category="suggested", movie=movie, note="Un peliculón")
 
-        response = self.client.get(reverse("accounts:profile"))
+        response = self.client.get(reverse("accounts:favorites-page", args=["suggested"]))
         self.assertContains(response, "Un peliculón")
 
 

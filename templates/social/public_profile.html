@@ -56,6 +56,17 @@
 </div>
 
 <div class="wrap">
-    {% include "accounts/_favorite_movies_tabs.html" with editable=False %}
+    <div class="card-grid">
+        <a href="{% url 'social:public-favorites-page' profile_user.username 'essential' %}" class="card card--link">
+            <span class="card__tag">🎬</span>
+            <h3>Sus imprescindibles</h3>
+            <p class="muted">{{ essential_count }} guardadas</p>
+        </a>
+        <a href="{% url 'social:public-favorites-page' profile_user.username 'suggested' %}" class="card card--link">
+            <span class="card__tag">✨</span>
+            <h3>Sus sugeridas</h3>
+            <p class="muted">{{ suggested_count }} guardadas</p>
+        </a>
+    </div>
 </div>
 {% endblock %}

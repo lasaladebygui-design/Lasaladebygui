@@ -10,6 +10,7 @@ urlpatterns = [
     path("login/", views.EmailLoginView.as_view(), name="login"),
     path("logout/", views.logout_view, name="logout"),
     path("perfil/", views.profile, name="profile"),
+    path("perfil/favoritas/<str:category>/", views.favorites_page, name="favorites-page"),
     path("perfil/favoritas/<str:category>/<str:media_type>/buscar/", views.favorite_search, name="favorite-search"),
     path("perfil/favoritas/<str:category>/<str:media_type>/anadir/<int:tmdb_id>/", views.favorite_add, name="favorite-add"),
     path("perfil/favoritas/<int:pk>/quitar/", views.favorite_remove, name="favorite-remove"),

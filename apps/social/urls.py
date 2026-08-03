@@ -1,5 +1,7 @@
 from django.urls import path
 
+from apps.accounts.views import favorites_page
+
 from . import views
 
 app_name = "social"
@@ -13,6 +15,7 @@ urlpatterns = [
     path("mensajes/<int:pk>/editar/", views.message_edit, name="message-edit"),
     path("mensajes/<int:pk>/borrar/", views.message_delete, name="message-delete"),
     path("usuarios/<str:username>/", views.public_profile, name="public-profile"),
+    path("usuarios/<str:username>/favoritas/<str:category>/", favorites_page, name="public-favorites-page"),
     path("usuarios/<str:username>/agregar/", views.send_friend_request, name="friend-request-send"),
     path("usuarios/<str:username>/quitar/", views.remove_friend, name="friend-remove"),
 ]

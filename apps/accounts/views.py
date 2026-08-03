@@ -106,12 +106,12 @@ def profile(request):
     else:
         form = ProfileForm(instance=request.user)
 
-    favorites = FavoriteMovie.objects.filter(user=request.user).select_related("movie")
     context = {
         "form": form,
         "google_calendar_enabled": google_calendar_enabled(),
         "google_calendar_connected": hasattr(request.user, "google_calendar_connection"),
-        **_favorites_context(favorites),
+        "essential_count": FavoriteMovie.objects.filter(user=request.user, category="essential").count(),
+        "suggested_count": FavoriteMovie.objects.filter(user=request.user, category="suggested").count(),
     }
     return render(request, "accounts/profile.html", context)
 
@@ -126,6 +126,32 @@ def _favorites_context(favorites):
         "suggested_movies": group(FavoriteMovie.Category.SUGGESTED, "movie"),
         "suggested_tv": group(FavoriteMovie.Category.SUGGESTED, "tv"),
     }
+
+
+@login_required
+def favorites_page(request, category, username=None):
+    """Página propia para Imprescindibles o Sugeridas — ya no van integradas
+    como pestañas dentro del perfil, sino con dos botones que llevan aquí.
+    Sin `username`, es la del propio usuario (editable); con `username`, la
+    de otro (solo lectura, se llega desde su perfil público)."""
+    if category not in FavoriteMovie.Category.values:
+        raise Http404
+
+    if username:
+        profile_user = get_object_or_404(User, username=username)
+        editable = False
+    else:
+        profile_user = request.user
+        editable = True
+
+    favorites = FavoriteMovie.objects.filter(user=profile_user).select_related("movie")
+    context = {
+        "category": category,
+        "editable": editable,
+        "profile_user": profile_user,
+        **_favorites_context(favorites),
+    }
+    return render(request, "accounts/favorites_page.html", context)
 
 
 @login_required
@@ -172,15 +198,16 @@ def favorite_add(request, category, media_type, tmdb_id):
                 )
                 if not created:
                     messages.info(request, "Ya estaba en la lista.")
-    return redirect("accounts:profile")
+    return redirect("accounts:favorites-page", category)
 
 
 @login_required
 def favorite_remove(request, pk):
     favorite = get_object_or_404(FavoriteMovie, pk=pk, user=request.user)
+    category = favorite.category
     if request.method == "POST":
         favorite.delete()
-    return redirect("accounts:profile")
+    return redirect("accounts:favorites-page", category)
 
 
 @login_required
@@ -202,7 +229,7 @@ def favorite_move(request, pk, direction):
         other = siblings[swap_index]
         favorite.order, other.order = swap_index, index
         FavoriteMovie.objects.bulk_update([favorite, other], ["order"])
-    return redirect("accounts:profile")
+    return redirect("accounts:favorites-page", favorite.category)
 
 
 @login_required
@@ -211,7 +238,7 @@ def favorite_note(request, pk):
     if request.method == "POST":
         favorite.note = request.POST.get("note", "").strip()[:280]
         favorite.save(update_fields=["note"])
-    return redirect("accounts:profile")
+    return redirect("accounts:favorites-page", favorite.category)
 
 
 @login_required

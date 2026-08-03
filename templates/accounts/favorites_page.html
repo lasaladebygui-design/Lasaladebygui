@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}{% if category == "essential" %}Mis imprescindibles{% else %}Sugeridas{% endif %}{% if not editable %} de {{ profile_user.username }}{% endif %}{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap">
+        <div class="section-header">
+            <div>
+                <span class="card__tag">Perfil</span>
+                <h1>
+                    {% if category == "essential" %}🎬 Mis imprescindibles{% else %}✨ Sugeridas{% endif %}
+                    {% if not editable %}<span class="muted"> de {{ profile_user.username }}</span>{% endif %}
+                </h1>
+            </div>
+            {% if editable %}
+                <a href="{% url 'accounts:profile' %}" class="btn btn--ghost">← Volver al perfil</a>
+            {% else %}
+                <a href="{% url 'social:public-profile' profile_user.username %}" class="btn btn--ghost">← Volver al perfil</a>
+            {% endif %}
+        </div>
+
+        {% if category == "essential" %}
+            {% include "accounts/_favorite_movies_group.html" with group_title="Mis imprescindibles" category="essential" movies=essential_movies series=essential_tv limit_movie=3 limit_tv=3 editable=editable %}
+        {% else %}
+            {% include "accounts/_favorite_movies_group.html" with group_title="Sugeridas" category="suggested" movies=suggested_movies series=suggested_tv limit_movie=6 limit_tv=3 editable=editable %}
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
