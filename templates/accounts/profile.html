@@ -74,7 +74,9 @@
 
         {% if vapid_public_key %}
         <button type="button" class="btn btn--ghost btn--block" style="margin-top:1rem;"
-                data-push-subscribe data-subscribe-url="{% url 'accounts:push-subscribe' %}">
+                data-push-subscribe
+                data-subscribe-url="{% url 'accounts:push-subscribe' %}"
+                data-unsubscribe-url="{% url 'accounts:push-unsubscribe' %}">
             🔔 Activar notificaciones
         </button>
         {% endif %}

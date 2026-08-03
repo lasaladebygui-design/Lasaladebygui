@@ -28,9 +28,14 @@
         });
     }
 
+    function setButtonState(button, subscribed) {
+        button.textContent = subscribed ? "🔕 Desactivar notificaciones" : "🔔 Activar notificaciones";
+        button.dataset.subscribed = subscribed ? "1" : "";
+    }
+
     async function subscribeToPush(button) {
         var meta = document.querySelector('meta[name="vapid-public-key"]');
-        if (!meta || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
+        if (!meta) return;
 
         var permission = await Notification.requestPermission();
         if (permission !== "granted") return;
@@ -42,8 +47,17 @@
         });
 
         await postJson(button.dataset.subscribeUrl, subscription.toJSON());
-        button.textContent = "🔔 Notificaciones activadas";
-        button.disabled = true;
+        setButtonState(button, true);
+    }
+
+    async function unsubscribeFromPush(button) {
+        var registration = await navigator.serviceWorker.ready;
+        var subscription = await registration.pushManager.getSubscription();
+        if (subscription) {
+            await postJson(button.dataset.unsubscribeUrl, { endpoint: subscription.endpoint });
+            await subscription.unsubscribe();
+        }
+        setButtonState(button, false);
     }
 
     document.addEventListener("DOMContentLoaded", function () {
@@ -58,14 +72,12 @@
         navigator.serviceWorker.ready.then(function (registration) {
             return registration.pushManager.getSubscription();
         }).then(function (existing) {
-            if (existing) {
-                button.textContent = "🔔 Notificaciones activadas";
-                button.disabled = true;
-            }
+            setButtonState(button, !!existing);
         }).catch(function () {});
 
         button.addEventListener("click", function () {
-            subscribeToPush(button).catch(function () {});
+            var action = button.dataset.subscribed ? unsubscribeFromPush : subscribeToPush;
+            action(button).catch(function () {});
         });
     });
 })();
