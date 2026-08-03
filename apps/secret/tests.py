@@ -432,6 +432,13 @@ class CalendarTests(TestCase):
         response = self.client.get(reverse("secret:calendar"))
         self.assertRedirects(response, reverse("secret:gate"))
 
+    def test_el_input_de_buscar_manda_el_valor_como_query(self):
+        # Regresión: sin name="query" en el <input>, HTMX nunca manda lo
+        # escrito y el desplegable de resultados no aparece nunca, aunque
+        # la búsqueda "funcione" (con query siempre vacía).
+        response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
+        self.assertContains(response, 'name="query"')
+
     def test_muestra_eventos_del_mes_pedido(self):
         event = ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 3, 15), note="Estreno")
         response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
