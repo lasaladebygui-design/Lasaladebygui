@@ -425,7 +425,7 @@ class FavoriteMovieTests(TestCase):
         response = self.client.get(reverse("accounts:profile"))
         self.assertContains(response, reverse("accounts:favorites-page", args=["essential"]))
         self.assertContains(response, reverse("accounts:favorites-page", args=["suggested"]))
-        self.assertContains(response, "1 guardadas")
+        self.assertContains(response, "Mis imprescindibles (1)")
 
     def test_pagina_de_imprescindibles_muestra_las_favoritas(self):
         movie = Movie.objects.create(tmdb_id=7, title="Mi favorita", poster_path="/x.jpg", media_type="movie")

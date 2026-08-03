@@ -92,25 +92,13 @@
             {% endif %}
         {% endif %}
 
+        <a href="{% url 'accounts:favorites-page' 'essential' %}" class="btn btn--ghost btn--block" style="margin-top:1rem;">🎬 Mis imprescindibles ({{ essential_count }})</a>
+        <a href="{% url 'accounts:favorites-page' 'suggested' %}" class="btn btn--ghost btn--block" style="margin-top:0.5rem;">✨ Sugeridas ({{ suggested_count }})</a>
+
         <form method="post" action="{% url 'accounts:logout' %}" style="margin-top:1.5rem;">
             {% csrf_token %}
             <button type="submit" class="btn btn--ghost btn--block">Cerrar sesión</button>
         </form>
-    </div>
-</div>
-
-<div class="wrap">
-    <div class="card-grid">
-        <a href="{% url 'accounts:favorites-page' 'essential' %}" class="card card--link">
-            <span class="card__tag">🎬</span>
-            <h3>Mis imprescindibles</h3>
-            <p class="muted">{{ essential_count }} guardadas</p>
-        </a>
-        <a href="{% url 'accounts:favorites-page' 'suggested' %}" class="card card--link">
-            <span class="card__tag">✨</span>
-            <h3>Sugeridas</h3>
-            <p class="muted">{{ suggested_count }} guardadas</p>
-        </a>
     </div>
 </div>
 {% endblock %}
