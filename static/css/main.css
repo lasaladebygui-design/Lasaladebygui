@@ -1261,6 +1261,7 @@ main { flex: 1; }
     align-items: center;
     width: 100px;
     text-align: center;
+    position: relative;
 }
 .favorite-card__poster {
     width: 100px;
@@ -1275,6 +1276,17 @@ main { flex: 1; }
     align-items: center;
     justify-content: center;
     font-size: 1.8rem;
+}
+.favorite-card__poster--clickable { cursor: pointer; }
+.favorite-card__note-badge {
+    position: absolute;
+    top: 0.2rem;
+    right: 0.2rem;
+    background: var(--color-surface);
+    border-radius: 50%;
+    padding: 0.1rem 0.25rem;
+    font-size: 0.7rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 .favorite-card__title { font-size: 0.8rem; margin-top: 0.4rem; color: var(--color-text-muted); }
 .favorite-card__tools {
@@ -1291,7 +1303,6 @@ main { flex: 1; }
     text-align: left;
 }
 .favorite-card__note-edit { margin-top: 0.3rem; }
-.favorite-card__note-edit summary { font-size: 0.7rem; cursor: pointer; color: var(--color-accent); }
 .favorite-card__note-edit form {
     display: flex;
     flex-direction: column;
