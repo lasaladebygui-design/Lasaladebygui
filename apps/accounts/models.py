@@ -151,8 +151,8 @@ class FavoriteMovie(models.Model):
     )
     order = models.PositiveIntegerField("orden", default=0)
     note = models.CharField(
-        "por qué la recomiendas", max_length=280, blank=True,
-        help_text="Opcional — solo tiene sentido en Sugeridas, no en Imprescindibles.",
+        "por qué está aquí", max_length=280, blank=True,
+        help_text="Opcional — visible para cualquiera que vea el perfil, tanto en Imprescindibles como en Sugeridas.",
     )
     created_at = models.DateTimeField("añadida", auto_now_add=True)
 

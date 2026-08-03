@@ -43,8 +43,9 @@ class RouletteSavedSeenAdmin(admin.ModelAdmin):
 
 @admin.register(SavedMovie)
 class SavedMovieAdmin(admin.ModelAdmin):
-    list_display = ("user", "movie", "sublist", "saved_at")
-    list_filter = ("sublist",)
+    list_display = ("user", "movie", "saved_at")
+    list_filter = ("sublists",)
+    filter_horizontal = ("sublists",)
 
 
 @admin.register(SavedMovieList)

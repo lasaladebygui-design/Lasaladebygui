@@ -169,27 +169,38 @@ class SavedMovieSublistTests(TestCase):
     def test_asignar_una_guardada_a_una_sublista(self):
         sublist = SavedMovieList.objects.create(user=self.user, name="Terror")
         saved = SavedMovie.objects.create(user=self.user, movie=self.movie_a)
-        self.client.post(reverse("movies:saved-movie-set-sublist", args=[saved.pk]), {"sublist": sublist.pk})
+        self.client.post(reverse("movies:saved-movie-toggle-sublist", args=[saved.pk, sublist.pk]))
         saved.refresh_from_db()
-        self.assertEqual(saved.sublist, sublist)
+        self.assertIn(sublist, saved.sublists.all())
 
     def test_quitar_la_sublista_de_una_guardada(self):
         sublist = SavedMovieList.objects.create(user=self.user, name="Terror")
-        saved = SavedMovie.objects.create(user=self.user, movie=self.movie_a, sublist=sublist)
-        self.client.post(reverse("movies:saved-movie-set-sublist", args=[saved.pk]), {"sublist": ""})
+        saved = SavedMovie.objects.create(user=self.user, movie=self.movie_a)
+        saved.sublists.add(sublist)
+        self.client.post(reverse("movies:saved-movie-toggle-sublist", args=[saved.pk, sublist.pk]))
         saved.refresh_from_db()
-        self.assertIsNone(saved.sublist)
+        self.assertNotIn(sublist, saved.sublists.all())
+
+    def test_una_guardada_puede_estar_en_varias_sublistas_a_la_vez(self):
+        terror = SavedMovieList.objects.create(user=self.user, name="Terror")
+        familia = SavedMovieList.objects.create(user=self.user, name="Familia")
+        saved = SavedMovie.objects.create(user=self.user, movie=self.movie_a)
+        self.client.post(reverse("movies:saved-movie-toggle-sublist", args=[saved.pk, terror.pk]))
+        self.client.post(reverse("movies:saved-movie-toggle-sublist", args=[saved.pk, familia.pk]))
+        saved.refresh_from_db()
+        self.assertEqual(set(saved.sublists.all()), {terror, familia})
 
     def test_no_se_puede_asignar_una_sublista_ajena(self):
         other_user = make_user("otro_sublista@test.local")
         ajena = SavedMovieList.objects.create(user=other_user, name="Ajena")
         saved = SavedMovie.objects.create(user=self.user, movie=self.movie_a)
-        response = self.client.post(reverse("movies:saved-movie-set-sublist", args=[saved.pk]), {"sublist": ajena.pk})
+        response = self.client.post(reverse("movies:saved-movie-toggle-sublist", args=[saved.pk, ajena.pk]))
         self.assertEqual(response.status_code, 404)
 
     def test_filtrar_guardadas_por_sublista(self):
         terror = SavedMovieList.objects.create(user=self.user, name="Terror")
-        SavedMovie.objects.create(user=self.user, movie=self.movie_a, sublist=terror)
+        saved_a = SavedMovie.objects.create(user=self.user, movie=self.movie_a)
+        saved_a.sublists.add(terror)
         SavedMovie.objects.create(user=self.user, movie=self.movie_b)
 
         response = self.client.get(reverse("movies:saved-movies"), {"list": terror.pk})
@@ -197,7 +208,8 @@ class SavedMovieSublistTests(TestCase):
 
     def test_filtrar_guardadas_sin_sublista(self):
         terror = SavedMovieList.objects.create(user=self.user, name="Terror")
-        SavedMovie.objects.create(user=self.user, movie=self.movie_a, sublist=terror)
+        saved_a = SavedMovie.objects.create(user=self.user, movie=self.movie_a)
+        saved_a.sublists.add(terror)
         SavedMovie.objects.create(user=self.user, movie=self.movie_b)
 
         response = self.client.get(reverse("movies:saved-movies"), {"list": "none"})
@@ -205,11 +217,12 @@ class SavedMovieSublistTests(TestCase):
 
     def test_borrar_sublista_no_borra_las_guardadas(self):
         sublist = SavedMovieList.objects.create(user=self.user, name="Terror")
-        saved = SavedMovie.objects.create(user=self.user, movie=self.movie_a, sublist=sublist)
+        saved = SavedMovie.objects.create(user=self.user, movie=self.movie_a)
+        saved.sublists.add(sublist)
         self.client.post(reverse("movies:saved-list-delete", args=[sublist.pk]))
         self.assertFalse(SavedMovieList.objects.filter(pk=sublist.pk).exists())
         saved.refresh_from_db()
-        self.assertIsNone(saved.sublist)
+        self.assertEqual(saved.sublists.count(), 0)
 
     def test_no_se_puede_borrar_una_sublista_ajena(self):
         other_user = make_user("otro_sublista2@test.local")
@@ -315,7 +328,8 @@ class RouletteListSublistTests(TestCase):
         self.terror = SavedMovieList.objects.create(user=self.user, name="Terror")
         self.movie_terror = make_movie(1, "De terror", None)
         self.movie_sin_lista = make_movie(2, "Sin lista", None)
-        SavedMovie.objects.create(user=self.user, movie=self.movie_terror, sublist=self.terror)
+        saved_terror = SavedMovie.objects.create(user=self.user, movie=self.movie_terror)
+        saved_terror.sublists.add(self.terror)
         SavedMovie.objects.create(user=self.user, movie=self.movie_sin_lista)
 
     def test_la_pagina_solo_muestra_las_de_la_sublista_elegida(self):

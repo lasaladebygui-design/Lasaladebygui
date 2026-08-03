@@ -28,6 +28,7 @@
             {% for sublist in sublists %}
             <a href="?type={{ media_type }}&list={{ sublist.pk }}" class="btn btn--sm {% if list_param == sublist.pk|stringformat:'s' %}btn--accent{% else %}btn--ghost{% endif %}">{{ sublist.name }}</a>
             {% endfor %}
+            <a href="?type={{ media_type }}&list=none" class="btn btn--sm {% if list_param == 'none' %}btn--accent{% else %}btn--ghost{% endif %}">Sin listas</a>
         </div>
 
         <details class="tier-add-level">
@@ -65,15 +66,14 @@
                     </div>
                 </a>
                 {% if sublists %}
-                <form method="post" action="{% url 'movies:saved-movie-set-sublist' pk=item.pk %}" class="saved-sublist-form">
-                    {% csrf_token %}
-                    <select name="sublist" onchange="this.form.submit()" title="Sublista">
-                        <option value="">Sin sublista</option>
-                        {% for sublist in sublists %}
-                        <option value="{{ sublist.pk }}" {% if item.sublist_id == sublist.pk %}selected{% endif %}>{{ sublist.name }}</option>
-                        {% endfor %}
-                    </select>
-                </form>
+                <div class="saved-sublist-form saved-sublist-form--checks">
+                    {% for sublist in sublists %}
+                    <form method="post" action="{% url 'movies:saved-movie-toggle-sublist' pk=item.pk list_id=sublist.pk %}" class="inline-form">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn--sm {% if sublist in item.sublists.all %}btn--accent{% else %}btn--ghost{% endif %}">{{ sublist.name }}</button>
+                    </form>
+                    {% endfor %}
+                </div>
                 {% endif %}
             </li>
             {% endfor %}
@@ -89,7 +89,7 @@
             <summary class="btn btn--ghost btn--sm">Borrar una sublista</summary>
             {% for sublist in sublists %}
             <form method="post" action="{% url 'movies:saved-list-delete' pk=sublist.pk %}" class="inline-form"
-                  onsubmit="return confirm('¿Borrar la sublista {{ sublist.name }}? Sus películas seguirán guardadas, sin sublista.');">
+                  onsubmit="return confirm('¿Borrar la sublista {{ sublist.name }}? Sus películas seguirán guardadas.');">
                 {% csrf_token %}
                 <span class="muted">{{ sublist.name }}</span>
                 <button type="submit" class="link-btn link-btn--danger" title="Borrar">🗑️</button>

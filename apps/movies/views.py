@@ -135,9 +135,9 @@ def my_movies(request):
 
 def _filter_by_sublist(queryset, list_param):
     if list_param == "none":
-        return queryset.filter(sublist__isnull=True)
+        return queryset.filter(sublists__isnull=True)
     if list_param:
-        return queryset.filter(sublist_id=list_param)
+        return queryset.filter(sublists=list_param)
     return queryset
 
 
@@ -146,7 +146,7 @@ def saved_movies(request):
     media_type = _media_type_from_request(request)
     list_param = request.GET.get("list", "")
 
-    saved = SavedMovie.objects.filter(user=request.user).select_related("movie", "sublist").order_by("order", "-saved_at")
+    saved = SavedMovie.objects.filter(user=request.user).select_related("movie").prefetch_related("sublists").order_by("order", "-saved_at")
     if media_type != "all":
         saved = saved.filter(movie__media_type=media_type)
     saved = _filter_by_sublist(saved, list_param)
@@ -177,17 +177,19 @@ def saved_list_delete(request, pk):
     sublist = get_object_or_404(SavedMovieList, pk=pk, user=request.user)
     if request.method == "POST":
         sublist.delete()
-        messages.success(request, "Sublista borrada. Sus películas siguen guardadas, sin sublista.")
+        messages.success(request, "Sublista borrada. Sus películas siguen guardadas.")
     return redirect("movies:saved-movies")
 
 
 @login_required
-def saved_movie_set_sublist(request, pk):
+def saved_movie_toggle_sublist(request, pk, list_id):
     saved = get_object_or_404(SavedMovie, pk=pk, user=request.user)
+    sublist = get_object_or_404(SavedMovieList, pk=list_id, user=request.user)
     if request.method == "POST":
-        sublist_id = request.POST.get("sublist", "")
-        saved.sublist = get_object_or_404(SavedMovieList, pk=sublist_id, user=request.user) if sublist_id else None
-        saved.save(update_fields=["sublist"])
+        if saved.sublists.filter(pk=sublist.pk).exists():
+            saved.sublists.remove(sublist)
+        else:
+            saved.sublists.add(sublist)
     return redirect("movies:saved-movies")
 
 
@@ -296,7 +298,7 @@ def roulette_rating_reset(request):
 # registra cuáles ya han salido, para no repetir hasta reiniciar.
 
 def _roulette_saved_context(user, list_param=""):
-    saved = _filter_by_sublist(SavedMovie.objects.filter(user=user).select_related("movie", "sublist"), list_param)
+    saved = _filter_by_sublist(SavedMovie.objects.filter(user=user).select_related("movie"), list_param)
     seen_ids = set(RouletteSavedSeen.objects.filter(user=user).values_list("movie_id", flat=True))
     for item in saved:
         item.is_seen = item.movie_id in seen_ids

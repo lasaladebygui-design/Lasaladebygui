@@ -1724,11 +1724,10 @@ main { flex: 1; }
 /* --- Calendario de estrenos ---------------------------------------------- */
 
 .calendar-google-status {
-    font-size: 0.8rem;
-    color: var(--color-text-muted);
     margin: 0 0 calc(var(--space-unit) * 3);
 }
-.calendar-google-status .inline-form { display: inline; }
+.calendar-google-btn { opacity: 0.9; }
+.calendar-google-btn:hover { opacity: 1; }
 
 .calendar-nav {
     display: flex;

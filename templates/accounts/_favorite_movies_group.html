@@ -12,29 +12,29 @@
     {% if movies or series %}
     <div class="favorites-grid favorites-grid--3col">
         {% for fav in movies %}
-        <div class="favorite-card" x-show="type === 'movie' || type === 'all'" {% if category == "suggested" %}x-data="{ noteOpen: false }"{% endif %}>
+        <div class="favorite-card" x-show="type === 'movie' || type === 'all'" x-data="{ noteOpen: false }">
             {% if fav.movie.poster_url %}
-                <img src="{{ fav.movie.poster_url }}" alt="" class="favorite-card__poster{% if category == "suggested" %} favorite-card__poster--clickable{% endif %}"
-                     {% if category == "suggested" %}@click="noteOpen = !noteOpen" title="Ver/escribir por qué la recomiendas"{% endif %}>
+                <img src="{{ fav.movie.poster_url }}" alt="" class="favorite-card__poster favorite-card__poster--clickable"
+                     @click="noteOpen = !noteOpen" title="Ver/escribir por qué está aquí">
             {% else %}
-                <div class="favorite-card__poster favorite-card__poster--placeholder{% if category == "suggested" %} favorite-card__poster--clickable{% endif %}"
-                     {% if category == "suggested" %}@click="noteOpen = !noteOpen" title="Ver/escribir por qué la recomiendas"{% endif %}><span>🎬</span></div>
+                <div class="favorite-card__poster favorite-card__poster--placeholder favorite-card__poster--clickable"
+                     @click="noteOpen = !noteOpen" title="Ver/escribir por qué está aquí"><span>🎬</span></div>
             {% endif %}
-            {% if category == "suggested" and fav.note %}<span class="favorite-card__note-badge" title="Tiene una nota">💬</span>{% endif %}
+            {% if fav.note %}<span class="favorite-card__note-badge" title="Tiene una nota">💬</span>{% endif %}
             <span class="favorite-card__title">{{ fav.movie.title }}</span>
             {% include "accounts/_favorite_card_tools.html" %}
         </div>
         {% endfor %}
         {% for fav in series %}
-        <div class="favorite-card" x-show="type === 'tv' || type === 'all'" {% if category == "suggested" %}x-data="{ noteOpen: false }"{% endif %}>
+        <div class="favorite-card" x-show="type === 'tv' || type === 'all'" x-data="{ noteOpen: false }">
             {% if fav.movie.poster_url %}
-                <img src="{{ fav.movie.poster_url }}" alt="" class="favorite-card__poster{% if category == "suggested" %} favorite-card__poster--clickable{% endif %}"
-                     {% if category == "suggested" %}@click="noteOpen = !noteOpen" title="Ver/escribir por qué la recomiendas"{% endif %}>
+                <img src="{{ fav.movie.poster_url }}" alt="" class="favorite-card__poster favorite-card__poster--clickable"
+                     @click="noteOpen = !noteOpen" title="Ver/escribir por qué está aquí">
             {% else %}
-                <div class="favorite-card__poster favorite-card__poster--placeholder{% if category == "suggested" %} favorite-card__poster--clickable{% endif %}"
-                     {% if category == "suggested" %}@click="noteOpen = !noteOpen" title="Ver/escribir por qué la recomiendas"{% endif %}><span>📺</span></div>
+                <div class="favorite-card__poster favorite-card__poster--placeholder favorite-card__poster--clickable"
+                     @click="noteOpen = !noteOpen" title="Ver/escribir por qué está aquí"><span>📺</span></div>
             {% endif %}
-            {% if category == "suggested" and fav.note %}<span class="favorite-card__note-badge" title="Tiene una nota">💬</span>{% endif %}
+            {% if fav.note %}<span class="favorite-card__note-badge" title="Tiene una nota">💬</span>{% endif %}
             <span class="favorite-card__title">{{ fav.movie.title }}</span>
             {% include "accounts/_favorite_card_tools.html" %}
         </div>

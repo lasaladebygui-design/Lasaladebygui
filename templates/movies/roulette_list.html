@@ -18,6 +18,7 @@
             {% for sublist in sublists %}
             <a href="?list={{ sublist.pk }}" class="btn btn--sm {% if list_param == sublist.pk|stringformat:'s' %}btn--accent{% else %}btn--ghost{% endif %}">{{ sublist.name }}</a>
             {% endfor %}
+            <a href="?list=none" class="btn btn--sm {% if list_param == 'none' %}btn--accent{% else %}btn--ghost{% endif %}">Sin listas</a>
         </div>
         {% endif %}
 

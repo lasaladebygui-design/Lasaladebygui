@@ -134,15 +134,16 @@ class SavedMovie(models.Model):
     """Película guardada por un usuario en 'Mis películas' (independiente de
     si la ha votado o de si es candidata en la ruleta Modo 2). `order` es el
     orden de importancia que el propio usuario le da (0 = más importante),
-    editable con los botones ▲▼ en la página de Guardadas. `sublist` es
-    opcional: si no se asigna a ninguna, sigue contando para "Todas"."""
+    editable con los botones ▲▼ en la página de Guardadas. `sublists` es
+    opcional y admite varias a la vez: una misma guardada puede estar en
+    "Terror" y en "Para ver en familia" al mismo tiempo; si no está en
+    ninguna, sigue contando para "Todas" (y para "Sin listas")."""
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_movies")
     movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name="+")
     order = models.PositiveIntegerField("orden de importancia", default=0)
-    sublist = models.ForeignKey(
-        SavedMovieList, verbose_name="sublista", on_delete=models.SET_NULL,
-        null=True, blank=True, related_name="saved_movies",
+    sublists = models.ManyToManyField(
+        SavedMovieList, verbose_name="sublistas", blank=True, related_name="saved_movies",
     )
     saved_at = models.DateTimeField(auto_now_add=True)
 
