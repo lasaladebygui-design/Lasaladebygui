@@ -26,4 +26,5 @@ urlpatterns = [
     path("dentro/calendario/anadir/<str:media_type>/<int:tmdb_id>/", views.calendar_add, name="calendar-add"),
     path("dentro/calendario/<int:pk>/quitar/", views.calendar_remove, name="calendar-remove"),
     path("dentro/calendario/<int:pk>/ics/", views.calendar_ics, name="calendar-ics"),
+    path("dentro/calendario/nota/", views.calendar_day_note, name="calendar-day-note"),
 ]

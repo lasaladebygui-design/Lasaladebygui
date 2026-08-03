@@ -8,7 +8,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from apps.accounts.models import GoogleCalendarConnection, PushSubscription, User
-from apps.movies.models import Movie, ReleaseEvent, ReleaseEventGoogleLink
+from apps.movies.models import CalendarDayNote, Movie, ReleaseEvent, ReleaseEventGoogleLink
 from apps.movies.services import MovieAPIError
 
 from .forms import SecretMovieForm
@@ -523,6 +523,38 @@ class CalendarTests(TestCase):
         mock_send.assert_called_once()
         subscribers = list(mock_send.call_args.args[0])
         self.assertIn(subscriber, subscribers)
+
+    def test_guardar_comentario_de_un_dia(self):
+        response = self.client.post(reverse("secret:calendar-day-note"), {"date": "2026-03-15", "note": "Vacaciones"})
+        self.assertRedirects(response, reverse("secret:calendar") + "?year=2026&month=3")
+        note = CalendarDayNote.objects.get(date=date(2026, 3, 15))
+        self.assertEqual(note.note, "Vacaciones")
+
+    def test_el_calendario_muestra_el_comentario_del_dia(self):
+        CalendarDayNote.objects.create(date=date(2026, 3, 15), note="Vacaciones")
+        response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
+        self.assertContains(response, "Vacaciones")
+
+    def test_editar_un_comentario_existente_lo_sobreescribe(self):
+        CalendarDayNote.objects.create(date=date(2026, 3, 15), note="Antiguo")
+        self.client.post(reverse("secret:calendar-day-note"), {"date": "2026-03-15", "note": "Nuevo"})
+        self.assertEqual(CalendarDayNote.objects.count(), 1)
+        self.assertEqual(CalendarDayNote.objects.get().note, "Nuevo")
+
+    def test_guardar_nota_vacia_borra_el_comentario(self):
+        CalendarDayNote.objects.create(date=date(2026, 3, 15), note="Algo")
+        self.client.post(reverse("secret:calendar-day-note"), {"date": "2026-03-15", "note": ""})
+        self.assertFalse(CalendarDayNote.objects.filter(date=date(2026, 3, 15)).exists())
+
+    def test_comentario_con_fecha_invalida_da_404(self):
+        response = self.client.post(reverse("secret:calendar-day-note"), {"date": "no-es-fecha", "note": "X"})
+        self.assertEqual(response.status_code, 404)
+
+    def test_requiere_haber_entrado_al_maletin_para_comentar(self):
+        self.client.post(reverse("secret:lock"))
+        response = self.client.post(reverse("secret:calendar-day-note"), {"date": "2026-03-15", "note": "X"})
+        self.assertRedirects(response, reverse("secret:gate"))
+        self.assertFalse(CalendarDayNote.objects.filter(date=date(2026, 3, 15)).exists())
 
 
 @override_settings(GOOGLE_OAUTH_CLIENT_ID="client-id", GOOGLE_OAUTH_CLIENT_SECRET="client-secret")

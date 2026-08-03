@@ -18,7 +18,7 @@ from apps.core.google_calendar import create_event as google_create_event
 from apps.core.google_calendar import delete_event as google_delete_event
 from apps.core.google_calendar import google_calendar_enabled
 from apps.core.push import send_push_to_users
-from apps.movies.models import Movie, ReleaseEvent, ReleaseEventGoogleLink
+from apps.movies.models import CalendarDayNote, Movie, ReleaseEvent, ReleaseEventGoogleLink
 from apps.movies.services import MovieAPIError, tmdb_search
 
 from .forms import CodeForm, FullListFilterForm, NumberSelectForm, RatingSearchForm, SecretPhotoForm, TierLevelForm
@@ -272,6 +272,11 @@ def calendar_view(request):
     for event in events:
         events_by_date.setdefault(event.date, []).append(event)
 
+    notes_by_date = {
+        note.date: note.note
+        for note in CalendarDayNote.objects.filter(date__year=year, date__month=month)
+    }
+
     weeks = [
         [
             {
@@ -279,6 +284,7 @@ def calendar_view(request):
                 "in_month": day.month == month,
                 "is_today": day == today,
                 "events": events_by_date.get(day, []),
+                "comment": notes_by_date.get(day, ""),
             }
             for day in week
         ]
@@ -388,6 +394,25 @@ def calendar_remove(request, pk):
 
     event.delete()
     return redirect(f"{reverse('secret:calendar')}?year={year}&month={month}")
+
+
+@secret_required
+def calendar_day_note(request):
+    if request.method != "POST":
+        raise Http404
+    try:
+        year, month, day = (int(part) for part in request.POST.get("date", "").split("-"))
+        note_date = date(year, month, day)
+    except (TypeError, ValueError):
+        raise Http404
+
+    note = request.POST.get("note", "").strip()[:280]
+    if note:
+        CalendarDayNote.objects.update_or_create(date=note_date, defaults={"note": note})
+    else:
+        CalendarDayNote.objects.filter(date=note_date).delete()
+
+    return redirect(f"{reverse('secret:calendar')}?year={note_date.year}&month={note_date.month}")
 
 
 def _ics_escape(value):

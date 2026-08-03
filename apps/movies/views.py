@@ -4,12 +4,13 @@ import random
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Max, Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from .forms import MovieSearchForm, RatingRangeForm, VoteForm
-from .models import Movie, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, Vote
+from .models import Movie, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, SavedMovieList, Vote
 from .services import MovieAPIError, tmdb_search
 
 SPIN_DECOYS = 5
@@ -132,13 +133,62 @@ def my_movies(request):
     return render(request, "movies/my_movies.html", {"votes": votes, "media_type": media_type})
 
 
+def _filter_by_sublist(queryset, list_param):
+    if list_param == "none":
+        return queryset.filter(sublist__isnull=True)
+    if list_param:
+        return queryset.filter(sublist_id=list_param)
+    return queryset
+
+
 @login_required
 def saved_movies(request):
     media_type = _media_type_from_request(request)
-    saved = SavedMovie.objects.filter(user=request.user).select_related("movie").order_by("order", "-saved_at")
+    list_param = request.GET.get("list", "")
+
+    saved = SavedMovie.objects.filter(user=request.user).select_related("movie", "sublist").order_by("order", "-saved_at")
     if media_type != "all":
         saved = saved.filter(movie__media_type=media_type)
-    return render(request, "movies/saved_movies.html", {"saved": saved, "media_type": media_type})
+    saved = _filter_by_sublist(saved, list_param)
+
+    return render(request, "movies/saved_movies.html", {
+        "saved": saved, "media_type": media_type,
+        "sublists": SavedMovieList.objects.filter(user=request.user),
+        "list_param": list_param,
+    })
+
+
+@login_required
+def saved_list_create(request):
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()[:60]
+        if name:
+            max_order = SavedMovieList.objects.filter(user=request.user).aggregate(Max("order"))["order__max"] or 0
+            _, created = SavedMovieList.objects.get_or_create(
+                user=request.user, name=name, defaults={"order": max_order + 1},
+            )
+            if not created:
+                messages.info(request, "Ya tenías una sublista con ese nombre.")
+    return redirect("movies:saved-movies")
+
+
+@login_required
+def saved_list_delete(request, pk):
+    sublist = get_object_or_404(SavedMovieList, pk=pk, user=request.user)
+    if request.method == "POST":
+        sublist.delete()
+        messages.success(request, "Sublista borrada. Sus películas siguen guardadas, sin sublista.")
+    return redirect("movies:saved-movies")
+
+
+@login_required
+def saved_movie_set_sublist(request, pk):
+    saved = get_object_or_404(SavedMovie, pk=pk, user=request.user)
+    if request.method == "POST":
+        sublist_id = request.POST.get("sublist", "")
+        saved.sublist = get_object_or_404(SavedMovieList, pk=sublist_id, user=request.user) if sublist_id else None
+        saved.save(update_fields=["sublist"])
+    return redirect("movies:saved-movies")
 
 
 @login_required
@@ -245,32 +295,37 @@ def roulette_rating_reset(request):
 # "Guardar película" en su ficha) ya la hace elegible aquí. Esto solo
 # registra cuáles ya han salido, para no repetir hasta reiniciar.
 
-def _roulette_saved_context(user):
-    saved = SavedMovie.objects.filter(user=user).select_related("movie")
+def _roulette_saved_context(user, list_param=""):
+    saved = _filter_by_sublist(SavedMovie.objects.filter(user=user).select_related("movie", "sublist"), list_param)
     seen_ids = set(RouletteSavedSeen.objects.filter(user=user).values_list("movie_id", flat=True))
     for item in saved:
         item.is_seen = item.movie_id in seen_ids
-    return {"saved": saved, "unseen_count": sum(1 for item in saved if not item.is_seen)}
+    return {
+        "saved": saved, "unseen_count": sum(1 for item in saved if not item.is_seen),
+        "sublists": SavedMovieList.objects.filter(user=user), "list_param": list_param,
+    }
 
 
 @login_required
 def roulette_list(request):
-    return render(request, "movies/roulette_list.html", _roulette_saved_context(request.user))
+    list_param = request.GET.get("list", "")
+    return render(request, "movies/roulette_list.html", _roulette_saved_context(request.user, list_param))
 
 
 @login_required
 def roulette_list_draw(request):
     result = None
     reel = None
-    saved = SavedMovie.objects.filter(user=request.user).select_related("movie")
+    list_param = request.POST.get("list", "")
+    saved = _filter_by_sublist(SavedMovie.objects.filter(user=request.user).select_related("movie"), list_param)
 
     if request.method == "POST":
         seen_ids = RouletteSavedSeen.objects.filter(user=request.user).values_list("movie_id", flat=True)
         unseen = list(saved.exclude(movie_id__in=seen_ids))
         if not saved.exists():
-            messages.warning(request, "Todavía no has guardado ninguna película. Guarda alguna desde su ficha.")
+            messages.warning(request, "Todavía no has guardado ninguna película en esta lista.")
         elif not unseen:
-            messages.info(request, "Has visto todas tus guardadas. Dale a «reiniciar» para volver a empezar.")
+            messages.info(request, "Has visto todas las de esta lista. Dale a «reiniciar» para volver a empezar.")
         else:
             chosen = random.choice(unseen).movie
             RouletteSavedSeen.objects.get_or_create(user=request.user, movie=chosen)
@@ -278,13 +333,16 @@ def roulette_list_draw(request):
             reel = _build_reel(result, [s.movie for s in saved])
 
     return render(request, "movies/roulette_list_result.html", {
-        **_roulette_saved_context(request.user), "result": result, "reel_json": reel,
+        **_roulette_saved_context(request.user, list_param), "result": result, "reel_json": reel,
     })
 
 
 @login_required
 def roulette_list_reset(request):
+    list_param = request.POST.get("list", "")
     if request.method == "POST":
         RouletteSavedSeen.objects.filter(user=request.user).delete()
         messages.success(request, "Reiniciado: volverás a ver todas tus guardadas.")
+    if list_param:
+        return redirect(f"{reverse('movies:roulette-list')}?list={list_param}")
     return redirect("movies:roulette-list")

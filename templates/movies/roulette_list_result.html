@@ -2,10 +2,12 @@
     <div class="roulette-controls">
         <form hx-post="{% url 'movies:roulette-list-draw' %}" hx-target="#roulette-panel" hx-swap="outerHTML" class="inline-form">
             {% csrf_token %}
+            <input type="hidden" name="list" value="{{ list_param }}">
             <button type="submit" class="btn btn--accent">Girar la ruleta</button>
         </form>
         <form method="post" action="{% url 'movies:roulette-list-reset' %}" class="inline-form">
             {% csrf_token %}
+            <input type="hidden" name="list" value="{{ list_param }}">
             <button type="submit" class="link-btn">Reiniciar vistas</button>
         </form>
     </div>

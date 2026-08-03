@@ -5,7 +5,7 @@ from django.urls import reverse
 
 from apps.accounts.models import User
 
-from .models import Movie, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, Vote
+from .models import Movie, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, SavedMovieList, Vote
 from .services import MovieAPIError
 
 
@@ -150,6 +150,75 @@ class SavedMovieTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
 
+class SavedMovieSublistTests(TestCase):
+    def setUp(self):
+        self.user = make_user("sublistas@test.local")
+        self.client.login(username=self.user.email, password="Testpass123!")
+        self.movie_a = make_movie(1, "A", None)
+        self.movie_b = make_movie(2, "B", None)
+
+    def test_crear_sublista(self):
+        self.client.post(reverse("movies:saved-list-create"), {"name": "Terror"})
+        self.assertTrue(SavedMovieList.objects.filter(user=self.user, name="Terror").exists())
+
+    def test_crear_sublista_con_nombre_repetido_no_duplica(self):
+        SavedMovieList.objects.create(user=self.user, name="Terror")
+        self.client.post(reverse("movies:saved-list-create"), {"name": "Terror"})
+        self.assertEqual(SavedMovieList.objects.filter(user=self.user, name="Terror").count(), 1)
+
+    def test_asignar_una_guardada_a_una_sublista(self):
+        sublist = SavedMovieList.objects.create(user=self.user, name="Terror")
+        saved = SavedMovie.objects.create(user=self.user, movie=self.movie_a)
+        self.client.post(reverse("movies:saved-movie-set-sublist", args=[saved.pk]), {"sublist": sublist.pk})
+        saved.refresh_from_db()
+        self.assertEqual(saved.sublist, sublist)
+
+    def test_quitar_la_sublista_de_una_guardada(self):
+        sublist = SavedMovieList.objects.create(user=self.user, name="Terror")
+        saved = SavedMovie.objects.create(user=self.user, movie=self.movie_a, sublist=sublist)
+        self.client.post(reverse("movies:saved-movie-set-sublist", args=[saved.pk]), {"sublist": ""})
+        saved.refresh_from_db()
+        self.assertIsNone(saved.sublist)
+
+    def test_no_se_puede_asignar_una_sublista_ajena(self):
+        other_user = make_user("otro_sublista@test.local")
+        ajena = SavedMovieList.objects.create(user=other_user, name="Ajena")
+        saved = SavedMovie.objects.create(user=self.user, movie=self.movie_a)
+        response = self.client.post(reverse("movies:saved-movie-set-sublist", args=[saved.pk]), {"sublist": ajena.pk})
+        self.assertEqual(response.status_code, 404)
+
+    def test_filtrar_guardadas_por_sublista(self):
+        terror = SavedMovieList.objects.create(user=self.user, name="Terror")
+        SavedMovie.objects.create(user=self.user, movie=self.movie_a, sublist=terror)
+        SavedMovie.objects.create(user=self.user, movie=self.movie_b)
+
+        response = self.client.get(reverse("movies:saved-movies"), {"list": terror.pk})
+        self.assertEqual(list(response.context["saved"].values_list("movie", flat=True)), [self.movie_a.pk])
+
+    def test_filtrar_guardadas_sin_sublista(self):
+        terror = SavedMovieList.objects.create(user=self.user, name="Terror")
+        SavedMovie.objects.create(user=self.user, movie=self.movie_a, sublist=terror)
+        SavedMovie.objects.create(user=self.user, movie=self.movie_b)
+
+        response = self.client.get(reverse("movies:saved-movies"), {"list": "none"})
+        self.assertEqual(list(response.context["saved"].values_list("movie", flat=True)), [self.movie_b.pk])
+
+    def test_borrar_sublista_no_borra_las_guardadas(self):
+        sublist = SavedMovieList.objects.create(user=self.user, name="Terror")
+        saved = SavedMovie.objects.create(user=self.user, movie=self.movie_a, sublist=sublist)
+        self.client.post(reverse("movies:saved-list-delete", args=[sublist.pk]))
+        self.assertFalse(SavedMovieList.objects.filter(pk=sublist.pk).exists())
+        saved.refresh_from_db()
+        self.assertIsNone(saved.sublist)
+
+    def test_no_se_puede_borrar_una_sublista_ajena(self):
+        other_user = make_user("otro_sublista2@test.local")
+        ajena = SavedMovieList.objects.create(user=other_user, name="Ajena")
+        response = self.client.post(reverse("movies:saved-list-delete", args=[ajena.pk]))
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(SavedMovieList.objects.filter(pk=ajena.pk).exists())
+
+
 class RouletteRatingTests(TestCase):
     def setUp(self):
         self.user = make_user("lector@test.local")
@@ -237,6 +306,36 @@ class RouletteListTests(TestCase):
         SavedMovie.objects.filter(user=self.user).delete()
         response = self.client.post(reverse("movies:roulette-list-draw"))
         self.assertIsNone(response.context["result"])
+
+
+class RouletteListSublistTests(TestCase):
+    def setUp(self):
+        self.user = make_user("ruleta_sublista@test.local")
+        self.client.login(username=self.user.email, password="Testpass123!")
+        self.terror = SavedMovieList.objects.create(user=self.user, name="Terror")
+        self.movie_terror = make_movie(1, "De terror", None)
+        self.movie_sin_lista = make_movie(2, "Sin lista", None)
+        SavedMovie.objects.create(user=self.user, movie=self.movie_terror, sublist=self.terror)
+        SavedMovie.objects.create(user=self.user, movie=self.movie_sin_lista)
+
+    def test_la_pagina_solo_muestra_las_de_la_sublista_elegida(self):
+        response = self.client.get(reverse("movies:roulette-list"), {"list": self.terror.pk})
+        saved_ids = list(response.context["saved"].values_list("movie", flat=True))
+        self.assertEqual(saved_ids, [self.movie_terror.pk])
+
+    def test_girar_con_sublista_solo_elige_de_esa_sublista(self):
+        for _ in range(5):
+            response = self.client.post(reverse("movies:roulette-list-draw"), {"list": self.terror.pk})
+            self.assertEqual(response.context["result"], self.movie_terror)
+            RouletteSavedSeen.objects.filter(user=self.user).delete()
+
+    def test_girar_sin_sublista_elige_de_todas(self):
+        response = self.client.post(reverse("movies:roulette-list-draw"))
+        self.assertIn(response.context["result"], [self.movie_terror, self.movie_sin_lista])
+
+    def test_reiniciar_conserva_el_filtro_de_sublista(self):
+        response = self.client.post(reverse("movies:roulette-list-reset"), {"list": self.terror.pk})
+        self.assertRedirects(response, reverse("movies:roulette-list") + f"?list={self.terror.pk}")
 
 
 class MovieListLiveSearchTests(TestCase):

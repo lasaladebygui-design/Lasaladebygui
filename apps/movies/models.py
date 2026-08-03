@@ -109,15 +109,41 @@ class Vote(models.Model):
         return f"{self.user} vota {self.score} a {self.movie}"
 
 
+class SavedMovieList(models.Model):
+    """Sublista personal dentro de Guardadas (p. ej. "Terror", "Para ver en
+    familia"), para poder ver o tirar la ruleta (Modo 2) solo sobre esa
+    sublista en vez de sobre todas las guardadas a la vez."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_movie_lists")
+    name = models.CharField("nombre", max_length=60)
+    order = models.PositiveIntegerField("orden", default=0)
+
+    class Meta:
+        verbose_name = "sublista de guardadas"
+        verbose_name_plural = "sublistas de guardadas"
+        ordering = ["user_id", "order", "name"]
+        constraints = [
+            models.UniqueConstraint(fields=["user", "name"], name="una_sublista_por_nombre_y_usuario"),
+        ]
+
+    def __str__(self):
+        return f"{self.user} — {self.name}"
+
+
 class SavedMovie(models.Model):
     """Película guardada por un usuario en 'Mis películas' (independiente de
     si la ha votado o de si es candidata en la ruleta Modo 2). `order` es el
     orden de importancia que el propio usuario le da (0 = más importante),
-    editable con los botones ▲▼ en la página de Guardadas."""
+    editable con los botones ▲▼ en la página de Guardadas. `sublist` es
+    opcional: si no se asigna a ninguna, sigue contando para "Todas"."""
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_movies")
     movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name="+")
     order = models.PositiveIntegerField("orden de importancia", default=0)
+    sublist = models.ForeignKey(
+        SavedMovieList, verbose_name="sublista", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="saved_movies",
+    )
     saved_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -201,3 +227,20 @@ class ReleaseEventGoogleLink(models.Model):
 
     def __str__(self):
         return f"{self.release_event} → Google Calendar de {self.user}"
+
+
+class CalendarDayNote(models.Model):
+    """Comentario libre en un día del calendario de Top Secret, sin ligarlo
+    a ninguna película/serie concreta (para eso ya está `ReleaseEvent`) —
+    por ejemplo, una nota tipo "vacaciones" o "maratón con amigos"."""
+
+    date = models.DateField("fecha", unique=True)
+    note = models.CharField("comentario", max_length=280)
+
+    class Meta:
+        verbose_name = "comentario del calendario"
+        verbose_name_plural = "calendario: comentarios de días"
+        ordering = ["date"]
+
+    def __str__(self):
+        return f"{self.date:%d/%m/%Y} — {self.note}"

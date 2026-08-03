@@ -11,17 +11,34 @@
                 <h1>Guardadas</h1>
             </div>
             <div class="section-header__actions">
-                <a href="{% url 'movies:roulette-list' %}" class="btn btn--accent">Girar la ruleta</a>
+                <a href="{% url 'movies:roulette-list' %}{% if list_param %}?list={{ list_param }}{% endif %}" class="btn btn--accent">Girar la ruleta</a>
                 <a href="{% url 'movies:list' %}" class="btn btn--ghost">Volver al catálogo</a>
             </div>
         </div>
-        <p class="muted">Estas son las que puede ofrecerte la ruleta (Modo 2). Guarda o quita alguna desde su ficha, y usa ▲▼ para ordenarlas por importancia.</p>
+        <p class="muted">Estas son las que puede ofrecerte la ruleta (Modo 2). Guarda o quita alguna desde su ficha, y usa ▲▼ para ordenarlas por importancia. Agrúpalas en sublistas (por ejemplo "Terror") para verlas o tirar la ruleta solo sobre esa sublista.</p>
 
         <div class="media-type-toggle">
-            <a href="?type=movie" class="btn btn--sm {% if media_type == 'movie' %}btn--accent{% else %}btn--ghost{% endif %}">Películas</a>
-            <a href="?type=tv" class="btn btn--sm {% if media_type == 'tv' %}btn--accent{% else %}btn--ghost{% endif %}">Series</a>
-            <a href="?type=all" class="btn btn--sm {% if media_type == 'all' %}btn--accent{% else %}btn--ghost{% endif %}">Ambas</a>
+            <a href="?type=movie{% if list_param %}&list={{ list_param }}{% endif %}" class="btn btn--sm {% if media_type == 'movie' %}btn--accent{% else %}btn--ghost{% endif %}">Películas</a>
+            <a href="?type=tv{% if list_param %}&list={{ list_param }}{% endif %}" class="btn btn--sm {% if media_type == 'tv' %}btn--accent{% else %}btn--ghost{% endif %}">Series</a>
+            <a href="?type=all{% if list_param %}&list={{ list_param }}{% endif %}" class="btn btn--sm {% if media_type == 'all' %}btn--accent{% else %}btn--ghost{% endif %}">Ambas</a>
         </div>
+
+        <div class="media-type-toggle">
+            <a href="?type={{ media_type }}" class="btn btn--sm {% if not list_param %}btn--accent{% else %}btn--ghost{% endif %}">Todas</a>
+            <a href="?type={{ media_type }}&list=none" class="btn btn--sm {% if list_param == 'none' %}btn--accent{% else %}btn--ghost{% endif %}">Sin sublista</a>
+            {% for sublist in sublists %}
+            <a href="?type={{ media_type }}&list={{ sublist.pk }}" class="btn btn--sm {% if list_param == sublist.pk|stringformat:'s' %}btn--accent{% else %}btn--ghost{% endif %}">{{ sublist.name }}</a>
+            {% endfor %}
+        </div>
+
+        <details class="tier-add-level">
+            <summary class="btn btn--ghost btn--sm">+ Nueva sublista</summary>
+            <form method="post" action="{% url 'movies:saved-list-create' %}" class="tier-row__edit-form">
+                {% csrf_token %}
+                <input type="text" name="name" placeholder="Nombre (ej. Terror)" maxlength="60" required>
+                <button type="submit" class="btn btn--accent btn--sm">Crear</button>
+            </form>
+        </details>
 
         {% if saved %}
         <ul class="plain-list">
@@ -48,11 +65,38 @@
                         <p class="muted">{{ item.movie.year }} {% if item.movie.media_type == "tv" %}· Serie{% endif %}</p>
                     </div>
                 </a>
+                {% if sublists %}
+                <form method="post" action="{% url 'movies:saved-movie-set-sublist' pk=item.pk %}" class="saved-sublist-form">
+                    {% csrf_token %}
+                    <select name="sublist" onchange="this.form.submit()" title="Sublista">
+                        <option value="">Sin sublista</option>
+                        {% for sublist in sublists %}
+                        <option value="{{ sublist.pk }}" {% if item.sublist_id == sublist.pk %}selected{% endif %}>{{ sublist.name }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                {% endif %}
             </li>
             {% endfor %}
         </ul>
         {% else %}
-        <p class="muted">Todavía no has guardado ninguna. Hazlo desde su ficha.</p>
+        <p class="muted">
+            {% if list_param %}No hay guardadas en esta sublista.{% else %}Todavía no has guardado ninguna. Hazlo desde su ficha.{% endif %}
+        </p>
+        {% endif %}
+
+        {% if sublists %}
+        <details class="tier-add-level">
+            <summary class="btn btn--ghost btn--sm">Borrar una sublista</summary>
+            {% for sublist in sublists %}
+            <form method="post" action="{% url 'movies:saved-list-delete' pk=sublist.pk %}" class="inline-form"
+                  onsubmit="return confirm('¿Borrar la sublista {{ sublist.name }}? Sus películas seguirán guardadas, sin sublista.');">
+                {% csrf_token %}
+                <span class="muted">{{ sublist.name }}</span>
+                <button type="submit" class="link-btn link-btn--danger" title="Borrar">🗑️</button>
+            </form>
+            {% endfor %}
+        </details>
         {% endif %}
     </div>
 </section>

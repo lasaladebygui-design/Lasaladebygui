@@ -848,6 +848,14 @@ main { flex: 1; }
 }
 .reorder-buttons .link-btn { font-size: 0.9rem; }
 .reorder-buttons .link-btn:disabled { opacity: 0.3; cursor: default; }
+.saved-sublist-form select {
+    font-size: 0.8rem;
+    padding: 0.3rem 0.5rem;
+    border-radius: var(--radius-base);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-text);
+}
 
 .movie-detail {
     display: grid;
@@ -1755,6 +1763,11 @@ main { flex: 1; }
 }
 .calendar-day--outside { opacity: 0.35; }
 .calendar-day--today { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+.calendar-day__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
 .calendar-day__number {
     font-size: 0.8rem;
     color: var(--color-text-muted);
@@ -1766,6 +1779,39 @@ main { flex: 1; }
     font-family: inherit;
 }
 .calendar-day__number:hover { color: var(--color-accent); }
+.calendar-day__comment-toggle {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-size: 0.7rem;
+    opacity: 0.5;
+}
+.calendar-day__comment-toggle:hover { opacity: 1; }
+.calendar-day__comment-text {
+    font-size: 0.65rem;
+    color: var(--color-text-muted);
+    background: var(--color-surface);
+    border-radius: 4px;
+    padding: 0.2rem 0.35rem;
+    margin: 0.2rem 0 0;
+    cursor: pointer;
+}
+.calendar-day__comment-edit { margin-top: 0.2rem; }
+.calendar-day__comment-edit textarea {
+    width: 100%;
+    min-height: 2.5rem;
+    font-size: 0.7rem;
+    padding: 0.25rem 0.4rem;
+    border-radius: var(--radius-base);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-text);
+    resize: vertical;
+    font: inherit;
+    display: block;
+    margin-bottom: 0.2rem;
+}
 .calendar-event {
     display: flex;
     align-items: center;

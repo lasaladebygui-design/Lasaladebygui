@@ -1,6 +1,16 @@
 from django.contrib import admin
 
-from .models import Movie, ReleaseEvent, ReleaseEventGoogleLink, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, Vote
+from .models import (
+    CalendarDayNote,
+    Movie,
+    ReleaseEvent,
+    ReleaseEventGoogleLink,
+    RouletteRatingSeen,
+    RouletteSavedSeen,
+    SavedMovie,
+    SavedMovieList,
+    Vote,
+)
 
 
 @admin.register(Movie)
@@ -34,7 +44,14 @@ class RouletteSavedSeenAdmin(admin.ModelAdmin):
 
 @admin.register(SavedMovie)
 class SavedMovieAdmin(admin.ModelAdmin):
-    list_display = ("user", "movie", "saved_at")
+    list_display = ("user", "movie", "sublist", "saved_at")
+    list_filter = ("sublist",)
+
+
+@admin.register(SavedMovieList)
+class SavedMovieListAdmin(admin.ModelAdmin):
+    list_display = ("user", "name", "order")
+    search_fields = ("user__username", "name")
 
 
 @admin.register(ReleaseEvent)
@@ -50,3 +67,9 @@ class ReleaseEventAdmin(admin.ModelAdmin):
 class ReleaseEventGoogleLinkAdmin(admin.ModelAdmin):
     list_display = ("release_event", "user", "google_event_id")
     search_fields = ("user__username", "release_event__movie__title")
+
+
+@admin.register(CalendarDayNote)
+class CalendarDayNoteAdmin(admin.ModelAdmin):
+    list_display = ("date", "note")
+    ordering = ("date",)
