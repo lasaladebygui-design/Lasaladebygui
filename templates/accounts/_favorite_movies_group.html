@@ -1,7 +1,7 @@
 <div class="favorites-group" x-data="{ type: 'movie' }">
     <div class="favorites-group__header">
         <h3 class="favorites-group__title">{{ group_title }}</h3>
-        <span class="muted favorites-group__count">🎬 {{ movies|length }}/{{ limit_movie }} · 📺 {{ series|length }}/{{ limit_tv }}</span>
+        <span class="muted favorites-group__count">🎬 {{ movies|length }} · 📺 {{ series|length }}</span>
     </div>
     <div class="media-type-toggle">
         <button type="button" class="btn btn--sm" :class="type === 'movie' ? 'btn--accent' : 'btn--ghost'" @click="type = 'movie'">Películas</button>

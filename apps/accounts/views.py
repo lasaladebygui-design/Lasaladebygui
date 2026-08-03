@@ -17,7 +17,7 @@ from django.views.decorators.http import require_POST
 
 from apps.core.google_calendar import exchange_code_for_tokens, get_authorization_url, google_calendar_enabled
 from apps.core.models import SiteConfig
-from apps.movies.models import Movie, ReleaseEventGoogleLink
+from apps.movies.models import Movie, ReleaseEvent
 from apps.movies.services import MovieAPIError, tmdb_search
 
 from .forms import EmailAuthenticationForm, ProfileForm, RegisterForm
@@ -108,8 +108,6 @@ def profile(request):
 
     context = {
         "form": form,
-        "google_calendar_enabled": google_calendar_enabled(),
-        "google_calendar_connected": hasattr(request.user, "google_calendar_connection"),
         "essential_count": FavoriteMovie.objects.filter(user=request.user, category="essential").count(),
         "suggested_count": FavoriteMovie.objects.filter(user=request.user, category="suggested").count(),
     }
@@ -183,21 +181,17 @@ def favorite_add(request, category, media_type, tmdb_id):
         current_count = FavoriteMovie.objects.filter(
             user=request.user, category=category, movie__media_type=media_type,
         ).count()
-        limit = FavoriteMovie.LIMITS[(category, media_type)]
-        if current_count >= limit:
-            messages.error(request, "Ya has llegado al máximo para ese apartado.")
+        try:
+            movie = Movie.get_or_create_from_tmdb(tmdb_id, media_type=media_type)
+        except MovieAPIError as exc:
+            messages.error(request, str(exc))
         else:
-            try:
-                movie = Movie.get_or_create_from_tmdb(tmdb_id, media_type=media_type)
-            except MovieAPIError as exc:
-                messages.error(request, str(exc))
-            else:
-                _, created = FavoriteMovie.objects.get_or_create(
-                    user=request.user, category=category, movie=movie,
-                    defaults={"order": current_count},
-                )
-                if not created:
-                    messages.info(request, "Ya estaba en la lista.")
+            _, created = FavoriteMovie.objects.get_or_create(
+                user=request.user, category=category, movie=movie,
+                defaults={"order": current_count},
+            )
+            if not created:
+                messages.info(request, "Ya estaba en la lista.")
     return redirect("accounts:favorites-page", category)
 
 
@@ -304,24 +298,24 @@ def google_calendar_callback(request):
     state = request.GET.get("state")
     if not state or state != expected_state:
         messages.error(request, "No se pudo verificar la conexión con Google. Inténtalo de nuevo.")
-        return redirect("accounts:profile")
+        return redirect("secret:calendar")
 
     code = request.GET.get("code")
     if not code:
         messages.error(request, "Google no autorizó la conexión.")
-        return redirect("accounts:profile")
+        return redirect("secret:calendar")
 
     redirect_uri = request.build_absolute_uri(reverse("accounts:google-calendar-callback"))
     try:
         tokens = exchange_code_for_tokens(code, redirect_uri)
     except requests.RequestException:
         messages.error(request, "No se pudo conectar con Google Calendar. Inténtalo de nuevo.")
-        return redirect("accounts:profile")
+        return redirect("secret:calendar")
 
     refresh_token = tokens.get("refresh_token")
     if not refresh_token:
         messages.error(request, "Google no devolvió los permisos esperados. Inténtalo de nuevo.")
-        return redirect("accounts:profile")
+        return redirect("secret:calendar")
 
     GoogleCalendarConnection.objects.update_or_create(
         user=request.user,
@@ -332,16 +326,16 @@ def google_calendar_callback(request):
         },
     )
     messages.success(request, "Google Calendar conectado. Los estrenos que se añadan a partir de ahora se crearán solos en tu calendario.")
-    return redirect("accounts:profile")
+    return redirect("secret:calendar")
 
 
 @login_required
 @require_POST
 def google_calendar_disconnect(request):
     GoogleCalendarConnection.objects.filter(user=request.user).delete()
-    # Esos enlaces ya no sirven para nada (no hay con qué borrar el evento
-    # del lado de Google si algún día se quita del sitio) — se limpian aquí
-    # en vez de dejarlos huérfanos apuntando a una conexión que ya no existe.
-    ReleaseEventGoogleLink.objects.filter(user=request.user).delete()
+    # Ese id ya no sirve para nada (no hay con qué borrar el evento del lado
+    # de Google si algún día se quita del sitio) — se limpia aquí en vez de
+    # dejarlo apuntando a una conexión que ya no existe.
+    ReleaseEvent.objects.filter(user=request.user).exclude(google_event_id="").update(google_event_id="")
     messages.info(request, "Google Calendar desconectado.")
-    return redirect("accounts:profile")
+    return redirect("secret:calendar")

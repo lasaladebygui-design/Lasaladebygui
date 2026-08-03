@@ -72,28 +72,17 @@
             ¿Quieres cambiar el tema visual? Usa el icono 🌙 de la cabecera — se aplica al momento y se guarda en tu cuenta.
         </p>
 
+        <a href="{% url 'accounts:favorites-page' 'essential' %}" class="btn btn--ghost btn--block" style="margin-top:1rem;">🎬 Mis imprescindibles ({{ essential_count }})</a>
+        <a href="{% url 'accounts:favorites-page' 'suggested' %}" class="btn btn--ghost btn--block" style="margin-top:0.5rem;">✨ Sugeridas ({{ suggested_count }})</a>
+
         {% if vapid_public_key %}
-        <button type="button" class="btn btn--ghost btn--block" style="margin-top:1rem;"
+        <button type="button" class="btn btn--ghost btn--block" style="margin-top:0.5rem;"
                 data-push-subscribe
                 data-subscribe-url="{% url 'accounts:push-subscribe' %}"
                 data-unsubscribe-url="{% url 'accounts:push-unsubscribe' %}">
             🔔 Activar notificaciones
         </button>
         {% endif %}
-
-        {% if google_calendar_enabled %}
-            {% if google_calendar_connected %}
-            <form method="post" action="{% url 'accounts:google-calendar-disconnect' %}" style="margin-top:1rem;">
-                {% csrf_token %}
-                <button type="submit" class="btn btn--ghost btn--block">📆 Desconectar Google Calendar</button>
-            </form>
-            {% else %}
-            <a href="{% url 'accounts:google-calendar-connect' %}" class="btn btn--ghost btn--block" style="margin-top:1rem;">📆 Conectar con Google Calendar</a>
-            {% endif %}
-        {% endif %}
-
-        <a href="{% url 'accounts:favorites-page' 'essential' %}" class="btn btn--ghost btn--block" style="margin-top:1rem;">🎬 Mis imprescindibles ({{ essential_count }})</a>
-        <a href="{% url 'accounts:favorites-page' 'suggested' %}" class="btn btn--ghost btn--block" style="margin-top:0.5rem;">✨ Sugeridas ({{ suggested_count }})</a>
 
         <form method="post" action="{% url 'accounts:logout' %}" style="margin-top:1.5rem;">
             {% csrf_token %}

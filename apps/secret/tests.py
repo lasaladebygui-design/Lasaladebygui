@@ -7,8 +7,8 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from apps.accounts.models import GoogleCalendarConnection, PushSubscription, User
-from apps.movies.models import CalendarDayNote, Movie, ReleaseEvent, ReleaseEventGoogleLink
+from apps.accounts.models import GoogleCalendarConnection, User
+from apps.movies.models import CalendarDayNote, Movie, ReleaseEvent
 from apps.movies.services import MovieAPIError
 
 from .forms import SecretMovieForm
@@ -424,6 +424,10 @@ class PhotoBoardTests(TestCase):
 
 class CalendarTests(TestCase):
     def setUp(self):
+        self.user = User.objects.create(email="calendario@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
         self.client.post(reverse("secret:gate"), {"code": "8888"})
         self.movie = Movie.objects.create(tmdb_id=1, title="Estreno de prueba", media_type="movie")
 
@@ -431,6 +435,15 @@ class CalendarTests(TestCase):
         self.client.post(reverse("secret:lock"))
         response = self.client.get(reverse("secret:calendar"))
         self.assertRedirects(response, reverse("secret:gate"))
+
+    def test_requiere_login(self):
+        # self.client.logout() también borraría el código ya desbloqueado
+        # (Django vacía toda la sesión), así que probamos con un cliente
+        # nuevo que solo ha metido el código, sin haber iniciado sesión.
+        anon_client = self.client_class()
+        anon_client.post(reverse("secret:gate"), {"code": "8888"})
+        response = anon_client.get(reverse("secret:calendar"))
+        self.assertIn("/cuenta/login/", response.url)
 
     def test_el_input_de_buscar_manda_el_valor_como_query(self):
         # Regresión: sin name="query" en el <input>, HTMX nunca manda lo
@@ -440,7 +453,7 @@ class CalendarTests(TestCase):
         self.assertContains(response, 'name="query"')
 
     def test_muestra_eventos_del_mes_pedido(self):
-        event = ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 3, 15), note="Estreno")
+        event = ReleaseEvent.objects.create(user=self.user, movie=self.movie, date=date(2026, 3, 15), note="Estreno")
         response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
         self.assertEqual(response.status_code, 200)
         all_events = [e for week in response.context["weeks"] for day in week for e in day["events"]]
@@ -448,13 +461,20 @@ class CalendarTests(TestCase):
 
     def test_muestra_la_portada_y_el_titulo_del_evento(self):
         movie = Movie.objects.create(tmdb_id=99, title="Con portada", media_type="movie", poster_path="/abc.jpg")
-        ReleaseEvent.objects.create(movie=movie, date=date(2026, 3, 15))
+        ReleaseEvent.objects.create(user=self.user, movie=movie, date=date(2026, 3, 15))
         response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
         self.assertContains(response, "Con portada")
         self.assertContains(response, movie.poster_url)
 
     def test_no_muestra_eventos_de_otro_mes(self):
-        ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 4, 1))
+        ReleaseEvent.objects.create(user=self.user, movie=self.movie, date=date(2026, 4, 1))
+        response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
+        all_events = [e for week in response.context["weeks"] for day in week for e in day["events"]]
+        self.assertEqual(all_events, [])
+
+    def test_no_muestra_eventos_de_otro_usuario(self):
+        other = User.objects.create(email="otro_calendario@test.local", role=User.Role.LECTOR)
+        ReleaseEvent.objects.create(user=other, movie=self.movie, date=date(2026, 3, 15))
         response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
         all_events = [e for week in response.context["weeks"] for day in week for e in day["events"]]
         self.assertEqual(all_events, [])
@@ -464,7 +484,7 @@ class CalendarTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_descarga_ics(self):
-        event = ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 3, 15), note="Estreno")
+        event = ReleaseEvent.objects.create(user=self.user, movie=self.movie, date=date(2026, 3, 15), note="Estreno")
         response = self.client.get(reverse("secret:calendar-ics", args=[event.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "text/calendar; charset=utf-8")
@@ -475,9 +495,15 @@ class CalendarTests(TestCase):
 
     def test_ics_escapa_comas_en_el_titulo(self):
         movie = Movie.objects.create(tmdb_id=2, title="Uno, Dos y Tres", media_type="movie")
-        event = ReleaseEvent.objects.create(movie=movie, date=date(2026, 3, 15))
+        event = ReleaseEvent.objects.create(user=self.user, movie=movie, date=date(2026, 3, 15))
         response = self.client.get(reverse("secret:calendar-ics", args=[event.pk]))
         self.assertIn("SUMMARY:Uno\\, Dos y Tres", response.content.decode("utf-8"))
+
+    def test_no_se_puede_descargar_el_ics_de_un_evento_ajeno(self):
+        other = User.objects.create(email="otro_ics@test.local", role=User.Role.LECTOR)
+        event = ReleaseEvent.objects.create(user=other, movie=self.movie, date=date(2026, 3, 15))
+        response = self.client.get(reverse("secret:calendar-ics", args=[event.pk]))
+        self.assertEqual(response.status_code, 404)
 
     @patch("apps.secret.views.tmdb_search")
     def test_buscar_combina_peliculas_y_series(self, mock_search):
@@ -496,6 +522,7 @@ class CalendarTests(TestCase):
         self.assertRedirects(response, reverse("secret:calendar") + "?year=2026&month=3")
         event = ReleaseEvent.objects.get()
         self.assertEqual(event.movie, self.movie)
+        self.assertEqual(event.user, self.user)
         self.assertEqual(event.date, date(2026, 3, 15))
         mock_get_or_create.assert_called_once_with(1, media_type="movie")
 
@@ -505,44 +532,43 @@ class CalendarTests(TestCase):
         self.assertFalse(ReleaseEvent.objects.exists())
 
     def test_quitar_borra_el_evento(self):
-        event = ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 3, 15))
+        event = ReleaseEvent.objects.create(user=self.user, movie=self.movie, date=date(2026, 3, 15))
         response = self.client.post(reverse("secret:calendar-remove", args=[event.pk]))
         self.assertRedirects(response, reverse("secret:calendar") + "?year=2026&month=3")
         self.assertFalse(ReleaseEvent.objects.filter(pk=event.pk).exists())
 
-    @override_settings(VAPID_PUBLIC_KEY="clave-publica", VAPID_PRIVATE_KEY="clave-privada")
-    @patch("apps.secret.views.send_push_to_users")
-    @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
-    def test_anadir_evento_notifica_a_los_suscritos(self, mock_get_or_create, mock_send):
-        mock_get_or_create.return_value = self.movie
-        subscriber = User.objects.create(email="suscrito_calendario@test.local", role=User.Role.LECTOR)
-        PushSubscription.objects.create(user=subscriber, endpoint="https://push.example/cal", p256dh="p", auth="a")
-
-        self.client.post(reverse("secret:calendar-add", args=["movie", 1]), {"date": "2026-03-15"})
-
-        mock_send.assert_called_once()
-        subscribers = list(mock_send.call_args.args[0])
-        self.assertIn(subscriber, subscribers)
+    def test_no_se_puede_quitar_un_evento_ajeno(self):
+        other = User.objects.create(email="otro_quitar@test.local", role=User.Role.LECTOR)
+        event = ReleaseEvent.objects.create(user=other, movie=self.movie, date=date(2026, 3, 15))
+        response = self.client.post(reverse("secret:calendar-remove", args=[event.pk]))
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(ReleaseEvent.objects.filter(pk=event.pk).exists())
 
     def test_guardar_comentario_de_un_dia(self):
         response = self.client.post(reverse("secret:calendar-day-note"), {"date": "2026-03-15", "note": "Vacaciones"})
         self.assertRedirects(response, reverse("secret:calendar") + "?year=2026&month=3")
-        note = CalendarDayNote.objects.get(date=date(2026, 3, 15))
+        note = CalendarDayNote.objects.get(user=self.user, date=date(2026, 3, 15))
         self.assertEqual(note.note, "Vacaciones")
 
     def test_el_calendario_muestra_el_comentario_del_dia(self):
-        CalendarDayNote.objects.create(date=date(2026, 3, 15), note="Vacaciones")
+        CalendarDayNote.objects.create(user=self.user, date=date(2026, 3, 15), note="Vacaciones")
         response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
         self.assertContains(response, "Vacaciones")
 
+    def test_no_muestra_el_comentario_de_otro_usuario(self):
+        other = User.objects.create(email="otro_nota@test.local", role=User.Role.LECTOR)
+        CalendarDayNote.objects.create(user=other, date=date(2026, 3, 15), note="Ajeno")
+        response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
+        self.assertNotContains(response, "Ajeno")
+
     def test_editar_un_comentario_existente_lo_sobreescribe(self):
-        CalendarDayNote.objects.create(date=date(2026, 3, 15), note="Antiguo")
+        CalendarDayNote.objects.create(user=self.user, date=date(2026, 3, 15), note="Antiguo")
         self.client.post(reverse("secret:calendar-day-note"), {"date": "2026-03-15", "note": "Nuevo"})
         self.assertEqual(CalendarDayNote.objects.count(), 1)
         self.assertEqual(CalendarDayNote.objects.get().note, "Nuevo")
 
     def test_guardar_nota_vacia_borra_el_comentario(self):
-        CalendarDayNote.objects.create(date=date(2026, 3, 15), note="Algo")
+        CalendarDayNote.objects.create(user=self.user, date=date(2026, 3, 15), note="Algo")
         self.client.post(reverse("secret:calendar-day-note"), {"date": "2026-03-15", "note": ""})
         self.assertFalse(CalendarDayNote.objects.filter(date=date(2026, 3, 15)).exists())
 
@@ -560,49 +586,50 @@ class CalendarTests(TestCase):
 @override_settings(GOOGLE_OAUTH_CLIENT_ID="client-id", GOOGLE_OAUTH_CLIENT_SECRET="client-secret")
 class CalendarGoogleSyncTests(TestCase):
     def setUp(self):
+        self.user = User.objects.create(email="calendario_google@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
         self.client.post(reverse("secret:gate"), {"code": "8888"})
         self.movie = Movie.objects.create(tmdb_id=1, title="Estreno de prueba", media_type="movie")
 
     @patch("apps.secret.views.google_create_event")
     @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
-    def test_anadir_evento_lo_crea_en_cada_calendario_conectado(self, mock_get_or_create, mock_create_event):
+    def test_anadir_evento_lo_crea_en_tu_google_calendar_si_esta_conectado(self, mock_get_or_create, mock_create_event):
         mock_get_or_create.return_value = self.movie
         mock_create_event.return_value = "google-event-id-1"
-        connected_user = User.objects.create(email="conectado@test.local", role=User.Role.LECTOR)
-        GoogleCalendarConnection.objects.create(user=connected_user, refresh_token="r")
+        GoogleCalendarConnection.objects.create(user=self.user, refresh_token="r")
 
         self.client.post(reverse("secret:calendar-add", args=["movie", 1]), {"date": "2026-03-15"})
 
         mock_create_event.assert_called_once()
         event = ReleaseEvent.objects.get()
-        link = ReleaseEventGoogleLink.objects.get(release_event=event, user=connected_user)
-        self.assertEqual(link.google_event_id, "google-event-id-1")
+        self.assertEqual(event.google_event_id, "google-event-id-1")
 
     @patch("apps.secret.views.google_create_event")
     @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
-    def test_sin_nadie_conectado_no_llama_a_google(self, mock_get_or_create, mock_create_event):
+    def test_sin_conectar_no_llama_a_google(self, mock_get_or_create, mock_create_event):
         mock_get_or_create.return_value = self.movie
         self.client.post(reverse("secret:calendar-add", args=["movie", 1]), {"date": "2026-03-15"})
         mock_create_event.assert_not_called()
+        event = ReleaseEvent.objects.get()
+        self.assertEqual(event.google_event_id, "")
 
     @override_settings(GOOGLE_OAUTH_CLIENT_ID="", GOOGLE_OAUTH_CLIENT_SECRET="")
     @patch("apps.secret.views.google_create_event")
     @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
     def test_sin_credenciales_de_google_no_llama_a_la_api(self, mock_get_or_create, mock_create_event):
         mock_get_or_create.return_value = self.movie
-        connected_user = User.objects.create(email="conectado2@test.local", role=User.Role.LECTOR)
-        GoogleCalendarConnection.objects.create(user=connected_user, refresh_token="r")
+        GoogleCalendarConnection.objects.create(user=self.user, refresh_token="r")
 
         self.client.post(reverse("secret:calendar-add", args=["movie", 1]), {"date": "2026-03-15"})
 
         mock_create_event.assert_not_called()
 
     @patch("apps.secret.views.google_delete_event")
-    def test_quitar_evento_lo_borra_de_cada_calendario_conectado(self, mock_delete_event):
-        connected_user = User.objects.create(email="conectado3@test.local", role=User.Role.LECTOR)
-        GoogleCalendarConnection.objects.create(user=connected_user, refresh_token="r")
-        event = ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 3, 15))
-        ReleaseEventGoogleLink.objects.create(release_event=event, user=connected_user, google_event_id="g1")
+    def test_quitar_evento_lo_borra_de_tu_google_calendar(self, mock_delete_event):
+        GoogleCalendarConnection.objects.create(user=self.user, refresh_token="r")
+        event = ReleaseEvent.objects.create(user=self.user, movie=self.movie, date=date(2026, 3, 15), google_event_id="g1")
 
         self.client.post(reverse("secret:calendar-remove", args=[event.pk]))
 
@@ -610,10 +637,8 @@ class CalendarGoogleSyncTests(TestCase):
         self.assertEqual(mock_delete_event.call_args.args[1], "g1")
 
     @patch("apps.secret.views.google_delete_event")
-    def test_quitar_evento_ignora_enlaces_de_usuarios_ya_desconectados(self, mock_delete_event):
-        disconnected_user = User.objects.create(email="desconectado@test.local", role=User.Role.LECTOR)
-        event = ReleaseEvent.objects.create(movie=self.movie, date=date(2026, 3, 15))
-        ReleaseEventGoogleLink.objects.create(release_event=event, user=disconnected_user, google_event_id="g1")
+    def test_quitar_evento_sin_conectar_no_llama_a_google(self, mock_delete_event):
+        event = ReleaseEvent.objects.create(user=self.user, movie=self.movie, date=date(2026, 3, 15))
 
         response = self.client.post(reverse("secret:calendar-remove", args=[event.pk]))
 

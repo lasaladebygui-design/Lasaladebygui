@@ -15,7 +15,6 @@
         {% if sublists %}
         <div class="media-type-toggle">
             <a href="?" class="btn btn--sm {% if not list_param %}btn--accent{% else %}btn--ghost{% endif %}">Todas</a>
-            <a href="?list=none" class="btn btn--sm {% if list_param == 'none' %}btn--accent{% else %}btn--ghost{% endif %}">Sin sublista</a>
             {% for sublist in sublists %}
             <a href="?list={{ sublist.pk }}" class="btn btn--sm {% if list_param == sublist.pk|stringformat:'s' %}btn--accent{% else %}btn--ghost{% endif %}">{{ sublist.name }}</a>
             {% endfor %}

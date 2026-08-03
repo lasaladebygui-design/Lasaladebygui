@@ -133,23 +133,14 @@ class User(AbstractUser):
 
 class FavoriteMovie(models.Model):
     """Película o serie destacada en el perfil de un usuario: "Mis
-    imprescindibles" (3 películas + 3 series) o "Sugeridas" (6 películas +
-    3 series, recomendaciones). Reutiliza el catálogo de `apps.movies`
-    (misma búsqueda en vivo contra TMDb que ya se usa en la tier list de
-    Top Secret) para tener título y portada sin duplicar datos."""
+    imprescindibles" o "Sugeridas" (recomendaciones), sin límite de
+    cuántas. Reutiliza el catálogo de `apps.movies` (misma búsqueda en vivo
+    contra TMDb que ya se usa en la tier list de Top Secret) para tener
+    título y portada sin duplicar datos."""
 
     class Category(models.TextChoices):
         ESSENTIAL = "essential", "Imprescindible"
         SUGGESTED = "suggested", "Sugerida"
-
-    # Límite por (categoría, tipo de contenido) — no es el mismo número de
-    # películas que de series en cada apartado.
-    LIMITS = {
-        (Category.ESSENTIAL, "movie"): 3,
-        (Category.ESSENTIAL, "tv"): 3,
-        (Category.SUGGESTED, "movie"): 6,
-        (Category.SUGGESTED, "tv"): 3,
-    }
 
     user = models.ForeignKey(
         "accounts.User", verbose_name="usuario", on_delete=models.CASCADE, related_name="favorite_movies",

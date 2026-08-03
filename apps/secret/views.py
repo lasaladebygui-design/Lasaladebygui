@@ -5,7 +5,7 @@ from functools import wraps
 
 import requests
 from django.contrib import messages
-from django.contrib.auth import get_user_model
+from django.contrib.auth.decorators import login_required
 from django.db.models import Max
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -13,12 +13,10 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
 
-from apps.accounts.models import GoogleCalendarConnection
 from apps.core.google_calendar import create_event as google_create_event
 from apps.core.google_calendar import delete_event as google_delete_event
 from apps.core.google_calendar import google_calendar_enabled
-from apps.core.push import send_push_to_users
-from apps.movies.models import CalendarDayNote, Movie, ReleaseEvent, ReleaseEventGoogleLink
+from apps.movies.models import CalendarDayNote, Movie, ReleaseEvent
 from apps.movies.services import MovieAPIError, tmdb_search
 
 from .forms import CodeForm, FullListFilterForm, NumberSelectForm, RatingSearchForm, SecretPhotoForm, TierLevelForm
@@ -247,16 +245,17 @@ def photo_board(request):
 
 
 # --- Calendario de estrenos --------------------------------------------------
-# Vive dentro de Top Secret (privado, tras el código) en vez de en el
-# catálogo público: aquí es donde se decide qué toca qué día, y solo quien
-# ha entrado con el código puede verlo o tocarlo. Se puede añadir una
-# película o serie a una fecha buscándola (mismo patrón que la tier list) y,
-# al añadirla, se manda una notificación push a los usuarios suscritos —
-# no hay sincronización real con Google Calendar (necesitaría OAuth y
-# credenciales por usuario), así que cada evento tiene además un botón
-# para descargar su .ics e importarlo a mano en cualquier calendario.
+# Vive dentro de Top Secret (hay que entrar con el código para llegar hasta
+# aquí) pero es personal de cada usuario: nadie más, ni siquiera otro con el
+# mismo código de acceso al maletín, ve tus películas/series ni tus
+# comentarios de un día — por eso hace falta estar logueado, no solo tener
+# el código. Se puede añadir una película o serie a una fecha buscándola
+# (mismo patrón que la tier list); si tienes conectado de verdad tu Google
+# Calendar, se crea solo ahí también (`ReleaseEvent.google_event_id`); si
+# no, cada evento tiene un botón para descargar su .ics a mano.
 
 @secret_required
+@login_required
 def calendar_view(request):
     today = timezone.localdate()
     try:
@@ -267,14 +266,16 @@ def calendar_view(request):
         raise Http404
 
     raw_weeks = calendar_module.Calendar(firstweekday=0).monthdatescalendar(year, month)
-    events = ReleaseEvent.objects.filter(date__year=year, date__month=month).select_related("movie")
+    events = ReleaseEvent.objects.filter(
+        user=request.user, date__year=year, date__month=month,
+    ).select_related("movie")
     events_by_date = {}
     for event in events:
         events_by_date.setdefault(event.date, []).append(event)
 
     notes_by_date = {
         note.date: note.note
-        for note in CalendarDayNote.objects.filter(date__year=year, date__month=month)
+        for note in CalendarDayNote.objects.filter(user=request.user, date__year=year, date__month=month)
     }
 
     weeks = [
@@ -303,11 +304,13 @@ def calendar_view(request):
         "prev_month": prev_month_date.month,
         "next_year": next_month_date.year,
         "next_month": next_month_date.month,
-        "google_calendar_connected": request.user.is_authenticated and hasattr(request.user, "google_calendar_connection"),
+        "google_calendar_enabled": google_calendar_enabled(),
+        "google_calendar_connected": hasattr(request.user, "google_calendar_connection"),
     })
 
 
 @secret_required
+@login_required
 def calendar_search(request):
     query = request.GET.get("query", "").strip()
     event_date = request.GET.get("date", "")
@@ -323,24 +326,8 @@ def calendar_search(request):
     })
 
 
-def _sync_event_to_connected_calendars(event):
-    """Crea el evento en el Google Calendar real de cada usuario que lo
-    tenga conectado — igual que el aviso push, es una difusión a todos los
-    conectados, no solo a quien lo añadió (así, si dos personas tienen
-    conectado su Google Calendar, a las dos les aparece)."""
-    if not google_calendar_enabled():
-        return
-    for connection in GoogleCalendarConnection.objects.select_related("user"):
-        try:
-            google_event_id = google_create_event(connection, event.movie.title, event.date, description=event.note)
-        except requests.RequestException:
-            continue
-        ReleaseEventGoogleLink.objects.create(
-            release_event=event, user=connection.user, google_event_id=google_event_id,
-        )
-
-
 @secret_required
+@login_required
 def calendar_add(request, media_type, tmdb_id):
     if request.method != "POST" or media_type not in ("movie", "tv"):
         raise Http404
@@ -358,45 +345,41 @@ def calendar_add(request, media_type, tmdb_id):
         messages.error(request, str(exc))
         return redirect("secret:calendar")
 
-    event = ReleaseEvent.objects.create(movie=movie, date=event_date)
+    event = ReleaseEvent.objects.create(user=request.user, movie=movie, date=event_date)
     messages.success(request, f"«{movie.title}» añadida al {event_date:%d/%m/%Y}.")
-    _sync_event_to_connected_calendars(event)
 
-    User = get_user_model()
-    subscribers = User.objects.filter(push_subscriptions__isnull=False).distinct()
-    if request.user.is_authenticated:
-        subscribers = subscribers.exclude(pk=request.user.pk)
-    send_push_to_users(
-        subscribers,
-        title="Nuevo estreno en el calendario",
-        body=f"{movie.title} — {event_date:%d/%m/%Y}",
-        url=f"{reverse('secret:calendar')}?year={event_date.year}&month={event_date.month}",
-    )
+    if google_calendar_enabled() and hasattr(request.user, "google_calendar_connection"):
+        try:
+            event.google_event_id = google_create_event(
+                request.user.google_calendar_connection, movie.title, event_date, description=event.note,
+            )
+            event.save(update_fields=["google_event_id"])
+        except requests.RequestException:
+            pass
 
     return redirect(f"{reverse('secret:calendar')}?year={event_date.year}&month={event_date.month}")
 
 
 @secret_required
+@login_required
 def calendar_remove(request, pk):
-    event = get_object_or_404(ReleaseEvent, pk=pk)
+    event = get_object_or_404(ReleaseEvent, pk=pk, user=request.user)
     if request.method != "POST":
         raise Http404
     year, month = event.date.year, event.date.month
 
-    if google_calendar_enabled():
-        for link in event.google_links.select_related("user__google_calendar_connection"):
-            if not hasattr(link.user, "google_calendar_connection"):
-                continue  # se desconectó después de crearse el enlace
-            try:
-                google_delete_event(link.user.google_calendar_connection, link.google_event_id)
-            except requests.RequestException:
-                pass
+    if event.google_event_id and hasattr(request.user, "google_calendar_connection"):
+        try:
+            google_delete_event(request.user.google_calendar_connection, event.google_event_id)
+        except requests.RequestException:
+            pass
 
     event.delete()
     return redirect(f"{reverse('secret:calendar')}?year={year}&month={month}")
 
 
 @secret_required
+@login_required
 def calendar_day_note(request):
     if request.method != "POST":
         raise Http404
@@ -408,9 +391,9 @@ def calendar_day_note(request):
 
     note = request.POST.get("note", "").strip()[:280]
     if note:
-        CalendarDayNote.objects.update_or_create(date=note_date, defaults={"note": note})
+        CalendarDayNote.objects.update_or_create(user=request.user, date=note_date, defaults={"note": note})
     else:
-        CalendarDayNote.objects.filter(date=note_date).delete()
+        CalendarDayNote.objects.filter(user=request.user, date=note_date).delete()
 
     return redirect(f"{reverse('secret:calendar')}?year={note_date.year}&month={note_date.month}")
 
@@ -428,8 +411,9 @@ def _ics_escape(value):
 
 
 @secret_required
+@login_required
 def calendar_ics(request, pk):
-    event = get_object_or_404(ReleaseEvent, pk=pk)
+    event = get_object_or_404(ReleaseEvent, pk=pk, user=request.user)
     summary = _ics_escape(event.movie.title)
     description = _ics_escape(event.note) if event.note else ""
     stamp = timezone.now().strftime("%Y%m%dT%H%M%SZ")

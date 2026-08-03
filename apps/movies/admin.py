@@ -4,7 +4,6 @@ from .models import (
     CalendarDayNote,
     Movie,
     ReleaseEvent,
-    ReleaseEventGoogleLink,
     RouletteRatingSeen,
     RouletteSavedSeen,
     SavedMovie,
@@ -56,20 +55,15 @@ class SavedMovieListAdmin(admin.ModelAdmin):
 
 @admin.register(ReleaseEvent)
 class ReleaseEventAdmin(admin.ModelAdmin):
-    list_display = ("movie", "date", "note")
+    list_display = ("user", "movie", "date", "note")
     list_filter = ("date",)
-    search_fields = ("movie__title",)
+    search_fields = ("movie__title", "user__username")
     autocomplete_fields = ("movie",)
     ordering = ("date",)
 
 
-@admin.register(ReleaseEventGoogleLink)
-class ReleaseEventGoogleLinkAdmin(admin.ModelAdmin):
-    list_display = ("release_event", "user", "google_event_id")
-    search_fields = ("user__username", "release_event__movie__title")
-
-
 @admin.register(CalendarDayNote)
 class CalendarDayNoteAdmin(admin.ModelAdmin):
-    list_display = ("date", "note")
+    list_display = ("user", "date", "note")
+    search_fields = ("user__username",)
     ordering = ("date",)

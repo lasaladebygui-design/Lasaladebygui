@@ -21,9 +21,9 @@
         </div>
 
         {% if category == "essential" %}
-            {% include "accounts/_favorite_movies_group.html" with group_title="Mis imprescindibles" category="essential" movies=essential_movies series=essential_tv limit_movie=3 limit_tv=3 editable=editable %}
+            {% include "accounts/_favorite_movies_group.html" with group_title="Mis imprescindibles" category="essential" movies=essential_movies series=essential_tv editable=editable %}
         {% else %}
-            {% include "accounts/_favorite_movies_group.html" with group_title="Sugeridas" category="suggested" movies=suggested_movies series=suggested_tv limit_movie=6 limit_tv=3 editable=editable %}
+            {% include "accounts/_favorite_movies_group.html" with group_title="Sugeridas" category="suggested" movies=suggested_movies series=suggested_tv editable=editable %}
         {% endif %}
     </div>
 </section>

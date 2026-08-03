@@ -352,43 +352,29 @@ class FavoriteMovieTests(TestCase):
         self.assertTrue(FavoriteMovie.objects.filter(user=self.user, category="essential", movie__media_type="tv").exists())
 
     @patch("apps.accounts.views.Movie.get_or_create_from_tmdb")
-    def test_el_limite_de_peliculas_imprescindibles_es_tres(self, mock_get_or_create):
-        for i in range(3):
+    def test_no_hay_limite_de_imprescindibles(self, mock_get_or_create):
+        for i in range(10):
             movie = Movie.objects.create(tmdb_id=i, title=f"Película {i}", media_type="movie")
             FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie, order=i)
 
-        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=99, title="La que sobra", media_type="movie")
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=99, title="Una más", media_type="movie")
         self.client.post(reverse("accounts:favorite-add", args=["essential", "movie", 99]))
 
         self.assertEqual(
-            FavoriteMovie.objects.filter(user=self.user, category="essential", movie__media_type="movie").count(), 3
-        )
-        self.assertFalse(FavoriteMovie.objects.filter(user=self.user, movie__tmdb_id=99).exists())
-
-    @patch("apps.accounts.views.Movie.get_or_create_from_tmdb")
-    def test_el_limite_de_series_imprescindibles_es_tres_aunque_haya_hueco_en_peliculas(self, mock_get_or_create):
-        for i in range(3):
-            movie = Movie.objects.create(tmdb_id=i, title=f"Serie {i}", media_type="tv")
-            FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie, order=i)
-
-        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=99, title="La que sobra", media_type="tv")
-        self.client.post(reverse("accounts:favorite-add", args=["essential", "tv", 99]))
-
-        self.assertEqual(
-            FavoriteMovie.objects.filter(user=self.user, category="essential", movie__media_type="tv").count(), 3
+            FavoriteMovie.objects.filter(user=self.user, category="essential", movie__media_type="movie").count(), 11
         )
 
     @patch("apps.accounts.views.Movie.get_or_create_from_tmdb")
-    def test_el_limite_de_peliculas_sugeridas_es_seis(self, mock_get_or_create):
-        for i in range(6):
+    def test_no_hay_limite_de_sugeridas(self, mock_get_or_create):
+        for i in range(10):
             movie = Movie.objects.create(tmdb_id=i, title=f"Película {i}", media_type="movie")
             FavoriteMovie.objects.create(user=self.user, category="suggested", movie=movie, order=i)
 
-        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=99, title="La que sobra", media_type="movie")
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=99, title="Una más", media_type="movie")
         self.client.post(reverse("accounts:favorite-add", args=["suggested", "movie", 99]))
 
         self.assertEqual(
-            FavoriteMovie.objects.filter(user=self.user, category="suggested", movie__media_type="movie").count(), 6
+            FavoriteMovie.objects.filter(user=self.user, category="suggested", movie__media_type="movie").count(), 11
         )
 
     def test_quitar_una_favorita(self):
@@ -576,7 +562,8 @@ class GoogleCalendarConnectionTests(TestCase):
 
     def test_callback_sin_state_no_conecta(self):
         response = self.client.get(reverse("accounts:google-calendar-callback"), {"code": "abc", "state": "malo"})
-        self.assertRedirects(response, reverse("accounts:profile"))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("secret:calendar"))
         self.assertFalse(GoogleCalendarConnection.objects.filter(user=self.user).exists())
 
     @patch("apps.accounts.views.exchange_code_for_tokens")
@@ -587,7 +574,8 @@ class GoogleCalendarConnectionTests(TestCase):
         mock_exchange.return_value = {"access_token": "a", "refresh_token": "r", "expires_in": 3600}
 
         response = self.client.get(reverse("accounts:google-calendar-callback"), {"code": "abc", "state": "buen-state"})
-        self.assertRedirects(response, reverse("accounts:profile"))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("secret:calendar"))
         connection = GoogleCalendarConnection.objects.get(user=self.user)
         self.assertEqual(connection.refresh_token, "r")
 
@@ -606,14 +594,14 @@ class GoogleCalendarConnectionTests(TestCase):
         self.client.post(reverse("accounts:google-calendar-disconnect"))
         self.assertFalse(GoogleCalendarConnection.objects.filter(user=self.user).exists())
 
-    def test_desconectar_borra_los_enlaces_de_eventos_huerfanos(self):
-        from apps.movies.models import Movie, ReleaseEvent, ReleaseEventGoogleLink
+    def test_desconectar_limpia_el_id_de_google_de_tus_eventos(self):
+        from apps.movies.models import Movie, ReleaseEvent
 
         GoogleCalendarConnection.objects.create(user=self.user, refresh_token="r")
         movie = Movie.objects.create(tmdb_id=1, title="X", media_type="movie")
-        event = ReleaseEvent.objects.create(movie=movie, date="2026-03-15")
-        ReleaseEventGoogleLink.objects.create(release_event=event, user=self.user, google_event_id="g1")
+        event = ReleaseEvent.objects.create(user=self.user, movie=movie, date="2026-03-15", google_event_id="g1")
 
         self.client.post(reverse("accounts:google-calendar-disconnect"))
 
-        self.assertFalse(ReleaseEventGoogleLink.objects.filter(user=self.user).exists())
+        event.refresh_from_db()
+        self.assertEqual(event.google_event_id, "")

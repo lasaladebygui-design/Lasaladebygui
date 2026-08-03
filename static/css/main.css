@@ -1723,6 +1723,13 @@ main { flex: 1; }
 
 /* --- Calendario de estrenos ---------------------------------------------- */
 
+.calendar-google-status {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    margin: 0 0 calc(var(--space-unit) * 3);
+}
+.calendar-google-status .inline-form { display: inline; }
+
 .calendar-nav {
     display: flex;
     align-items: center;

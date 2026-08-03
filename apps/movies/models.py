@@ -187,16 +187,22 @@ class RouletteSavedSeen(models.Model):
 
 class ReleaseEvent(models.Model):
     """Fecha en la que una película o serie "toca" (estreno, capítulo
-    nuevo...) — el calendario de Top Secret → Otros (privado, no en el
-    catálogo público). Se añade desde la propia web buscando el título; cada
-    evento se puede descargar como .ics (funciona con Google Calendar, Apple
-    Calendar, Outlook...) y, para quien tenga conectado de verdad su Google
-    Calendar (`apps.accounts.models.GoogleCalendarConnection`), se crea solo
-    ahí también — ver `ReleaseEventGoogleLink`."""
+    nuevo...) — calendario personal de cada usuario dentro de Top Secret →
+    Otros (nadie más lo ve, ni siquiera otro usuario con el mismo código de
+    acceso al maletín). Se añade desde la propia web buscando el título;
+    cada evento se puede descargar como .ics (funciona con Google Calendar,
+    Apple Calendar, Outlook...) y, si el usuario tiene conectado de verdad
+    su Google Calendar (`apps.accounts.models.GoogleCalendarConnection`), se
+    crea solo ahí también (`google_event_id` guarda el id que le asigna
+    Google, para poder borrarlo ahí también si se quita del sitio)."""
 
-    movie = models.ForeignKey(Movie, verbose_name="película/serie", on_delete=models.CASCADE, related_name="release_events")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="usuario", on_delete=models.CASCADE, related_name="release_events",
+    )
+    movie = models.ForeignKey(Movie, verbose_name="película/serie", on_delete=models.CASCADE, related_name="+")
     date = models.DateField("fecha")
     note = models.CharField("nota", max_length=200, blank=True, help_text="Ej: 'Estreno', 'Temporada 2', 'Capítulo final'...")
+    google_event_id = models.CharField("id del evento en Google Calendar", max_length=255, blank=True)
 
     class Meta:
         verbose_name = "estreno en el calendario"
@@ -204,43 +210,26 @@ class ReleaseEvent(models.Model):
         ordering = ["date"]
 
     def __str__(self):
-        return f"{self.movie} — {self.date:%d/%m/%Y}"
-
-
-class ReleaseEventGoogleLink(models.Model):
-    """Un evento del calendario, ya creado en el Google Calendar real de un
-    usuario conectado — un enlace por (evento, usuario), porque cada uno
-    tiene su propia copia en su propio calendario. Guarda el id que Google
-    le asigna para poder borrarlo ahí también si el evento se quita del
-    sitio o si el usuario desconecta su cuenta."""
-
-    release_event = models.ForeignKey(ReleaseEvent, on_delete=models.CASCADE, related_name="google_links")
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
-    google_event_id = models.CharField("id del evento en Google", max_length=255)
-
-    class Meta:
-        verbose_name = "estreno enlazado a Google Calendar"
-        verbose_name_plural = "calendario: enlaces a Google Calendar"
-        constraints = [
-            models.UniqueConstraint(fields=["release_event", "user"], name="un_evento_de_google_por_usuario"),
-        ]
-
-    def __str__(self):
-        return f"{self.release_event} → Google Calendar de {self.user}"
+        return f"{self.movie} — {self.date:%d/%m/%Y} ({self.user})"
 
 
 class CalendarDayNote(models.Model):
-    """Comentario libre en un día del calendario de Top Secret, sin ligarlo
-    a ninguna película/serie concreta (para eso ya está `ReleaseEvent`) —
-    por ejemplo, una nota tipo "vacaciones" o "maratón con amigos"."""
+    """Comentario libre en un día del calendario personal de un usuario, sin
+    ligarlo a ninguna película/serie concreta (para eso ya está
+    `ReleaseEvent`) — por ejemplo, una nota tipo "vacaciones" o "maratón con
+    amigos"."""
 
-    date = models.DateField("fecha", unique=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="usuario", on_delete=models.CASCADE, related_name="calendar_day_notes")
+    date = models.DateField("fecha")
     note = models.CharField("comentario", max_length=280)
 
     class Meta:
         verbose_name = "comentario del calendario"
         verbose_name_plural = "calendario: comentarios de días"
         ordering = ["date"]
+        constraints = [
+            models.UniqueConstraint(fields=["user", "date"], name="un_comentario_por_usuario_y_fecha"),
+        ]
 
     def __str__(self):
-        return f"{self.date:%d/%m/%Y} — {self.note}"
+        return f"{self.date:%d/%m/%Y} — {self.note} ({self.user})"
