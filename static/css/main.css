@@ -1361,24 +1361,7 @@ main { flex: 1; }
     justify-content: center;
     font-size: 1.8rem;
 }
-.favorite-card__poster--clickable { cursor: pointer; }
-.favorite-card__note-badge {
-    position: absolute;
-    top: 0.2rem;
-    right: 0.2rem;
-    background: var(--color-surface);
-    border-radius: 50%;
-    padding: 0.1rem 0.25rem;
-    font-size: 0.7rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-}
 .favorite-card__title { font-size: 0.8rem; margin-top: 0.4rem; color: var(--color-text-muted); }
-.favorite-card__note-toggle {
-    display: block;
-    margin: 0.2rem auto 0;
-    font-size: 0.72rem;
-    color: var(--color-accent);
-}
 .favorite-card__tools {
     display: flex;
     align-items: center;
@@ -1386,31 +1369,28 @@ main { flex: 1; }
     margin-top: 0.3rem;
 }
 .favorite-card__tools .link-btn { font-size: 0.75rem; }
-.favorite-card__note {
-    font-size: 0.7rem;
-    color: var(--color-text-muted);
-    margin-top: 0.3rem;
-    text-align: left;
-}
-.favorite-card__note-edit { margin-top: 0.3rem; }
-.favorite-card__note-edit form {
+
+/* Nota única por apartado (Imprescindibles/Sugeridas) — no por película. */
+.favorites-note { margin-bottom: calc(var(--space-unit) * 4); }
+.favorites-note__toggle { font-size: 0.85rem; }
+.favorites-note__edit { margin-top: 0.4rem; }
+.favorites-note__edit form {
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
-    margin-top: 0.3rem;
+    gap: 0.4rem;
 }
-.favorite-card__note-edit textarea {
+.favorites-note__edit textarea {
     width: 100%;
-    min-height: 4rem;
-    padding: 0.4rem;
+    min-height: 4.5rem;
+    padding: 0.6rem;
     border-radius: var(--radius-base);
     border: 1px solid var(--color-border);
     background: var(--color-bg);
     color: var(--color-text);
     font: inherit;
-    font-size: 0.75rem;
     resize: vertical;
 }
+.favorites-note__text { color: var(--color-text-muted); }
 
 /* --- Juego: Frases célebres --------------------------------------------------- */
 
@@ -1954,8 +1934,31 @@ main { flex: 1; }
     white-space: nowrap;
 }
 .calendar-event__note { font-size: 0.65rem; }
-.calendar-event__tools { margin-left: auto; display: flex; gap: 0.2rem; flex-shrink: 0; }
-.calendar-event__ics { text-decoration: none; }
+.calendar-event__tools { margin-left: auto; display: flex; gap: 0.2rem; flex-shrink: 0; position: relative; }
+.calendar-event__move { position: relative; }
+.calendar-event__move summary { list-style: none; cursor: pointer; }
+.calendar-event__move summary::-webkit-details-marker { display: none; }
+.calendar-event__move-form {
+    position: absolute;
+    z-index: 5;
+    top: calc(100% + 0.3rem);
+    right: 0;
+    display: flex;
+    gap: 0.3rem;
+    padding: 0.4rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.calendar-event__move-form input[type="date"] {
+    font-size: 0.75rem;
+    padding: 0.3rem;
+    border-radius: var(--radius-base);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-text);
+}
 .calendar-day__add { margin-top: 0.2rem; }
 .calendar-day__add input {
     width: 100%;

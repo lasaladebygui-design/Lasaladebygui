@@ -440,41 +440,39 @@ class FavoriteMovieTests(TestCase):
         self.assertContains(response, "Favorita ajena 2")
         self.assertNotContains(response, "favorite-remove")
 
-    def test_guardar_nota_de_por_que_la_recomiendas(self):
-        movie = Movie.objects.create(tmdb_id=9, title="Recomendada", media_type="movie")
-        favorite = FavoriteMovie.objects.create(user=self.user, category="suggested", movie=movie)
-
+    def test_guardar_nota_del_apartado_de_sugeridas(self):
         response = self.client.post(
-            reverse("accounts:favorite-note", args=[favorite.pk]), {"note": "Porque sí, es genial"}
+            reverse("accounts:favorite-category-note", args=["suggested"]), {"note": "Porque sí, son geniales"}
         )
         self.assertRedirects(response, reverse("accounts:favorites-page", args=["suggested"]))
-        favorite.refresh_from_db()
-        self.assertEqual(favorite.note, "Porque sí, es genial")
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.suggested_note, "Porque sí, son geniales")
 
-    def test_no_se_puede_editar_la_nota_de_una_favorita_ajena(self):
-        other = User.objects.create(email="otro_nota@test.local", role=User.Role.LECTOR)
-        movie = Movie.objects.create(tmdb_id=10, title="Ajena", media_type="movie")
-        favorite = FavoriteMovie.objects.create(user=other, category="suggested", movie=movie)
+    def test_guardar_nota_no_afecta_al_otro_apartado(self):
+        self.client.post(reverse("accounts:favorite-category-note", args=["suggested"]), {"note": "Sugeridas"})
+        self.client.post(reverse("accounts:favorite-category-note", args=["essential"]), {"note": "Imprescindibles"})
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.suggested_note, "Sugeridas")
+        self.assertEqual(self.user.essential_note, "Imprescindibles")
 
-        response = self.client.post(reverse("accounts:favorite-note", args=[favorite.pk]), {"note": "Robada"})
-        self.assertEqual(response.status_code, 404)
-        favorite.refresh_from_db()
-        self.assertEqual(favorite.note, "")
+    def test_no_se_puede_editar_la_nota_de_otro_usuario(self):
+        other = User.objects.create(email="otro_nota@test.local", role=User.Role.LECTOR, suggested_note="Original")
+
+        self.client.post(reverse("accounts:favorite-category-note", args=["suggested"]), {"note": "Robada"})
+        other.refresh_from_db()
+        self.assertEqual(other.suggested_note, "Original")
 
     def test_la_nota_se_recorta_a_280_caracteres(self):
-        movie = Movie.objects.create(tmdb_id=11, title="Larga", media_type="movie")
-        favorite = FavoriteMovie.objects.create(user=self.user, category="suggested", movie=movie)
+        self.client.post(reverse("accounts:favorite-category-note", args=["suggested"]), {"note": "x" * 300})
+        self.user.refresh_from_db()
+        self.assertEqual(len(self.user.suggested_note), 280)
 
-        self.client.post(reverse("accounts:favorite-note", args=[favorite.pk]), {"note": "x" * 300})
-        favorite.refresh_from_db()
-        self.assertEqual(len(favorite.note), 280)
-
-    def test_la_pagina_de_sugeridas_muestra_la_nota_de_una_recomendada(self):
-        movie = Movie.objects.create(tmdb_id=12, title="Con nota", media_type="movie")
-        FavoriteMovie.objects.create(user=self.user, category="suggested", movie=movie, note="Un peliculón")
+    def test_la_pagina_de_sugeridas_muestra_la_nota_del_apartado(self):
+        self.user.suggested_note = "Un gran apartado"
+        self.user.save(update_fields=["suggested_note"])
 
         response = self.client.get(reverse("accounts:favorites-page", args=["suggested"]))
-        self.assertContains(response, "Un peliculón")
+        self.assertContains(response, "Un gran apartado")
 
 
 class PushSubscriptionTests(TestCase):
@@ -595,7 +593,8 @@ class GoogleCalendarConnectionTests(TestCase):
         self.assertFalse(GoogleCalendarConnection.objects.filter(user=self.user).exists())
 
     def test_desconectar_limpia_el_id_de_google_de_tus_eventos(self):
-        from apps.movies.models import Movie, ReleaseEvent
+        from apps.movies.models import Movie
+        from apps.secret.models import ReleaseEvent
 
         GoogleCalendarConnection.objects.create(user=self.user, refresh_token="r")
         movie = Movie.objects.create(tmdb_id=1, title="X", media_type="movie")

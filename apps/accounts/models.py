@@ -44,6 +44,14 @@ class User(AbstractUser):
         blank=True,
         related_name="+",
     )
+    essential_note = models.TextField(
+        "por qué son imprescindibles", max_length=280, blank=True,
+        help_text="Un único texto para todo el apartado (no por película). Visible para cualquiera que vea tu perfil.",
+    )
+    suggested_note = models.TextField(
+        "por qué las recomiendas", max_length=280, blank=True,
+        help_text="Un único texto para todo el apartado (no por película). Visible para cualquiera que vea tu perfil.",
+    )
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
@@ -150,10 +158,6 @@ class FavoriteMovie(models.Model):
         "movies.Movie", verbose_name="película", on_delete=models.CASCADE, related_name="+",
     )
     order = models.PositiveIntegerField("orden", default=0)
-    note = models.CharField(
-        "por qué está aquí", max_length=280, blank=True,
-        help_text="Opcional — visible para cualquiera que vea el perfil, tanto en Imprescindibles como en Sugeridas.",
-    )
     created_at = models.DateTimeField("añadida", auto_now_add=True)
 
     class Meta:

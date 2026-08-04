@@ -1,9 +1,7 @@
 from django.contrib import admin
 
 from .models import (
-    CalendarDayNote,
     Movie,
-    ReleaseEvent,
     RouletteRatingSeen,
     RouletteSavedSeen,
     SavedMovie,
@@ -52,19 +50,3 @@ class SavedMovieAdmin(admin.ModelAdmin):
 class SavedMovieListAdmin(admin.ModelAdmin):
     list_display = ("user", "name", "order")
     search_fields = ("user__username", "name")
-
-
-@admin.register(ReleaseEvent)
-class ReleaseEventAdmin(admin.ModelAdmin):
-    list_display = ("user", "movie", "date", "note")
-    list_filter = ("date",)
-    search_fields = ("movie__title", "user__username")
-    autocomplete_fields = ("movie",)
-    ordering = ("date",)
-
-
-@admin.register(CalendarDayNote)
-class CalendarDayNoteAdmin(admin.ModelAdmin):
-    list_display = ("user", "date", "note")
-    search_fields = ("user__username",)
-    ordering = ("date",)

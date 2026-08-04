@@ -4,7 +4,17 @@ from django.contrib import admin
 from apps.core.admin import SingletonAdmin
 
 from .forms import SecretMovieForm
-from .models import Genre, SecretMovie, SecretPhoto, TierLevel, TierListEntry, TopSecretConfig
+from .models import (
+    CalendarDayNote,
+    Genre,
+    PhotoBoardMember,
+    ReleaseEvent,
+    SecretMovie,
+    SecretPhoto,
+    TierLevel,
+    TierListEntry,
+    TopSecretConfig,
+)
 
 
 class TopSecretConfigForm(forms.ModelForm):
@@ -58,24 +68,49 @@ class SecretMovieAdmin(admin.ModelAdmin):
 
 @admin.register(SecretPhoto)
 class SecretPhotoAdmin(admin.ModelAdmin):
-    list_display = ("description", "uploaded_by", "created_at")
-    list_filter = ("uploaded_by",)
-    search_fields = ("description",)
+    list_display = ("description", "board_owner", "uploaded_by", "created_at")
+    list_filter = ("board_owner",)
+    search_fields = ("description", "board_owner__username", "uploaded_by__username")
+    autocomplete_fields = ("board_owner", "uploaded_by")
+
+
+@admin.register(PhotoBoardMember)
+class PhotoBoardMemberAdmin(admin.ModelAdmin):
+    list_display = ("owner", "member", "invited_at")
+    search_fields = ("owner__username", "member__username")
+    autocomplete_fields = ("owner", "member")
 
 
 @admin.register(TierLevel)
 class TierLevelAdmin(admin.ModelAdmin):
-    list_display = ("name", "color", "order")
+    list_display = ("name", "user", "color", "order")
     list_editable = ("color", "order")
-    ordering = ("order",)
+    list_filter = ("user",)
+    ordering = ("user_id", "order")
 
 
 @admin.register(TierListEntry)
 class TierListEntryAdmin(admin.ModelAdmin):
-    list_display = ("title", "tier", "order")
+    list_display = ("title", "user", "tier", "order")
     list_display_links = ("title",)
     list_editable = ("tier", "order")
-    list_filter = ("tier",)
+    list_filter = ("user", "tier")
     search_fields = ("title",)
     autocomplete_fields = ("movie",)
-    ordering = ("tier__order", "order")
+    ordering = ("user_id", "tier__order", "order")
+
+
+@admin.register(ReleaseEvent)
+class ReleaseEventAdmin(admin.ModelAdmin):
+    list_display = ("user", "movie", "date", "note")
+    list_filter = ("date",)
+    search_fields = ("movie__title", "user__username")
+    autocomplete_fields = ("movie",)
+    ordering = ("date",)
+
+
+@admin.register(CalendarDayNote)
+class CalendarDayNoteAdmin(admin.ModelAdmin):
+    list_display = ("user", "date", "note")
+    search_fields = ("user__username",)
+    ordering = ("date",)

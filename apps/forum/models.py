@@ -61,3 +61,22 @@ class ThreadComment(models.Model):
         if self.is_deleted:
             return "—"
         return self.author or "usuario eliminado"
+
+
+class ThreadRead(models.Model):
+    """Quién ha entrado a leer cada hilo — no es visible en el foro
+    público, solo para el equipo desde el admin."""
+
+    thread = models.ForeignKey(Thread, on_delete=models.CASCADE, related_name="reads")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="usuario", on_delete=models.CASCADE, related_name="+",
+    )
+    read_at = models.DateTimeField("leído por última vez", auto_now=True)
+
+    class Meta:
+        verbose_name = "lectura de hilo"
+        verbose_name_plural = "lecturas de hilos"
+        constraints = [models.UniqueConstraint(fields=["thread", "user"], name="una_lectura_por_usuario_e_hilo")]
+
+    def __str__(self):
+        return f"{self.user} leyó «{self.thread}»"

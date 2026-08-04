@@ -186,51 +186,8 @@ class RouletteSavedSeen(models.Model):
         constraints = [models.UniqueConstraint(fields=["user", "movie"], name="una_vista_por_usuario_modo_lista")]
 
 
-class ReleaseEvent(models.Model):
-    """Fecha en la que una película o serie "toca" (estreno, capítulo
-    nuevo...) — calendario personal de cada usuario dentro de Top Secret →
-    Otros (nadie más lo ve, ni siquiera otro usuario con el mismo código de
-    acceso al maletín). Se añade desde la propia web buscando el título;
-    cada evento se puede descargar como .ics (funciona con Google Calendar,
-    Apple Calendar, Outlook...) y, si el usuario tiene conectado de verdad
-    su Google Calendar (`apps.accounts.models.GoogleCalendarConnection`), se
-    crea solo ahí también (`google_event_id` guarda el id que le asigna
-    Google, para poder borrarlo ahí también si se quita del sitio)."""
-
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, verbose_name="usuario", on_delete=models.CASCADE, related_name="release_events",
-    )
-    movie = models.ForeignKey(Movie, verbose_name="película/serie", on_delete=models.CASCADE, related_name="+")
-    date = models.DateField("fecha")
-    note = models.CharField("nota", max_length=200, blank=True, help_text="Ej: 'Estreno', 'Temporada 2', 'Capítulo final'...")
-    google_event_id = models.CharField("id del evento en Google Calendar", max_length=255, blank=True)
-
-    class Meta:
-        verbose_name = "estreno en el calendario"
-        verbose_name_plural = "calendario: estrenos"
-        ordering = ["date"]
-
-    def __str__(self):
-        return f"{self.movie} — {self.date:%d/%m/%Y} ({self.user})"
-
-
-class CalendarDayNote(models.Model):
-    """Comentario libre en un día del calendario personal de un usuario, sin
-    ligarlo a ninguna película/serie concreta (para eso ya está
-    `ReleaseEvent`) — por ejemplo, una nota tipo "vacaciones" o "maratón con
-    amigos"."""
-
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="usuario", on_delete=models.CASCADE, related_name="calendar_day_notes")
-    date = models.DateField("fecha")
-    note = models.CharField("comentario", max_length=280)
-
-    class Meta:
-        verbose_name = "comentario del calendario"
-        verbose_name_plural = "calendario: comentarios de días"
-        ordering = ["date"]
-        constraints = [
-            models.UniqueConstraint(fields=["user", "date"], name="un_comentario_por_usuario_y_fecha"),
-        ]
-
-    def __str__(self):
-        return f"{self.date:%d/%m/%Y} — {self.note} ({self.user})"
+# ReleaseEvent y CalendarDayNote viven en apps.secret.models — el
+# calendario es una sección de Top Secret, no de Películas — aunque las
+# tablas siguen llamándose movies_releaseevent/movies_calendardaynote
+# (se movieron de app sin tocar la base de datos, ver las migraciones
+# 0014 de aquí y 0013 de secret).

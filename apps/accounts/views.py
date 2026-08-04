@@ -17,8 +17,9 @@ from django.views.decorators.http import require_POST
 
 from apps.core.google_calendar import exchange_code_for_tokens, get_authorization_url, google_calendar_enabled
 from apps.core.models import SiteConfig
-from apps.movies.models import Movie, ReleaseEvent
+from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError, tmdb_search
+from apps.secret.models import ReleaseEvent
 
 from .forms import EmailAuthenticationForm, ProfileForm, RegisterForm
 from .models import EmailVerificationToken, FavoriteMovie, GoogleCalendarConnection, PushSubscription, User
@@ -143,10 +144,12 @@ def favorites_page(request, category, username=None):
         editable = True
 
     favorites = FavoriteMovie.objects.filter(user=profile_user).select_related("movie")
+    note_field = "essential_note" if category == FavoriteMovie.Category.ESSENTIAL else "suggested_note"
     context = {
         "category": category,
         "editable": editable,
         "profile_user": profile_user,
+        "category_note": getattr(profile_user, note_field),
         **_favorites_context(favorites),
     }
     return render(request, "accounts/favorites_page.html", context)
@@ -227,12 +230,14 @@ def favorite_move(request, pk, direction):
 
 
 @login_required
-def favorite_note(request, pk):
-    favorite = get_object_or_404(FavoriteMovie, pk=pk, user=request.user)
+def favorite_category_note(request, category):
+    if category not in FavoriteMovie.Category.values:
+        raise Http404
     if request.method == "POST":
-        favorite.note = request.POST.get("note", "").strip()[:280]
-        favorite.save(update_fields=["note"])
-    return redirect("accounts:favorites-page", favorite.category)
+        field = "essential_note" if category == FavoriteMovie.Category.ESSENTIAL else "suggested_note"
+        setattr(request.user, field, request.POST.get("note", "").strip()[:280])
+        request.user.save(update_fields=[field])
+    return redirect("accounts:favorites-page", category)
 
 
 @login_required

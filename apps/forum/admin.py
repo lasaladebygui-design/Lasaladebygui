@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Thread, ThreadComment
+from .models import Thread, ThreadComment, ThreadRead
 
 
 class ThreadCommentInline(admin.TabularInline):
@@ -25,3 +25,19 @@ class ThreadCommentAdmin(admin.ModelAdmin):
     list_display = ("thread", "author", "parent", "is_deleted", "created_at")
     list_filter = ("is_deleted",)
     search_fields = ("body", "author__email")
+
+
+@admin.register(ThreadRead)
+class ThreadReadAdmin(admin.ModelAdmin):
+    """Solo lectura: quién ha entrado a cada hilo — visible únicamente
+    para el equipo desde aquí, no hay botón equivalente en el foro público."""
+
+    list_display = ("thread", "user", "read_at")
+    list_filter = ("thread",)
+    search_fields = ("thread__title", "user__username", "user__email")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

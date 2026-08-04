@@ -81,3 +81,22 @@ class ArticleComment(models.Model):
 
     def __str__(self):
         return f"Comentario de {self.author} en {self.article}"
+
+
+class ArticleView(models.Model):
+    """Quién ha leído cada artículo — no es visible en la web pública, solo
+    para el equipo desde el admin, para poder trackear quién los lee."""
+
+    article = models.ForeignKey(Article, on_delete=models.CASCADE, related_name="views")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="usuario", on_delete=models.CASCADE, related_name="+",
+    )
+    viewed_at = models.DateTimeField("visto por última vez", auto_now=True)
+
+    class Meta:
+        verbose_name = "vista"
+        verbose_name_plural = "vistas"
+        constraints = [models.UniqueConstraint(fields=["article", "user"], name="una_vista_por_usuario_y_articulo")]
+
+    def __str__(self):
+        return f"{self.user} vio «{self.article}»"

@@ -91,8 +91,6 @@ class TierLevelForm(forms.ModelForm):
 
 
 class SecretPhotoForm(forms.ModelForm):
-    post_as_anonymous = forms.BooleanField(label="Publicar como anónimo", required=False)
-
     class Meta:
         model = SecretPhoto
         fields = ["image", "description"]

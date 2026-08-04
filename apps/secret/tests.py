@@ -3,16 +3,28 @@ import tempfile
 from datetime import date
 from unittest.mock import patch
 
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from apps.accounts.models import GoogleCalendarConnection, User
-from apps.movies.models import CalendarDayNote, Movie, ReleaseEvent
+from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError
+from apps.social.models import FriendRequest
 
 from .forms import SecretMovieForm
-from .models import Genre, SecretMovie, SecretPhoto, TierLevel, TierListEntry, TopSecretConfig
+from .models import (
+    CalendarDayNote,
+    Genre,
+    PhotoBoardMember,
+    ReleaseEvent,
+    SecretMovie,
+    SecretPhoto,
+    TierLevel,
+    TierListEntry,
+    TopSecretConfig,
+)
 
 try:
     from PIL import Image
@@ -28,6 +40,13 @@ def _fake_image():
 
 
 class GateTests(TestCase):
+    def setUp(self):
+        # El contador de intentos fallidos vive en el caché de proceso, no
+        # en la base de datos de pruebas — sin esto, tests de otras clases
+        # que fallen el código a propósito dejarían "cargado" el contador
+        # para los siguientes tests que se ejecuten en el mismo proceso.
+        cache.clear()
+
     def test_codigo_por_defecto_es_8888(self):
         config = TopSecretConfig.load()
         self.assertTrue(config.check_code("8888"))
@@ -59,6 +78,24 @@ class GateTests(TestCase):
         config.save()
         self.assertFalse(config.check_code("8888"))
         self.assertTrue(config.check_code("1234"))
+
+    def test_bloquea_tras_muchos_intentos_fallidos(self):
+        for _ in range(8):
+            self.client.post(reverse("secret:gate"), {"code": "0000"})
+
+        response = self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(self.client.session.get("top_secret_unlocked"))
+        self.assertContains(response, "Demasiados intentos")
+
+    def test_acertar_el_codigo_resetea_el_contador_de_intentos(self):
+        for _ in range(5):
+            self.client.post(reverse("secret:gate"), {"code": "0000"})
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.client.post(reverse("secret:lock"))
+
+        response = self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.assertRedirects(response, reverse("secret:home"))
 
 
 class SecretMovieViewTests(TestCase):
@@ -238,30 +275,47 @@ class SecretMovieFormTests(TestCase):
 
 
 class TierListTests(TestCase):
-    """Los niveles S/A/B/C/D que trae `seed_quotes`/las migraciones por
-    defecto no son relevantes aquí: cada test parte de su propio conjunto
-    de niveles para no depender de ese valor de fábrica."""
+    """El tier list es personal de cada usuario, igual que el calendario:
+    cada test parte de su propio conjunto de niveles."""
 
     def setUp(self):
+        self.user = User.objects.create(email="tierlist@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
         self.client.post(reverse("secret:gate"), {"code": "8888"})
-        TierLevel.objects.all().delete()
-        self.s = TierLevel.objects.create(name="S", color="#FFD700", order=0)
-        self.d = TierLevel.objects.create(name="D", color="#D98C8C", order=1)
+        self.s = TierLevel.objects.create(user=self.user, name="S", color="#FFD700", order=0)
+        self.d = TierLevel.objects.create(user=self.user, name="D", color="#D98C8C", order=1)
 
     def test_agrupa_por_nivel(self):
-        TierListEntry.objects.create(tier=self.s, title="Pulp Fiction", order=1)
-        TierListEntry.objects.create(tier=self.s, title="Kill Bill", order=2)
-        TierListEntry.objects.create(tier=self.d, title="Una película mala", order=1)
+        TierListEntry.objects.create(user=self.user, tier=self.s, title="Pulp Fiction", order=1)
+        TierListEntry.objects.create(user=self.user, tier=self.s, title="Kill Bill", order=2)
+        TierListEntry.objects.create(user=self.user, tier=self.d, title="Una película mala", order=1)
 
         response = self.client.get(reverse("secret:tier-list"))
         level_rows = dict(response.context["level_rows"])
         self.assertEqual([e.title for e in level_rows[self.s]], ["Pulp Fiction", "Kill Bill"])
         self.assertEqual([e.title for e in level_rows[self.d]], ["Una película mala"])
 
+    def test_no_muestra_el_tier_list_de_otro_usuario(self):
+        other = User.objects.create(email="otro_tier@test.local", role=User.Role.LECTOR)
+        other_level = TierLevel.objects.create(user=other, name="S", color="#FFD700", order=0)
+        TierListEntry.objects.create(user=other, tier=other_level, title="Ajena", order=1)
+
+        response = self.client.get(reverse("secret:tier-list"))
+        level_rows = dict(response.context["level_rows"])
+        self.assertNotIn(other_level, level_rows)
+
     def test_requiere_haber_entrado_al_maletin(self):
         self.client.post(reverse("secret:lock"))
         response = self.client.get(reverse("secret:tier-list"))
         self.assertRedirects(response, reverse("secret:gate"))
+
+    def test_requiere_login(self):
+        anon_client = self.client_class()
+        anon_client.post(reverse("secret:gate"), {"code": "8888"})
+        response = anon_client.get(reverse("secret:tier-list"))
+        self.assertIn("/cuenta/login/", response.url)
 
     @patch("apps.secret.views.tmdb_search")
     def test_buscar_usa_el_servicio_tmdb(self, mock_search):
@@ -276,6 +330,7 @@ class TierListTests(TestCase):
         response = self.client.post(reverse("secret:tier-list-add", args=[99]))
         self.assertRedirects(response, reverse("secret:tier-list"))
         entry = TierListEntry.objects.get(movie__tmdb_id=99)
+        self.assertEqual(entry.user, self.user)
         self.assertIsNone(entry.tier)
         self.assertEqual(entry.title, "Nueva película")
 
@@ -286,8 +341,8 @@ class TierListTests(TestCase):
         self.assertFalse(TierListEntry.objects.exists())
 
     def test_mover_cambia_de_nivel_y_se_coloca_al_final(self):
-        TierListEntry.objects.create(tier=self.d, title="Ya en D", order=1)
-        entry = TierListEntry.objects.create(tier=self.s, title="Se mueve", order=1)
+        TierListEntry.objects.create(user=self.user, tier=self.d, title="Ya en D", order=1)
+        entry = TierListEntry.objects.create(user=self.user, tier=self.s, title="Se mueve", order=1)
 
         response = self.client.post(reverse("secret:tier-list-move", args=[entry.pk]), {"tier": self.d.pk})
         self.assertEqual(response.status_code, 200)
@@ -298,34 +353,48 @@ class TierListTests(TestCase):
         self.assertEqual(entry.order, 2)
 
     def test_mover_a_sin_clasificar(self):
-        entry = TierListEntry.objects.create(tier=self.s, title="X", order=1)
+        entry = TierListEntry.objects.create(user=self.user, tier=self.s, title="X", order=1)
         response = self.client.post(reverse("secret:tier-list-move", args=[entry.pk]), {"tier": ""})
         self.assertEqual(response.status_code, 200)
         entry.refresh_from_db()
         self.assertIsNone(entry.tier)
 
     def test_mover_con_nivel_invalido_da_error(self):
-        entry = TierListEntry.objects.create(tier=self.s, title="X", order=1)
+        entry = TierListEntry.objects.create(user=self.user, tier=self.s, title="X", order=1)
         response = self.client.post(reverse("secret:tier-list-move", args=[entry.pk]), {"tier": "9999"})
         self.assertEqual(response.status_code, 400)
         entry.refresh_from_db()
         self.assertEqual(entry.tier, self.s)
 
+    def test_no_se_puede_mover_una_entrada_ajena(self):
+        other = User.objects.create(email="otro_mover_tier@test.local", role=User.Role.LECTOR)
+        other_level = TierLevel.objects.create(user=other, name="S", color="#FFD700", order=0)
+        entry = TierListEntry.objects.create(user=other, tier=other_level, title="Ajena", order=1)
+        response = self.client.post(reverse("secret:tier-list-move", args=[entry.pk]), {"tier": self.s.pk})
+        self.assertEqual(response.status_code, 404)
+
     def test_mover_requiere_haber_entrado_al_maletin(self):
-        entry = TierListEntry.objects.create(tier=self.s, title="X", order=1)
+        entry = TierListEntry.objects.create(user=self.user, tier=self.s, title="X", order=1)
         self.client.post(reverse("secret:lock"))
         response = self.client.get(reverse("secret:tier-list-move", args=[entry.pk]))
         self.assertRedirects(response, reverse("secret:gate"))
 
     def test_reiniciar_vacia_toda_la_tier_list(self):
-        TierListEntry.objects.create(tier=self.s, title="Uno", order=1)
-        TierListEntry.objects.create(tier=None, title="Dos", order=1)
+        TierListEntry.objects.create(user=self.user, tier=self.s, title="Uno", order=1)
+        TierListEntry.objects.create(user=self.user, tier=None, title="Dos", order=1)
         response = self.client.post(reverse("secret:tier-list-reset"))
         self.assertRedirects(response, reverse("secret:tier-list"))
-        self.assertFalse(TierListEntry.objects.exists())
+        self.assertFalse(TierListEntry.objects.filter(user=self.user).exists())
+
+    def test_reiniciar_no_afecta_a_otro_usuario(self):
+        other = User.objects.create(email="otro_reset_tier@test.local", role=User.Role.LECTOR)
+        other_level = TierLevel.objects.create(user=other, name="S", color="#FFD700", order=0)
+        TierListEntry.objects.create(user=other, tier=other_level, title="Ajena", order=1)
+        self.client.post(reverse("secret:tier-list-reset"))
+        self.assertTrue(TierListEntry.objects.filter(user=other).exists())
 
     def test_reiniciar_requiere_haber_entrado_al_maletin(self):
-        TierListEntry.objects.create(tier=self.s, title="Uno", order=1)
+        TierListEntry.objects.create(user=self.user, tier=self.s, title="Uno", order=1)
         self.client.post(reverse("secret:lock"))
         response = self.client.get(reverse("secret:tier-list-reset"))
         self.assertRedirects(response, reverse("secret:gate"))
@@ -337,23 +406,27 @@ class TierLevelManagementTests(TestCase):
     propia página del Tier List, sin pasar por el admin."""
 
     def setUp(self):
+        self.user = User.objects.create(email="tierlevel@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
         self.client.post(reverse("secret:gate"), {"code": "8888"})
-        TierLevel.objects.all().delete()
 
     def test_anadir_nivel(self):
         response = self.client.post(reverse("secret:tier-level-create"), {"name": "Favoritas", "color": "#ABCDEF"})
         self.assertRedirects(response, reverse("secret:tier-list"))
         level = TierLevel.objects.get(name="Favoritas")
+        self.assertEqual(level.user, self.user)
         self.assertEqual(level.color, "#ABCDEF")
 
     def test_nuevo_nivel_se_coloca_al_final(self):
-        TierLevel.objects.create(name="S", color="#FFD700", order=0)
+        TierLevel.objects.create(user=self.user, name="S", color="#FFD700", order=0)
         self.client.post(reverse("secret:tier-level-create"), {"name": "Extra", "color": "#000000"})
         nuevo = TierLevel.objects.get(name="Extra")
         self.assertEqual(nuevo.order, 1)
 
     def test_editar_nivel_cambia_nombre_y_color(self):
-        level = TierLevel.objects.create(name="S", color="#FFD700", order=0)
+        level = TierLevel.objects.create(user=self.user, name="S", color="#FFD700", order=0)
         response = self.client.post(
             reverse("secret:tier-level-update", args=[level.pk]), {"name": "Sobresaliente", "color": "#123456"},
         )
@@ -362,9 +435,19 @@ class TierLevelManagementTests(TestCase):
         self.assertEqual(level.name, "Sobresaliente")
         self.assertEqual(level.color, "#123456")
 
+    def test_no_se_puede_editar_un_nivel_ajeno(self):
+        other = User.objects.create(email="otro_nivel@test.local", role=User.Role.LECTOR)
+        level = TierLevel.objects.create(user=other, name="S", color="#FFD700", order=0)
+        response = self.client.post(
+            reverse("secret:tier-level-update", args=[level.pk]), {"name": "Robado", "color": "#123456"},
+        )
+        self.assertEqual(response.status_code, 404)
+        level.refresh_from_db()
+        self.assertEqual(level.name, "S")
+
     def test_borrar_nivel_manda_sus_peliculas_a_sin_clasificar(self):
-        level = TierLevel.objects.create(name="S", color="#FFD700", order=0)
-        entry = TierListEntry.objects.create(tier=level, title="Se queda sin nivel", order=1)
+        level = TierLevel.objects.create(user=self.user, name="S", color="#FFD700", order=0)
+        entry = TierListEntry.objects.create(user=self.user, tier=level, title="Se queda sin nivel", order=1)
 
         response = self.client.post(reverse("secret:tier-level-delete", args=[level.pk]))
         self.assertRedirects(response, reverse("secret:tier-list"))
@@ -381,7 +464,15 @@ class TierLevelManagementTests(TestCase):
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
 class PhotoBoardTests(TestCase):
+    """El tablón es personal de cada usuario (antes era único y
+    compartido/anónimo); se puede compartir con amigos concretos vía
+    `PhotoBoardMember`."""
+
     def setUp(self):
+        self.user = User.objects.create(email="tablon@test.local", role=User.Role.LECTOR, username="dueno_tablon")
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
         self.client.post(reverse("secret:gate"), {"code": "8888"})
 
     def test_requiere_haber_entrado_al_maletin(self):
@@ -389,30 +480,25 @@ class PhotoBoardTests(TestCase):
         response = self.client.get(reverse("secret:photo-board"))
         self.assertRedirects(response, reverse("secret:gate"))
 
-    def test_subir_foto_sin_cuenta(self):
+    def test_requiere_login(self):
+        anon_client = self.client_class()
+        anon_client.post(reverse("secret:gate"), {"code": "8888"})
+        response = anon_client.get(reverse("secret:photo-board"))
+        self.assertIn("/cuenta/login/", response.url)
+
+    def test_subir_foto_a_tu_propio_tablon(self):
         response = self.client.post(reverse("secret:photo-board"), {
-            "image": _fake_image(), "description": "Una foto anónima",
+            "image": _fake_image(), "description": "Mi foto",
         })
         self.assertRedirects(response, reverse("secret:photo-board"))
         photo = SecretPhoto.objects.get()
-        self.assertEqual(photo.description, "Una foto anónima")
-        self.assertIsNone(photo.uploaded_by)
-
-    def test_subir_foto_logueado_guarda_quien_la_subio(self):
-        user = User.objects.create(email="lector@test.local", role=User.Role.LECTOR)
-        user.set_password("Testpass123!")
-        user.save()
-        self.client.login(username=user.email, password="Testpass123!")
-        self.client.post(reverse("secret:gate"), {"code": "8888"})
-
-        self.client.post(reverse("secret:photo-board"), {
-            "image": _fake_image(), "description": "Foto con autor",
-        })
-        photo = SecretPhoto.objects.get()
-        self.assertEqual(photo.uploaded_by, user)
+        self.assertEqual(photo.board_owner, self.user)
+        self.assertEqual(photo.uploaded_by, self.user)
 
     def test_listado_muestra_las_fotos_subidas(self):
-        SecretPhoto.objects.create(image=_fake_image(), description="Foto de prueba")
+        SecretPhoto.objects.create(
+            board_owner=self.user, uploaded_by=self.user, image=_fake_image(), description="Foto de prueba",
+        )
         response = self.client.get(reverse("secret:photo-board"))
         self.assertContains(response, "Foto de prueba")
 
@@ -420,6 +506,60 @@ class PhotoBoardTests(TestCase):
         response = self.client.post(reverse("secret:photo-board"), {"description": "Sin imagen"})
         self.assertEqual(response.status_code, 200)
         self.assertFalse(SecretPhoto.objects.exists())
+
+    def test_no_ves_el_tablon_de_otro_sin_invitacion(self):
+        other = User.objects.create(email="otro_tablon@test.local", role=User.Role.LECTOR, username="otro_tablon")
+        SecretPhoto.objects.create(board_owner=other, uploaded_by=other, image=_fake_image(), description="Ajena")
+
+        response = self.client.get(reverse("secret:photo-board-shared", args=[other.username]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_invitar_a_un_amigo_le_da_acceso(self):
+        friend = User.objects.create(email="amigo_tablon@test.local", role=User.Role.LECTOR, username="amigo")
+        FriendRequest.objects.create(from_user=self.user, to_user=friend, accepted=True)
+
+        response = self.client.post(reverse("secret:photo-board-invite", args=[friend.username]))
+        self.assertRedirects(response, reverse("secret:photo-board"))
+        self.assertTrue(PhotoBoardMember.objects.filter(owner=self.user, member=friend).exists())
+
+    def test_no_se_puede_invitar_a_quien_no_es_amigo(self):
+        stranger = User.objects.create(email="desconocido@test.local", role=User.Role.LECTOR, username="desconocido")
+        self.client.post(reverse("secret:photo-board-invite", args=[stranger.username]))
+        self.assertFalse(PhotoBoardMember.objects.filter(owner=self.user, member=stranger).exists())
+
+    def test_un_invitado_puede_ver_y_subir_al_tablon_compartido(self):
+        friend = User.objects.create(email="amigo2_tablon@test.local", role=User.Role.LECTOR, username="amigo2")
+        friend.set_password("Testpass123!")
+        friend.save()
+        PhotoBoardMember.objects.create(owner=self.user, member=friend)
+
+        friend_client = self.client_class()
+        friend_client.login(username=friend.email, password="Testpass123!")
+        friend_client.post(reverse("secret:gate"), {"code": "8888"})
+
+        response = friend_client.post(reverse("secret:photo-board-shared", args=[self.user.username]), {
+            "image": _fake_image(), "description": "Del invitado",
+        })
+        self.assertRedirects(response, reverse("secret:photo-board-shared", args=[self.user.username]))
+        photo = SecretPhoto.objects.get()
+        self.assertEqual(photo.board_owner, self.user)
+        self.assertEqual(photo.uploaded_by, friend)
+
+    def test_expulsar_quita_el_acceso(self):
+        friend = User.objects.create(email="amigo3_tablon@test.local", role=User.Role.LECTOR, username="amigo3")
+        member = PhotoBoardMember.objects.create(owner=self.user, member=friend)
+
+        response = self.client.post(reverse("secret:photo-board-kick", args=[member.pk]))
+        self.assertRedirects(response, reverse("secret:photo-board"))
+        self.assertFalse(PhotoBoardMember.objects.filter(pk=member.pk).exists())
+
+    def test_no_puedes_expulsar_de_un_tablon_ajeno(self):
+        owner = User.objects.create(email="dueno_ajeno@test.local", role=User.Role.LECTOR, username="dueno_ajeno")
+        member = PhotoBoardMember.objects.create(owner=owner, member=self.user)
+
+        response = self.client.post(reverse("secret:photo-board-kick", args=[member.pk]))
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(PhotoBoardMember.objects.filter(pk=member.pk).exists())
 
 
 class CalendarTests(TestCase):
@@ -483,27 +623,26 @@ class CalendarTests(TestCase):
         response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 13})
         self.assertEqual(response.status_code, 404)
 
-    def test_descarga_ics(self):
-        event = ReleaseEvent.objects.create(user=self.user, movie=self.movie, date=date(2026, 3, 15), note="Estreno")
-        response = self.client.get(reverse("secret:calendar-ics", args=[event.pk]))
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response["Content-Type"], "text/calendar; charset=utf-8")
-        content = response.content.decode("utf-8")
-        self.assertIn("BEGIN:VEVENT", content)
-        self.assertIn("DTSTART;VALUE=DATE:20260315", content)
-        self.assertIn("SUMMARY:Estreno de prueba", content)
+    def test_mover_evento_a_otra_fecha(self):
+        event = ReleaseEvent.objects.create(user=self.user, movie=self.movie, date=date(2026, 3, 15))
+        response = self.client.post(reverse("secret:calendar-move", args=[event.pk]), {"date": "2026-03-20"})
+        self.assertEqual(response.status_code, 302)
+        event.refresh_from_db()
+        self.assertEqual(event.date, date(2026, 3, 20))
 
-    def test_ics_escapa_comas_en_el_titulo(self):
-        movie = Movie.objects.create(tmdb_id=2, title="Uno, Dos y Tres", media_type="movie")
-        event = ReleaseEvent.objects.create(user=self.user, movie=movie, date=date(2026, 3, 15))
-        response = self.client.get(reverse("secret:calendar-ics", args=[event.pk]))
-        self.assertIn("SUMMARY:Uno\\, Dos y Tres", response.content.decode("utf-8"))
+    def test_mover_con_fecha_invalida_no_cambia_nada(self):
+        event = ReleaseEvent.objects.create(user=self.user, movie=self.movie, date=date(2026, 3, 15))
+        self.client.post(reverse("secret:calendar-move", args=[event.pk]), {"date": "no-es-una-fecha"})
+        event.refresh_from_db()
+        self.assertEqual(event.date, date(2026, 3, 15))
 
-    def test_no_se_puede_descargar_el_ics_de_un_evento_ajeno(self):
-        other = User.objects.create(email="otro_ics@test.local", role=User.Role.LECTOR)
+    def test_no_se_puede_mover_un_evento_ajeno(self):
+        other = User.objects.create(email="otro_mover@test.local", role=User.Role.LECTOR)
         event = ReleaseEvent.objects.create(user=other, movie=self.movie, date=date(2026, 3, 15))
-        response = self.client.get(reverse("secret:calendar-ics", args=[event.pk]))
+        response = self.client.post(reverse("secret:calendar-move", args=[event.pk]), {"date": "2026-03-20"})
         self.assertEqual(response.status_code, 404)
+        event.refresh_from_db()
+        self.assertEqual(event.date, date(2026, 3, 15))
 
     @patch("apps.secret.views.tmdb_search")
     def test_buscar_combina_peliculas_y_series(self, mock_search):

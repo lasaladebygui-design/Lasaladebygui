@@ -14,17 +14,3 @@
     </form>
 </div>
 {% endif %}
-
-<div x-show="noteOpen" x-cloak class="favorite-card__note-edit">
-    {% if editable %}
-    <form method="post" action="{% url 'accounts:favorite-note' pk=fav.pk %}">
-        {% csrf_token %}
-        <textarea name="note" maxlength="280" placeholder="{% if category == 'essential' %}¿Por qué es imprescindible?{% else %}¿Por qué la recomiendas?{% endif %}">{{ fav.note }}</textarea>
-        <button type="submit" class="btn btn--accent btn--sm">Guardar</button>
-    </form>
-    {% elif fav.note %}
-    <p class="favorite-card__note">💬 {{ fav.note }}</p>
-    {% else %}
-    <p class="muted favorite-card__note">Sin nota.</p>
-    {% endif %}
-</div>

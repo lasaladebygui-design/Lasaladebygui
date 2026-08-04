@@ -140,10 +140,16 @@ class SecretMovie(models.Model):
 
 
 class TierLevel(models.Model):
-    """Un nivel/columna del tier list (S, A, B... o el nombre que se quiera).
-    Nombre, color y orden se gestionan enteros desde la propia página del
-    Tier List — no hace falta pasar por el admin para nada de esto."""
+    """Un nivel/columna del tier list (S, A, B... o el nombre que se quiera)
+    — personal de cada usuario, igual que el calendario: nadie más ve tus
+    niveles ni tus entradas, ni siquiera otro con el mismo código de acceso
+    al maletín. Nombre, color y orden se gestionan enteros desde la propia
+    página del Tier List — no hace falta pasar por el admin para nada de
+    esto."""
 
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="usuario", on_delete=models.CASCADE, related_name="tier_levels",
+    )
     name = models.CharField("nombre", max_length=30)
     color = models.CharField("color", max_length=7, default="#2DD4BF")
     order = models.PositiveIntegerField("orden", default=0)
@@ -151,10 +157,10 @@ class TierLevel(models.Model):
     class Meta:
         verbose_name = "nivel de tier list"
         verbose_name_plural = "Top Secret: niveles de tier list"
-        ordering = ["order", "pk"]
+        ordering = ["user_id", "order", "pk"]
 
     def __str__(self):
-        return self.name
+        return f"{self.name} ({self.user})"
 
 
 class TierListEntry(models.Model):
@@ -167,6 +173,9 @@ class TierListEntry(models.Model):
     borrar un `TierLevel` (on_delete=SET_NULL), sus entradas vuelven aquí
     en vez de perderse."""
 
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="usuario", on_delete=models.CASCADE, related_name="tier_entries",
+    )
     tier = models.ForeignKey(
         TierLevel, verbose_name="nivel", on_delete=models.SET_NULL,
         null=True, blank=True, related_name="entries",
@@ -181,27 +190,62 @@ class TierListEntry(models.Model):
     class Meta:
         verbose_name = "entrada de tier list"
         verbose_name_plural = "Top Secret: tier list"
-        ordering = ["tier__order", "order", "title"]
+        ordering = ["user_id", "tier__order", "order", "title"]
 
     def __str__(self):
-        return f"[{self.tier}] {self.title}"
+        return f"[{self.tier}] {self.title} ({self.user})"
 
     @property
     def poster_url(self):
         return self.movie.poster_url if self.movie else ""
 
 
-class SecretPhoto(models.Model):
-    """Tablón de fotos de Top Secret: cualquiera que haya entrado con el
-    código puede subir una foto con una pequeña descripción (no hace falta
-    tener cuenta; si el visitante ha iniciado sesión, se guarda quién la
-    subió, pero eso no es un requisito para publicar)."""
+class PhotoBoardMember(models.Model):
+    """Acceso compartido al tablón de fotos de otro usuario: el dueño del
+    tablón invita a amigos concretos (no hace falta pasar por el admin, se
+    hace desde la propia página) para que puedan ver y subir fotos a SU
+    tablón — antes era un único tablón compartido por cualquiera con el
+    código; ahora cada uno tiene el suyo, privado por defecto, y decide con
+    quién compartirlo. El dueño puede expulsar a cualquier invitado cuando
+    quiera (borrar esta fila) sin que eso afecte a las fotos ya subidas."""
 
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="dueño del tablón",
+        on_delete=models.CASCADE, related_name="photo_board_members",
+    )
+    member = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="invitado",
+        on_delete=models.CASCADE, related_name="shared_photo_boards",
+    )
+    invited_at = models.DateTimeField("invitado", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "acceso al tablón de fotos"
+        verbose_name_plural = "Top Secret: accesos al tablón de fotos"
+        constraints = [
+            models.UniqueConstraint(fields=["owner", "member"], name="un_acceso_por_dueno_y_miembro"),
+        ]
+
+    def __str__(self):
+        return f"{self.member} en el tablón de {self.owner}"
+
+
+class SecretPhoto(models.Model):
+    """Foto de un tablón personal de Top Secret: cada usuario tiene el
+    suyo (`board_owner`) y decide con quién compartirlo (`PhotoBoardMember`)
+    — el dueño y sus invitados pueden ver y subir fotos ahí, con una
+    pequeña descripción. `uploaded_by` guarda quién subió cada foto en
+    concreto (puede ser el propio dueño o alguien invitado)."""
+
+    board_owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="tablón de",
+        on_delete=models.CASCADE, related_name="photo_board_photos",
+    )
     image = models.ImageField("foto", upload_to="secret_photos/")
     description = models.CharField("descripción", max_length=280, blank=True)
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, verbose_name="subida por",
-        on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+        on_delete=models.CASCADE, related_name="+",
     )
     created_at = models.DateTimeField("subida", auto_now_add=True)
 
@@ -212,3 +256,54 @@ class SecretPhoto(models.Model):
 
     def __str__(self):
         return self.description or f"Foto #{self.pk}"
+
+
+class ReleaseEvent(models.Model):
+    """Fecha en la que una película o serie "toca" (estreno, capítulo
+    nuevo...) — calendario personal de cada usuario dentro de Top Secret →
+    Otros (nadie más lo ve, ni siquiera otro usuario con el mismo código de
+    acceso al maletín). Se añade desde la propia web buscando el título; si
+    el usuario tiene conectado de verdad su Google Calendar
+    (`apps.accounts.models.GoogleCalendarConnection`), el evento se crea
+    solo ahí también (`google_event_id` guarda el id que le asigna Google,
+    para poder borrarlo o moverlo ahí también)."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="usuario", on_delete=models.CASCADE, related_name="release_events",
+    )
+    movie = models.ForeignKey(Movie, verbose_name="película/serie", on_delete=models.CASCADE, related_name="+")
+    date = models.DateField("fecha")
+    note = models.CharField("nota", max_length=200, blank=True, help_text="Ej: 'Estreno', 'Temporada 2', 'Capítulo final'...")
+    google_event_id = models.CharField("id del evento en Google Calendar", max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "estreno en el calendario"
+        verbose_name_plural = "Top Secret: calendario, estrenos"
+        ordering = ["date"]
+        db_table = "movies_releaseevent"
+
+    def __str__(self):
+        return f"{self.movie} — {self.date:%d/%m/%Y} ({self.user})"
+
+
+class CalendarDayNote(models.Model):
+    """Comentario libre en un día del calendario personal de un usuario, sin
+    ligarlo a ninguna película/serie concreta (para eso ya está
+    `ReleaseEvent`) — por ejemplo, una nota tipo "vacaciones" o "maratón con
+    amigos"."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="usuario", on_delete=models.CASCADE, related_name="calendar_day_notes")
+    date = models.DateField("fecha")
+    note = models.CharField("comentario", max_length=280)
+
+    class Meta:
+        verbose_name = "comentario del calendario"
+        verbose_name_plural = "Top Secret: calendario, comentarios de días"
+        ordering = ["date"]
+        db_table = "movies_calendardaynote"
+        constraints = [
+            models.UniqueConstraint(fields=["user", "date"], name="un_comentario_por_usuario_y_fecha"),
+        ]
+
+    def __str__(self):
+        return f"{self.date:%d/%m/%Y} — {self.note} ({self.user})"

@@ -84,15 +84,22 @@
                 <h3>Maletín Tarantino</h3>
                 <p>Código de acceso y recomendaciones personales.</p>
             </a>
-            <a href="{% url 'core:donations' %}" class="card card--link">
-                <span class="card__tag">Apoya la sala</span>
-                <h3>Donaciones</h3>
-                <p>Apoya la sala vía Bizum.</p>
+            {% if user.is_authenticated %}
+            <a href="{% url 'social:home' %}" class="card card--link">
+                <span class="card__tag">Comunidad</span>
+                <h3>Social</h3>
+                <p>Amigos, mensajes y perfiles públicos.</p>
             </a>
-            <a href="{% url 'core:contact' %}" class="card card--link">
-                <span class="card__tag">Contacto</span>
-                <h3>Escríbenos</h3>
-                <p>Formulario directo al equipo.</p>
+            {% endif %}
+            <a href="{% url 'games:hub' %}" class="card card--link">
+                <span class="card__tag">Jugar</span>
+                <h3>Juegos</h3>
+                <p>Frases célebres, duelos y tier list.</p>
+            </a>
+            <a href="{% url 'shop:list' %}" class="card card--link">
+                <span class="card__tag">Tienda</span>
+                <h3>Tienda</h3>
+                <p>Productos de la sala.</p>
             </a>
         </div>
     </div>

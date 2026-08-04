@@ -6,21 +6,33 @@ from functools import wraps
 import requests
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
 from django.db.models import Max
-from django.http import Http404, HttpResponse, JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.text import slugify
 
+from apps.accounts.models import User
 from apps.core.google_calendar import create_event as google_create_event
 from apps.core.google_calendar import delete_event as google_delete_event
 from apps.core.google_calendar import google_calendar_enabled
-from apps.movies.models import CalendarDayNote, Movie, ReleaseEvent
+from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError, tmdb_search
+from apps.social.models import are_friends, friends_of
 
 from .forms import CodeForm, FullListFilterForm, NumberSelectForm, RatingSearchForm, SecretPhotoForm, TierLevelForm
-from .models import Genre, SecretMovie, SecretPhoto, TierLevel, TierListEntry, TopSecretConfig
+from .models import (
+    CalendarDayNote,
+    Genre,
+    PhotoBoardMember,
+    ReleaseEvent,
+    SecretMovie,
+    SecretPhoto,
+    TierLevel,
+    TierListEntry,
+    TopSecretConfig,
+)
 
 SESSION_KEY = "top_secret_unlocked"
 
@@ -28,6 +40,13 @@ MONTH_NAMES_ES = [
     "", "enero", "febrero", "marzo", "abril", "mayo", "junio",
     "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ]
+
+# El código de acceso es un PIN corto (4 dígitos por defecto) — sin esto,
+# probarlos todos a fuerza bruta es trivial. Tras varios fallos seguidos
+# desde la misma IP, se bloquean nuevos intentos un rato (se resetea en
+# cuanto acierta).
+GATE_MAX_ATTEMPTS = 8
+GATE_LOCKOUT_SECONDS = 300
 
 
 def secret_required(view_func):
@@ -40,17 +59,26 @@ def secret_required(view_func):
     return wrapped
 
 
+def _gate_attempts_cache_key(request):
+    return f"secret_gate_attempts:{request.META.get('REMOTE_ADDR', 'unknown')}"
+
+
 def gate(request):
     if request.session.get(SESSION_KEY):
         return redirect("secret:home")
 
     if request.method == "POST":
+        cache_key = _gate_attempts_cache_key(request)
         form = CodeForm(request.POST)
-        if form.is_valid():
+        if cache.get(cache_key, 0) >= GATE_MAX_ATTEMPTS:
+            form.add_error(None, "Demasiados intentos. Espera unos minutos antes de volver a probar.")
+        elif form.is_valid():
             config = TopSecretConfig.load()
             if config.check_code(form.cleaned_data["code"]):
+                cache.delete(cache_key)
                 request.session[SESSION_KEY] = True
                 return redirect("secret:home")
+            cache.set(cache_key, cache.get(cache_key, 0) + 1, GATE_LOCKOUT_SECONDS)
             form.add_error("code", "Código incorrecto.")
     else:
         form = CodeForm()
@@ -123,11 +151,12 @@ def other(request):
 
 
 @secret_required
+@login_required
 def tier_list(request):
-    levels = list(TierLevel.objects.all())
+    levels = list(TierLevel.objects.filter(user=request.user))
     buckets = {None: []}
     buckets.update({level.pk: [] for level in levels})
-    for entry in TierListEntry.objects.select_related("movie"):
+    for entry in TierListEntry.objects.filter(user=request.user).select_related("movie"):
         buckets[entry.tier_id].append(entry)
 
     level_rows = [(level, buckets[level.pk]) for level in levels]
@@ -137,6 +166,7 @@ def tier_list(request):
 
 
 @secret_required
+@login_required
 def tier_list_search(request):
     query = request.GET.get("query", "").strip()
     results = []
@@ -152,6 +182,7 @@ def tier_list_search(request):
 
 
 @secret_required
+@login_required
 def tier_list_add(request, tmdb_id):
     if request.method == "POST":
         try:
@@ -160,25 +191,26 @@ def tier_list_add(request, tmdb_id):
             messages.error(request, str(exc))
         else:
             TierListEntry.objects.get_or_create(
-                movie=movie, defaults={"title": movie.title, "tier": None},
+                user=request.user, movie=movie, defaults={"title": movie.title, "tier": None},
             )
     return redirect("secret:tier-list")
 
 
 @secret_required
+@login_required
 def tier_list_move(request, pk):
     if request.method != "POST":
         raise Http404
-    entry = get_object_or_404(TierListEntry, pk=pk)
+    entry = get_object_or_404(TierListEntry, pk=pk, user=request.user)
     raw_tier = request.POST.get("tier", "")
     level = None
     if raw_tier:
         try:
-            level = TierLevel.objects.get(pk=raw_tier)
+            level = TierLevel.objects.get(pk=raw_tier, user=request.user)
         except (TierLevel.DoesNotExist, ValueError):
             return JsonResponse({"ok": False, "error": "nivel inválido"}, status=400)
 
-    max_order = TierListEntry.objects.filter(tier=level).aggregate(Max("order"))["order__max"] or 0
+    max_order = TierListEntry.objects.filter(user=request.user, tier=level).aggregate(Max("order"))["order__max"] or 0
     entry.tier = level
     entry.order = max_order + 1
     entry.save(update_fields=["tier", "order"])
@@ -186,12 +218,14 @@ def tier_list_move(request, pk):
 
 
 @secret_required
+@login_required
 def tier_level_create(request):
     if request.method == "POST":
         form = TierLevelForm(request.POST)
         if form.is_valid():
-            max_order = TierLevel.objects.aggregate(Max("order"))["order__max"] or 0
+            max_order = TierLevel.objects.filter(user=request.user).aggregate(Max("order"))["order__max"] or 0
             level = form.save(commit=False)
+            level.user = request.user
             level.order = max_order + 1
             level.save()
         else:
@@ -200,8 +234,9 @@ def tier_level_create(request):
 
 
 @secret_required
+@login_required
 def tier_level_update(request, pk):
-    level = get_object_or_404(TierLevel, pk=pk)
+    level = get_object_or_404(TierLevel, pk=pk, user=request.user)
     if request.method == "POST":
         form = TierLevelForm(request.POST, instance=level)
         if form.is_valid():
@@ -212,8 +247,9 @@ def tier_level_update(request, pk):
 
 
 @secret_required
+@login_required
 def tier_level_delete(request, pk):
-    level = get_object_or_404(TierLevel, pk=pk)
+    level = get_object_or_404(TierLevel, pk=pk, user=request.user)
     if request.method == "POST":
         level.delete()
         messages.success(request, "Nivel borrado. Sus películas han vuelto a 'Sin clasificar'.")
@@ -221,29 +257,87 @@ def tier_level_delete(request, pk):
 
 
 @secret_required
+@login_required
 def tier_list_reset(request):
     if request.method == "POST":
-        TierListEntry.objects.all().delete()
+        TierListEntry.objects.filter(user=request.user).delete()
         messages.success(request, "Tier list vaciada. Puedes empezar de nuevo.")
     return redirect("secret:tier-list")
 
 
+# --- Tablón de fotos ----------------------------------------------------
+# Cada usuario tiene el suyo, privado por defecto; puede invitar a amigos
+# concretos (apps.social) para que lo vean y suban fotos también, y
+# expulsarlos cuando quiera. `photo_board_view` sirve tanto para tu propio
+# tablón (con gestión de invitados) como para uno compartido contigo (sin
+# ella, solo subir/ver).
+
+def _can_access_photo_board(viewer, owner):
+    return viewer.pk == owner.pk or PhotoBoardMember.objects.filter(owner=owner, member=viewer).exists()
+
+
 @secret_required
-def photo_board(request):
+@login_required
+def photo_board(request, username=None):
+    owner = request.user
+    if username:
+        owner = get_object_or_404(User, username=username)
+        if not _can_access_photo_board(request.user, owner):
+            raise Http404
+
+    is_owner = owner.pk == request.user.pk
+
     if request.method == "POST":
+        if not _can_access_photo_board(request.user, owner):
+            raise Http404
         form = SecretPhotoForm(request.POST, request.FILES)
         if form.is_valid():
             photo = form.save(commit=False)
-            if request.user.is_authenticated and not form.cleaned_data["post_as_anonymous"]:
-                photo.uploaded_by = request.user
+            photo.board_owner = owner
+            photo.uploaded_by = request.user
             photo.save()
             messages.success(request, "Foto subida al tablón.")
-            return redirect("secret:photo-board")
+            if is_owner:
+                return redirect("secret:photo-board")
+            return redirect("secret:photo-board-shared", owner.username)
     else:
         form = SecretPhotoForm()
 
-    photos = SecretPhoto.objects.select_related("uploaded_by")
-    return render(request, "secret/photo_board.html", {"form": form, "photos": photos})
+    photos = SecretPhoto.objects.filter(board_owner=owner).select_related("uploaded_by")
+    context = {"form": form, "photos": photos, "board_owner": owner, "is_owner": is_owner}
+
+    if is_owner:
+        members = PhotoBoardMember.objects.filter(owner=request.user).select_related("member")
+        member_ids = {m.member_id for m in members}
+        invitable_friends = [f for f in friends_of(request.user) if f.pk not in member_ids]
+        shared_with_me = PhotoBoardMember.objects.filter(member=request.user).select_related("owner")
+        context.update({
+            "members": members,
+            "invitable_friends": invitable_friends,
+            "shared_with_me": shared_with_me,
+        })
+
+    return render(request, "secret/photo_board.html", context)
+
+
+@secret_required
+@login_required
+def photo_board_invite(request, username):
+    friend = get_object_or_404(User, username=username)
+    if request.method == "POST" and are_friends(request.user, friend):
+        PhotoBoardMember.objects.get_or_create(owner=request.user, member=friend)
+        messages.success(request, f"{friend} ya puede ver y subir fotos a tu tablón.")
+    return redirect("secret:photo-board")
+
+
+@secret_required
+@login_required
+def photo_board_kick(request, pk):
+    member = get_object_or_404(PhotoBoardMember, pk=pk, owner=request.user)
+    if request.method == "POST":
+        member.delete()
+        messages.success(request, f"{member.member} ya no tiene acceso a tu tablón.")
+    return redirect("secret:photo-board")
 
 
 # --- Calendario de estrenos --------------------------------------------------
@@ -400,41 +494,30 @@ def calendar_day_note(request):
     return redirect(f"{reverse('secret:calendar')}?year={note_date.year}&month={note_date.month}")
 
 
-def _ics_escape(value):
-    """Escapa una cadena para incrustarla en un campo de texto de un
-    archivo .ics (RFC 5545): la barra invertida y los separadores propios
-    del formato (coma, punto y coma, salto de línea) van escapados con \\."""
-    return (
-        value.replace("\\", "\\\\")
-        .replace(",", "\\,")
-        .replace(";", "\\;")
-        .replace("\n", "\\n")
-    )
-
-
 @secret_required
 @login_required
-def calendar_ics(request, pk):
+def calendar_move_event(request, pk):
     event = get_object_or_404(ReleaseEvent, pk=pk, user=request.user)
-    summary = _ics_escape(event.movie.title)
-    description = _ics_escape(event.note) if event.note else ""
-    stamp = timezone.now().strftime("%Y%m%dT%H%M%SZ")
+    if request.method != "POST":
+        raise Http404
+    try:
+        year, month, day = (int(part) for part in request.POST.get("date", "").split("-"))
+        new_date = date(year, month, day)
+    except (TypeError, ValueError):
+        messages.error(request, "Fecha inválida.")
+        return redirect(f"{reverse('secret:calendar')}?year={event.date.year}&month={event.date.month}")
 
-    lines = [
-        "BEGIN:VCALENDAR",
-        "VERSION:2.0",
-        "PRODID:-//La Sala de Bygui//Calendario//ES",
-        "BEGIN:VEVENT",
-        f"UID:release-{event.pk}@lasaladebygui",
-        f"DTSTAMP:{stamp}",
-        f"DTSTART;VALUE=DATE:{event.date:%Y%m%d}",
-        f"SUMMARY:{summary}",
-    ]
-    if description:
-        lines.append(f"DESCRIPTION:{description}")
-    lines += ["END:VEVENT", "END:VCALENDAR"]
+    old_year, old_month = event.date.year, event.date.month
+    event.date = new_date
 
-    response = HttpResponse("\r\n".join(lines), content_type="text/calendar; charset=utf-8")
-    filename = slugify(event.movie.title) or "evento"
-    response["Content-Disposition"] = f'attachment; filename="{filename}.ics"'
-    return response
+    if event.google_event_id and hasattr(request.user, "google_calendar_connection"):
+        connection = request.user.google_calendar_connection
+        try:
+            google_delete_event(connection, event.google_event_id)
+            event.google_event_id = google_create_event(connection, event.movie.title, new_date, description=event.note)
+        except requests.RequestException:
+            pass
+
+    event.save(update_fields=["date", "google_event_id"])
+    messages.success(request, f"«{event.movie.title}» movida al {new_date:%d/%m/%Y}.")
+    return redirect(f"{reverse('secret:calendar')}?year={old_year}&month={old_month}")

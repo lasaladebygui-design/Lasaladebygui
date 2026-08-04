@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from apps.core.push import send_push_to_users
 
 from .forms import ArticleCommentForm, ArticleForm
-from .models import Article, Tag
+from .models import Article, ArticleView, Tag
 from .permissions import can_create_articles, can_delete_article, can_edit_article
 
 
@@ -43,6 +43,9 @@ def article_detail(request, slug):
 
     comment_form = None
     if request.user.is_authenticated:
+        view, created = ArticleView.objects.get_or_create(article=article, user=request.user)
+        if not created:
+            view.save()
         if request.method == "POST":
             comment_form = ArticleCommentForm(request.POST)
             if comment_form.is_valid():

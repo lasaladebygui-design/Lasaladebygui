@@ -143,14 +143,17 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# --- Media (portadas de artículos, avatares, fotos del tablón...) ----------
+# --- Media (portadas de artículos, avatares, fotos del tablón, imágenes
+# insertadas en el cuerpo de un artículo vía CKEditor...) -------------------
 # En el plan free de Render el disco no es persistente entre despliegues: sin
-# esto, las imágenes subidas desaparecían en cada redeploy. Si se rellenan
-# las variables de Supabase Storage (mismo proyecto que ya se usa para la
-# base de datos — su Storage expone una API compatible con S3), se usa eso
-# en vez del disco local; si se dejan vacías, se cae a disco local como
-# siempre (imprescindible para desarrollo, y sigue funcionando en producción
-# si no se configura Supabase Storage, con la limitación ya conocida).
+# esto, las imágenes subidas desaparecían en cada redeploy (se veían al
+# momento y luego "no se habían publicado" nunca más). Si se rellenan las
+# variables de Supabase Storage (mismo proyecto que ya se usa para la base de
+# datos — su Storage expone una API compatible con S3), se usa eso en vez del
+# disco local. En producción (DEBUG=False) NO se permite el fallback
+# silencioso a disco local, por el mismo motivo que con DATABASE_URL: mejor
+# que el despliegue falle alto y claro a que las imágenes se pierdan sin
+# ningún aviso.
 
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
@@ -164,6 +167,14 @@ SUPABASE_STORAGE_REGION = env("SUPABASE_STORAGE_REGION", default="us-east-1")
 USE_SUPABASE_STORAGE = bool(
     SUPABASE_STORAGE_ENDPOINT and SUPABASE_STORAGE_BUCKET and SUPABASE_STORAGE_ACCESS_KEY_ID
 )
+
+if not USE_SUPABASE_STORAGE and not DEBUG:
+    raise ImproperlyConfigured(
+        "Faltan las variables de Supabase Storage (SUPABASE_STORAGE_ENDPOINT/"
+        "BUCKET/ACCESS_KEY_ID). En producción son obligatorias (si no, las "
+        "imágenes subidas se perderían en cada reinicio al usar disco "
+        "efímero). Configúralas en el panel de Render."
+    )
 
 if USE_SUPABASE_STORAGE:
     from .storage import supabase_public_domain
@@ -214,6 +225,11 @@ STORAGES = {
 CKEDITOR_5_FILE_UPLOAD_PERMISSION = "staff"
 CKEDITOR_5_CONFIGS = {
     "default": {
+        # El plugin "Autosave" (activo por defecto) añade un aviso nativo del
+        # navegador ("los cambios pueden no haberse guardado") al intentar
+        # salir con algo pendiente — molesto porque aquí el guardado real es
+        # el botón "Publicar"/"Guardar cambios" del formulario, no autosave.
+        "removePlugins": ["Autosave"],
         # Barra de herramientas "de doc": no solo negrita/cursiva/subrayado,
         # también color de texto y resaltado, listas con casillas, sangría,
         # imagen (subida o por URL, se puede insertar entre dos frases
@@ -342,10 +358,22 @@ JAZZMIN_SETTINGS = {
         {"name": "← Volver a la web", "url": "core:home", "new_window": False},
     ],
     "custom_css": "css/admin_custom.css",
-    # Orden de las secciones en el menú lateral, de lo más operativo (usuarios,
-    # contenido) a lo más de "trastienda" (sitio, Top Secret, social).
+    # Bloques del menú lateral, en este orden: Artículos, Foro, Películas,
+    # Amigos y mensajes, Juegos, Tienda, Top Secret, Usuarios, Sitio y por
+    # último Autenticación (Django). Dentro de cada bloque, los propios
+    # modelos se ordenan con las entradas "app_label.ModelName" más abajo
+    # en esta misma lista.
     "order_with_respect_to": [
-        "accounts", "articles", "forum", "movies", "games", "shop", "secret", "social", "core", "auth",
+        "articles", "articles.Article", "articles.Tag", "articles.ArticleView", "articles.ArticleComment",
+        "forum", "forum.Thread", "forum.ThreadComment", "forum.ThreadRead",
+        "movies",
+        "social",
+        "games",
+        "shop",
+        "secret",
+        "accounts",
+        "core",
+        "auth",
     ],
     "icons": {
         "accounts.User": "fas fa-user",

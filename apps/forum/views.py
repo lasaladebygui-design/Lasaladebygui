@@ -9,7 +9,7 @@ from django.urls import reverse
 from apps.core.push import send_push_to_user
 
 from .forms import ThreadCommentForm, ThreadForm
-from .models import Thread, ThreadComment
+from .models import Thread, ThreadComment, ThreadRead
 from .permissions import can_delete_comment, can_hard_delete_comment, can_moderate_thread, can_post, is_moderator
 
 
@@ -43,6 +43,9 @@ def thread_detail(request, pk):
 
     reply_form = None
     if request.user.is_authenticated:
+        read, created = ThreadRead.objects.get_or_create(thread=thread, user=request.user)
+        if not created:
+            read.save()
         if request.method == "POST":
             if thread.is_locked:
                 return HttpResponseForbidden("Este hilo está cerrado.")
