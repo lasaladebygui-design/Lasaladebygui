@@ -5,9 +5,9 @@ from .models import Article, ArticleComment, Tag
 
 class ArticleForm(forms.ModelForm):
     tags_input = forms.CharField(
-        label="Tags",
+        label="Listas",
         required=False,
-        help_text="Sepáralos con comas, ej: drama, años 90, animación",
+        help_text="Sepáralas con comas, ej: drama, años 90, animación",
     )
 
     class Meta:

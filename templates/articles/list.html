@@ -17,11 +17,19 @@
         </div>
 
         {% if tags %}
-        <div class="tag-filter">
-            <a href="{% url 'articles:list' %}" class="tag-pill{% if not active_tag %} tag-pill--active{% endif %}">Todos</a>
-            {% for tag in tags %}
-                <a href="?tag={{ tag.slug }}" class="tag-pill{% if active_tag == tag %} tag-pill--active{% endif %}">{{ tag.name }}</a>
-            {% endfor %}
+        <div class="media-type-toggle">
+            <a href="{% url 'articles:list' %}" class="btn btn--sm {% if not tag_param %}btn--accent{% else %}btn--ghost{% endif %}">Todos</a>
+            <a href="?tag=none" class="btn btn--sm {% if tag_param == 'none' %}btn--accent{% else %}btn--ghost{% endif %}">Sin listas</a>
+            <details class="list-filter">
+                <summary class="btn btn--sm {% if active_tag %}btn--accent{% else %}btn--ghost{% endif %}">
+                    {% if active_tag %}{{ active_tag.name }}{% else %}Filtrar por lista{% endif %} ▾
+                </summary>
+                <div class="list-picker__menu">
+                    {% for tag in tags %}
+                    <a href="?tag={{ tag.slug }}" class="list-picker__item{% if active_tag == tag %} list-picker__item--active{% endif %}">{{ tag.name }}</a>
+                    {% endfor %}
+                </div>
+            </details>
         </div>
         {% endif %}
 
@@ -49,7 +57,7 @@
 
         {% include "partials/pagination.html" with page_obj=page_obj %}
         {% else %}
-        <p class="muted">Todavía no hay artículos{% if active_tag %} con este tag{% endif %}.</p>
+        <p class="muted">Todavía no hay artículos{% if active_tag %} en esta lista{% elif tag_param == 'none' %} sin listas{% endif %}.</p>
         {% endif %}
     </div>
 </section>

@@ -17,7 +17,9 @@ def article_list(request):
 
     tag_slug = request.GET.get("tag")
     active_tag = None
-    if tag_slug:
+    if tag_slug == "none":
+        articles = articles.filter(tags__isnull=True)
+    elif tag_slug:
         active_tag = get_object_or_404(Tag, slug=tag_slug)
         articles = articles.filter(tags=active_tag)
 
@@ -28,6 +30,7 @@ def article_list(request):
         "page_obj": page,
         "tags": Tag.objects.all(),
         "active_tag": active_tag,
+        "tag_param": tag_slug or "",
         "can_create": can_create_articles(request.user),
     })
 

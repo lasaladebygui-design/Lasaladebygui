@@ -51,7 +51,7 @@ class SecretMovieAdmin(admin.ModelAdmin):
     autocomplete_fields = ("movie",)
     ordering = ("number",)
 
-    @admin.display(description="géneros")
+    @admin.display(description="listas")
     def genre_list(self, obj):
         return ", ".join(obj.genres.values_list("name", flat=True))
 

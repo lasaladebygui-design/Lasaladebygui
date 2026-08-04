@@ -27,13 +27,13 @@
             <a href="?type={{ media_type }}" class="btn btn--sm {% if not list_param %}btn--accent{% else %}btn--ghost{% endif %}">Todas</a>
             <a href="?type={{ media_type }}&list=none" class="btn btn--sm {% if list_param == 'none' %}btn--accent{% else %}btn--ghost{% endif %}">Sin listas</a>
             {% if sublists %}
-            <details class="saved-list-filter">
+            <details class="list-filter">
                 <summary class="btn btn--sm {% if current_list %}btn--accent{% else %}btn--ghost{% endif %}">
                     {% if current_list %}{{ current_list.name }}{% else %}Filtrar por lista{% endif %} ▾
                 </summary>
-                <div class="saved-sublist-picker__menu">
+                <div class="list-picker__menu">
                     {% for sublist in sublists %}
-                    <a href="?type={{ media_type }}&list={{ sublist.pk }}" class="saved-sublist-picker__item{% if current_list.pk == sublist.pk %} saved-sublist-picker__item--active{% endif %}">{{ sublist.name }}</a>
+                    <a href="?type={{ media_type }}&list={{ sublist.pk }}" class="list-picker__item{% if current_list.pk == sublist.pk %} list-picker__item--active{% endif %}">{{ sublist.name }}</a>
                     {% endfor %}
                 </div>
             </details>
@@ -52,7 +52,7 @@
         {% if saved %}
         <ul class="plain-list">
             {% for item in saved %}
-            <li>
+            <li id="saved-row-{{ item.pk }}">
                 <div class="reorder-buttons">
                     <form method="post" action="{% url 'movies:saved-movie-move' pk=item.pk direction='up' %}">
                         {% csrf_token %}
@@ -75,21 +75,21 @@
                     </div>
                 </a>
                 {% if sublists %}
-                <div class="saved-sublist-picker">
+                <div class="list-picker">
                     {% with item_sublists=item.sublists.all %}
                     {% if item_sublists %}
-                    <div class="saved-sublist-picker__pills">
-                        {% for sublist in item_sublists %}<span class="saved-sublist-pill">{{ sublist.name }}</span>{% endfor %}
+                    <div class="list-picker__pills">
+                        {% for sublist in item_sublists %}<span class="list-pill">{{ sublist.name }}</span>{% endfor %}
                     </div>
                     {% endif %}
                     <details>
                         <summary class="btn btn--ghost btn--sm">🏷️ Listas</summary>
-                        <div class="saved-sublist-picker__menu">
+                        <div class="list-picker__menu">
                             {% for sublist in sublists %}
                             <form method="post" action="{% url 'movies:saved-movie-toggle-sublist' pk=item.pk list_id=sublist.pk %}">
                                 {% csrf_token %}
-                                <button type="submit" class="saved-sublist-picker__item{% if sublist in item_sublists %} saved-sublist-picker__item--active{% endif %}">
-                                    <span class="saved-sublist-picker__check">{% if sublist in item_sublists %}✓{% endif %}</span>{{ sublist.name }}
+                                <button type="submit" class="list-picker__item{% if sublist in item_sublists %} list-picker__item--active{% endif %}">
+                                    <span class="list-picker__check">{% if sublist in item_sublists %}✓{% endif %}</span>{{ sublist.name }}
                                 </button>
                             </form>
                             {% endfor %}
@@ -98,6 +98,13 @@
                     {% endwith %}
                 </div>
                 {% endif %}
+                <form method="post" action="{% url 'movies:saved-movie-remove' pk=item.pk %}"
+                      hx-post="{% url 'movies:saved-movie-remove' pk=item.pk %}"
+                      hx-target="#saved-row-{{ item.pk }}" hx-swap="outerHTML swap:200ms"
+                      hx-confirm="¿Quitar «{{ item.movie.title }}» de Guardadas?">
+                    {% csrf_token %}
+                    <button type="submit" class="link-btn link-btn--danger" title="Quitar de Guardadas">🗑️</button>
+                </form>
             </li>
             {% endfor %}
         </ul>
@@ -110,7 +117,7 @@
         {% if sublists %}
         <details class="tier-add-level">
             <summary class="btn btn--ghost btn--sm">Borrar una lista</summary>
-            <div class="saved-list-manage">
+            <div class="list-manage">
                 {% for sublist in sublists %}
                 <form method="post" action="{% url 'movies:saved-list-delete' pk=sublist.pk %}" class="inline-form"
                       onsubmit="return confirm('¿Borrar la lista {{ sublist.name }}? Sus películas seguirán guardadas.');">

@@ -606,9 +606,10 @@ main { flex: 1; }
 .article-detail__cover {
     width: 100%;
     aspect-ratio: 16 / 9;
+    max-height: 340px;
     object-fit: cover;
     border-radius: var(--radius-base);
-    margin-bottom: calc(var(--space-unit) * 5);
+    margin-bottom: calc(var(--space-unit) * 4);
 }
 .article-detail__tags {
     display: flex;
@@ -849,7 +850,13 @@ main { flex: 1; }
 }
 .reorder-buttons .link-btn { font-size: 0.9rem; }
 .reorder-buttons .link-btn:disabled { opacity: 0.3; cursor: default; }
-.saved-sublist-picker {
+/* Componentes reutilizables para "listas" (Guardadas, Artículos, género/
+   subgénero de Top Secret): un filtro de selección única desplegable
+   (.list-filter) y un selector múltiple por fila con pastillas de lo ya
+   asignado (.list-picker) — ambos comparten el mismo menú desplegable
+   (.list-picker__menu/__item), pensado para escalar a muchas listas sin
+   amontonar botones: colapsa en un <details> con scroll interno. */
+.list-picker {
     position: relative;
     display: flex;
     align-items: center;
@@ -857,13 +864,13 @@ main { flex: 1; }
     flex-wrap: wrap;
     margin-left: auto;
 }
-.saved-sublist-picker__pills {
+.list-picker__pills {
     display: flex;
     flex-wrap: wrap;
     gap: 0.3rem;
     max-width: 160px;
 }
-.saved-sublist-pill {
+.list-pill {
     font-size: 0.7rem;
     padding: 0.15rem 0.5rem;
     border-radius: 999px;
@@ -871,12 +878,12 @@ main { flex: 1; }
     color: var(--color-on-accent-secondary, var(--color-bg));
     white-space: nowrap;
 }
-.saved-sublist-picker details { position: relative; }
-.saved-list-filter { position: relative; display: inline-block; }
-.saved-list-filter summary { list-style: none; cursor: pointer; }
-.saved-list-filter summary::-webkit-details-marker { display: none; }
-.saved-list-filter .saved-sublist-picker__menu { left: 0; right: auto; }
-.saved-list-manage {
+.list-picker details { position: relative; }
+.list-filter { position: relative; display: inline-block; }
+.list-filter summary { list-style: none; cursor: pointer; }
+.list-filter summary::-webkit-details-marker { display: none; }
+.list-filter .list-picker__menu { left: 0; right: auto; }
+.list-manage {
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
@@ -885,12 +892,12 @@ main { flex: 1; }
     margin-top: 0.4rem;
     padding-right: 0.3rem;
 }
-.saved-sublist-picker summary {
+.list-picker summary {
     list-style: none;
     cursor: pointer;
 }
-.saved-sublist-picker summary::-webkit-details-marker { display: none; }
-.saved-sublist-picker__menu {
+.list-picker summary::-webkit-details-marker { display: none; }
+.list-picker__menu {
     position: absolute;
     z-index: 5;
     top: calc(100% + 0.3rem);
@@ -907,7 +914,7 @@ main { flex: 1; }
     border-radius: var(--radius-base);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
-.saved-sublist-picker__item {
+.list-picker__item {
     display: flex;
     align-items: center;
     gap: 0.4rem;
@@ -922,9 +929,9 @@ main { flex: 1; }
     cursor: pointer;
     white-space: nowrap;
 }
-.saved-sublist-picker__item:hover { background: var(--color-bg); }
-.saved-sublist-picker__item--active { color: var(--color-accent); font-weight: 600; }
-.saved-sublist-picker__check { width: 1em; display: inline-block; flex-shrink: 0; }
+.list-picker__item:hover { background: var(--color-bg); }
+.list-picker__item--active { color: var(--color-accent); font-weight: 600; }
+.list-picker__check { width: 1em; display: inline-block; flex-shrink: 0; }
 
 .movie-detail {
     display: grid;
@@ -1366,6 +1373,12 @@ main { flex: 1; }
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 .favorite-card__title { font-size: 0.8rem; margin-top: 0.4rem; color: var(--color-text-muted); }
+.favorite-card__note-toggle {
+    display: block;
+    margin: 0.2rem auto 0;
+    font-size: 0.72rem;
+    color: var(--color-accent);
+}
 .favorite-card__tools {
     display: flex;
     align-items: center;
@@ -1604,6 +1617,29 @@ main { flex: 1; }
 
 .avatar-crop-modal__actions { display: flex; gap: calc(var(--space-unit) * 2); }
 
+/* --- Artículos: formulario de escritura ------------------------------------ */
+
+.article-form {
+    max-width: 900px;
+    margin-inline: auto;
+}
+.article-form__card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    padding: calc(var(--space-unit) * 6);
+    margin-bottom: calc(var(--space-unit) * 6);
+}
+.article-form__top {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: calc(var(--space-unit) * 6);
+    align-items: start;
+}
+@media (max-width: 720px) {
+    .article-form__top { grid-template-columns: 1fr; }
+}
+
 /* --- Artículos: recorte de portada (16:9, misma proporción que la web) ----- */
 
 .cover-editor__button {
@@ -1622,7 +1658,7 @@ main { flex: 1; }
 
 .cover-editor__preview {
     width: 100%;
-    max-width: 480px;
+    max-width: 320px;
     aspect-ratio: 16 / 9;
     object-fit: cover;
     border-radius: var(--radius-base);

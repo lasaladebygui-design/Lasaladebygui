@@ -84,6 +84,8 @@ def by_rating(request):
     result = None
     searched = False
     genre_slug = request.GET.get("genre", "").strip()
+    genres = Genre.objects.all()
+    selected_genre_name = next((g.name for g in genres if g.slug == genre_slug), "")
 
     if request.GET and form.is_valid():
         searched = True
@@ -97,7 +99,7 @@ def by_rating(request):
 
     return render(request, "secret/by_rating.html", {
         "form": form, "result": result, "searched": searched,
-        "genres": Genre.objects.all(), "selected_genre": genre_slug,
+        "genres": genres, "selected_genre": genre_slug, "selected_genre_name": selected_genre_name,
     })
 
 

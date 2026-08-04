@@ -7,9 +7,9 @@ RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
 
 class SecretMovieForm(forms.ModelForm):
     genres_input = forms.CharField(
-        label="Géneros/subgéneros",
+        label="Listas",
         required=False,
-        help_text="Sepáralos con comas, ej: terror, slasher, años 80",
+        help_text="Sepáralas con comas, ej: terror, slasher, años 80",
     )
 
     class Meta:
@@ -66,8 +66,8 @@ class RatingSearchForm(forms.Form):
 
 class FullListFilterForm(forms.Form):
     genre = forms.ModelChoiceField(
-        label="Género/subgénero", queryset=Genre.objects.all(), to_field_name="slug",
-        required=False, empty_label="Todos",
+        label="Lista", queryset=Genre.objects.all(), to_field_name="slug",
+        required=False, empty_label="Todas",
     )
     rating = forms.ChoiceField(label="Nota", required=False)
 

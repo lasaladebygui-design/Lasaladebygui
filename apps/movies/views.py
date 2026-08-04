@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Max, Q
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
@@ -196,6 +196,17 @@ def saved_movie_toggle_sublist(request, pk, list_id):
             saved.sublists.remove(sublist)
         else:
             saved.sublists.add(sublist)
+    return redirect("movies:saved-movies")
+
+
+@login_required
+def saved_movie_remove(request, pk):
+    saved = get_object_or_404(SavedMovie, pk=pk, user=request.user)
+    if request.method == "POST":
+        saved.delete()
+        if _is_htmx(request):
+            return HttpResponse(status=200)
+        messages.success(request, "Quitada de tus películas guardadas.")
     return redirect("movies:saved-movies")
 
 

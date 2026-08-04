@@ -35,16 +35,17 @@ class TopSecretConfig(SingletonModel):
 
 
 class Genre(models.Model):
-    """Género o subgénero de una película secreta (terror, slasher, años
-    80...). Igual que los tags de Artículos: texto libre, se crea sobre la
-    marcha al escribirlo en el admin — no es una lista cerrada."""
+    """Lista temática de una película secreta (terror, slasher, años 80...),
+    lo que antes se llamaba género/subgénero. Igual que las listas de
+    Artículos o de Guardadas: texto libre, se crea sobre la marcha al
+    escribirla en el admin — no es una lista cerrada."""
 
     name = models.CharField("nombre", max_length=50, unique=True)
     slug = models.SlugField("slug", max_length=60, unique=True, blank=True)
 
     class Meta:
-        verbose_name = "género/subgénero"
-        verbose_name_plural = "géneros/subgéneros"
+        verbose_name = "lista"
+        verbose_name_plural = "listas"
         ordering = ["name"]
 
     def __str__(self):
@@ -74,7 +75,7 @@ class SecretMovie(models.Model):
         help_text="Solo importa entre dos películas con la misma nota: la de menor valor aquí sale antes en el número.",
     )
     comment = models.TextField("comentario", blank=True)
-    genres = models.ManyToManyField(Genre, verbose_name="géneros/subgéneros", blank=True, related_name="secret_movies")
+    genres = models.ManyToManyField(Genre, verbose_name="listas", blank=True, related_name="secret_movies")
     movie = models.ForeignKey(
         Movie, verbose_name="película del catálogo (opcional, para la portada)",
         on_delete=models.SET_NULL, null=True, blank=True, related_name="+",

@@ -7,12 +7,17 @@ from django_ckeditor_5.fields import CKEditor5Field
 
 
 class Tag(models.Model):
+    """Lista temática de Artículos (p. ej. "drama", "años 90") — mismo
+    patrón que las listas de Guardadas: texto libre, se crea sobre la
+    marcha al escribirla, y sirve tanto para clasificar como para
+    filtrar el tablón."""
+
     name = models.CharField("nombre", max_length=50, unique=True)
     slug = models.SlugField("slug", max_length=60, unique=True, blank=True)
 
     class Meta:
-        verbose_name = "tag"
-        verbose_name_plural = "tags"
+        verbose_name = "lista"
+        verbose_name_plural = "listas"
         ordering = ["name"]
 
     def __str__(self):
@@ -36,7 +41,7 @@ class Article(models.Model):
         null=True,
         related_name="articles",
     )
-    tags = models.ManyToManyField(Tag, verbose_name="tags", blank=True, related_name="articles")
+    tags = models.ManyToManyField(Tag, verbose_name="listas", blank=True, related_name="articles")
     created_at = models.DateTimeField("fecha de publicación", auto_now_add=True)
     updated_at = models.DateTimeField("última edición", auto_now=True)
 

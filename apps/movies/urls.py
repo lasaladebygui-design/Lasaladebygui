@@ -9,6 +9,7 @@ urlpatterns = [
     path("mias/", views.my_movies, name="my-movies"),
     path("guardadas/", views.saved_movies, name="saved-movies"),
     path("guardadas/<int:pk>/mover/<str:direction>/", views.saved_movie_move, name="saved-movie-move"),
+    path("guardadas/<int:pk>/quitar/", views.saved_movie_remove, name="saved-movie-remove"),
     path("guardadas/<int:pk>/sublista/<int:list_id>/", views.saved_movie_toggle_sublist, name="saved-movie-toggle-sublist"),
     path("guardadas/listas/anadir/", views.saved_list_create, name="saved-list-create"),
     path("guardadas/listas/<int:pk>/borrar/", views.saved_list_delete, name="saved-list-delete"),

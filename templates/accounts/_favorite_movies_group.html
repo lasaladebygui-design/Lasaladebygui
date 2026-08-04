@@ -22,6 +22,9 @@
             {% endif %}
             {% if fav.note %}<span class="favorite-card__note-badge" title="Tiene una nota">💬</span>{% endif %}
             <span class="favorite-card__title">{{ fav.movie.title }}</span>
+            <button type="button" class="link-btn favorite-card__note-toggle" @click="noteOpen = !noteOpen">
+                {% if fav.note %}💬 Ver nota{% elif editable %}💬 Añadir nota{% else %}💬 Nota{% endif %}
+            </button>
             {% include "accounts/_favorite_card_tools.html" %}
         </div>
         {% endfor %}
@@ -36,6 +39,9 @@
             {% endif %}
             {% if fav.note %}<span class="favorite-card__note-badge" title="Tiene una nota">💬</span>{% endif %}
             <span class="favorite-card__title">{{ fav.movie.title }}</span>
+            <button type="button" class="link-btn favorite-card__note-toggle" @click="noteOpen = !noteOpen">
+                {% if fav.note %}💬 Ver nota{% elif editable %}💬 Añadir nota{% else %}💬 Nota{% endif %}
+            </button>
             {% include "accounts/_favorite_card_tools.html" %}
         </div>
         {% endfor %}
