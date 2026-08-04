@@ -8,6 +8,7 @@ autenticación con roles y theme.css editable desde el panel admin.
 from pathlib import Path
 
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -89,8 +90,22 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 # --- Base de datos (Supabase / Postgres vía DATABASE_URL) ------------------
 # En local, si no defines DATABASE_URL en .env, se usa SQLite automáticamente.
+# En producción (DEBUG=False) NO se permite ese mismo fallback silencioso:
+# si DATABASE_URL faltara ahí, la app usaría SQLite sobre el disco efímero
+# de Render, que se borra en cada reinicio/despliegue — perdiendo todo lo
+# guardado (p. ej. los eventos del calendario) sin ningún aviso. Mejor que
+# el despliegue falle alto y claro a que pierda datos en silencio.
 
-_database_url = env("DATABASE_URL", default="") or f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
+_database_url = env("DATABASE_URL", default="")
+if not _database_url:
+    if DEBUG:
+        _database_url = f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
+    else:
+        raise ImproperlyConfigured(
+            "DATABASE_URL no está configurada. En producción es obligatoria "
+            "(si no, la app perdería todos los datos en cada reinicio al usar "
+            "SQLite sobre disco efímero). Configúrala en el panel de Render."
+        )
 DATABASES = {"default": env.db_url_config(_database_url)}
 if DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql":
     DATABASES["default"]["OPTIONS"] = {"sslmode": env("DB_SSLMODE", default="require")}

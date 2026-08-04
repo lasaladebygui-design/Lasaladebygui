@@ -110,17 +110,17 @@ class Vote(models.Model):
 
 
 class SavedMovieList(models.Model):
-    """Sublista personal dentro de Guardadas (p. ej. "Terror", "Para ver en
+    """Lista personal dentro de Guardadas (p. ej. "Terror", "Para ver en
     familia"), para poder ver o tirar la ruleta (Modo 2) solo sobre esa
-    sublista en vez de sobre todas las guardadas a la vez."""
+    lista en vez de sobre todas las guardadas a la vez."""
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_movie_lists")
     name = models.CharField("nombre", max_length=60)
     order = models.PositiveIntegerField("orden", default=0)
 
     class Meta:
-        verbose_name = "sublista de guardadas"
-        verbose_name_plural = "sublistas de guardadas"
+        verbose_name = "lista de guardadas"
+        verbose_name_plural = "listas de guardadas"
         ordering = ["user_id", "order", "name"]
         constraints = [
             models.UniqueConstraint(fields=["user", "name"], name="una_sublista_por_nombre_y_usuario"),
@@ -143,7 +143,7 @@ class SavedMovie(models.Model):
     movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name="+")
     order = models.PositiveIntegerField("orden de importancia", default=0)
     sublists = models.ManyToManyField(
-        SavedMovieList, verbose_name="sublistas", blank=True, related_name="saved_movies",
+        SavedMovieList, verbose_name="listas", blank=True, related_name="saved_movies",
     )
     saved_at = models.DateTimeField(auto_now_add=True)
 

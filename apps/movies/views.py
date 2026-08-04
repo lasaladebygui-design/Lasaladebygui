@@ -151,10 +151,16 @@ def saved_movies(request):
         saved = saved.filter(movie__media_type=media_type)
     saved = _filter_by_sublist(saved, list_param)
 
+    sublists = SavedMovieList.objects.filter(user=request.user)
+    current_list = None
+    if list_param and list_param != "none":
+        current_list = next((s for s in sublists if str(s.pk) == list_param), None)
+
     return render(request, "movies/saved_movies.html", {
         "saved": saved, "media_type": media_type,
-        "sublists": SavedMovieList.objects.filter(user=request.user),
+        "sublists": sublists,
         "list_param": list_param,
+        "current_list": current_list,
     })
 
 
@@ -168,7 +174,7 @@ def saved_list_create(request):
                 user=request.user, name=name, defaults={"order": max_order + 1},
             )
             if not created:
-                messages.info(request, "Ya tenías una sublista con ese nombre.")
+                messages.info(request, "Ya tenías una lista con ese nombre.")
     return redirect("movies:saved-movies")
 
 
@@ -177,7 +183,7 @@ def saved_list_delete(request, pk):
     sublist = get_object_or_404(SavedMovieList, pk=pk, user=request.user)
     if request.method == "POST":
         sublist.delete()
-        messages.success(request, "Sublista borrada. Sus películas siguen guardadas.")
+        messages.success(request, "Lista borrada. Sus películas siguen guardadas.")
     return redirect("movies:saved-movies")
 
 
@@ -302,9 +308,13 @@ def _roulette_saved_context(user, list_param=""):
     seen_ids = set(RouletteSavedSeen.objects.filter(user=user).values_list("movie_id", flat=True))
     for item in saved:
         item.is_seen = item.movie_id in seen_ids
+    sublists = SavedMovieList.objects.filter(user=user)
+    current_list = None
+    if list_param and list_param != "none":
+        current_list = next((s for s in sublists if str(s.pk) == list_param), None)
     return {
         "saved": saved, "unseen_count": sum(1 for item in saved if not item.is_seen),
-        "sublists": SavedMovieList.objects.filter(user=user), "list_param": list_param,
+        "sublists": sublists, "list_param": list_param, "current_list": current_list,
     }
 
 

@@ -8,7 +8,7 @@ Construida con Django + plantillas DTL, pensada para desplegarse en Render con S
 ## Stack
 
 - **Backend:** Python + Django. Panel de administración con **django-jazzmin** (aspecto propio de panel de control, restringido al rol Admin) y almacenamiento de imágenes en **Supabase Storage** (opcional, vía `django-storages`) para que sobrevivan a los redeploys.
-- **Base de datos:** Supabase (Postgres) vía `DATABASE_URL`. En local, si no se configura, se usa SQLite automáticamente.
+- **Base de datos:** Supabase (Postgres) vía `DATABASE_URL`. En local, si no se configura, se usa SQLite automáticamente. **En producción (`DEBUG=False`) ese fallback está desactivado a propósito:** si `DATABASE_URL` falta ahí, la app no arranca (`ImproperlyConfigured`) en vez de caer en silencio a SQLite sobre el disco efímero de Render, que se borra en cada reinicio y perdería todo lo guardado.
 - **Frontend:** plantillas de Django + CSS/JS vanilla. Alpine.js (vía CDN) para interacciones ligeras (toggle de respuesta en el foro, animación de la ruleta) y HTMX (vía CDN) para la búsqueda de películas y el voto sin recargar la página.
 - **Editor de artículos:** CKEditor 5 (`django-ckeditor-5`).
 - **Películas:** TMDb (búsqueda, portadas, sinopsis) + OMDb (nota IMDb).
@@ -277,7 +277,7 @@ Dos apartados separados, ambos enlazados desde la cabecera del catálogo (solo p
 
 - **Mis películas:** solo lo que has votado, con tu nota.
 - **Guardadas:** lo que has guardado desde la ficha de cualquier película (botón "Guardar película" / "✓ Guardada", `apps.movies.models.SavedMovie` — una fila única por usuario+película, pensado para marcar "quiero verla" sin necesidad de puntuarla todavía). Esta es la lista de la que tira el Modo 2 de la ruleta, de ahí que tenga su propio apartado en vez de ser una sección más dentro de "Mis películas". Tiene botones ▲/▼ para reordenarlas según su orden de importancia (`SavedMovie.order`).
-  - **Sublistas** (`apps.movies.models.SavedMovieList`, ej. "Terror", "Para ver en familia"): creas las tuyas con "+ Nueva sublista" y, en cada fila, un botón por sublista permite añadir o quitar esa guardada de ella — **una misma guardada puede estar en varias sublistas a la vez** (`SavedMovie.sublists` es un ManyToMany, no una única FK). Un selector arriba filtra Guardadas por sublista, por "Todas" o por **"Sin listas"** (las que no están en ninguna), y **la ruleta Modo 2 admite el mismo filtro** (`?list=<id>` o `?list=none`) para girar solo entre esas en vez de sobre todas las guardadas a la vez. Borrar una sublista no borra las películas, solo las deja fuera de ella.
+  - **Listas** (`apps.movies.models.SavedMovieList`, ej. "Terror", "Para ver en familia"): creas las tuyas con "+ Nueva lista" y, en cada fila, un desplegable "🏷️ Listas" permite marcar/desmarcar en qué listas está esa guardada — **una misma guardada puede estar en varias a la vez** (`SavedMovie.sublists` es un ManyToMany, no una única FK); las que tiene asignadas se ven como etiquetas junto a la fila. Pensado para escalar a muchas listas (10+): el filtro de arriba y el desplegable de cada fila son colapsables (`<details>`) con scroll interno en vez de una fila de botones que se agolpen. Un filtro arriba de Guardadas (y de la ruleta Modo 2, mismo patrón `?list=<id>` o `?list=none`) permite ver solo "Todas", **"Sin listas"** (las que no están en ninguna) o una lista concreta. Borrar una lista no borra las películas, solo las deja fuera de ella.
 
 ### Series, además de películas
 
