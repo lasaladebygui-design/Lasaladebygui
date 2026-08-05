@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Cuál está mejor valorada{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <span class="card__tag">Juegos</span>
+        <h1>¿Cuál está mejor valorada?</h1>
+
+        <div class="media-type-toggle">
+            <a href="?type=movie" class="btn btn--sm {% if media_type == 'movie' %}btn--accent{% else %}btn--ghost{% endif %}">Películas</a>
+            <a href="?type=tv" class="btn btn--sm {% if media_type == 'tv' %}btn--accent{% else %}btn--ghost{% endif %}">Series</a>
+        </div>
+
+        <p class="quote-game__score">Racha actual: <strong>{{ streak }}</strong> · Mejor racha: <strong>{{ best }}</strong></p>
+
+        {% if not user.is_authenticated %}
+        <p class="muted">
+            <a href="{% url 'accounts:login' %}?next={{ request.path }}">Inicia sesión</a> para que tu mejor racha quede guardada en tu perfil.
+        </p>
+        {% endif %}
+
+        {% if game_over %}
+        <div class="quote-game__gameover">
+            {% if is_new_record %}
+                <p class="quote-game__record">🎉 ¡Felicidades! Nuevo récord personal.</p>
+            {% endif %}
+            <p class="quote-game__final">Racha final: <strong>{{ final_streak }}</strong></p>
+            <a href="{% url 'games:rating-duel' %}?type={{ media_type }}" class="btn btn--accent btn--block">Jugar de nuevo</a>
+        </div>
+        {% elif left and right %}
+        <p class="muted">Elige la que creas que tiene mejor nota IMDb.</p>
+        <form method="post" class="rating-duel">
+            {% csrf_token %}
+            <input type="hidden" name="type" value="{{ media_type }}">
+            <input type="hidden" name="left_id" value="{{ left.pk }}">
+            <input type="hidden" name="right_id" value="{{ right.pk }}">
+            <button type="submit" name="choice" value="left" class="rating-duel__card">
+                {% if left.poster_url %}
+                    <img src="{{ left.poster_url }}" alt="" class="rating-duel__poster">
+                {% else %}
+                    <div class="rating-duel__poster rating-duel__poster--placeholder"><span>🎬</span></div>
+                {% endif %}
+                <span class="rating-duel__title">{{ left.title }}</span>
+            </button>
+            <span class="rating-duel__vs">VS</span>
+            <button type="submit" name="choice" value="right" class="rating-duel__card">
+                {% if right.poster_url %}
+                    <img src="{{ right.poster_url }}" alt="" class="rating-duel__poster">
+                {% else %}
+                    <div class="rating-duel__poster rating-duel__poster--placeholder"><span>🎬</span></div>
+                {% endif %}
+                <span class="rating-duel__title">{{ right.title }}</span>
+            </button>
+        </form>
+        {% else %}
+        <p class="muted">Todavía no hay suficientes {% if media_type == 'tv' %}series{% else %}películas{% endif %} con nota IMDb en el catálogo para jugar.</p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

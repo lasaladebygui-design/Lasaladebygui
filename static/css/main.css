@@ -1435,6 +1435,51 @@ main { flex: 1; }
 .quote-game__record { color: var(--color-accent-secondary); font-weight: 600; font-size: 1.1rem; }
 .quote-game__final { font-size: 1.2rem; margin-bottom: calc(var(--space-unit) * 6); }
 
+/* --- Juego: Cuál está mejor valorada ---------------------------------- */
+
+.rating-duel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--space-unit) * 4);
+}
+.rating-duel__card {
+    flex: 1;
+    max-width: 220px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: calc(var(--space-unit) * 2);
+    padding: calc(var(--space-unit) * 3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    cursor: pointer;
+    font: inherit;
+    color: var(--color-text);
+    text-align: center;
+}
+.rating-duel__card:hover { border-color: var(--color-accent); }
+.rating-duel__poster {
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    border-radius: var(--radius-base);
+    background: var(--color-bg);
+}
+.rating-duel__poster--placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+}
+.rating-duel__title { font-weight: 600; }
+.rating-duel__vs { font-family: var(--font-heading); font-size: 1.3rem; color: var(--color-text-muted); flex-shrink: 0; }
+@media (max-width: 500px) {
+    .rating-duel { flex-direction: column; }
+    .rating-duel__card { max-width: 100%; width: 100%; }
+}
+
 /* --- Animación de proyector (intro) -----------------------------------------
    Prop fijo, independiente del tema activo: siempre negro, como una sala
    a oscuras antes de que arranque la proyección. */

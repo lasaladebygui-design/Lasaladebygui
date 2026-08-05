@@ -7,6 +7,7 @@ app_name = "games"
 urlpatterns = [
     path("", views.games_hub, name="hub"),
     path("frases/", views.quote_game, name="quote-game"),
+    path("mejor-valorada/", views.rating_duel_game, name="rating-duel"),
     path("duelos/<str:username>/invitar/", views.duel_invite, name="duel-invite"),
     path("duelos/<int:pk>/", views.duel_detail, name="duel-detail"),
     path("duelos/<int:pk>/aceptar/", views.duel_accept, name="duel-accept"),

@@ -26,6 +26,8 @@ DEFAULT_TIER_LEVELS = [
 QUOTE_STREAK_KEY = "quote_streak"
 QUOTE_BEST_ANON_KEY = "quote_streak_best_anon"
 
+RATING_DUEL_MEDIA_TYPES = ("movie", "tv")
+
 
 def games_hub(request):
     duels = []
@@ -89,6 +91,113 @@ def quote_game(request):
         "quote": next_quote, "options": options, "streak": streak, "best": best,
         "game_over": game_over, "is_new_record": is_new_record,
         "final_streak": final_streak, "wrong_answer_title": wrong_answer_title,
+    })
+
+
+# --- Cuál está mejor valorada ---------------------------------------------
+# "Higher/lower" con las notas IMDb del catálogo: dos portadas, una con la
+# nota ya revelada (la "campeona", ganadora de la ronda anterior) y otra
+# nueva sin revelar; hay que adivinar si la nueva tiene más o menos nota que
+# la campeona. Acertar la mantiene en pie (o la releva la nueva si ganaba
+# ella) y sale otra retadora; fallar termina la racha, igual que Frases
+# célebres. Películas y series van cada una por su lado (`media_type`): cada
+# una con su propia racha, tanto en sesión como en el récord guardado.
+
+def _rating_duel_streak_key(media_type):
+    return f"rating_duel_streak_{media_type}"
+
+
+def _rating_duel_champion_key(media_type):
+    return f"rating_duel_champion_id_{media_type}"
+
+
+def _rating_duel_best_anon_key(media_type):
+    return f"rating_duel_streak_best_anon_{media_type}"
+
+
+def _rating_duel_best_field(media_type):
+    return "rating_duel_streak_best_movie" if media_type == "movie" else "rating_duel_streak_best_tv"
+
+
+def _register_rating_duel_best(request, media_type, streak):
+    if request.user.is_authenticated:
+        field = _rating_duel_best_field(media_type)
+        if streak > getattr(request.user, field):
+            setattr(request.user, field, streak)
+            request.user.save(update_fields=[field])
+    else:
+        key = _rating_duel_best_anon_key(media_type)
+        if streak > request.session.get(key, 0):
+            request.session[key] = streak
+
+
+def _random_rated_movie(media_type, exclude_id=None):
+    qs = Movie.objects.filter(imdb_rating__isnull=False, media_type=media_type)
+    if exclude_id:
+        qs = qs.exclude(pk=exclude_id)
+    return qs.order_by("?").first()
+
+
+def rating_duel_game(request):
+    media_type = request.GET.get("type") if request.method == "GET" else request.POST.get("type")
+    if media_type not in RATING_DUEL_MEDIA_TYPES:
+        media_type = "movie"
+
+    streak_key = _rating_duel_streak_key(media_type)
+    champion_key = _rating_duel_champion_key(media_type)
+    streak = request.session.get(streak_key, 0)
+    game_over = False
+    is_new_record = False
+    final_streak = None
+
+    if request.method == "POST":
+        left = get_object_or_404(Movie, pk=request.POST.get("left_id"))
+        right = get_object_or_404(Movie, pk=request.POST.get("right_id"))
+        choice = request.POST.get("choice")
+        left_wins = left.imdb_rating >= right.imdb_rating
+        correct = (choice == "left") == left_wins
+
+        if correct:
+            streak += 1
+            request.session[streak_key] = streak
+            winner = left if left_wins else right
+            request.session[champion_key] = winner.pk
+            messages.success(
+                request, f"¡Correcto! «{left.title}» ({left.imdb_rating}) frente a «{right.title}» ({right.imdb_rating}).",
+            )
+        else:
+            previous_best = (
+                getattr(request.user, _rating_duel_best_field(media_type)) if request.user.is_authenticated
+                else request.session.get(_rating_duel_best_anon_key(media_type), 0)
+            )
+            final_streak = streak
+            is_new_record = streak > previous_best
+            _register_rating_duel_best(request, media_type, streak)
+            messages.error(
+                request, f"«{left.title}» ({left.imdb_rating}) frente a «{right.title}» ({right.imdb_rating}). ¡Fallaste!",
+            )
+            request.session[streak_key] = 0
+            request.session.pop(champion_key, None)
+            streak = 0
+            game_over = True
+
+    champion_id = request.session.get(champion_key)
+    champion = Movie.objects.filter(pk=champion_id, imdb_rating__isnull=False, media_type=media_type).first() if champion_id else None
+    if champion is None:
+        champion = _random_rated_movie(media_type)
+        if champion:
+            request.session[champion_key] = champion.pk
+    challenger = _random_rated_movie(media_type, exclude_id=champion.pk) if champion else None
+
+    best = (
+        getattr(request.user, _rating_duel_best_field(media_type)) if request.user.is_authenticated
+        else request.session.get(_rating_duel_best_anon_key(media_type), 0)
+    )
+
+    return render(request, "games/rating_duel.html", {
+        "left": champion, "right": challenger, "streak": streak, "best": best,
+        "game_over": game_over, "is_new_record": is_new_record, "final_streak": final_streak,
+        "media_type": media_type,
     })
 
 

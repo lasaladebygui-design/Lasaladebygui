@@ -139,6 +139,84 @@ class QuoteGameTests(TestCase):
         self.assertIsNotNone(response.context["quote"])
 
 
+class RatingDuelGameTests(TestCase):
+    """'Cuál está mejor valorada': higher/lower con la nota IMDb del
+    catálogo. Películas y series van cada una con su propia racha."""
+
+    def setUp(self):
+        self.movie_a = Movie.objects.create(tmdb_id=1, title="Peli A", media_type="movie", imdb_rating="8.5")
+        self.movie_b = Movie.objects.create(tmdb_id=2, title="Peli B", media_type="movie", imdb_rating="6.0")
+        self.tv_a = Movie.objects.create(tmdb_id=1, title="Serie A", media_type="tv", imdb_rating="9.0")
+        self.tv_b = Movie.objects.create(tmdb_id=2, title="Serie B", media_type="tv", imdb_rating="7.0")
+
+    def test_accesible_sin_cuenta(self):
+        response = self.client.get(reverse("games:rating-duel"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_muestra_dos_peliculas_por_defecto(self):
+        response = self.client.get(reverse("games:rating-duel"))
+        self.assertEqual(response.context["media_type"], "movie")
+        self.assertIsNotNone(response.context["left"])
+        self.assertIsNotNone(response.context["right"])
+        self.assertEqual(response.context["left"].media_type, "movie")
+
+    def test_tipo_series_usa_solo_series(self):
+        response = self.client.get(reverse("games:rating-duel"), {"type": "tv"})
+        self.assertEqual(response.context["media_type"], "tv")
+        self.assertEqual(response.context["left"].media_type, "tv")
+        self.assertEqual(response.context["right"].media_type, "tv")
+
+    def test_sin_suficientes_peliculas_lo_indica(self):
+        Movie.objects.filter(media_type="movie").delete()
+        response = self.client.get(reverse("games:rating-duel"))
+        self.assertIsNone(response.context["left"])
+        self.assertContains(response, "Todavía no hay suficientes")
+
+    def test_acertar_la_mas_valorada_incrementa_la_racha(self):
+        response = self.client.post(reverse("games:rating-duel"), {
+            "type": "movie", "left_id": self.movie_a.pk, "right_id": self.movie_b.pk, "choice": "left",
+        })
+        self.assertEqual(response.context["streak"], 1)
+        self.assertFalse(response.context["game_over"])
+
+    def test_fallar_reinicia_la_racha_y_muestra_fin_de_partida(self):
+        session = self.client.session
+        session["rating_duel_streak_movie"] = 3
+        session.save()
+
+        response = self.client.post(reverse("games:rating-duel"), {
+            "type": "movie", "left_id": self.movie_a.pk, "right_id": self.movie_b.pk, "choice": "right",
+        })
+        self.assertEqual(response.context["streak"], 0)
+        self.assertTrue(response.context["game_over"])
+        self.assertEqual(response.context["final_streak"], 3)
+
+    def test_racha_de_series_es_independiente_de_peliculas(self):
+        session = self.client.session
+        session["rating_duel_streak_movie"] = 5
+        session.save()
+
+        response = self.client.get(reverse("games:rating-duel"), {"type": "tv"})
+        self.assertEqual(response.context["streak"], 0)
+
+    def test_racha_se_guarda_en_el_perfil_si_esta_logueado(self):
+        user = User.objects.create(email="rating_duel@test.local", role=User.Role.LECTOR)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+
+        session = self.client.session
+        session["rating_duel_streak_movie"] = 4
+        session.save()
+
+        self.client.post(reverse("games:rating-duel"), {
+            "type": "movie", "left_id": self.movie_a.pk, "right_id": self.movie_b.pk, "choice": "right",
+        })
+        user.refresh_from_db()
+        self.assertEqual(user.rating_duel_streak_best_movie, 4)
+        self.assertEqual(user.rating_duel_streak_best_tv, 0)
+
+
 class DuelTests(TestCase):
     """Duelo: los dos ven la misma pregunta a la vez y avanzan juntos ronda
     a ronda; en cuanto uno falla, se acaba para los dos. Empieza como

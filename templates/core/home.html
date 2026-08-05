@@ -69,20 +69,15 @@
     <div class="wrap">
         <h2>Explora la sala</h2>
         <div class="card-grid">
-            <a href="{% url 'movies:list' %}" class="card card--link">
-                <span class="card__tag">Catálogo</span>
-                <h3>Películas</h3>
-                <p>Explora el catálogo, lee sinopsis y vota tus favoritas.</p>
+            <a href="{% url 'articles:list' %}" class="card card--link">
+                <span class="card__tag">Tablón</span>
+                <h3>Artículos</h3>
+                <p>Reseñas y noticias escritas por el equipo.</p>
             </a>
             <a href="{% url 'forum:list' %}" class="card card--link">
                 <span class="card__tag">Debate</span>
                 <h3>Foro</h3>
                 <p>Hilos con respuestas anidadas, moderados por el equipo.</p>
-            </a>
-            <a href="{% url 'secret:gate' %}" class="card card--link">
-                <span class="card__tag">Top Secret</span>
-                <h3>Maletín Tarantino</h3>
-                <p>Código de acceso y recomendaciones personales.</p>
             </a>
             {% if user.is_authenticated %}
             <a href="{% url 'social:home' %}" class="card card--link">
@@ -91,6 +86,11 @@
                 <p>Amigos, mensajes y perfiles públicos.</p>
             </a>
             {% endif %}
+            <a href="{% url 'movies:list' %}" class="card card--link">
+                <span class="card__tag">Catálogo</span>
+                <h3>Películas</h3>
+                <p>Explora el catálogo, lee sinopsis y vota tus favoritas.</p>
+            </a>
             <a href="{% url 'games:hub' %}" class="card card--link">
                 <span class="card__tag">Jugar</span>
                 <h3>Juegos</h3>
@@ -100,6 +100,11 @@
                 <span class="card__tag">Tienda</span>
                 <h3>Tienda</h3>
                 <p>Productos de la sala.</p>
+            </a>
+            <a href="{% url 'secret:gate' %}" class="card card--link">
+                <span class="card__tag">Top Secret</span>
+                <h3>Maletín Tarantino</h3>
+                <p>Código de acceso y recomendaciones personales.</p>
             </a>
         </div>
     </div>

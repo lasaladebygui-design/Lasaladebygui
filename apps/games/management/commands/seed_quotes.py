@@ -159,6 +159,29 @@ MOVIE_QUOTES = [
     ("Al fin y al cabo, solo soy una chica, delante de un chico, pidiéndole que la quiera.", "Notting Hill", "Love Actually", "Cuatro bodas y un funeral"),
     ("Estas son algunas de mis cosas favoritas.", "Sonrisas y lágrimas", "Mary Poppins", "Chitty Chitty Bang Bang"),
     ("Un poco de azúcar ayuda a que la medicina baje mejor.", "Mary Poppins", "Sonrisas y lágrimas", "El regreso de Mary Poppins"),
+
+    # Quinta tanda: series (antes solo había películas) y unas cuantas
+    # películas más, sin repetir ninguna de las anteriores.
+    ("Yo soy el peligro.", "Breaking Bad", "Ozark", "El irlandés"),
+    ("Se acerca el invierno.", "Juego de Tronos", "La Casa del Dragón", "Vikingos"),
+    ("Un Lannister siempre paga sus deudas.", "Juego de Tronos", "La Casa del Dragón", "El Señor de los Anillos: Los Anillos de Poder"),
+    ("No sabes nada, Jon Nieve.", "Juego de Tronos", "La Casa del Dragón", "Outlander"),
+    ("Amigos no mienten.", "Stranger Things", "It", "Élite"),
+    ("Bienvenidos al Mundo del Revés.", "Stranger Things", "Oscuro (Dark)", "It"),
+    ("Este atraco lleva mi firma.", "La Casa de Papel", "Sky Rojo", "Élite"),
+    ("Bella ciao.", "La Casa de Papel", "Vis a vis", "Sky Rojo"),
+    ("¡Estábamos en un descanso!", "Friends", "Cómo conocí a vuestra madre", "Sexo en Nueva York"),
+    ("Zaun no necesita un héroe. Necesita un monstruo.", "Arcane", "Castlevania", "Dota: la sangre del dragón"),
+    ("No necesitas que te salven. Necesitas poder.", "Arcane", "Dota: la sangre del dragón", "Castlevania"),
+    ("Por orden de los Peaky Blinders.", "Peaky Blinders", "Vikingos", "Boardwalk Empire"),
+    ("Todo está conectado.", "Dark", "Stranger Things", "Oscuro"),
+    ("Este es el camino.", "The Mandalorian", "Star Wars: Rebels", "Andor"),
+    ("Mmm... donuts.", "Los Simpson", "Padre de familia", "Futurama"),
+    ("Soy alérgica a los colores.", "Merlina", "Sabrina, escalofriantes aventuras", "American Horror Story"),
+    ("Recuerda, recuerda el cinco de noviembre.", "V de Vendetta", "300", "Watchmen"),
+    ("La familia lo es todo.", "Fast & Furious", "Misión: Imposible", "xXx: Triple X"),
+    ("Voy a ser el Rey de los Piratas.", "One Piece", "Naruto", "Dragon Ball Z"),
+    ("Voy a convertirme en el mejor entrenador Pokémon que jamás haya existido.", "Pokémon", "Digimon", "Yu-Gi-Oh!"),
 ]
 
 

@@ -35,6 +35,14 @@ class User(AbstractUser):
         "mejor racha en Frases célebres", default=0,
         help_text="Récord del juego de Top Secret. Se actualiza solo al jugar.",
     )
+    rating_duel_streak_best_movie = models.PositiveIntegerField(
+        "mejor racha en Cuál está mejor valorada (películas)", default=0,
+        help_text="Récord del juego de Juegos. Se actualiza solo al jugar.",
+    )
+    rating_duel_streak_best_tv = models.PositiveIntegerField(
+        "mejor racha en Cuál está mejor valorada (series)", default=0,
+        help_text="Récord del juego de Juegos. Se actualiza solo al jugar.",
+    )
     theme = models.ForeignKey(
         Theme,
         verbose_name="tema personal",
