@@ -34,6 +34,14 @@ if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
     CSRF_TRUSTED_ORIGINS = [f"https://{RENDER_EXTERNAL_HOSTNAME}"]
 
+# Render siempre define RENDER_EXTERNAL_HOSTNAME (no hace falta configurarlo
+# a mano): sirve para detectar "esto es un despliegue real" incluso si
+# alguien ha dejado DEBUG=True puesto por error en el panel — sin esto, un
+# DEBUG=True accidental en Render se saltaría en silencio los "falla alto y
+# claro" de más abajo (DATABASE_URL, Supabase Storage) y volveríamos a
+# perder datos/imágenes sin ningún aviso.
+IS_REAL_DEPLOY = bool(RENDER_EXTERNAL_HOSTNAME) or not DEBUG
+
 # --- Apps --------------------------------------------------------------
 
 INSTALLED_APPS = [
@@ -98,14 +106,13 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 _database_url = env("DATABASE_URL", default="")
 if not _database_url:
-    if DEBUG:
-        _database_url = f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
-    else:
+    if IS_REAL_DEPLOY:
         raise ImproperlyConfigured(
             "DATABASE_URL no está configurada. En producción es obligatoria "
             "(si no, la app perdería todos los datos en cada reinicio al usar "
             "SQLite sobre disco efímero). Configúrala en el panel de Render."
         )
+    _database_url = f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
 DATABASES = {"default": env.db_url_config(_database_url)}
 if DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql":
     DATABASES["default"]["OPTIONS"] = {"sslmode": env("DB_SSLMODE", default="require")}
@@ -168,7 +175,7 @@ USE_SUPABASE_STORAGE = bool(
     SUPABASE_STORAGE_ENDPOINT and SUPABASE_STORAGE_BUCKET and SUPABASE_STORAGE_ACCESS_KEY_ID
 )
 
-if not USE_SUPABASE_STORAGE and not DEBUG:
+if not USE_SUPABASE_STORAGE and IS_REAL_DEPLOY:
     raise ImproperlyConfigured(
         "Faltan las variables de Supabase Storage (SUPABASE_STORAGE_ENDPOINT/"
         "BUCKET/ACCESS_KEY_ID). En producción son obligatorias (si no, las "
@@ -366,11 +373,16 @@ JAZZMIN_SETTINGS = {
     "order_with_respect_to": [
         "articles", "articles.Article", "articles.Tag", "articles.ArticleView", "articles.ArticleComment",
         "forum", "forum.Thread", "forum.ThreadComment", "forum.ThreadRead",
-        "movies",
+        "movies", "movies.Movie", "movies.SavedMovie", "movies.SavedMovieList",
+        "movies.Vote", "movies.RouletteRatingSeen", "movies.RouletteSavedSeen",
         "social",
         "games",
         "shop",
-        "secret",
+        "secret", "secret.SecretMovie", "secret.Genre",
+        "secret.TierListEntry", "secret.TierLevel",
+        "secret.SecretPhoto", "secret.PhotoBoardMember",
+        "secret.ReleaseEvent", "secret.CalendarDayNote",
+        "secret.TopSecretConfig",
         "accounts",
         "core",
         "auth",

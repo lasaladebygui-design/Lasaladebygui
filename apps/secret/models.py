@@ -220,8 +220,8 @@ class PhotoBoardMember(models.Model):
     invited_at = models.DateTimeField("invitado", auto_now_add=True)
 
     class Meta:
-        verbose_name = "acceso al tablón de fotos"
-        verbose_name_plural = "Top Secret: accesos al tablón de fotos"
+        verbose_name = "permiso al tablón de fotos"
+        verbose_name_plural = "Top Secret: permisos al tablón de fotos"
         constraints = [
             models.UniqueConstraint(fields=["owner", "member"], name="un_acceso_por_dueno_y_miembro"),
         ]

@@ -20,28 +20,25 @@
             {% endif %}
         </div>
 
-        <div class="favorites-note" x-data="{ noteOpen: {% if editable %}false{% else %}true{% endif %} }">
-            {% if editable %}
-            <button type="button" class="link-btn favorites-note__toggle" @click="noteOpen = !noteOpen">
-                {% if category_note %}💬 Editar por qué{% else %}💬 Explica por qué{% endif %}
-            </button>
-            <div x-show="noteOpen" x-cloak class="favorites-note__edit">
-                <form method="post" action="{% url 'accounts:favorite-category-note' category=category %}">
-                    {% csrf_token %}
-                    <textarea name="note" maxlength="280" placeholder="{% if category == 'essential' %}¿Por qué son imprescindibles?{% else %}¿Por qué las recomiendas?{% endif %}">{{ category_note }}</textarea>
-                    <button type="submit" class="btn btn--accent btn--sm">Guardar</button>
-                </form>
-            </div>
-            {% elif category_note %}
-            <p class="favorites-note__text">💬 {{ category_note }}</p>
-            {% endif %}
-        </div>
-
         {% if category == "essential" %}
             {% include "accounts/_favorite_movies_group.html" with group_title="Mis imprescindibles" category="essential" movies=essential_movies series=essential_tv editable=editable %}
         {% else %}
             {% include "accounts/_favorite_movies_group.html" with group_title="Sugeridas" category="suggested" movies=suggested_movies series=suggested_tv editable=editable %}
         {% endif %}
+
+        <div class="favorites-note">
+            {% if editable %}
+            <form method="post" action="{% url 'accounts:favorite-category-note' category=category %}">
+                {% csrf_token %}
+                <label for="id_category_note">{% if category == 'essential' %}¿Por qué son imprescindibles?{% else %}¿Por qué las recomiendas?{% endif %}</label>
+                <textarea id="id_category_note" name="note" maxlength="280" placeholder="Escribe aquí y guarda...">{{ category_note }}</textarea>
+                <button type="submit" class="btn btn--accent btn--sm">Guardar</button>
+            </form>
+            {% elif category_note %}
+            <p class="favorites-note__label muted">{% if category == 'essential' %}Por qué son imprescindibles{% else %}Por qué las recomienda{% endif %}</p>
+            <p class="favorites-note__text">{{ category_note }}</p>
+            {% endif %}
+        </div>
     </div>
 </section>
 {% endblock %}
