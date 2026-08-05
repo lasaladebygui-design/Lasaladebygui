@@ -52,6 +52,13 @@ class User(AbstractUser):
         blank=True,
         related_name="+",
     )
+    show_intro_animation = models.BooleanField(
+        "animación de intro", null=True, blank=True, default=None,
+        help_text="Vacío = usa el ajuste del sitio. Marcado/desmarcado = lo fuerza para ti, ajustable en Ajustes.",
+    )
+    hide_pwa_install_prompt = models.BooleanField(
+        "ocultar sugerencia de instalar la app", default=False,
+    )
     essential_note = models.TextField(
         "por qué son imprescindibles", max_length=280, blank=True,
         help_text="Un único texto para todo el apartado (no por película). Visible para cualquiera que vea tu perfil.",

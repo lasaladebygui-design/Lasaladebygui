@@ -10,6 +10,10 @@ urlpatterns = [
     path("login/", views.EmailLoginView.as_view(), name="login"),
     path("logout/", views.logout_view, name="logout"),
     path("perfil/", views.profile, name="profile"),
+    path("perfil/ajustes/", views.settings_page, name="settings"),
+    path("perfil/ajustes/animacion/", views.set_intro_animation, name="set-intro-animation"),
+    path("perfil/ajustes/instalar-app/", views.toggle_pwa_prompt, name="toggle-pwa-prompt"),
+    path("perfil/ajustes/email/", views.change_email, name="change-email"),
     path("perfil/favoritas/<str:category>/", views.favorites_page, name="favorites-page"),
     path("perfil/favoritas/<str:category>/<str:media_type>/buscar/", views.favorite_search, name="favorite-search"),
     path("perfil/favoritas/<str:category>/<str:media_type>/anadir/<int:tmdb_id>/", views.favorite_add, name="favorite-add"),
@@ -51,5 +55,18 @@ urlpatterns = [
         "password/reset/completado/",
         auth_views.PasswordResetCompleteView.as_view(template_name="accounts/password_reset_complete.html"),
         name="password-reset-complete",
+    ),
+    path(
+        "perfil/ajustes/contrasena/",
+        auth_views.PasswordChangeView.as_view(
+            template_name="accounts/password_change_form.html",
+            success_url=reverse_lazy("accounts:password-change-done"),
+        ),
+        name="password-change",
+    ),
+    path(
+        "perfil/ajustes/contrasena/hecho/",
+        auth_views.PasswordChangeDoneView.as_view(template_name="accounts/password_change_done.html"),
+        name="password-change-done",
     ),
 ]

@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Ajustes{% endblock %}
+
+{% block extra_head %}
+<script src="{% static 'js/avatar_cropper.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <div class="section-header">
+            <div>
+                <span class="card__tag">Tu cuenta</span>
+                <h1>⚙️ Ajustes</h1>
+            </div>
+            <a href="{% url 'accounts:profile' %}" class="btn btn--ghost">← Volver al perfil</a>
+        </div>
+
+        <div class="settings-group">
+            <h2>Tu cuenta</h2>
+            <p class="muted">Rango: <strong>{{ user.get_role_display }}</strong></p>
+
+            {% if site_config.require_email_verification %}
+                {% if user.email_verified %}
+                <p class="muted">✅ Email verificado</p>
+                {% else %}
+                <div>
+                    <p class="field-errors">⚠️ Todavía no has verificado tu email. Revisa tu bandeja de entrada (y spam).</p>
+                    <form method="post" action="{% url 'accounts:resend-verification' %}" class="inline-form">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn--ghost btn--sm">Reenviar email de verificación</button>
+                    </form>
+                </div>
+                {% endif %}
+            {% endif %}
+
+            <form method="post" enctype="multipart/form-data" class="stacked-form" style="margin-top:1rem;">
+                {% csrf_token %}
+                <div class="field avatar-editor" x-data="avatarCropper('{% if user.avatar %}{{ user.avatar.url }}{% endif %}')">
+                    <button type="button" class="avatar-editor__button" @click="$refs.fileInput.click()">
+                        <template x-if="previewUrl">
+                            <img :src="previewUrl" alt="" class="profile-avatar">
+                        </template>
+                        <template x-if="!previewUrl">
+                            <span class="profile-avatar profile-avatar--placeholder" aria-hidden="true">🎬</span>
+                        </template>
+                        <span class="avatar-editor__label">Cambiar foto</span>
+                    </button>
+                    <input type="file" name="avatar" accept="image/*" x-ref="fileInput" @change="onFileSelected($event)" class="visually-hidden">
+                    {% for error in form.avatar.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
+
+                    <div class="avatar-crop-modal" x-show="cropping" x-cloak style="display:none;">
+                        <div class="avatar-crop-modal__card" @click.outside="cancelCrop()">
+                            <p class="avatar-crop-modal__title">Encuadra tu foto</p>
+                            <div class="avatar-crop-modal__stage"
+                                 @mousedown="startDrag($event)" @mousemove="onDrag($event)" @mouseup="endDrag()" @mouseleave="endDrag()"
+                                 @touchstart="startDrag($event)" @touchmove="onDrag($event)" @touchend="endDrag()">
+                                <img x-ref="cropImg" :src="rawImageUrl" @load="onImageLoad()" :style="imageStyle()" draggable="false" class="avatar-crop-modal__image">
+                            </div>
+                            <input type="range" min="1" max="3" step="0.01" x-model.number="zoom" @input="onZoom()" class="avatar-crop-modal__zoom">
+                            <div class="avatar-crop-modal__actions">
+                                <button type="button" class="btn btn--ghost btn--sm" @click="cancelCrop()">Cancelar</button>
+                                <button type="button" class="btn btn--accent btn--sm" @click="applyCrop()">Aplicar recorte</button>
+                            </div>
+                        </div>
+                    </div>
+                    <canvas x-ref="canvas" width="480" height="480" class="visually-hidden"></canvas>
+                </div>
+                <button type="submit" class="btn btn--accent btn--sm">Guardar foto</button>
+            </form>
+        </div>
+
+        <div class="settings-group" x-data="themeSwitcher()">
+            <h2>Apariencia</h2>
+            <p class="muted">Tema visual — se aplica al momento.</p>
+            <div class="settings-group__row">
+                {% for theme in all_themes %}
+                <button type="button" class="btn btn--sm {% if theme.pk == site_theme.pk %}btn--accent{% else %}btn--ghost{% endif %}" @click="choose('{{ theme.slug }}')">{{ theme.name }}</button>
+                {% endfor %}
+                {% if user.theme_id %}
+                <button type="button" class="link-btn" @click="reset()">Usar tema del sitio</button>
+                {% endif %}
+            </div>
+
+            <p class="muted" style="margin-top:1rem;">Animación de intro al entrar en la web.</p>
+            <div class="settings-group__row">
+                <form method="post" action="{% url 'accounts:set-intro-animation' %}" class="inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="value" value="on">
+                    <button type="submit" class="btn btn--sm {% if user.show_intro_animation == True %}btn--accent{% else %}btn--ghost{% endif %}">Activada</button>
+                </form>
+                <form method="post" action="{% url 'accounts:set-intro-animation' %}" class="inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="value" value="off">
+                    <button type="submit" class="btn btn--sm {% if user.show_intro_animation == False %}btn--accent{% else %}btn--ghost{% endif %}">Desactivada</button>
+                </form>
+                <form method="post" action="{% url 'accounts:set-intro-animation' %}" class="inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="value" value="site">
+                    <button type="submit" class="btn btn--sm {% if user.show_intro_animation == None %}btn--accent{% else %}btn--ghost{% endif %}">Como el sitio</button>
+                </form>
+            </div>
+
+            <p class="muted" style="margin-top:1rem;">Sugerencia de instalar la app (banner "📱 Instala La Sala de Bygui").</p>
+            <form method="post" action="{% url 'accounts:toggle-pwa-prompt' %}" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn--sm {% if user.hide_pwa_install_prompt %}btn--ghost{% else %}btn--accent{% endif %}">
+                    {% if user.hide_pwa_install_prompt %}No mostrar (desactivada){% else %}Mostrar sugerencia{% endif %}
+                </button>
+            </form>
+            <div class="settings-group__row" style="margin-top:0.6rem;">
+                <span class="settings-group__placeholder" title="Próximamente">Vista dinámica / estática (próximamente, todavía no hace nada)</span>
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <h2>Notificaciones</h2>
+            {% if vapid_public_key %}
+            <button type="button" class="btn btn--ghost"
+                    data-push-subscribe
+                    data-subscribe-url="{% url 'accounts:push-subscribe' %}"
+                    data-unsubscribe-url="{% url 'accounts:push-unsubscribe' %}">
+                🔔 Activar notificaciones
+            </button>
+            {% else %}
+            <p class="muted">Las notificaciones push no están disponibles ahora mismo.</p>
+            {% endif %}
+        </div>
+
+        {% if google_calendar_enabled %}
+        <div class="settings-group">
+            <h2>Google Calendar</h2>
+            {% if google_calendar_connected %}
+            <form method="post" action="{% url 'accounts:google-calendar-disconnect' %}" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn--accent btn--sm" title="Pulsa para desconectar">📆 Conectado — desconectar</button>
+            </form>
+            {% else %}
+            <a href="{% url 'accounts:google-calendar-connect' %}" class="btn btn--ghost btn--sm">📆 Conectar con Google Calendar</a>
+            {% endif %}
+            <p class="muted" style="margin-top:0.4rem;">Los estrenos de tu <a href="{% url 'secret:calendar' %}">calendario</a> se crearán solos ahí también.</p>
+        </div>
+        {% endif %}
+
+        <div class="settings-group">
+            <h2>Correo y contraseña</h2>
+            <form method="post" action="{% url 'accounts:change-email' %}" class="stacked-form">
+                {% csrf_token %}
+                <div class="field">
+                    <label for="id_settings_email">Email</label>
+                    <input type="email" id="id_settings_email" name="email" value="{{ user.email }}" required>
+                </div>
+                <button type="submit" class="btn btn--ghost btn--sm">Cambiar email</button>
+            </form>
+            <a href="{% url 'accounts:password-change' %}" class="btn btn--ghost btn--sm" style="margin-top:0.8rem;">Cambiar contraseña</a>
+        </div>
+
+        <form method="post" action="{% url 'accounts:logout' %}" class="settings-group">
+            {% csrf_token %}
+            <button type="submit" class="btn btn--ghost btn--block">Cerrar sesión</button>
+        </form>
+    </div>
+</section>
+{% endblock %}

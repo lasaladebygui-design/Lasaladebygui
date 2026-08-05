@@ -13,8 +13,16 @@ class MovieQuote(models.Model):
     (`/juegos/frases/`) desde hace tiempo. `db_table` apunta a la tabla
     original para no mover datos."""
 
+    class MediaType(models.TextChoices):
+        MOVIE = "movie", "Película"
+        TV = "tv", "Serie"
+
     quote = models.TextField("frase")
-    correct_title = models.CharField("película correcta", max_length=255)
+    media_type = models.CharField(
+        "tipo", max_length=5, choices=MediaType.choices, default=MediaType.MOVIE,
+        help_text="Las tres opciones (correcta + 2 incorrectas) deben ser del mismo tipo, para no tener que elegir entre una peli y una serie.",
+    )
+    correct_title = models.CharField("título correcto", max_length=255)
     wrong_title_1 = models.CharField("opción incorrecta 1", max_length=255)
     wrong_title_2 = models.CharField("opción incorrecta 2", max_length=255)
 

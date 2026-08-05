@@ -20,6 +20,7 @@
     }
 
     if (isStandalone()) return;
+    if (window.BYGUI_HIDE_PWA_PROMPT) return;
 
     var deferredPrompt = null;
 

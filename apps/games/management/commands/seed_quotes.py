@@ -160,26 +160,34 @@ MOVIE_QUOTES = [
     ("Estas son algunas de mis cosas favoritas.", "Sonrisas y lágrimas", "Mary Poppins", "Chitty Chitty Bang Bang"),
     ("Un poco de azúcar ayuda a que la medicina baje mejor.", "Mary Poppins", "Sonrisas y lágrimas", "El regreso de Mary Poppins"),
 
-    # Quinta tanda: series (antes solo había películas) y unas cuantas
-    # películas más, sin repetir ninguna de las anteriores.
-    ("Yo soy el peligro.", "Breaking Bad", "Ozark", "El irlandés"),
+    # Quinta tanda: un par de películas más (las series van aparte, en
+    # SERIES_QUOTES — el juego no mezcla nunca una peli con una serie entre
+    # las opciones de una misma pregunta).
+    ("Recuerda, recuerda el cinco de noviembre.", "V de Vendetta", "300", "Watchmen"),
+    ("La familia lo es todo.", "Fast & Furious", "Misión: Imposible", "xXx: Triple X"),
+]
+
+
+# Frases de series — en tabla aparte (no en MOVIE_QUOTES) para que las
+# opciones de una pregunta sean siempre del mismo tipo: nunca toca elegir
+# entre un título de serie y uno de película en la misma pregunta.
+SERIES_QUOTES = [
+    ("Yo soy el peligro.", "Breaking Bad", "Ozark", "Better Call Saul"),
     ("Se acerca el invierno.", "Juego de Tronos", "La Casa del Dragón", "Vikingos"),
-    ("Un Lannister siempre paga sus deudas.", "Juego de Tronos", "La Casa del Dragón", "El Señor de los Anillos: Los Anillos de Poder"),
+    ("Un Lannister siempre paga sus deudas.", "Juego de Tronos", "La Casa del Dragón", "El Señor de los Anillos: los Anillos de Poder"),
     ("No sabes nada, Jon Nieve.", "Juego de Tronos", "La Casa del Dragón", "Outlander"),
-    ("Amigos no mienten.", "Stranger Things", "It", "Élite"),
-    ("Bienvenidos al Mundo del Revés.", "Stranger Things", "Oscuro (Dark)", "It"),
+    ("Amigos no mienten.", "Stranger Things", "Élite", "13 Reasons Why"),
+    ("Bienvenidos al Mundo del Revés.", "Stranger Things", "El juego del calamar", "Élite"),
     ("Este atraco lleva mi firma.", "La Casa de Papel", "Sky Rojo", "Élite"),
     ("Bella ciao.", "La Casa de Papel", "Vis a vis", "Sky Rojo"),
     ("¡Estábamos en un descanso!", "Friends", "Cómo conocí a vuestra madre", "Sexo en Nueva York"),
     ("Zaun no necesita un héroe. Necesita un monstruo.", "Arcane", "Castlevania", "Dota: la sangre del dragón"),
     ("No necesitas que te salven. Necesitas poder.", "Arcane", "Dota: la sangre del dragón", "Castlevania"),
     ("Por orden de los Peaky Blinders.", "Peaky Blinders", "Vikingos", "Boardwalk Empire"),
-    ("Todo está conectado.", "Dark", "Stranger Things", "Oscuro"),
+    ("Todo está conectado.", "Dark", "Stranger Things", "El juego del calamar"),
     ("Este es el camino.", "The Mandalorian", "Star Wars: Rebels", "Andor"),
     ("Mmm... donuts.", "Los Simpson", "Padre de familia", "Futurama"),
     ("Soy alérgica a los colores.", "Merlina", "Sabrina, escalofriantes aventuras", "American Horror Story"),
-    ("Recuerda, recuerda el cinco de noviembre.", "V de Vendetta", "300", "Watchmen"),
-    ("La familia lo es todo.", "Fast & Furious", "Misión: Imposible", "xXx: Triple X"),
     ("Voy a ser el Rey de los Piratas.", "One Piece", "Naruto", "Dragon Ball Z"),
     ("Voy a convertirme en el mejor entrenador Pokémon que jamás haya existido.", "Pokémon", "Digimon", "Yu-Gi-Oh!"),
 ]
@@ -224,21 +232,36 @@ class Command(BaseCommand):
             if updated:
                 self.stdout.write(self.style.WARNING(f"Corregida: «{old_text}» -> «{new_text}»"))
 
-    def handle(self, *args, **options):
-        self._apply_fixes()
-
+    def _seed(self, quotes, media_type):
         created_count = 0
-        for quote, correct, wrong1, wrong2 in MOVIE_QUOTES:
-            _, created = MovieQuote.objects.get_or_create(
+        for quote, correct, wrong1, wrong2 in quotes:
+            obj, created = MovieQuote.objects.get_or_create(
                 quote=quote,
-                defaults={"correct_title": correct, "wrong_title_1": wrong1, "wrong_title_2": wrong2},
+                defaults={
+                    "media_type": media_type, "correct_title": correct,
+                    "wrong_title_1": wrong1, "wrong_title_2": wrong2,
+                },
             )
             if created:
                 created_count += 1
                 self.stdout.write(self.style.SUCCESS(f"Frase célebre creada: «{quote}»"))
             else:
+                # Backfill: frases sembradas antes de que existiera el campo
+                # media_type (todas caían por defecto en "movie").
+                if obj.media_type != media_type:
+                    obj.media_type = media_type
+                    obj.save(update_fields=["media_type"])
                 self.stdout.write(f"Ya existía la frase «{quote}», no se modifica.")
+        return created_count
+
+    def handle(self, *args, **options):
+        self._apply_fixes()
+
+        movie_created = self._seed(MOVIE_QUOTES, MovieQuote.MediaType.MOVIE)
+        series_created = self._seed(SERIES_QUOTES, MovieQuote.MediaType.TV)
+        total = len(MOVIE_QUOTES) + len(SERIES_QUOTES)
+        created_count = movie_created + series_created
 
         self.stdout.write(self.style.SUCCESS(
-            f"Seed de frases célebres completado: {created_count} nuevas, {len(MOVIE_QUOTES) - created_count} ya existían."
+            f"Seed de frases célebres completado: {created_count} nuevas, {total - created_count} ya existían."
         ))

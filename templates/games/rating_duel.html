@@ -6,18 +6,24 @@
 <section class="section">
     <div class="wrap wrap--narrow">
         <span class="card__tag">Juegos</span>
-        <h1>¿Cuál está mejor valorada?</h1>
+        <h1>⭐ ¿Cuál está mejor valorada?</h1>
 
         <div class="media-type-toggle">
             <a href="?type=movie" class="btn btn--sm {% if media_type == 'movie' %}btn--accent{% else %}btn--ghost{% endif %}">Películas</a>
             <a href="?type=tv" class="btn btn--sm {% if media_type == 'tv' %}btn--accent{% else %}btn--ghost{% endif %}">Series</a>
+            <a href="?type={{ media_type }}&anon={% if anon_mode %}0{% else %}1{% endif %}" class="btn btn--sm {% if anon_mode %}btn--accent{% else %}btn--ghost{% endif %}" title="Modo anónimo: nunca se revela la nota exacta, solo si acertaste">
+                {% if anon_mode %}🙈 Modo anónimo{% else %}👁️ Ver notas{% endif %}
+            </a>
         </div>
 
-        <p class="quote-game__score">Racha actual: <strong>{{ streak }}</strong> · Mejor racha: <strong>{{ best }}</strong></p>
+        <div class="rating-duel__scoreboard">
+            <span>Racha actual: <strong>{{ streak }}</strong></span>
+            <span>Mejor racha: <strong>{{ best }}</strong></span>
+        </div>
 
         {% if not user.is_authenticated %}
         <p class="muted">
-            <a href="{% url 'accounts:login' %}?next={{ request.path }}">Inicia sesión</a> para que tu mejor racha quede guardada en tu perfil.
+            <a href="{% url 'accounts:login' %}?next={{ request.path }}">Inicia sesión</a> para que tu mejor racha quede guardada en tu perfil — también puedes jugar sin cuenta.
         </p>
         {% endif %}
 
@@ -30,10 +36,11 @@
             <a href="{% url 'games:rating-duel' %}?type={{ media_type }}" class="btn btn--accent btn--block">Jugar de nuevo</a>
         </div>
         {% elif left and right %}
-        <p class="muted">Elige la que creas que tiene mejor nota IMDb.</p>
+        <p class="muted rating-duel__hint">Elige la que creas que tiene mejor nota IMDb.</p>
         <form method="post" class="rating-duel">
             {% csrf_token %}
             <input type="hidden" name="type" value="{{ media_type }}">
+            <input type="hidden" name="anon" value="{% if anon_mode %}1{% else %}0{% endif %}">
             <input type="hidden" name="left_id" value="{{ left.pk }}">
             <input type="hidden" name="right_id" value="{{ right.pk }}">
             <button type="submit" name="choice" value="left" class="rating-duel__card">
@@ -42,7 +49,10 @@
                 {% else %}
                     <div class="rating-duel__poster rating-duel__poster--placeholder"><span>🎬</span></div>
                 {% endif %}
-                <span class="rating-duel__title">{{ left.title }}</span>
+                <span class="rating-duel__overlay">
+                    <span class="rating-duel__title">{{ left.title }}</span>
+                    {% if left.year %}<span class="rating-duel__year">{{ left.year }}</span>{% endif %}
+                </span>
             </button>
             <span class="rating-duel__vs">VS</span>
             <button type="submit" name="choice" value="right" class="rating-duel__card">
@@ -51,7 +61,10 @@
                 {% else %}
                     <div class="rating-duel__poster rating-duel__poster--placeholder"><span>🎬</span></div>
                 {% endif %}
-                <span class="rating-duel__title">{{ right.title }}</span>
+                <span class="rating-duel__overlay">
+                    <span class="rating-duel__title">{{ right.title }}</span>
+                    {% if right.year %}<span class="rating-duel__year">{{ right.year }}</span>{% endif %}
+                </span>
             </button>
         </form>
         {% else %}

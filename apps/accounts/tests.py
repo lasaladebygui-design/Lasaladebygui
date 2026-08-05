@@ -180,10 +180,10 @@ class ProfileTests(TestCase):
         self.client.login(username=self.user.email, password="Testpass123!")
 
     def test_subir_avatar(self):
-        response = self.client.post(reverse("accounts:profile"), {
+        response = self.client.post(reverse("accounts:settings"), {
             "avatar": _fake_image(),
         })
-        self.assertRedirects(response, reverse("accounts:profile"))
+        self.assertRedirects(response, reverse("accounts:settings"))
         self.user.refresh_from_db()
         self.assertTrue(self.user.avatar.name.startswith("avatars/"))
 
@@ -202,8 +202,16 @@ class ProfileTests(TestCase):
         self.assertContains(response, "rotating-quotes-data")
         self.assertContains(response, "Frase de prueba sin caracteres especiales")
 
-    def test_el_perfil_tiene_boton_de_cerrar_sesion(self):
+    def test_el_perfil_enlaza_a_ajustes_no_a_cerrar_sesion_directamente(self):
+        # El "Salir" del menú ☰ de la cabecera sale en todas las páginas (no
+        # es esto lo que se comprueba); lo que no debe tener el propio
+        # cuerpo del perfil es su antiguo botón "Cerrar sesión".
         response = self.client.get(reverse("accounts:profile"))
+        self.assertContains(response, reverse("accounts:settings"))
+        self.assertNotContains(response, "Cerrar sesión")
+
+    def test_ajustes_tiene_boton_de_cerrar_sesion(self):
+        response = self.client.get(reverse("accounts:settings"))
         self.assertContains(response, reverse("accounts:logout"))
         self.assertContains(response, "Cerrar sesión")
 
@@ -246,10 +254,10 @@ class NavPanelLinkTests(TestCase):
 
 
 class ProfileEmailVerificationStatusTests(TestCase):
-    """El perfil debe reflejar si el email está verificado y ofrecer
-    reenviar el correo — antes esto no tenía ningún hueco visible en la web,
-    así que no había forma de saber si el email de verificación se había
-    perdido o de pedir que se reenviara."""
+    """Ajustes debe reflejar si el email está verificado y ofrecer reenviar
+    el correo — antes esto no tenía ningún hueco visible en la web, así que
+    no había forma de saber si el email de verificación se había perdido o
+    de pedir que se reenviara."""
 
     def setUp(self):
         from apps.core.models import SiteConfig
@@ -264,14 +272,14 @@ class ProfileEmailVerificationStatusTests(TestCase):
         self.client.login(username=self.user.email, password="Testpass123!")
 
     def test_muestra_aviso_y_boton_de_reenviar_si_no_esta_verificado(self):
-        response = self.client.get(reverse("accounts:profile"))
+        response = self.client.get(reverse("accounts:settings"))
         self.assertContains(response, "no has verificado")
         self.assertContains(response, reverse("accounts:resend-verification"))
 
     def test_muestra_verificado_si_ya_lo_esta(self):
         self.user.email_verified = True
         self.user.save()
-        response = self.client.get(reverse("accounts:profile"))
+        response = self.client.get(reverse("accounts:settings"))
         self.assertContains(response, "Email verificado")
         self.assertNotContains(response, "no has verificado")
 
@@ -287,9 +295,103 @@ class ProfileEmailVerificationStatusTests(TestCase):
         config.require_email_verification = False
         config.save()
 
-        response = self.client.get(reverse("accounts:profile"))
+        response = self.client.get(reverse("accounts:settings"))
         self.assertNotContains(response, "no has verificado")
         self.assertNotContains(response, "Email verificado")
+
+
+class SettingsPageTests(TestCase):
+    """Ajustes reúne lo que antes vivía suelto por el perfil (o no existía):
+    rango, tema, animación de intro, sugerencia de instalar la app,
+    notificaciones, Google Calendar, cambiar email/contraseña y cerrar
+    sesión — el perfil se queda solo con la frase dinámica, las rachas de
+    juegos, imprescindibles/sugeridas y el botón a Ajustes."""
+
+    def setUp(self):
+        self.user = User.objects.create(email="ajustes@test.local", role=User.Role.EDITOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+    def test_requiere_login(self):
+        self.client.logout()
+        response = self.client.get(reverse("accounts:settings"))
+        self.assertRedirects(response, f"{reverse('accounts:login')}?next={reverse('accounts:settings')}")
+
+    def test_muestra_el_rango(self):
+        response = self.client.get(reverse("accounts:settings"))
+        self.assertContains(response, "Editor")
+
+    def test_activar_animacion_de_intro(self):
+        self.client.post(reverse("accounts:set-intro-animation"), {"value": "on"})
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.show_intro_animation)
+
+    def test_desactivar_animacion_de_intro(self):
+        self.client.post(reverse("accounts:set-intro-animation"), {"value": "off"})
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.show_intro_animation)
+
+    def test_animacion_como_el_sitio_limpia_la_preferencia(self):
+        self.user.show_intro_animation = True
+        self.user.save(update_fields=["show_intro_animation"])
+        self.client.post(reverse("accounts:set-intro-animation"), {"value": "site"})
+        self.user.refresh_from_db()
+        self.assertIsNone(self.user.show_intro_animation)
+
+    def test_alternar_sugerencia_de_instalar_la_app(self):
+        self.assertFalse(self.user.hide_pwa_install_prompt)
+        self.client.post(reverse("accounts:toggle-pwa-prompt"))
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.hide_pwa_install_prompt)
+        self.client.post(reverse("accounts:toggle-pwa-prompt"))
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.hide_pwa_install_prompt)
+
+    def test_cambiar_email(self):
+        response = self.client.post(reverse("accounts:change-email"), {"email": "nuevo@test.local"})
+        self.assertRedirects(response, reverse("accounts:settings"))
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, "nuevo@test.local")
+
+    def test_cambiar_email_a_uno_ya_usado_no_lo_cambia(self):
+        User.objects.create(email="ocupado@test.local", role=User.Role.LECTOR)
+        self.client.post(reverse("accounts:change-email"), {"email": "ocupado@test.local"})
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, "ajustes@test.local")
+
+    def test_cambiar_email_invalido_no_lo_cambia(self):
+        self.client.post(reverse("accounts:change-email"), {"email": "no-es-un-email"})
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, "ajustes@test.local")
+
+    def test_cambiar_email_exige_verificacion_si_esta_activada(self):
+        from apps.core.models import SiteConfig
+
+        config = SiteConfig.load()
+        config.require_email_verification = True
+        config.save()
+        self.user.email_verified = True
+        self.user.save(update_fields=["email_verified"])
+
+        self.client.post(reverse("accounts:change-email"), {"email": "nuevo2@test.local"})
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.email_verified)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_pagina_de_cambiar_contrasena_accesible(self):
+        response = self.client.get(reverse("accounts:password-change"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_cambiar_contrasena(self):
+        response = self.client.post(reverse("accounts:password-change"), {
+            "old_password": "Testpass123!",
+            "new_password1": "OtraClaveSegura9!",
+            "new_password2": "OtraClaveSegura9!",
+        })
+        self.assertRedirects(response, reverse("accounts:password-change-done"))
+        self.client.logout()
+        self.assertTrue(self.client.login(username=self.user.email, password="OtraClaveSegura9!"))
 
 
 class FavoriteMovieTests(TestCase):

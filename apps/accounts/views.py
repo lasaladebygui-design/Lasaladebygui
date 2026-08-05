@@ -7,7 +7,9 @@ from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
+from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
+from django.core.validators import validate_email
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -98,21 +100,83 @@ def verify_email(request, token):
 
 @login_required
 def profile(request):
-    if request.method == "POST":
-        form = ProfileForm(request.POST, request.FILES, instance=request.user)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Perfil actualizado.")
-            return redirect("accounts:profile")
-    else:
-        form = ProfileForm(instance=request.user)
-
     context = {
-        "form": form,
         "essential_count": FavoriteMovie.objects.filter(user=request.user, category="essential").count(),
         "suggested_count": FavoriteMovie.objects.filter(user=request.user, category="suggested").count(),
     }
     return render(request, "accounts/profile.html", context)
+
+
+@login_required
+def settings_page(request):
+    if request.method == "POST":
+        form = ProfileForm(request.POST, request.FILES, instance=request.user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Foto de perfil actualizada.")
+            return redirect("accounts:settings")
+    else:
+        form = ProfileForm(instance=request.user)
+
+    return render(request, "accounts/settings.html", {
+        "form": form,
+        "google_calendar_enabled": google_calendar_enabled(),
+        "google_calendar_connected": hasattr(request.user, "google_calendar_connection"),
+    })
+
+
+@login_required
+@require_POST
+def set_intro_animation(request):
+    value = request.POST.get("value")
+    if value == "on":
+        request.user.show_intro_animation = True
+    elif value == "off":
+        request.user.show_intro_animation = False
+    else:
+        request.user.show_intro_animation = None
+    request.user.save(update_fields=["show_intro_animation"])
+    messages.success(request, "Preferencia de animación guardada.")
+    return redirect("accounts:settings")
+
+
+@login_required
+@require_POST
+def toggle_pwa_prompt(request):
+    request.user.hide_pwa_install_prompt = not request.user.hide_pwa_install_prompt
+    request.user.save(update_fields=["hide_pwa_install_prompt"])
+    return redirect("accounts:settings")
+
+
+@login_required
+@require_POST
+def change_email(request):
+    new_email = request.POST.get("email", "").strip().lower()
+    try:
+        validate_email(new_email)
+    except ValidationError:
+        messages.error(request, "Ese email no es válido.")
+        return redirect("accounts:settings")
+
+    if User.objects.filter(email=new_email).exclude(pk=request.user.pk).exists():
+        messages.error(request, "Ya hay una cuenta con ese email.")
+        return redirect("accounts:settings")
+
+    if new_email == request.user.email:
+        messages.info(request, "Ese ya es tu email.")
+        return redirect("accounts:settings")
+
+    request.user.email = new_email
+    config = SiteConfig.load()
+    request.user.email_verified = not config.require_email_verification
+    request.user.save(update_fields=["email", "email_verified"])
+
+    if config.require_email_verification:
+        _send_verification_email(request, request.user)
+        messages.success(request, "Email actualizado. Te hemos enviado un correo para confirmarlo.")
+    else:
+        messages.success(request, "Email actualizado.")
+    return redirect("accounts:settings")
 
 
 def _favorites_context(favorites):

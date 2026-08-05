@@ -1437,47 +1437,116 @@ main { flex: 1; }
 
 /* --- Juego: Cuál está mejor valorada ---------------------------------- */
 
-.rating-duel {
+.rating-duel__scoreboard {
     display: flex;
-    align-items: center;
+    gap: calc(var(--space-unit) * 5);
+    margin: calc(var(--space-unit) * 2) 0 calc(var(--space-unit) * 4);
+    font-size: 0.95rem;
+    color: var(--color-text-muted);
+}
+.rating-duel__scoreboard strong { color: var(--color-text); font-size: 1.1rem; }
+.rating-duel__hint { text-align: center; margin-bottom: calc(var(--space-unit) * 4); }
+
+.rating-duel {
+    position: relative;
+    display: flex;
+    align-items: stretch;
     justify-content: center;
-    gap: calc(var(--space-unit) * 4);
+    gap: calc(var(--space-unit) * 3);
 }
 .rating-duel__card {
+    position: relative;
     flex: 1;
-    max-width: 220px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: calc(var(--space-unit) * 2);
-    padding: calc(var(--space-unit) * 3);
+    max-width: 260px;
+    aspect-ratio: 2 / 3;
+    display: block;
+    padding: 0;
     background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-base);
+    border: 2px solid var(--color-border);
+    border-radius: calc(var(--radius-base) * 1.5);
+    overflow: hidden;
     cursor: pointer;
     font: inherit;
     color: var(--color-text);
-    text-align: center;
+    text-align: left;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.rating-duel__card:hover { border-color: var(--color-accent); }
+.rating-duel__card:hover,
+.rating-duel__card:focus-visible {
+    border-color: var(--color-accent);
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+}
 .rating-duel__poster {
     width: 100%;
-    aspect-ratio: 2 / 3;
+    height: 100%;
     object-fit: cover;
-    border-radius: var(--radius-base);
-    background: var(--color-bg);
+    display: block;
 }
 .rating-duel__poster--placeholder {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2.5rem;
+    font-size: 3rem;
+    background: var(--color-bg);
 }
-.rating-duel__title { font-weight: 600; }
-.rating-duel__vs { font-family: var(--font-heading); font-size: 1.3rem; color: var(--color-text-muted); flex-shrink: 0; }
-@media (max-width: 500px) {
-    .rating-duel { flex-direction: column; }
-    .rating-duel__card { max-width: 100%; width: 100%; }
+.rating-duel__overlay {
+    position: absolute;
+    inset: auto 0 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: calc(var(--space-unit) * 5) calc(var(--space-unit) * 3) calc(var(--space-unit) * 3);
+    background: linear-gradient(0deg, rgba(0, 0, 0, 0.85) 10%, rgba(0, 0, 0, 0) 100%);
+}
+.rating-duel__title { font-weight: 700; color: #fff; line-height: 1.25; }
+.rating-duel__year { font-size: 0.8rem; color: rgba(255, 255, 255, 0.75); }
+.rating-duel__vs {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    background: var(--color-accent);
+    color: var(--color-on-accent-secondary, #fff);
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 700;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+}
+@media (max-width: 560px) {
+    .rating-duel { flex-direction: column; align-items: center; }
+    .rating-duel__card { max-width: 280px; width: 100%; }
+    .rating-duel__vs { position: static; transform: none; margin: calc(var(--space-unit) * -2) auto; }
+}
+
+/* --- Ajustes (perfil) --------------------------------------------------- */
+
+.settings-group {
+    padding: calc(var(--space-unit) * 5) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+.settings-group:last-child { border-bottom: none; }
+.settings-group h2 { font-size: 1.05rem; margin-bottom: calc(var(--space-unit) * 2); }
+.settings-group__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--space-unit) * 2);
+}
+.settings-group__placeholder {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    opacity: 0.6;
+    font-style: italic;
 }
 
 /* --- Animación de proyector (intro) -----------------------------------------

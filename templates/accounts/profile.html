@@ -1,93 +1,32 @@
 {% extends "base.html" %}
-{% load static accounts_extras %}
+{% load accounts_extras %}
 
 {% block title %}Tu perfil{% endblock %}
-
-{% block extra_head %}
-<script src="{% static 'js/avatar_cropper.js' %}"></script>
-{% endblock %}
 
 {% block content %}
 <div class="wrap auth-page">
     <div class="auth-card">
-        <h1>{% username_badge user %}</h1>
-        <p class="muted" style="text-align:center; margin-top:-1rem; margin-bottom:1.5rem;">{{ user.email }}</p>
-
-        {% if site_config.require_email_verification %}
-            {% if user.email_verified %}
-            <p class="muted" style="text-align:center;">✅ Email verificado</p>
-            {% else %}
-            <div style="text-align:center; margin-bottom:1.5rem;">
-                <p class="field-errors" style="text-align:center;">⚠️ Todavía no has verificado tu email. Revisa tu bandeja de entrada (y spam).</p>
-                <form method="post" action="{% url 'accounts:resend-verification' %}" class="inline-form">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn--ghost btn--sm">Reenviar email de verificación</button>
-                </form>
-            </div>
-            {% endif %}
+        {% if user.avatar %}
+            <img src="{{ user.avatar.url }}" alt="" class="profile-avatar">
+        {% else %}
+            <span class="profile-avatar profile-avatar--placeholder" aria-hidden="true">🎬</span>
         {% endif %}
+        <h1>{% username_badge user %}</h1>
 
         {% include "partials/rotating_quote.html" %}
 
         <p class="muted" style="text-align:center;">
-            🏆 Mejor racha en <a href="{% url 'games:quote-game' %}">Frases célebres</a>: <strong>{{ user.quote_streak_best }}</strong>
+            🏆 <a href="{% url 'games:quote-game' %}">Frases célebres</a>: <strong>{{ user.quote_streak_best }}</strong>
+        </p>
+        <p class="muted" style="text-align:center;">
+            ⭐ <a href="{% url 'games:rating-duel' %}?type=movie">Mejor valorada (pelis)</a>: <strong>{{ user.rating_duel_streak_best_movie }}</strong>
+            · <a href="{% url 'games:rating-duel' %}?type=tv">series</a>: <strong>{{ user.rating_duel_streak_best_tv }}</strong>
         </p>
 
-        <form method="post" enctype="multipart/form-data" class="stacked-form">
-            {% csrf_token %}
-            <div class="field avatar-editor" x-data="avatarCropper('{% if user.avatar %}{{ user.avatar.url }}{% endif %}')">
-                <button type="button" class="avatar-editor__button" @click="$refs.fileInput.click()">
-                    <template x-if="previewUrl">
-                        <img :src="previewUrl" alt="" class="profile-avatar">
-                    </template>
-                    <template x-if="!previewUrl">
-                        <span class="profile-avatar profile-avatar--placeholder" aria-hidden="true">🎬</span>
-                    </template>
-                    <span class="avatar-editor__label">Cambiar foto</span>
-                </button>
-                <input type="file" name="avatar" accept="image/*" x-ref="fileInput" @change="onFileSelected($event)" class="visually-hidden">
-                {% for error in form.avatar.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
-
-                <div class="avatar-crop-modal" x-show="cropping" x-cloak style="display:none;">
-                    <div class="avatar-crop-modal__card" @click.outside="cancelCrop()">
-                        <p class="avatar-crop-modal__title">Encuadra tu foto</p>
-                        <div class="avatar-crop-modal__stage"
-                             @mousedown="startDrag($event)" @mousemove="onDrag($event)" @mouseup="endDrag()" @mouseleave="endDrag()"
-                             @touchstart="startDrag($event)" @touchmove="onDrag($event)" @touchend="endDrag()">
-                            <img x-ref="cropImg" :src="rawImageUrl" @load="onImageLoad()" :style="imageStyle()" draggable="false" class="avatar-crop-modal__image">
-                        </div>
-                        <input type="range" min="1" max="3" step="0.01" x-model.number="zoom" @input="onZoom()" class="avatar-crop-modal__zoom">
-                        <div class="avatar-crop-modal__actions">
-                            <button type="button" class="btn btn--ghost btn--sm" @click="cancelCrop()">Cancelar</button>
-                            <button type="button" class="btn btn--accent btn--sm" @click="applyCrop()">Aplicar recorte</button>
-                        </div>
-                    </div>
-                </div>
-                <canvas x-ref="canvas" width="480" height="480" class="visually-hidden"></canvas>
-            </div>
-            <button type="submit" class="btn btn--accent btn--block">Guardar</button>
-        </form>
-
-        <p class="muted" style="margin-top:1.5rem;">
-            ¿Quieres cambiar el tema visual? Usa el icono 🌙 de la cabecera — se aplica al momento y se guarda en tu cuenta.
-        </p>
-
-        <a href="{% url 'accounts:favorites-page' 'essential' %}" class="btn btn--ghost btn--block" style="margin-top:1rem;">🎬 Mis imprescindibles ({{ essential_count }})</a>
+        <a href="{% url 'accounts:favorites-page' 'essential' %}" class="btn btn--ghost btn--block" style="margin-top:1.5rem;">🎬 Mis imprescindibles ({{ essential_count }})</a>
         <a href="{% url 'accounts:favorites-page' 'suggested' %}" class="btn btn--ghost btn--block" style="margin-top:0.5rem;">✨ Sugeridas ({{ suggested_count }})</a>
 
-        {% if vapid_public_key %}
-        <button type="button" class="btn btn--ghost btn--block" style="margin-top:0.5rem;"
-                data-push-subscribe
-                data-subscribe-url="{% url 'accounts:push-subscribe' %}"
-                data-unsubscribe-url="{% url 'accounts:push-unsubscribe' %}">
-            🔔 Activar notificaciones
-        </button>
-        {% endif %}
-
-        <form method="post" action="{% url 'accounts:logout' %}" style="margin-top:1.5rem;">
-            {% csrf_token %}
-            <button type="submit" class="btn btn--ghost btn--block">Cerrar sesión</button>
-        </form>
+        <a href="{% url 'accounts:settings' %}" class="btn btn--accent btn--block" style="margin-top:1.5rem;">⚙️ Ajustes</a>
     </div>
 </div>
 {% endblock %}

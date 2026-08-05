@@ -5,7 +5,8 @@ from .models import Duel, DuelRecord, GameTierEntry, GameTierLevel, MovieQuote
 
 @admin.register(MovieQuote)
 class MovieQuoteAdmin(admin.ModelAdmin):
-    list_display = ("quote", "correct_title")
+    list_display = ("quote", "media_type", "correct_title")
+    list_filter = ("media_type",)
     search_fields = ("quote", "correct_title")
 
 

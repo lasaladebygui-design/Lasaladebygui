@@ -119,6 +119,10 @@ def _rating_duel_best_field(media_type):
     return "rating_duel_streak_best_movie" if media_type == "movie" else "rating_duel_streak_best_tv"
 
 
+def _rating_duel_anon_key(media_type):
+    return f"rating_duel_anon_{media_type}"
+
+
 def _register_rating_duel_best(request, media_type, streak):
     if request.user.is_authenticated:
         field = _rating_duel_best_field(media_type)
@@ -145,26 +149,36 @@ def rating_duel_game(request):
 
     streak_key = _rating_duel_streak_key(media_type)
     champion_key = _rating_duel_champion_key(media_type)
+    anon_key = _rating_duel_anon_key(media_type)
     streak = request.session.get(streak_key, 0)
     game_over = False
     is_new_record = False
     final_streak = None
 
+    # "Modo anónimo": si está activo, nunca se revela la nota exacta (ni en
+    # los mensajes de acierto/fallo) — solo si acertaste o no. Sin esto, en
+    # cuanto ves que la campeona tiene, por ejemplo, un 9, la siguiente
+    # ronda deja de ser una apuesta real. Se recuerda por sesión y por tipo.
+    if request.method == "GET" and "anon" in request.GET:
+        request.session[anon_key] = request.GET.get("anon") == "1"
+    anon_mode = request.session.get(anon_key, False)
+
     if request.method == "POST":
+        anon_mode = request.POST.get("anon") == "1"
+        request.session[anon_key] = anon_mode
         left = get_object_or_404(Movie, pk=request.POST.get("left_id"))
         right = get_object_or_404(Movie, pk=request.POST.get("right_id"))
         choice = request.POST.get("choice")
         left_wins = left.imdb_rating >= right.imdb_rating
         correct = (choice == "left") == left_wins
+        detail = "" if anon_mode else f" «{left.title}» ({left.imdb_rating}) frente a «{right.title}» ({right.imdb_rating})."
 
         if correct:
             streak += 1
             request.session[streak_key] = streak
             winner = left if left_wins else right
             request.session[champion_key] = winner.pk
-            messages.success(
-                request, f"¡Correcto! «{left.title}» ({left.imdb_rating}) frente a «{right.title}» ({right.imdb_rating}).",
-            )
+            messages.success(request, f"¡Correcto!{detail}")
         else:
             previous_best = (
                 getattr(request.user, _rating_duel_best_field(media_type)) if request.user.is_authenticated
@@ -173,9 +187,7 @@ def rating_duel_game(request):
             final_streak = streak
             is_new_record = streak > previous_best
             _register_rating_duel_best(request, media_type, streak)
-            messages.error(
-                request, f"«{left.title}» ({left.imdb_rating}) frente a «{right.title}» ({right.imdb_rating}). ¡Fallaste!",
-            )
+            messages.error(request, f"¡Fallaste!{detail}")
             request.session[streak_key] = 0
             request.session.pop(champion_key, None)
             streak = 0
@@ -197,7 +209,7 @@ def rating_duel_game(request):
     return render(request, "games/rating_duel.html", {
         "left": champion, "right": challenger, "streak": streak, "best": best,
         "game_over": game_over, "is_new_record": is_new_record, "final_streak": final_streak,
-        "media_type": media_type,
+        "media_type": media_type, "anon_mode": anon_mode,
     })
 
 
