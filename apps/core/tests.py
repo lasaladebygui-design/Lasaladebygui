@@ -242,6 +242,11 @@ class ThemeSwitcherTests(TestCase):
         self.assertEqual(jinx.color_accent, "#00E5FF")
         self.assertEqual(jinx.color_accent_secondary, "#FF2FD0")
 
+    def test_existe_el_tema_blanco_y_negro(self):
+        theme = Theme.objects.get(slug="blanco-y-negro")
+        self.assertTrue(theme.is_published)
+        self.assertTrue(theme.is_dark)
+
     def test_set_theme_con_next_redirige_en_vez_de_devolver_json(self):
         response = self.client.post(
             reverse("core:set-theme", args=[self.noir.slug]), {"next": reverse("accounts:settings")},
@@ -318,6 +323,16 @@ class AdminAccessTests(TestCase):
         self._login_as("admin@test.local", User.Role.ADMIN)
         response = self.client.get(reverse("admin:index"))
         self.assertEqual(response.status_code, 200)
+
+    def test_formulario_de_edicion_tiene_boton_cancelar(self):
+        """El botón "Cancelar" (templates/admin/submit_line.html, sin
+        condición de popup) debe verse en CUALQUIER formulario de edición
+        del admin, no solo en el de Theme — por eso se prueba aquí con
+        Theme, pero el override es genérico para toda la app."""
+        self._login_as("admin_cancel@test.local", User.Role.ADMIN)
+        theme = Theme.objects.first()
+        response = self.client.get(reverse("admin:core_theme_change", args=[theme.pk]))
+        self.assertContains(response, "Cancelar")
 
     def test_gestor_no_entra(self):
         self._login_as("gestor@test.local", User.Role.GESTOR)
