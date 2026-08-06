@@ -42,6 +42,10 @@ class Article(models.Model):
         related_name="articles",
     )
     tags = models.ManyToManyField(Tag, verbose_name="listas", blank=True, related_name="articles")
+    is_private = models.BooleanField(
+        "privado", default=False,
+        help_text="Solo lo ven Gestores y Admin — el resto ni siquiera sabe que existe.",
+    )
     created_at = models.DateTimeField("fecha de publicación", auto_now_add=True)
     updated_at = models.DateTimeField("última edición", auto_now=True)
 

@@ -86,6 +86,39 @@ class GestorGroupSyncTests(TestCase):
         self.assertEqual(response.status_code, 302)
 
 
+class CaseInsensitiveLoginTests(TestCase):
+    """El email es el identificador de acceso: iniciar sesión no debe
+    depender de acertar las mayúsculas exactas con las que se registró la
+    cuenta, y guardar un email nuevo lo normaliza a minúsculas desde el
+    principio para que no puedan convivir dos cuentas que solo difieran en
+    eso."""
+
+    def setUp(self):
+        self.user = User.objects.create(email="persona@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+
+    def test_email_se_guarda_en_minusculas(self):
+        user = User.objects.create(email="OTRA.Persona@Test.Local", role=User.Role.LECTOR)
+        self.assertEqual(user.email, "otra.persona@test.local")
+
+    def test_login_con_mayusculas_distintas_funciona(self):
+        logged_in = self.client.login(username="PERSONA@TEST.LOCAL", password="Testpass123!")
+        self.assertTrue(logged_in)
+
+    def test_login_con_mezcla_de_mayusculas_funciona(self):
+        logged_in = self.client.login(username="PersonA@Test.Local", password="Testpass123!")
+        self.assertTrue(logged_in)
+
+    def test_login_con_contrasena_incorrecta_sigue_fallando(self):
+        logged_in = self.client.login(username="PERSONA@TEST.LOCAL", password="Incorrecta123!")
+        self.assertFalse(logged_in)
+
+    def test_login_con_email_inexistente_falla(self):
+        logged_in = self.client.login(username="NADIE@TEST.LOCAL", password="Testpass123!")
+        self.assertFalse(logged_in)
+
+
 class PasswordResetTests(TestCase):
     def setUp(self):
         self.user = User.objects.create(email="lector@test.local", role=User.Role.LECTOR)
@@ -564,10 +597,10 @@ class FavoriteMovieTests(TestCase):
         other.refresh_from_db()
         self.assertEqual(other.suggested_note, "Original")
 
-    def test_la_nota_se_recorta_a_280_caracteres(self):
-        self.client.post(reverse("accounts:favorite-category-note", args=["suggested"]), {"note": "x" * 300})
+    def test_la_nota_no_tiene_limite_de_longitud(self):
+        self.client.post(reverse("accounts:favorite-category-note", args=["suggested"]), {"note": "x" * 500})
         self.user.refresh_from_db()
-        self.assertEqual(len(self.user.suggested_note), 280)
+        self.assertEqual(len(self.user.suggested_note), 500)
 
     def test_la_pagina_de_sugeridas_muestra_la_nota_del_apartado(self):
         self.user.suggested_note = "Un gran apartado"

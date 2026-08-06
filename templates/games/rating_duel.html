@@ -9,11 +9,9 @@
         <h1>⭐ ¿Cuál está mejor valorada?</h1>
 
         <div class="media-type-toggle">
-            <a href="?type=movie" class="btn btn--sm {% if media_type == 'movie' %}btn--accent{% else %}btn--ghost{% endif %}">Películas</a>
-            <a href="?type=tv" class="btn btn--sm {% if media_type == 'tv' %}btn--accent{% else %}btn--ghost{% endif %}">Series</a>
-            <a href="?type={{ media_type }}&anon={% if anon_mode %}0{% else %}1{% endif %}" class="btn btn--sm {% if anon_mode %}btn--accent{% else %}btn--ghost{% endif %}" title="Modo anónimo: nunca se revela la nota exacta, solo si acertaste">
-                {% if anon_mode %}🙈 Modo anónimo{% else %}👁️ Ver notas{% endif %}
-            </a>
+            <span class="btn btn--sm btn--accent">{% if media_type == 'tv' %}Series{% else %}Películas{% endif %}</span>
+            <span class="btn btn--sm btn--ghost">{% if anon_mode %}🙈 Modo anónimo{% else %}👁️ Con nota{% endif %}</span>
+            <a href="{% url 'games:rating-duel' %}" class="link-btn">Cambiar</a>
         </div>
 
         <div class="rating-duel__scoreboard">
@@ -27,14 +25,48 @@
         </p>
         {% endif %}
 
-        {% if game_over %}
-        <div class="quote-game__gameover">
-            {% if is_new_record %}
-                <p class="quote-game__record">🎉 ¡Felicidades! Nuevo récord personal.</p>
-            {% endif %}
-            <p class="quote-game__final">Racha final: <strong>{{ final_streak }}</strong></p>
-            <a href="{% url 'games:rating-duel' %}?type={{ media_type }}" class="btn btn--accent btn--block">Jugar de nuevo</a>
+        {% if round_result %}
+        <p class="muted rating-duel__hint">
+            {% if round_result.correct %}✅ ¡Correcto!{% else %}❌ ¡Fallaste!{% endif %}
+        </p>
+        <div class="rating-duel">
+            <div class="rating-duel__card rating-duel__card--result{% if round_result.winner_side == 'left' %} rating-duel__card--correct{% elif round_result.choice == 'left' %} rating-duel__card--wrong{% endif %}">
+                {% if round_result.left_poster %}
+                    <img src="{{ round_result.left_poster }}" alt="" class="rating-duel__poster">
+                {% else %}
+                    <div class="rating-duel__poster rating-duel__poster--placeholder"><span>🎬</span></div>
+                {% endif %}
+                <span class="rating-duel__overlay">
+                    <span class="rating-duel__title">{{ round_result.left_title }}</span>
+                    {% if not anon_mode %}<span class="rating-duel__rating">⭐ {{ round_result.left_rating }}</span>{% endif %}
+                </span>
+            </div>
+            <span class="rating-duel__vs">VS</span>
+            <div class="rating-duel__card rating-duel__card--result{% if round_result.winner_side == 'right' %} rating-duel__card--correct{% elif round_result.choice == 'right' %} rating-duel__card--wrong{% endif %}">
+                {% if round_result.right_poster %}
+                    <img src="{{ round_result.right_poster }}" alt="" class="rating-duel__poster">
+                {% else %}
+                    <div class="rating-duel__poster rating-duel__poster--placeholder"><span>🎬</span></div>
+                {% endif %}
+                <span class="rating-duel__overlay">
+                    <span class="rating-duel__title">{{ round_result.right_title }}</span>
+                    {% if not anon_mode %}<span class="rating-duel__rating">⭐ {{ round_result.right_rating }}</span>{% endif %}
+                </span>
+            </div>
         </div>
+        <form method="post" class="rating-duel__continue">
+            {% csrf_token %}
+            <input type="hidden" name="type" value="{{ media_type }}">
+            <input type="hidden" name="anon" value="{% if anon_mode %}1{% else %}0{% endif %}">
+            <input type="hidden" name="advance" value="1">
+            {% if round_result.game_over %}
+                {% if round_result.is_new_record %}<p class="quote-game__record">🎉 ¡Felicidades! Nuevo récord personal.</p>{% endif %}
+                <p class="quote-game__final">Racha final: <strong>{{ round_result.final_streak }}</strong></p>
+                <button type="submit" class="btn btn--accent btn--block">Jugar de nuevo</button>
+            {% else %}
+                <button type="submit" class="btn btn--accent btn--block">Siguiente ronda →</button>
+            {% endif %}
+        </form>
         {% elif left and right %}
         <p class="muted rating-duel__hint">Elige la que creas que tiene mejor nota IMDb.</p>
         <form method="post" class="rating-duel">

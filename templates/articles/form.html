@@ -33,6 +33,13 @@
                             {{ form.tags_input }}
                             <p class="field-help">{{ form.tags_input.help_text }}</p>
                         </div>
+                        {% if form.is_private %}
+                        <div class="field field--checkbox">
+                            <label for="{{ form.is_private.id_for_label }}">
+                                {{ form.is_private }} {{ form.is_private.label }}
+                            </label>
+                        </div>
+                        {% endif %}
                     </div>
                     <div class="field cover-editor" x-data="coverCropper('{% if article.cover %}{{ article.cover.url }}{% endif %}')">
                         <label>{{ form.cover.label }}</label>

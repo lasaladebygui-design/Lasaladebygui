@@ -417,6 +417,9 @@ main { flex: 1; }
     color: var(--color-text);
 }
 .field--checkbox input { width: auto; }
+.field-label { margin-bottom: 0.4rem; font-size: 0.9rem; color: var(--color-text-muted); }
+.field--checkbox-group { margin-bottom: calc(var(--space-unit) * 4); }
+.field--checkbox-group .field--checkbox { margin-bottom: 0.3rem; }
 
 .field-row {
     display: flex;
@@ -1338,12 +1341,17 @@ main { flex: 1; }
     gap: calc(var(--space-unit) * 3);
     margin-bottom: calc(var(--space-unit) * 4);
 }
-.favorites-grid--3col { grid-template-columns: repeat(3, minmax(0, 100px)); }
+/* minmax(0, ...) en vez de un ancho fijo: en pantallas muy estrechas, tres
+   columnas de 100px fijos no cabían y forzaban scroll horizontal de toda
+   la página — con fr encogen fluidas hasta ese máximo, nunca lo fuerzan. */
+.favorites-grid--3col { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .favorite-card {
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: 100px;
+    width: 100%;
+    max-width: 100px;
+    margin-inline: auto;
     text-align: center;
     position: relative;
 }
@@ -1403,7 +1411,13 @@ main { flex: 1; }
     resize: vertical;
 }
 .favorites-note__label { margin-bottom: 0.3rem; font-size: 0.85rem; }
-.favorites-note__text { margin: 0; }
+.favorites-note__text { margin: 0 0 0.4rem; white-space: pre-line; }
+.favorites-note__text--clamped {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
 
 /* --- Juego: Frases célebres --------------------------------------------------- */
 
@@ -1502,6 +1516,12 @@ main { flex: 1; }
 }
 .rating-duel__title { font-weight: 700; color: #fff; line-height: 1.25; }
 .rating-duel__year { font-size: 0.8rem; color: rgba(255, 255, 255, 0.75); }
+.rating-duel__rating { font-size: 0.85rem; color: rgba(255, 255, 255, 0.9); font-weight: 600; }
+.rating-duel__card--result { cursor: default; }
+.rating-duel__card--result:hover { transform: none; }
+.rating-duel__card--correct { border-color: var(--color-success); box-shadow: 0 0 0 3px var(--color-success), 0 12px 28px rgba(0, 0, 0, 0.4); }
+.rating-duel__card--wrong { border-color: var(--color-danger); box-shadow: 0 0 0 3px var(--color-danger), 0 12px 28px rgba(0, 0, 0, 0.4); }
+.rating-duel__continue { margin-top: calc(var(--space-unit) * 5); text-align: center; }
 .rating-duel__vs {
     position: absolute;
     top: 50%;
@@ -1954,6 +1974,11 @@ main { flex: 1; }
     min-width: 160px;
     text-align: center;
 }
+/* En pantallas estrechas, 7 columnas a partes iguales deja cada día
+   demasiado angosto para su contenido (portada, herramientas...) — mejor
+   que el propio calendario se desplace en horizontal con un ancho mínimo
+   legible por día que no que todo se apelmace hasta ser ilegible. */
+.calendar-grid-scroll { overflow-x: auto; }
 .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
@@ -1962,6 +1987,9 @@ main { flex: 1; }
     border: 1px solid var(--color-border);
     border-radius: var(--radius-base);
     overflow: hidden;
+}
+@media (max-width: 640px) {
+    .calendar-grid { min-width: 640px; }
 }
 .calendar-grid__weekday {
     background: var(--color-surface);

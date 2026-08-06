@@ -102,6 +102,13 @@ def quote_game(request):
 # ella) y sale otra retadora; fallar termina la racha, igual que Frases
 # célebres. Películas y series van cada una por su lado (`media_type`): cada
 # una con su propia racha, tanto en sesión como en el récord guardado.
+#
+# Cada ronda se juega en dos pasos (elegir -> ver el resultado en color ->
+# "Siguiente") en vez de saltar directo a la ronda siguiente: sin ese
+# segundo paso no hay manera de que el acierto se vea de verdad en verde.
+
+RATING_DUEL_MAX_REPEATS = 2
+
 
 def _rating_duel_streak_key(media_type):
     return f"rating_duel_streak_{media_type}"
@@ -123,6 +130,14 @@ def _rating_duel_anon_key(media_type):
     return f"rating_duel_anon_{media_type}"
 
 
+def _rating_duel_seen_key(media_type):
+    return f"rating_duel_seen_{media_type}"
+
+
+def _rating_duel_round_key(media_type):
+    return f"rating_duel_round_{media_type}"
+
+
 def _register_rating_duel_best(request, media_type, streak):
     if request.user.is_authenticated:
         field = _rating_duel_best_field(media_type)
@@ -135,71 +150,112 @@ def _register_rating_duel_best(request, media_type, streak):
             request.session[key] = streak
 
 
-def _random_rated_movie(media_type, exclude_id=None):
-    qs = Movie.objects.filter(imdb_rating__isnull=False, media_type=media_type)
+def _rating_duel_register_seen(request, media_type, movie_id):
+    key = _rating_duel_seen_key(media_type)
+    counts = request.session.get(key, {})
+    counts[str(movie_id)] = counts.get(str(movie_id), 0) + 1
+    request.session[key] = counts
+
+
+def _rating_duel_overused_ids(request, media_type):
+    counts = request.session.get(_rating_duel_seen_key(media_type), {})
+    return [int(mid) for mid, n in counts.items() if n >= RATING_DUEL_MAX_REPEATS]
+
+
+def _pick_rated_movie(request, media_type, exclude_id=None):
+    """Evita repetir la misma película más de RATING_DUEL_MAX_REPEATS veces
+    en la sesión (si no, en cuanto sabes que una tiene un 9, la fuerzas a
+    salir una y otra vez). Si ya no queda ninguna sin topar (catálogo
+    pequeño), se libera el tope para no bloquear la partida."""
+    exclude_ids = set(_rating_duel_overused_ids(request, media_type))
     if exclude_id:
-        qs = qs.exclude(pk=exclude_id)
-    return qs.order_by("?").first()
+        exclude_ids.add(exclude_id)
+    qs = Movie.objects.filter(imdb_rating__isnull=False, media_type=media_type).exclude(pk__in=exclude_ids)
+    movie = qs.order_by("?").first()
+    if movie is None:
+        qs = Movie.objects.filter(imdb_rating__isnull=False, media_type=media_type)
+        if exclude_id:
+            qs = qs.exclude(pk=exclude_id)
+        movie = qs.order_by("?").first()
+    return movie
 
 
 def rating_duel_game(request):
-    media_type = request.GET.get("type") if request.method == "GET" else request.POST.get("type")
+    media_type = request.GET.get("type") or request.POST.get("type")
+
+    # Pantalla de inicio: hasta que no se elige tipo (y, de paso, si se
+    # quiere ver la nota o jugar en modo anónimo) no arranca la partida.
     if media_type not in RATING_DUEL_MEDIA_TYPES:
-        media_type = "movie"
+        return render(request, "games/rating_duel_start.html")
 
     streak_key = _rating_duel_streak_key(media_type)
     champion_key = _rating_duel_champion_key(media_type)
     anon_key = _rating_duel_anon_key(media_type)
-    streak = request.session.get(streak_key, 0)
-    game_over = False
-    is_new_record = False
-    final_streak = None
+    round_key = _rating_duel_round_key(media_type)
 
-    # "Modo anónimo": si está activo, nunca se revela la nota exacta (ni en
-    # los mensajes de acierto/fallo) — solo si acertaste o no. Sin esto, en
-    # cuanto ves que la campeona tiene, por ejemplo, un 9, la siguiente
-    # ronda deja de ser una apuesta real. Se recuerda por sesión y por tipo.
     if request.method == "GET" and "anon" in request.GET:
         request.session[anon_key] = request.GET.get("anon") == "1"
     anon_mode = request.session.get(anon_key, False)
 
+    streak = request.session.get(streak_key, 0)
+    round_result = request.session.get(round_key)
+
     if request.method == "POST":
-        anon_mode = request.POST.get("anon") == "1"
-        request.session[anon_key] = anon_mode
-        left = get_object_or_404(Movie, pk=request.POST.get("left_id"))
-        right = get_object_or_404(Movie, pk=request.POST.get("right_id"))
-        choice = request.POST.get("choice")
-        left_wins = left.imdb_rating >= right.imdb_rating
-        correct = (choice == "left") == left_wins
-        detail = "" if anon_mode else f" «{left.title}» ({left.imdb_rating}) frente a «{right.title}» ({right.imdb_rating})."
-
-        if correct:
-            streak += 1
-            request.session[streak_key] = streak
-            winner = left if left_wins else right
-            request.session[champion_key] = winner.pk
-            messages.success(request, f"¡Correcto!{detail}")
+        if request.POST.get("advance"):
+            request.session.pop(round_key, None)
+            round_result = None
         else:
-            previous_best = (
-                getattr(request.user, _rating_duel_best_field(media_type)) if request.user.is_authenticated
-                else request.session.get(_rating_duel_best_anon_key(media_type), 0)
-            )
-            final_streak = streak
-            is_new_record = streak > previous_best
-            _register_rating_duel_best(request, media_type, streak)
-            messages.error(request, f"¡Fallaste!{detail}")
-            request.session[streak_key] = 0
-            request.session.pop(champion_key, None)
-            streak = 0
-            game_over = True
+            anon_mode = request.POST.get("anon") == "1"
+            request.session[anon_key] = anon_mode
+            left = get_object_or_404(Movie, pk=request.POST.get("left_id"))
+            right = get_object_or_404(Movie, pk=request.POST.get("right_id"))
+            choice = request.POST.get("choice")
+            left_wins = left.imdb_rating >= right.imdb_rating
+            correct = (choice == "left") == left_wins
 
-    champion_id = request.session.get(champion_key)
-    champion = Movie.objects.filter(pk=champion_id, imdb_rating__isnull=False, media_type=media_type).first() if champion_id else None
-    if champion is None:
-        champion = _random_rated_movie(media_type)
-        if champion:
-            request.session[champion_key] = champion.pk
-    challenger = _random_rated_movie(media_type, exclude_id=champion.pk) if champion else None
+            _rating_duel_register_seen(request, media_type, left.pk)
+            _rating_duel_register_seen(request, media_type, right.pk)
+
+            game_over = False
+            final_streak = None
+            is_new_record = False
+            if correct:
+                streak += 1
+                request.session[streak_key] = streak
+                winner = left if left_wins else right
+                request.session[champion_key] = winner.pk
+            else:
+                previous_best = (
+                    getattr(request.user, _rating_duel_best_field(media_type)) if request.user.is_authenticated
+                    else request.session.get(_rating_duel_best_anon_key(media_type), 0)
+                )
+                final_streak = streak
+                is_new_record = streak > previous_best
+                _register_rating_duel_best(request, media_type, streak)
+                request.session[streak_key] = 0
+                request.session.pop(champion_key, None)
+                streak = 0
+                game_over = True
+
+            round_result = {
+                "left_id": left.pk, "right_id": right.pk,
+                "left_title": left.title, "right_title": right.title,
+                "left_poster": left.poster_url, "right_poster": right.poster_url,
+                "left_rating": str(left.imdb_rating), "right_rating": str(right.imdb_rating),
+                "choice": choice, "winner_side": "left" if left_wins else "right", "correct": correct,
+                "game_over": game_over, "final_streak": final_streak, "is_new_record": is_new_record,
+            }
+            request.session[round_key] = round_result
+
+    champion = challenger = None
+    if not round_result:
+        champion_id = request.session.get(champion_key)
+        champion = Movie.objects.filter(pk=champion_id, imdb_rating__isnull=False, media_type=media_type).first() if champion_id else None
+        if champion is None:
+            champion = _pick_rated_movie(request, media_type)
+            if champion:
+                request.session[champion_key] = champion.pk
+        challenger = _pick_rated_movie(request, media_type, exclude_id=champion.pk) if champion else None
 
     best = (
         getattr(request.user, _rating_duel_best_field(media_type)) if request.user.is_authenticated
@@ -208,8 +264,7 @@ def rating_duel_game(request):
 
     return render(request, "games/rating_duel.html", {
         "left": champion, "right": challenger, "streak": streak, "best": best,
-        "game_over": game_over, "is_new_record": is_new_record, "final_streak": final_streak,
-        "media_type": media_type, "anon_mode": anon_mode,
+        "media_type": media_type, "anon_mode": anon_mode, "round_result": round_result,
     })
 
 

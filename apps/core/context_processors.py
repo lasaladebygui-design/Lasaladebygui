@@ -14,7 +14,7 @@ def site_context(request):
         "site_name": settings.SITE_NAME,
         "site_config": site_config,
         "site_theme": get_effective_theme(user, getattr(request, "session", None)),
-        "all_themes": Theme.objects.all(),
+        "all_themes": Theme.objects.filter(is_published=True),
         "vapid_public_key": settings.VAPID_PUBLIC_KEY,
         "show_intro_animation": show_intro_animation,
     }

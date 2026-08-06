@@ -141,7 +141,9 @@ class QuoteGameTests(TestCase):
 
 class RatingDuelGameTests(TestCase):
     """'Cuál está mejor valorada': higher/lower con la nota IMDb del
-    catálogo. Películas y series van cada una con su propia racha."""
+    catálogo. Películas y series van cada una con su propia racha. Cada
+    ronda se juega en dos pasos: elegir -> ver el resultado en color ->
+    "Siguiente" (round_result en sesión/contexto)."""
 
     def setUp(self):
         self.movie_a = Movie.objects.create(tmdb_id=1, title="Peli A", media_type="movie", imdb_rating="8.5")
@@ -149,13 +151,18 @@ class RatingDuelGameTests(TestCase):
         self.tv_a = Movie.objects.create(tmdb_id=1, title="Serie A", media_type="tv", imdb_rating="9.0")
         self.tv_b = Movie.objects.create(tmdb_id=2, title="Serie B", media_type="tv", imdb_rating="7.0")
 
-    def test_accesible_sin_cuenta(self):
+    def test_sin_tipo_elegido_muestra_pantalla_de_inicio(self):
         response = self.client.get(reverse("games:rating-duel"))
         self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "games/rating_duel_start.html")
 
-    def test_muestra_dos_peliculas_por_defecto(self):
-        response = self.client.get(reverse("games:rating-duel"))
+    def test_accesible_sin_cuenta_una_vez_elegido_el_tipo(self):
+        response = self.client.get(reverse("games:rating-duel"), {"type": "movie"})
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["media_type"], "movie")
+
+    def test_muestra_dos_peliculas_del_tipo_elegido(self):
+        response = self.client.get(reverse("games:rating-duel"), {"type": "movie"})
         self.assertIsNotNone(response.context["left"])
         self.assertIsNotNone(response.context["right"])
         self.assertEqual(response.context["left"].media_type, "movie")
@@ -168,16 +175,20 @@ class RatingDuelGameTests(TestCase):
 
     def test_sin_suficientes_peliculas_lo_indica(self):
         Movie.objects.filter(media_type="movie").delete()
-        response = self.client.get(reverse("games:rating-duel"))
+        response = self.client.get(reverse("games:rating-duel"), {"type": "movie"})
         self.assertIsNone(response.context["left"])
         self.assertContains(response, "Todavía no hay suficientes")
 
-    def test_acertar_la_mas_valorada_incrementa_la_racha(self):
+    def test_acertar_la_mas_valorada_incrementa_la_racha_y_se_ve_en_verde(self):
         response = self.client.post(reverse("games:rating-duel"), {
             "type": "movie", "left_id": self.movie_a.pk, "right_id": self.movie_b.pk, "choice": "left",
         })
         self.assertEqual(response.context["streak"], 1)
-        self.assertFalse(response.context["game_over"])
+        result = response.context["round_result"]
+        self.assertTrue(result["correct"])
+        self.assertFalse(result["game_over"])
+        self.assertEqual(result["winner_side"], "left")
+        self.assertContains(response, "rating-duel__card--correct")
 
     def test_fallar_reinicia_la_racha_y_muestra_fin_de_partida(self):
         session = self.client.session
@@ -188,8 +199,25 @@ class RatingDuelGameTests(TestCase):
             "type": "movie", "left_id": self.movie_a.pk, "right_id": self.movie_b.pk, "choice": "right",
         })
         self.assertEqual(response.context["streak"], 0)
-        self.assertTrue(response.context["game_over"])
-        self.assertEqual(response.context["final_streak"], 3)
+        result = response.context["round_result"]
+        self.assertTrue(result["game_over"])
+        self.assertEqual(result["final_streak"], 3)
+        self.assertContains(response, "rating-duel__card--wrong")
+
+    def test_siguiente_ronda_limpia_el_resultado_y_sigue_jugando(self):
+        self.client.post(reverse("games:rating-duel"), {
+            "type": "movie", "left_id": self.movie_a.pk, "right_id": self.movie_b.pk, "choice": "left",
+        })
+        response = self.client.post(reverse("games:rating-duel"), {"type": "movie", "advance": "1"})
+        self.assertIsNone(response.context["round_result"])
+        self.assertIsNotNone(response.context["left"])
+
+    def test_modo_anonimo_no_muestra_la_nota_en_el_resultado(self):
+        response = self.client.post(reverse("games:rating-duel"), {
+            "type": "movie", "anon": "1", "left_id": self.movie_a.pk, "right_id": self.movie_b.pk, "choice": "left",
+        })
+        self.assertNotContains(response, "⭐ 8.5")
+        self.assertNotContains(response, "⭐ 6.0")
 
     def test_racha_de_series_es_independiente_de_peliculas(self):
         session = self.client.session
@@ -215,6 +243,20 @@ class RatingDuelGameTests(TestCase):
         user.refresh_from_db()
         self.assertEqual(user.rating_duel_streak_best_movie, 4)
         self.assertEqual(user.rating_duel_streak_best_tv, 0)
+
+    def test_no_repite_la_misma_pelicula_mas_de_dos_veces(self):
+        Movie.objects.filter(media_type="movie").delete()
+        movies = [
+            Movie.objects.create(tmdb_id=i, title=f"Peli {i}", media_type="movie", imdb_rating=str(5 + i * 0.1))
+            for i in range(1, 6)
+        ]
+        session = self.client.session
+        session["rating_duel_seen_movie"] = {str(movies[0].pk): 2}
+        session.save()
+
+        response = self.client.get(reverse("games:rating-duel"), {"type": "movie"})
+        seen_ids = {response.context["left"].pk, response.context["right"].pk}
+        self.assertNotIn(movies[0].pk, seen_ids)
 
 
 class DuelTests(TestCase):

@@ -9,11 +9,13 @@ from apps.core.push import send_push_to_users
 
 from .forms import ArticleCommentForm, ArticleForm
 from .models import Article, ArticleView, Tag
-from .permissions import can_create_articles, can_delete_article, can_edit_article
+from .permissions import can_create_articles, can_delete_article, can_edit_article, can_manage_private_articles
 
 
 def article_list(request):
     articles = Article.objects.select_related("author").prefetch_related("tags")
+    if not can_manage_private_articles(request.user):
+        articles = articles.filter(is_private=False)
 
     tag_slug = request.GET.get("tag")
     active_tag = None
@@ -40,6 +42,8 @@ def article_detail(request, slug):
         Article.objects.select_related("author").prefetch_related("tags", "comments__author"),
         slug=slug,
     )
+    if article.is_private and not can_manage_private_articles(request.user):
+        raise Http404
 
     comment_form = None
     if request.user.is_authenticated:
@@ -58,7 +62,10 @@ def article_detail(request, slug):
         else:
             comment_form = ArticleCommentForm()
 
-    latest_articles = Article.objects.exclude(pk=article.pk)[:5]
+    latest_articles = Article.objects.exclude(pk=article.pk)
+    if not can_manage_private_articles(request.user):
+        latest_articles = latest_articles.filter(is_private=False)
+    latest_articles = latest_articles[:5]
 
     return render(request, "articles/detail.html", {
         "article": article,
@@ -75,24 +82,25 @@ def article_create(request):
         raise Http404
 
     if request.method == "POST":
-        form = ArticleForm(request.POST, request.FILES)
+        form = ArticleForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
             article = form.save(commit=False)
             article.author = request.user
             article.save()
             form.save_m2m()
             messages.success(request, "Artículo publicado.")
-            User = get_user_model()
-            subscribers = User.objects.filter(push_subscriptions__isnull=False).exclude(pk=article.author_id).distinct()
-            send_push_to_users(
-                subscribers,
-                title="Nuevo artículo",
-                body=article.title,
-                url=article.get_absolute_url(),
-            )
+            if not article.is_private:
+                User = get_user_model()
+                subscribers = User.objects.filter(push_subscriptions__isnull=False).exclude(pk=article.author_id).distinct()
+                send_push_to_users(
+                    subscribers,
+                    title="Nuevo artículo",
+                    body=article.title,
+                    url=article.get_absolute_url(),
+                )
             return redirect(article.get_absolute_url())
     else:
-        form = ArticleForm()
+        form = ArticleForm(user=request.user)
 
     return render(request, "articles/form.html", {"form": form, "is_new": True})
 
@@ -104,13 +112,13 @@ def article_update(request, slug):
         raise Http404
 
     if request.method == "POST":
-        form = ArticleForm(request.POST, request.FILES, instance=article)
+        form = ArticleForm(request.POST, request.FILES, instance=article, user=request.user)
         if form.is_valid():
             form.save()
             messages.success(request, "Artículo actualizado.")
             return redirect(article.get_absolute_url())
     else:
-        form = ArticleForm(instance=article)
+        form = ArticleForm(instance=article, user=request.user)
 
     return render(request, "articles/form.html", {"form": form, "is_new": False, "article": article})
 

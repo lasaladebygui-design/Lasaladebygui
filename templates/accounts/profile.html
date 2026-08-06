@@ -20,7 +20,7 @@
         </p>
         <p class="muted" style="text-align:center;">
             ⭐ <a href="{% url 'games:rating-duel' %}?type=movie">Mejor valorada (pelis)</a>: <strong>{{ user.rating_duel_streak_best_movie }}</strong>
-            · <a href="{% url 'games:rating-duel' %}?type=tv">series</a>: <strong>{{ user.rating_duel_streak_best_tv }}</strong>
+            · <a href="{% url 'games:rating-duel' %}?type=tv">Series</a>: <strong>{{ user.rating_duel_streak_best_tv }}</strong>
         </p>
 
         <a href="{% url 'accounts:favorites-page' 'essential' %}" class="btn btn--ghost btn--block" style="margin-top:1.5rem;">🎬 Mis imprescindibles ({{ essential_count }})</a>

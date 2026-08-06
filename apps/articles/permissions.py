@@ -18,3 +18,11 @@ def can_edit_article(user, article):
 
 def can_delete_article(user, article):
     return can_edit_article(user, article)
+
+
+def can_manage_private_articles(user):
+    return user.is_authenticated and user.role in MANAGER_ROLES
+
+
+def can_view_article(user, article):
+    return not article.is_private or can_manage_private_articles(user)

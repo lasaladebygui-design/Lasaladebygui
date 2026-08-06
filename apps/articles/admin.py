@@ -18,8 +18,8 @@ class ArticleCommentInline(admin.TabularInline):
 
 @admin.register(Article)
 class ArticleAdmin(admin.ModelAdmin):
-    list_display = ("title", "author", "created_at", "updated_at")
-    list_filter = ("tags", "author")
+    list_display = ("title", "author", "is_private", "created_at", "updated_at")
+    list_filter = ("is_private", "tags", "author")
     search_fields = ("title", "body")
     autocomplete_fields = ("author",)
     filter_horizontal = ("tags",)

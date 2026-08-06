@@ -93,6 +93,15 @@ class Theme(models.Model):
         default=True,
         help_text="Afecta al renderizado nativo de formularios/scrollbars del navegador.",
     )
+    is_published = models.BooleanField(
+        "publicado",
+        default=True,
+        help_text=(
+            "Si lo desmarcas, desaparece del selector de temas del sitio (pero sigue "
+            "funcionando para quien ya lo tuviera puesto, y se puede seguir usando "
+            "como tema activo del sitio desde Configuración del sitio)."
+        ),
+    )
 
     class Meta:
         verbose_name = "tema visual"

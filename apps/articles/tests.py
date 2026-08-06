@@ -68,6 +68,86 @@ class ArticlePermissionTests(TestCase):
         self.assertEqual(self.article.comments.count(), 1)
 
 
+class PrivateArticleTests(TestCase):
+    """Un artículo privado solo lo ven Gestor y Admin — ni en el listado, ni
+    en su ficha directa, ni en la home, ni en "últimos artículos" de otra
+    ficha. Solo Gestor/Admin puede marcarlo como privado."""
+
+    def setUp(self):
+        self.admin = make_user("admin_priv@test.local", User.Role.ADMIN)
+        self.gestor = make_user("gestor_priv@test.local", User.Role.GESTOR)
+        self.editor = make_user("editor_priv@test.local", User.Role.EDITOR)
+        self.lector = make_user("lector_priv@test.local", User.Role.LECTOR)
+        self.private_article = Article.objects.create(
+            title="Solo para el equipo", body="<p>secreto</p>", author=self.gestor, is_private=True,
+        )
+        self.public_article = Article.objects.create(
+            title="Para todos", body="<p>público</p>", author=self.gestor,
+        )
+
+    def _login(self, user):
+        self.client.login(username=user.email, password="Testpass123!")
+
+    def test_anonimo_no_ve_el_articulo_privado_en_el_listado(self):
+        response = self.client.get(reverse("articles:list"))
+        self.assertNotContains(response, "Solo para el equipo")
+        self.assertContains(response, "Para todos")
+
+    def test_anonimo_no_puede_abrir_el_articulo_privado_directamente(self):
+        response = self.client.get(reverse("articles:detail", args=[self.private_article.slug]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_lector_no_ve_el_articulo_privado(self):
+        self._login(self.lector)
+        response = self.client.get(reverse("articles:list"))
+        self.assertNotContains(response, "Solo para el equipo")
+
+    def test_gestor_ve_el_articulo_privado(self):
+        self._login(self.gestor)
+        response = self.client.get(reverse("articles:list"))
+        self.assertContains(response, "Solo para el equipo")
+
+    def test_admin_puede_abrir_el_articulo_privado(self):
+        self._login(self.admin)
+        response = self.client.get(reverse("articles:detail", args=[self.private_article.slug]))
+        self.assertEqual(response.status_code, 200)
+
+    def test_no_aparece_en_la_home(self):
+        response = self.client.get(reverse("core:home"))
+        self.assertNotContains(response, "Solo para el equipo")
+
+    def test_no_aparece_en_ultimos_articulos_de_otra_ficha(self):
+        response = self.client.get(reverse("articles:detail", args=[self.public_article.slug]))
+        self.assertNotContains(response, "Solo para el equipo")
+
+    def test_editor_no_ve_el_campo_privado_en_el_formulario(self):
+        self._login(self.editor)
+        response = self.client.get(reverse("articles:create"))
+        self.assertNotIn("is_private", response.context["form"].fields)
+
+    def test_gestor_si_ve_el_campo_privado_en_el_formulario(self):
+        self._login(self.gestor)
+        response = self.client.get(reverse("articles:create"))
+        self.assertIn("is_private", response.context["form"].fields)
+
+    def test_editor_no_puede_marcar_su_articulo_como_privado_aunque_lo_intente(self):
+        self._login(self.editor)
+        response = self.client.post(reverse("articles:create"), {
+            "title": "Intento de privado", "body": "<p>x</p>", "tags_input": "", "is_private": "on",
+        })
+        self.assertEqual(response.status_code, 302)
+        article = Article.objects.get(title="Intento de privado")
+        self.assertFalse(article.is_private)
+
+    def test_gestor_puede_marcar_como_privado_al_crear(self):
+        self._login(self.gestor)
+        self.client.post(reverse("articles:create"), {
+            "title": "Nuevo privado", "body": "<p>x</p>", "tags_input": "", "is_private": "on",
+        })
+        article = Article.objects.get(title="Nuevo privado")
+        self.assertTrue(article.is_private)
+
+
 class ArticleDeleteTagCleanupTests(TestCase):
     def setUp(self):
         self.admin = make_user("admin_tags@test.local", User.Role.ADMIN)

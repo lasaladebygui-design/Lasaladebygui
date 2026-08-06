@@ -299,7 +299,7 @@ def favorite_category_note(request, category):
         raise Http404
     if request.method == "POST":
         field = "essential_note" if category == FavoriteMovie.Category.ESSENTIAL else "suggested_note"
-        setattr(request.user, field, request.POST.get("note", "").strip()[:280])
+        setattr(request.user, field, request.POST.get("note", "").strip())
         request.user.save(update_fields=[field])
     return redirect("accounts:favorites-page", category)
 

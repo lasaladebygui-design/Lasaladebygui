@@ -48,7 +48,7 @@
                     {% if article.tags.all %}
                         <span class="card__tag">{{ article.tags.all.0.name }}</span>
                     {% endif %}
-                    <h3><a href="{{ article.get_absolute_url }}">{{ article.title }}</a></h3>
+                    <h3>{% if article.is_private %}🔒 {% endif %}<a href="{{ article.get_absolute_url }}">{{ article.title }}</a></h3>
                     <p class="muted article-card__meta">{% username_badge article.author "autor eliminado" %} · {{ article.created_at|date:"d/m/Y" }}</p>
                 </div>
             </article>

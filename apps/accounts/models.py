@@ -60,12 +60,12 @@ class User(AbstractUser):
         "ocultar sugerencia de instalar la app", default=False,
     )
     essential_note = models.TextField(
-        "por qué son imprescindibles", max_length=280, blank=True,
-        help_text="Un único texto para todo el apartado (no por película). Visible para cualquiera que vea tu perfil.",
+        "por qué son imprescindibles", blank=True,
+        help_text="Un único texto para todo el apartado (no por película), sin límite de longitud. Visible para cualquiera que vea tu perfil.",
     )
     suggested_note = models.TextField(
-        "por qué las recomiendas", max_length=280, blank=True,
-        help_text="Un único texto para todo el apartado (no por película). Visible para cualquiera que vea tu perfil.",
+        "por qué las recomiendas", blank=True,
+        help_text="Un único texto para todo el apartado (no por película), sin límite de longitud. Visible para cualquiera que vea tu perfil.",
     )
 
     USERNAME_FIELD = "email"
@@ -82,6 +82,14 @@ class User(AbstractUser):
         previous_role = None
         if self.pk:
             previous_role = type(self).objects.filter(pk=self.pk).values_list("role", flat=True).first()
+
+        # El email es el identificador de acceso (USERNAME_FIELD): normalizar
+        # a minúsculas aquí, al guardar, evita que "User@x.com" y
+        # "user@x.com" acaben siendo dos cuentas distintas — el login ya es
+        # insensible a mayúsculas (ver EmailBackend), pero esto lo es desde
+        # la raíz para cualquier email nuevo.
+        if self.email:
+            self.email = self.email.lower()
 
         if not self.username:
             self.username = self._generate_username()

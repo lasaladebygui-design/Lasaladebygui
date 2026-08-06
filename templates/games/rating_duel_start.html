@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Cuál está mejor valorada{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <span class="card__tag">Juegos</span>
+        <h1>⭐ ¿Cuál está mejor valorada?</h1>
+        <p class="muted">Dos portadas, adivina cuál tiene mejor nota IMDb — aguanta la racha todo lo que puedas.</p>
+
+        <form method="get" class="stacked-form">
+            <div class="field field--checkbox-group">
+                <p class="field-label">¿Pelis o series?</p>
+                <div class="field--checkbox"><label><input type="radio" name="type" value="movie" checked> Películas</label></div>
+                <div class="field--checkbox"><label><input type="radio" name="type" value="tv"> Series</label></div>
+            </div>
+            <div class="field field--checkbox-group">
+                <p class="field-label">¿Ver la nota exacta tras cada ronda?</p>
+                <div class="field--checkbox"><label><input type="radio" name="anon" value="0" checked> Sí, enséñamela</label></div>
+                <div class="field--checkbox"><label><input type="radio" name="anon" value="1"> No, modo anónimo (más difícil)</label></div>
+            </div>
+            <button type="submit" class="btn btn--accent btn--block">Empezar a jugar</button>
+        </form>
+    </div>
+</section>
+{% endblock %}

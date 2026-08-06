@@ -17,7 +17,8 @@
             {% endfor %}
         </div>
 
-        <h1>{{ article.title }}</h1>
+        <h1>{% if article.is_private %}🔒 {% endif %}{{ article.title }}</h1>
+        {% if article.is_private %}<p class="muted">Privado — solo lo ven Gestores y Admin.</p>{% endif %}
         <p class="muted article-card__meta">
             Por {% username_badge article.author "autor eliminado" %} · {{ article.created_at|date:"d/m/Y" }}
             {% if article.updated_at|date:"YmdHi" != article.created_at|date:"YmdHi" %}· editado el {{ article.updated_at|date:"d/m/Y" }}{% endif %}

@@ -286,7 +286,7 @@ CKEDITOR_5_CONFIGS = {
     },
 }
 
-# --- Email (verificación de cuenta, contacto) ---------------------------
+# --- Email (verificación de cuenta, recuperar contraseña, contacto) --------
 
 EMAIL_BACKEND = env(
     "EMAIL_BACKEND",
@@ -297,6 +297,22 @@ EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+
+# Si en un despliegue real EMAIL_BACKEND queda puesto a SMTP pero faltan las
+# credenciales, los correos (verificación, recuperar contraseña, contacto)
+# fallarían o se quedarían sin enviar de forma confusa. Mismo criterio que
+# con DATABASE_URL y Supabase Storage: mejor que falle alto y claro en el
+# arranque a que "no lleguen" los correos sin ninguna pista de por qué.
+if IS_REAL_DEPLOY and EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend":
+    if not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD:
+        raise ImproperlyConfigured(
+            "EMAIL_BACKEND está puesto a SMTP pero faltan EMAIL_HOST_USER/"
+            "EMAIL_HOST_PASSWORD. Sin ellos no llega ningún correo (ni "
+            "verificación, ni recuperar contraseña, ni el formulario de "
+            "contacto). Configúralas en el panel de Render — si usas Gmail "
+            "con verificación en dos pasos, EMAIL_HOST_PASSWORD debe ser una "
+            "\"contraseña de aplicación\", no la contraseña normal de la cuenta."
+        )
 
 # Gmail rechaza o no entrega bien los correos si el remitente ("From") no
 # coincide con la cuenta autenticada por SMTP. Por eso, si DEFAULT_FROM_EMAIL

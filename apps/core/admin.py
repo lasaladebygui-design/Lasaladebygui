@@ -25,10 +25,11 @@ class ThemeAdmin(ColorWidgetMixin, admin.ModelAdmin):
     """Gestión de temas: crear/editar temas nuevos sin tocar código.
     El tema que se aplica a la web se elige en Sitio → Configuración del sitio."""
 
-    list_display = ("name", "slug", "is_dark", "color_accent", "color_accent_secondary")
+    list_display = ("name", "slug", "is_published", "is_dark", "color_accent", "color_accent_secondary")
+    list_editable = ("is_published",)
     prepopulated_fields = {"slug": ("name",)}
     fieldsets = (
-        (None, {"fields": ("name", "slug", "description", "is_dark")}),
+        (None, {"fields": ("name", "slug", "description", "is_dark", "is_published")}),
         ("Fondo y superficies", {"fields": ("color_bg", "color_surface", "color_border")}),
         ("Texto", {"fields": ("color_text", "color_text_muted")}),
         ("Acento principal", {"fields": ("color_accent", "color_accent_hover", "color_on_accent")}),

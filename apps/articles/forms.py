@@ -1,6 +1,7 @@
 from django import forms
 
 from .models import Article, ArticleComment, Tag
+from .permissions import can_manage_private_articles
 
 
 class ArticleForm(forms.ModelForm):
@@ -12,15 +13,19 @@ class ArticleForm(forms.ModelForm):
 
     class Meta:
         model = Article
-        fields = ["title", "cover", "body"]
-        labels = {"title": "Título", "cover": "Portada"}
+        fields = ["title", "cover", "body", "is_private"]
+        labels = {"title": "Título", "cover": "Portada", "is_private": "Privado (solo Gestores y Admin)"}
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance.pk:
             self.fields["tags_input"].initial = ", ".join(
                 self.instance.tags.values_list("name", flat=True)
             )
+        # El campo "privado" solo lo ve/usa quien puede gestionarlo (Gestor
+        # y Admin) — un Editor publicando su propio artículo ni lo ve.
+        if user is not None and not can_manage_private_articles(user):
+            del self.fields["is_private"]
 
     def save(self, commit=True):
         article = super().save(commit=commit)

@@ -236,6 +236,26 @@ class ThemeSwitcherTests(TestCase):
         self.assertIn("no-cache", response.headers["Cache-Control"])
         self.assertIn("private", response.headers["Cache-Control"])
 
+    def test_un_tema_despublicado_no_aparece_en_el_selector(self):
+        self.noir.is_published = False
+        self.noir.save(update_fields=["is_published"])
+
+        response = self.client.get(reverse("core:home"))
+        self.assertNotIn(self.noir, response.context["all_themes"])
+        self.assertIn(self.vintage, response.context["all_themes"])
+
+    def test_un_tema_despublicado_sigue_funcionando_si_ya_estaba_puesto(self):
+        user = User.objects.create(email="lector3@test.local", role=User.Role.LECTOR, theme=self.noir)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+
+        self.noir.is_published = False
+        self.noir.save(update_fields=["is_published"])
+
+        response = self.client.get(reverse("theme-css"))
+        self.assertContains(response, self.noir.color_bg)
+
 
 class SupabasePublicDomainTests(TestCase):
     """Marcar un bucket de Supabase como 'Public' no lo hace accesible por

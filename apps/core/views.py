@@ -8,14 +8,17 @@ from django.views.decorators.cache import cache_control
 from django.views.decorators.http import require_POST
 
 from apps.articles.models import Article
+from apps.articles.permissions import can_manage_private_articles
 
 from .forms import ContactForm
 from .models import SESSION_THEME_KEY, ContactLink, SiteConfig, Theme, get_effective_theme
 
 
 def home(request):
-    articles = Article.objects.select_related("author").prefetch_related("tags")[:5]
-    return TemplateResponse(request, "core/home.html", {"featured_articles": articles})
+    articles = Article.objects.select_related("author").prefetch_related("tags")
+    if not can_manage_private_articles(request.user):
+        articles = articles.filter(is_private=False)
+    return TemplateResponse(request, "core/home.html", {"featured_articles": articles[:5]})
 
 
 def donations(request):

@@ -31,12 +31,15 @@
             <form method="post" action="{% url 'accounts:favorite-category-note' category=category %}">
                 {% csrf_token %}
                 <label for="id_category_note">{% if category == 'essential' %}¿Por qué son imprescindibles?{% else %}¿Por qué las recomiendas?{% endif %}</label>
-                <textarea id="id_category_note" name="note" maxlength="280" placeholder="Escribe aquí y guarda...">{{ category_note }}</textarea>
+                <textarea id="id_category_note" name="note" placeholder="Escribe aquí y guarda... (sin límite de longitud)">{{ category_note }}</textarea>
                 <button type="submit" class="btn btn--accent btn--sm">Guardar</button>
             </form>
             {% elif category_note %}
-            <p class="favorites-note__label muted">{% if category == 'essential' %}Por qué son imprescindibles{% else %}Por qué las recomienda{% endif %}</p>
-            <p class="favorites-note__text">{{ category_note }}</p>
+            <div x-data="{ expanded: false }">
+                <p class="favorites-note__label muted">{% if category == 'essential' %}Por qué son imprescindibles{% else %}Por qué las recomienda{% endif %}</p>
+                <p class="favorites-note__text" :class="{ 'favorites-note__text--clamped': !expanded }">{{ category_note }}</p>
+                <button type="button" class="link-btn" @click="expanded = !expanded" x-text="expanded ? 'Leer menos' : 'Leer más'"></button>
+            </div>
             {% endif %}
         </div>
     </div>
