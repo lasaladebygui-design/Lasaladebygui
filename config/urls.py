@@ -36,5 +36,9 @@ if settings.DEBUG:
 # en local como en Render. No es lo ideal para un sitio de tráfico alto, pero
 # es la opción más simple mientras no haya S3/Cloudinary de por medio.
 urlpatterns += [
-    re_path(r"^media/(?P<path>.*)$", serve_static, {"document_root": settings.MEDIA_ROOT}),
+    # secret_photos/ queda excluida a propósito: esas imágenes solo se
+    # sirven autenticadas, por apps.secret.views.photo_serve — si esta ruta
+    # también las sirviera, cualquiera con la URL (sin código, sin sesión)
+    # podría verlas directamente.
+    re_path(r"^media/(?!secret_photos/)(?P<path>.*)$", serve_static, {"document_root": settings.MEDIA_ROOT}),
 ]

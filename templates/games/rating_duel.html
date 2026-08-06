@@ -11,7 +11,7 @@
         <div class="media-type-toggle">
             <span class="btn btn--sm btn--accent">{% if media_type == 'tv' %}Series{% else %}Películas{% endif %}</span>
             <span class="btn btn--sm btn--ghost">{% if anon_mode %}🙈 Modo anónimo{% else %}👁️ Con nota{% endif %}</span>
-            <a href="{% url 'games:rating-duel' %}" class="link-btn">Cambiar</a>
+            <a href="{% url 'games:rating-duel' %}" class="btn btn--ghost btn--sm">🔀 Cambiar</a>
         </div>
 
         <div class="rating-duel__scoreboard">

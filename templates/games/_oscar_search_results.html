@@ -1,0 +1,24 @@
+{% if error %}
+    <p class="field-errors">{{ error }}</p>
+{% elif query and not results %}
+    <p class="muted">Sin resultados para «{{ query }}».</p>
+{% endif %}
+
+{% if results %}
+<ul class="search-results">
+    {% for movie in results %}
+    <li class="search-result">
+        {% if movie.poster_url %}
+            <img src="{{ movie.poster_url }}" alt="" class="search-result__poster">
+        {% endif %}
+        <div class="search-result__body">
+            <strong>{{ movie.title }}</strong> <span class="muted">{{ movie.year }}</span>
+        </div>
+        <form method="post" action="{% url 'games:oscar-candidate-add' category.pk movie.tmdb_id %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn--ghost btn--sm">Proponer</button>
+        </form>
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}

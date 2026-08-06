@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Verdadero o falso{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <span class="card__tag">Juegos</span>
+        <h1>✅❌ Verdadero o falso</h1>
+        <p class="quote-game__score">Racha actual: <strong>{{ streak }}</strong> · Mejor racha: <strong>{{ best }}</strong></p>
+
+        {% if not user.is_authenticated %}
+        <p class="muted">
+            <a href="{% url 'accounts:login' %}?next={{ request.path }}">Inicia sesión</a> para que tu mejor racha quede guardada en tu perfil.
+        </p>
+        {% endif %}
+
+        {% if game_over %}
+        <div class="quote-game__gameover">
+            {% if is_new_record %}
+                <p class="quote-game__record">🎉 ¡Felicidades! Nuevo récord personal.</p>
+            {% endif %}
+            <p>Fallaste — era {% if correct_answer %}verdadero{% else %}falso{% endif %}.</p>
+            <p class="quote-game__final">Racha final: <strong>{{ final_streak }}</strong></p>
+            <a href="{% url 'games:true-false-game' %}" class="btn btn--accent btn--block">Jugar de nuevo</a>
+        </div>
+        {% elif statement %}
+        <blockquote class="quote-game__quote">{{ statement.statement }}</blockquote>
+        <form method="post" class="trivia-game__true-false">
+            {% csrf_token %}
+            <input type="hidden" name="statement_id" value="{{ statement.pk }}">
+            <button type="submit" name="answer" value="true" class="btn btn--ghost btn--block trivia-game__true-false-btn trivia-game__true-false-btn--true">✅ Verdadero</button>
+            <button type="submit" name="answer" value="false" class="btn btn--ghost btn--block trivia-game__true-false-btn trivia-game__true-false-btn--false">❌ Falso</button>
+        </form>
+        {% else %}
+        <p class="muted">Todavía no hay afirmaciones cargadas. Se añaden desde el admin (Juegos → Verdadero o falso).</p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

@@ -9,5 +9,6 @@ urlpatterns = [
     path("donaciones/", views.donations, name="donations"),
     path("contacto/", views.contact, name="contact"),
     path("tema/reset/", views.reset_theme, name="reset-theme"),
+    path("tema/vista-previa/", views.theme_preview, name="theme-preview"),
     path("tema/<slug:slug>/", views.set_theme, name="set-theme"),
 ]

@@ -236,6 +236,29 @@ class ThemeSwitcherTests(TestCase):
         self.assertIn("no-cache", response.headers["Cache-Control"])
         self.assertIn("private", response.headers["Cache-Control"])
 
+    def test_existe_el_tema_jinx(self):
+        jinx = Theme.objects.get(slug="jinx")
+        self.assertTrue(jinx.is_published)
+        self.assertEqual(jinx.color_accent, "#00E5FF")
+        self.assertEqual(jinx.color_accent_secondary, "#FF2FD0")
+
+    def test_set_theme_con_next_redirige_en_vez_de_devolver_json(self):
+        response = self.client.post(
+            reverse("core:set-theme", args=[self.noir.slug]), {"next": reverse("accounts:settings")},
+        )
+        self.assertRedirects(response, reverse("accounts:settings"), fetch_redirect_response=False)
+
+    def test_set_theme_con_next_externo_no_redirige_ahi(self):
+        response = self.client.post(
+            reverse("core:set-theme", args=[self.noir.slug]), {"next": "https://evil.example/"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"ok": True, "slug": self.noir.slug})
+
+    def test_reset_theme_con_next_redirige(self):
+        response = self.client.post(reverse("core:reset-theme"), {"next": reverse("accounts:settings")})
+        self.assertRedirects(response, reverse("accounts:settings"), fetch_redirect_response=False)
+
     def test_un_tema_despublicado_no_aparece_en_el_selector(self):
         self.noir.is_published = False
         self.noir.save(update_fields=["is_published"])
@@ -309,6 +332,25 @@ class AdminAccessTests(TestCase):
     def test_anonimo_no_entra(self):
         response = self.client.get(reverse("admin:index"))
         self.assertRedirects(response, "/admin/login/?next=/admin/", fetch_redirect_response=False)
+
+
+class ThemePreviewTests(TestCase):
+    """Página de muestra que se carga en un iframe dentro del admin de
+    Temas, para ver en vivo cómo queda una combinación de colores antes de
+    guardar (apps/core/admin.py, ThemeAdmin + static/js/admin_theme_preview.js)."""
+
+    def test_anonimo_no_accede(self):
+        response = self.client.get(reverse("core:theme-preview"))
+        self.assertNotEqual(response.status_code, 200)
+
+    def test_admin_accede(self):
+        user = User.objects.create(email="preview_admin@test.local", role=User.Role.ADMIN, is_staff=True)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+        response = self.client.get(reverse("core:theme-preview"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Así se ve este tema")
 
 
 @override_settings(VAPID_PUBLIC_KEY="clave-publica", VAPID_PRIVATE_KEY="clave-privada")

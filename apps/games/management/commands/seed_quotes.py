@@ -165,6 +165,13 @@ MOVIE_QUOTES = [
     # las opciones de una misma pregunta).
     ("Recuerda, recuerda el cinco de noviembre.", "V de Vendetta", "300", "Watchmen"),
     ("La familia lo es todo.", "Fast & Furious", "Misión: Imposible", "xXx: Triple X"),
+
+    # Sexta tanda.
+    ("Esto es mi fusil, hay muchos como él, pero este es el mío.", "La chaqueta metálica", "Rambo: Acorralado", "Platoon"),
+    ("Desde que tengo memoria, siempre quise ser un gángster.", "Uno de los nuestros", "El padrino", "Scarface"),
+    ("El mundo es tuyo.", "Scarface", "El padrino", "Uno de los nuestros"),
+    ("En esta vida o en la próxima, te prometo que te veré.", "Gladiator", "Troya", "300"),
+    ("Demasiadas notas, Majestad.", "Amadeus", "El pianista", "Shine: el resplandor de un genio"),
 ]
 
 
@@ -190,6 +197,15 @@ SERIES_QUOTES = [
     ("Soy alérgica a los colores.", "Merlina", "Sabrina, escalofriantes aventuras", "American Horror Story"),
     ("Voy a ser el Rey de los Piratas.", "One Piece", "Naruto", "Dragon Ball Z"),
     ("Voy a convertirme en el mejor entrenador Pokémon que jamás haya existido.", "Pokémon", "Digimon", "Yu-Gi-Oh!"),
+
+    # Segunda tanda de series, con más Arcane.
+    ("Renuncié a la esperanza a cambio de poder. Y no me arrepiento.", "Arcane", "Castlevania", "Dota: la sangre del dragón"),
+    ("¡Sorpresa, cabrones!", "Arcane", "Peaky Blinders", "The Boys"),
+    ("¡Mejor llame a Saul!", "Better Call Saul", "Breaking Bad", "Ozark"),
+    ("Luz verde, luz roja.", "El juego del calamar", "Stranger Things", "La Casa de Papel"),
+    ("Wubba lubba dub dub!", "Rick y Morty", "Los Simpson", "Futurama"),
+    ("¡Ay, caramba!", "Los Simpson", "Padre de familia", "Futurama"),
+    ("¿Quién vive en una piña debajo del mar?", "Bob Esponja", "Los Simpson", "Hora de aventura"),
 ]
 
 

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Qué personaje eres{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <span class="card__tag">Juegos</span>
+        <h1>🎭 ¿Qué personaje eres?</h1>
+
+        {% if question %}
+        <p class="muted">Pregunta {{ progress }} de {{ total }}</p>
+        <blockquote class="quote-game__quote">{{ question.text }}</blockquote>
+        <form method="post" class="quote-game__options">
+            {% csrf_token %}
+            {% for answer in question.answers.all %}
+                <button type="submit" name="answer_id" value="{{ answer.pk }}" class="btn btn--ghost btn--block">{{ answer.text }}</button>
+            {% endfor %}
+        </form>
+        {% else %}
+        <p class="muted">Todavía no hay preguntas cargadas. Se añaden desde el admin (Juegos → Qué personaje eres).</p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

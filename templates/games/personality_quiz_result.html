@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Qué personaje eres{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <span class="card__tag">Juegos</span>
+        <h1>🎭 ¿Qué personaje eres?</h1>
+
+        {% if character %}
+        <div class="quote-game__gameover">
+            <p class="muted">Tu resultado es...</p>
+            {% if character.image_url %}
+                <img src="{{ character.image_url }}" alt="" class="trivia-game__actor-photo">
+            {% endif %}
+            <p class="quote-game__record">{{ character.name }}{% if character.source %} <span class="muted">({{ character.source }})</span>{% endif %}</p>
+            <p>{{ character.description }}</p>
+        </div>
+        {% else %}
+        <p class="muted">No se pudo calcular un resultado.</p>
+        {% endif %}
+
+        <form method="post" style="margin-top:1.5rem;">
+            {% csrf_token %}
+            <input type="hidden" name="restart" value="1">
+            <button type="submit" class="btn btn--accent btn--block">Repetir el test</button>
+        </form>
+    </div>
+</section>
+{% endblock %}

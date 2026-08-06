@@ -13,7 +13,10 @@ from apps.movies.services import MovieAPIError, tmdb_search
 from apps.social.models import Message, are_friends, friends_of
 
 from .forms import GameTierLevelForm
-from .models import Duel, DuelRecord, GameTierEntry, GameTierLevel, MovieQuote
+from .models import (
+    Duel, DuelRecord, GameTierEntry, GameTierLevel, MovieQuote, OscarCandidate, OscarCategory, OscarVote,
+    PersonalityAnswer, PersonalityCharacter, PersonalityQuestion, TriviaQuestion, TrueFalseStatement,
+)
 
 DEFAULT_TIER_LEVELS = [
     ("S", "#FFD700"),
@@ -37,7 +40,9 @@ def games_hub(request):
             Q(challenger=request.user) | Q(opponent=request.user)
         ).select_related("challenger", "opponent")
         friends = friends_of(request.user)
-    return render(request, "games/games.html", {"duels": duels, "friends": friends})
+    return render(request, "games/games.html", {
+        "duels": duels, "friends": friends, "duel_games": Duel.Game.choices,
+    })
 
 
 def _register_best_streak(request, streak):
@@ -107,11 +112,29 @@ def quote_game(request):
 # "Siguiente") en vez de saltar directo a la ronda siguiente: sin ese
 # segundo paso no hay manera de que el acierto se vea de verdad en verde.
 
-RATING_DUEL_MAX_REPEATS = 2
+RATING_DUEL_MAX_REPEATS_CHOICES = (1, 2, 3)
 
 
 def _rating_duel_streak_key(media_type):
     return f"rating_duel_streak_{media_type}"
+
+
+def _rating_duel_max_repeats_key(media_type):
+    return f"rating_duel_max_repeats_{media_type}"
+
+
+def _rating_duel_max_repeats(request, media_type):
+    """El tope de repeticiones por partida se sortea (1, 2 o 3) en vez de
+    ser siempre el mismo número — así, aunque sepas que una película tiene
+    un 9, no puedes contar con poder abusar de ella un número fijo de veces:
+    unas partidas te deja repetirla tres veces, otras solo una. Se sortea
+    una vez por partida (hasta el siguiente fallo) y no en cada ronda."""
+    key = _rating_duel_max_repeats_key(media_type)
+    value = request.session.get(key)
+    if value is None:
+        value = random.choice(RATING_DUEL_MAX_REPEATS_CHOICES)
+        request.session[key] = value
+    return value
 
 
 def _rating_duel_champion_key(media_type):
@@ -158,13 +181,14 @@ def _rating_duel_register_seen(request, media_type, movie_id):
 
 
 def _rating_duel_overused_ids(request, media_type):
+    max_repeats = _rating_duel_max_repeats(request, media_type)
     counts = request.session.get(_rating_duel_seen_key(media_type), {})
-    return [int(mid) for mid, n in counts.items() if n >= RATING_DUEL_MAX_REPEATS]
+    return [int(mid) for mid, n in counts.items() if n >= max_repeats]
 
 
 def _pick_rated_movie(request, media_type, exclude_id=None):
-    """Evita repetir la misma película más de RATING_DUEL_MAX_REPEATS veces
-    en la sesión (si no, en cuanto sabes que una tiene un 9, la fuerzas a
+    """Evita repetir la misma película más veces que el tope sorteado para
+    esta partida (si no, en cuanto sabes que una tiene un 9, la fuerzas a
     salir una y otra vez). Si ya no queda ninguna sin topar (catálogo
     pequeño), se libera el tope para no bloquear la partida."""
     exclude_ids = set(_rating_duel_overused_ids(request, media_type))
@@ -234,6 +258,7 @@ def rating_duel_game(request):
                 _register_rating_duel_best(request, media_type, streak)
                 request.session[streak_key] = 0
                 request.session.pop(champion_key, None)
+                request.session.pop(_rating_duel_max_repeats_key(media_type), None)
                 streak = 0
                 game_over = True
 
@@ -268,29 +293,368 @@ def rating_duel_game(request):
     })
 
 
+# --- Trivial / Emoji / Malas descripciones / Cuál tiene al actor ---------
+# Las cuatro comparten la misma mecánica (enunciado + 3 opciones, racha
+# hasta fallar) que ya usa Frases célebres, así que reutilizan un único
+# motor genérico (`_trivia_game`) parametrizado por categoría — solo cambia
+# qué enunciado se muestra y en qué plantilla, cada una con su propio campo
+# de mejor racha en el usuario.
+
+TRIVIA_BEST_FIELDS = {
+    TriviaQuestion.Category.TRIVIA: "trivia_streak_best",
+    TriviaQuestion.Category.EMOJI: "emoji_streak_best",
+    TriviaQuestion.Category.BAD_DESCRIPTION: "bad_description_streak_best",
+    TriviaQuestion.Category.ACTOR: "actor_streak_best",
+}
+
+
+def _trivia_streak_key(category):
+    return f"trivia_streak_{category}"
+
+
+def _trivia_best_anon_key(category):
+    return f"trivia_streak_best_anon_{category}"
+
+
+def _register_trivia_best(request, category, streak):
+    field = TRIVIA_BEST_FIELDS[category]
+    if request.user.is_authenticated:
+        if streak > getattr(request.user, field):
+            setattr(request.user, field, streak)
+            request.user.save(update_fields=[field])
+    else:
+        key = _trivia_best_anon_key(category)
+        if streak > request.session.get(key, 0):
+            request.session[key] = streak
+
+
+def _trivia_game(request, category, template):
+    streak_key = _trivia_streak_key(category)
+    streak = request.session.get(streak_key, 0)
+    game_over = False
+    is_new_record = False
+    final_streak = None
+    wrong_answer = None
+
+    if request.method == "POST":
+        question = get_object_or_404(TriviaQuestion, pk=request.POST.get("question_id"), category=category)
+        if request.POST.get("answer") == question.correct_answer:
+            streak += 1
+            request.session[streak_key] = streak
+        else:
+            field = TRIVIA_BEST_FIELDS[category]
+            previous_best = (
+                getattr(request.user, field) if request.user.is_authenticated
+                else request.session.get(_trivia_best_anon_key(category), 0)
+            )
+            final_streak = streak
+            is_new_record = streak > previous_best
+            wrong_answer = question.correct_answer
+            _register_trivia_best(request, category, streak)
+            request.session[streak_key] = 0
+            streak = 0
+            game_over = True
+
+    next_question = None
+    options = []
+    if not game_over:
+        next_question = TriviaQuestion.objects.filter(category=category).order_by("?").first()
+        if next_question:
+            options = [next_question.correct_answer, next_question.wrong_answer_1, next_question.wrong_answer_2]
+            random.shuffle(options)
+
+    field = TRIVIA_BEST_FIELDS[category]
+    best = (
+        getattr(request.user, field) if request.user.is_authenticated
+        else request.session.get(_trivia_best_anon_key(category), 0)
+    )
+
+    return render(request, template, {
+        "question": next_question, "options": options, "streak": streak, "best": best,
+        "game_over": game_over, "is_new_record": is_new_record,
+        "final_streak": final_streak, "wrong_answer": wrong_answer,
+    })
+
+
+def trivia_game(request):
+    return _trivia_game(request, TriviaQuestion.Category.TRIVIA, "games/trivia_game.html")
+
+
+# --- Emoji ------------------------------------------------------------
+# A diferencia del resto (que enseñan el enunciado entero desde el
+# principio), aquí los emojis se revelan de uno en uno: solo se ve el
+# primero, y cada vez que fallas se añade uno más como pista — perder solo
+# cuenta de verdad (rompe la racha) si fallas ya con todos los emojis a la
+# vista. La pregunta actual y cuántos emojis van revelados se guardan en
+# sesión para que sobrevivan entre intentos de la misma pregunta.
+
+EMOJI_STREAK_KEY = _trivia_streak_key(TriviaQuestion.Category.EMOJI)
+EMOJI_CURRENT_QUESTION_KEY = "emoji_current_question_id"
+EMOJI_REVEAL_COUNT_KEY = "emoji_reveal_count"
+
+
+def emoji_game(request):
+    streak = request.session.get(EMOJI_STREAK_KEY, 0)
+    game_over = False
+    is_new_record = False
+    final_streak = None
+    wrong_answer = None
+    just_wrong = False
+
+    if request.method == "POST":
+        question = get_object_or_404(
+            TriviaQuestion, pk=request.POST.get("question_id"), category=TriviaQuestion.Category.EMOJI,
+        )
+        emoji_count = len(question.prompt.split())
+        if request.POST.get("answer") == question.correct_answer:
+            streak += 1
+            request.session[EMOJI_STREAK_KEY] = streak
+            request.session.pop(EMOJI_CURRENT_QUESTION_KEY, None)
+            request.session.pop(EMOJI_REVEAL_COUNT_KEY, None)
+        else:
+            reveal_count = request.session.get(EMOJI_REVEAL_COUNT_KEY, 1)
+            if reveal_count < emoji_count:
+                # Quedan emojis por revelar: no se rompe la racha todavía,
+                # se enseña una pista más de la misma pregunta.
+                just_wrong = True
+                request.session[EMOJI_CURRENT_QUESTION_KEY] = question.pk
+                request.session[EMOJI_REVEAL_COUNT_KEY] = reveal_count + 1
+            else:
+                previous_best = (
+                    getattr(request.user, TRIVIA_BEST_FIELDS[TriviaQuestion.Category.EMOJI])
+                    if request.user.is_authenticated
+                    else request.session.get(_trivia_best_anon_key(TriviaQuestion.Category.EMOJI), 0)
+                )
+                final_streak = streak
+                is_new_record = streak > previous_best
+                wrong_answer = question.correct_answer
+                _register_trivia_best(request, TriviaQuestion.Category.EMOJI, streak)
+                request.session[EMOJI_STREAK_KEY] = 0
+                streak = 0
+                game_over = True
+                request.session.pop(EMOJI_CURRENT_QUESTION_KEY, None)
+                request.session.pop(EMOJI_REVEAL_COUNT_KEY, None)
+
+    next_question = None
+    options = []
+    revealed_emojis = ""
+    total_emojis = 0
+    reveal_count = 0
+    if not game_over:
+        question_id = request.session.get(EMOJI_CURRENT_QUESTION_KEY)
+        next_question = (
+            TriviaQuestion.objects.filter(pk=question_id, category=TriviaQuestion.Category.EMOJI).first()
+            if question_id else None
+        )
+        reveal_count = request.session.get(EMOJI_REVEAL_COUNT_KEY, 1)
+        if next_question is None:
+            next_question = TriviaQuestion.objects.filter(category=TriviaQuestion.Category.EMOJI).order_by("?").first()
+            reveal_count = 1
+            if next_question:
+                request.session[EMOJI_CURRENT_QUESTION_KEY] = next_question.pk
+                request.session[EMOJI_REVEAL_COUNT_KEY] = 1
+        if next_question:
+            emojis = next_question.prompt.split()
+            total_emojis = len(emojis)
+            revealed_emojis = " ".join(emojis[:reveal_count])
+            options = [next_question.correct_answer, next_question.wrong_answer_1, next_question.wrong_answer_2]
+            random.shuffle(options)
+
+    best = (
+        getattr(request.user, TRIVIA_BEST_FIELDS[TriviaQuestion.Category.EMOJI]) if request.user.is_authenticated
+        else request.session.get(_trivia_best_anon_key(TriviaQuestion.Category.EMOJI), 0)
+    )
+
+    return render(request, "games/emoji_game.html", {
+        "question": next_question, "options": options, "streak": streak, "best": best,
+        "game_over": game_over, "is_new_record": is_new_record, "just_wrong": just_wrong,
+        "final_streak": final_streak, "wrong_answer": wrong_answer,
+        "revealed_emojis": revealed_emojis, "reveal_count": reveal_count, "total_emojis": total_emojis,
+    })
+
+
+def bad_description_game(request):
+    return _trivia_game(request, TriviaQuestion.Category.BAD_DESCRIPTION, "games/bad_description_game.html")
+
+
+def actor_game(request):
+    return _trivia_game(request, TriviaQuestion.Category.ACTOR, "games/actor_game.html")
+
+
+# --- Verdadero o falso -----------------------------------------------------
+
+TRUE_FALSE_STREAK_KEY = "true_false_streak"
+TRUE_FALSE_BEST_ANON_KEY = "true_false_streak_best_anon"
+
+
+def _register_true_false_best(request, streak):
+    if request.user.is_authenticated:
+        if streak > request.user.true_false_streak_best:
+            request.user.true_false_streak_best = streak
+            request.user.save(update_fields=["true_false_streak_best"])
+    elif streak > request.session.get(TRUE_FALSE_BEST_ANON_KEY, 0):
+        request.session[TRUE_FALSE_BEST_ANON_KEY] = streak
+
+
+def true_false_game(request):
+    streak = request.session.get(TRUE_FALSE_STREAK_KEY, 0)
+    game_over = False
+    is_new_record = False
+    final_streak = None
+    correct_answer = None
+
+    if request.method == "POST":
+        statement = get_object_or_404(TrueFalseStatement, pk=request.POST.get("statement_id"))
+        answer = request.POST.get("answer") == "true"
+        if answer == statement.is_true:
+            streak += 1
+            request.session[TRUE_FALSE_STREAK_KEY] = streak
+        else:
+            previous_best = (
+                request.user.true_false_streak_best if request.user.is_authenticated
+                else request.session.get(TRUE_FALSE_BEST_ANON_KEY, 0)
+            )
+            final_streak = streak
+            is_new_record = streak > previous_best
+            correct_answer = statement.is_true
+            _register_true_false_best(request, streak)
+            request.session[TRUE_FALSE_STREAK_KEY] = 0
+            streak = 0
+            game_over = True
+
+    next_statement = None
+    if not game_over:
+        next_statement = TrueFalseStatement.objects.order_by("?").first()
+
+    best = (
+        request.user.true_false_streak_best if request.user.is_authenticated
+        else request.session.get(TRUE_FALSE_BEST_ANON_KEY, 0)
+    )
+
+    return render(request, "games/true_false_game.html", {
+        "statement": next_statement, "streak": streak, "best": best,
+        "game_over": game_over, "is_new_record": is_new_record,
+        "final_streak": final_streak, "correct_answer": correct_answer,
+    })
+
+
+# --- Qué personaje eres ----------------------------------------------------
+# Test de personalidad clásico: preguntas en orden fijo, cada respuesta suma
+# un punto a un personaje, y al final gana el que más puntos tiene — sin
+# racha ni fallo, no es un juego de acertar. El índice de la pregunta actual
+# y los puntos acumulados viven en sesión mientras dura el test.
+
+PERSONALITY_INDEX_KEY = "personality_quiz_index"
+PERSONALITY_SCORES_KEY = "personality_quiz_scores"
+
+
+def personality_quiz(request):
+    if request.method == "POST" and request.POST.get("restart"):
+        request.session.pop(PERSONALITY_INDEX_KEY, None)
+        request.session.pop(PERSONALITY_SCORES_KEY, None)
+        return redirect("games:personality-quiz")
+
+    questions = list(PersonalityQuestion.objects.prefetch_related("answers"))
+    total = len(questions)
+    index = request.session.get(PERSONALITY_INDEX_KEY, 0)
+    scores = request.session.get(PERSONALITY_SCORES_KEY, {})
+
+    if request.method == "POST" and 0 <= index < total:
+        answer = get_object_or_404(PersonalityAnswer, pk=request.POST.get("answer_id"), question=questions[index])
+        char_id = str(answer.character_id)
+        scores[char_id] = scores.get(char_id, 0) + 1
+        index += 1
+        request.session[PERSONALITY_SCORES_KEY] = scores
+        request.session[PERSONALITY_INDEX_KEY] = index
+
+    if total and index >= total:
+        result = None
+        if scores:
+            best_id = max(scores, key=scores.get)
+            result = PersonalityCharacter.objects.filter(pk=best_id).first()
+        return render(request, "games/personality_quiz_result.html", {"character": result})
+
+    question = questions[index] if index < total else None
+    return render(request, "games/personality_quiz.html", {
+        "question": question, "progress": index + 1 if question else 0, "total": total,
+    })
+
+
 # --- Duelos --------------------------------------------------------------
-# Duelo de Frases célebres entre dos amigos: los dos ven la misma pregunta
-# a la vez y avanzan juntos ronda a ronda (Duel.current_index, compartido);
-# en cuanto uno falla, el duelo termina ahí mismo para los dos. Empieza
-# como invitación (PENDING) hasta que el retado la acepta.
+# Duelo entre dos amigos, a elegir de entre varios juegos de trivia (todos
+# con la misma forma: enunciado + respuesta correcta + 2 incorrectas): los
+# dos ven la misma pregunta a la vez y avanzan juntos ronda a ronda
+# (Duel.current_index, compartido); en cuanto uno falla, el duelo termina
+# ahí mismo para los dos. Empieza como invitación (PENDING) hasta que el
+# retado la acepta. DUEL_GAMES es el registro de qué modelo/campos usa cada
+# juego disponible para duelo — añadir un juego nuevo aquí es lo único que
+# hace falta para que también se pueda retar a él.
+
+DUEL_GAMES = {
+    Duel.Game.QUOTES: {
+        "queryset": lambda: MovieQuote.objects.all(),
+        "prompt": lambda obj: obj.quote,
+        "correct": lambda obj: obj.correct_title,
+        "wrong": lambda obj: (obj.wrong_title_1, obj.wrong_title_2),
+    },
+    Duel.Game.TRIVIA: {
+        "queryset": lambda: TriviaQuestion.objects.filter(category=TriviaQuestion.Category.TRIVIA),
+        "prompt": lambda obj: obj.prompt,
+        "correct": lambda obj: obj.correct_answer,
+        "wrong": lambda obj: (obj.wrong_answer_1, obj.wrong_answer_2),
+    },
+    Duel.Game.BAD_DESCRIPTION: {
+        "queryset": lambda: TriviaQuestion.objects.filter(category=TriviaQuestion.Category.BAD_DESCRIPTION),
+        "prompt": lambda obj: obj.prompt,
+        "correct": lambda obj: obj.correct_answer,
+        "wrong": lambda obj: (obj.wrong_answer_1, obj.wrong_answer_2),
+    },
+    Duel.Game.ACTOR: {
+        "queryset": lambda: TriviaQuestion.objects.filter(category=TriviaQuestion.Category.ACTOR),
+        "prompt": lambda obj: obj.prompt,
+        "correct": lambda obj: obj.correct_answer,
+        "wrong": lambda obj: (obj.wrong_answer_1, obj.wrong_answer_2),
+    },
+}
+
 
 def _pick_quote_id():
     return MovieQuote.objects.order_by("?").values_list("pk", flat=True).first()
+
+
+def _pick_duel_round_id(game):
+    return DUEL_GAMES[game]["queryset"]().order_by("?").values_list("pk", flat=True).first()
+
+
+def _duel_round_object(game, round_id):
+    model = MovieQuote if game == Duel.Game.QUOTES else TriviaQuestion
+    return get_object_or_404(model, pk=round_id)
+
+
+def _duel_round_context(game, round_obj):
+    config = DUEL_GAMES[game]
+    correct = config["correct"](round_obj)
+    options = [correct, *config["wrong"](round_obj)]
+    random.shuffle(options)
+    return config["prompt"](round_obj), correct, options
 
 
 @login_required
 def duel_invite(request, username):
     other = get_object_or_404(User, username=username)
     if request.method == "POST" and other.pk != request.user.pk and are_friends(request.user, other):
-        quote_id = _pick_quote_id()
-        if quote_id is None:
-            messages.error(request, "Todavía no hay frases cargadas para un duelo.")
+        game = request.POST.get("game")
+        if game not in DUEL_GAMES:
+            game = Duel.Game.QUOTES
+        round_id = _pick_duel_round_id(game)
+        if round_id is None:
+            messages.error(request, "Todavía no hay preguntas cargadas para ese juego.")
         else:
-            duel = Duel.objects.create(challenger=request.user, opponent=other, quote_ids=[quote_id])
+            duel = Duel.objects.create(challenger=request.user, opponent=other, game=game, round_ids=[round_id])
             duel_url = request.build_absolute_uri(reverse("games:duel-detail", args=[duel.pk]))
             Message.objects.create(
                 sender=request.user, recipient=other,
-                body=f"¡Te reto a un duelo de Frases célebres! {duel_url}",
+                body=f"¡Te reto a un duelo de {duel.get_game_display()}! {duel_url}",
             )
             messages.success(request, f"Solicitud de duelo enviada a {other.username}.")
             return redirect("games:duel-detail", pk=duel.pk)
@@ -357,16 +721,18 @@ def duel_detail(request, pk):
             setattr(duel, field, True)
             duel.save(update_fields=[field])
             if duel.challenger_wants_rematch and duel.opponent_wants_rematch:
-                duel.reset_for_rematch()
-                return redirect("games:duel-detail", pk=pk)
+                first_round_id = _pick_duel_round_id(duel.game)
+                if first_round_id is not None:
+                    duel.reset_for_rematch(first_round_id)
+                    return redirect("games:duel-detail", pk=pk)
         return render(request, "games/duel_result.html", {
             "duel": duel, "role": role, "wants_rematch": duel.wants_rematch_for(request.user),
         })
 
     # ACTIVE: los dos juegan la misma ronda (duel.current_index) a la vez.
     if request.method == "POST" and not duel.answered_for(request.user):
-        quote = get_object_or_404(MovieQuote, pk=request.POST.get("quote_id"))
-        correct = request.POST.get("answer") == quote.correct_title
+        round_obj = _duel_round_object(duel.game, request.POST.get("round_id"))
+        correct = request.POST.get("answer") == DUEL_GAMES[duel.game]["correct"](round_obj)
 
         if not correct:
             if role == "challenger":
@@ -390,8 +756,8 @@ def duel_detail(request, pk):
             duel.current_index += 1
             duel.challenger_answered = False
             duel.opponent_answered = False
-            if duel.current_index >= len(duel.quote_ids):
-                duel.quote_ids.append(_pick_quote_id())  # se juega hasta fallar, no hay tanda fija
+            if duel.current_index >= len(duel.round_ids):
+                duel.round_ids.append(_pick_duel_round_id(duel.game))  # se juega hasta fallar, no hay tanda fija
         duel.save()
 
     if duel.answered_for(request.user):
@@ -399,11 +765,10 @@ def duel_detail(request, pk):
             "duel": duel, "role": role, "streak": duel.streak_for(request.user),
         })
 
-    quote = get_object_or_404(MovieQuote, pk=duel.quote_ids[duel.current_index])
-    options = [quote.correct_title, quote.wrong_title_1, quote.wrong_title_2]
-    random.shuffle(options)
+    round_obj = _duel_round_object(duel.game, duel.round_ids[duel.current_index])
+    prompt, _correct, options = _duel_round_context(duel.game, round_obj)
     return render(request, "games/duel_play.html", {
-        "duel": duel, "quote": quote, "options": options,
+        "duel": duel, "prompt": prompt, "round_id": round_obj.pk, "options": options,
         "streak": duel.streak_for(request.user),
     })
 
@@ -528,3 +893,74 @@ def tier_list_reset(request):
         GameTierEntry.objects.filter(user=request.user).delete()
         messages.success(request, "Tu tier list se ha vaciado. Puedes empezar de nuevo.")
     return redirect("games:tier-list")
+
+
+# --- Candidatos al Oscar ---------------------------------------------------
+# Herramienta compartida, no un juego de racha: cualquiera propone
+# candidatas (películas del catálogo) por categoría y vota por su favorita
+# — un voto por categoría y usuario, votar de nuevo reemplaza el anterior.
+
+def oscar_home(request):
+    categories = OscarCategory.objects.prefetch_related("candidates__movie", "candidates__votes")
+    my_votes = {}
+    if request.user.is_authenticated:
+        my_votes = dict(
+            OscarVote.objects.filter(user=request.user).values_list("category_id", "candidate_id")
+        )
+
+    category_rows = []
+    for category in categories:
+        candidates = sorted(category.candidates.all(), key=lambda c: len(c.votes.all()), reverse=True)
+        category_rows.append({
+            "category": category,
+            "candidates": candidates,
+            "my_vote_id": my_votes.get(category.pk),
+        })
+
+    return render(request, "games/oscars.html", {"category_rows": category_rows})
+
+
+@login_required
+def oscar_candidate_search(request, category_id):
+    category = get_object_or_404(OscarCategory, pk=category_id)
+    query = request.GET.get("query", "").strip()
+    results = []
+    error = None
+    if query:
+        try:
+            results = tmdb_search(query)[:8]
+        except MovieAPIError as exc:
+            error = str(exc)
+    return render(request, "games/_oscar_search_results.html", {
+        "results": results, "error": error, "query": query, "category": category,
+    })
+
+
+@login_required
+def oscar_candidate_add(request, category_id, tmdb_id):
+    category = get_object_or_404(OscarCategory, pk=category_id, is_open=True)
+    if request.method == "POST":
+        try:
+            movie = Movie.get_or_create_from_tmdb(tmdb_id)
+        except MovieAPIError as exc:
+            messages.error(request, str(exc))
+        else:
+            _, created = OscarCandidate.objects.get_or_create(
+                category=category, movie=movie, defaults={"submitted_by": request.user},
+            )
+            if created:
+                messages.success(request, f"«{movie.title}» propuesta en {category.name}.")
+            else:
+                messages.info(request, f"«{movie.title}» ya estaba propuesta en {category.name}.")
+    return redirect("games:oscars")
+
+
+@login_required
+def oscar_vote(request, candidate_id):
+    candidate = get_object_or_404(OscarCandidate, pk=candidate_id, category__is_open=True)
+    if request.method == "POST":
+        OscarVote.objects.update_or_create(
+            category=candidate.category, user=request.user, defaults={"candidate": candidate},
+        )
+        messages.success(request, f"Voto registrado por «{candidate.movie.title}».")
+    return redirect("games:oscars")

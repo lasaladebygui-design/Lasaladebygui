@@ -23,7 +23,18 @@ class ColorWidgetMixin:
 @admin.register(Theme)
 class ThemeAdmin(ColorWidgetMixin, admin.ModelAdmin):
     """Gestión de temas: crear/editar temas nuevos sin tocar código.
-    El tema que se aplica a la web se elige en Sitio → Configuración del sitio."""
+    El tema que se aplica a la web se elige en Sitio → Configuración del sitio.
+
+    Al editar un tema se ve una vista previa en vivo (un iframe con una
+    página de muestra aparte + `static/js/admin_theme_preview.js`, que va
+    empujando cada cambio de campo como variable CSS dentro de ese iframe),
+    para no tener que adivinar de memoria cómo queda una combinación de
+    colores antes de guardar."""
+
+    change_form_template = "admin/core/theme/change_form.html"
+
+    class Media:
+        js = ("js/admin_theme_preview.js",)
 
     list_display = ("name", "slug", "is_published", "is_dark", "color_accent", "color_accent_secondary")
     list_editable = ("is_published",)

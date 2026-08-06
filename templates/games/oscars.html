@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Candidatos al Oscar{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap">
+        <span class="card__tag">Juegos</span>
+        <h1>🏆 Candidatos al Oscar</h1>
+        <p class="muted">Propón candidatas por categoría y vota tu favorita — un voto por categoría, votar de nuevo cambia tu voto.</p>
+
+        {% if not user.is_authenticated %}
+        <p class="muted"><a href="{% url 'accounts:login' %}?next={{ request.path }}">Inicia sesión</a> para proponer candidatas y votar.</p>
+        {% endif %}
+
+        {% for row in category_rows %}
+        <div class="settings-group">
+            <h2>{{ row.category.name }}</h2>
+
+            {% if row.candidates %}
+            <div class="card-grid">
+                {% for candidate in row.candidates %}
+                <div class="card{% if candidate.pk == row.my_vote_id %} card--accent{% endif %}">
+                    {% if candidate.movie.poster_url %}
+                        <img src="{{ candidate.movie.poster_url }}" alt="" class="search-result__poster" style="width:100%;height:auto;border-radius:var(--radius-base);">
+                    {% endif %}
+                    <h3>{{ candidate.movie.title }}</h3>
+                    <p class="muted">{{ candidate.votes.all|length }} voto{{ candidate.votes.all|length|pluralize }}{% if candidate.pk == row.my_vote_id %} · tu voto{% endif %}</p>
+                    {% if user.is_authenticated and row.category.is_open %}
+                    <form method="post" action="{% url 'games:oscar-vote' candidate.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn {% if candidate.pk == row.my_vote_id %}btn--accent{% else %}btn--ghost{% endif %} btn--sm btn--block">
+                            {% if candidate.pk == row.my_vote_id %}Votada ✓{% else %}Votar{% endif %}
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted">Todavía no hay candidatas propuestas.</p>
+            {% endif %}
+
+            {% if user.is_authenticated and row.category.is_open %}
+            <details class="tier-add-level" style="margin-top:0.8rem;">
+                <summary class="btn btn--ghost btn--sm">+ Proponer candidata</summary>
+                <div class="field">
+                    <input type="text" placeholder="Buscar título…" autocomplete="off"
+                           hx-get="{% url 'games:oscar-candidate-search' row.category.pk %}"
+                           hx-trigger="keyup changed delay:400ms, search"
+                           hx-target="#oscar-search-results-{{ row.category.pk }}"
+                           hx-swap="innerHTML">
+                </div>
+                <div id="oscar-search-results-{{ row.category.pk }}"></div>
+            </details>
+            {% endif %}
+        </div>
+        {% empty %}
+        <p class="muted">Todavía no hay categorías. Se añaden desde el admin (Juegos → Candidatos al Oscar).</p>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

@@ -13,7 +13,7 @@
         <h1>{{ duel.challenger.username }} vs {{ duel.opponent.username }}</h1>
 
         {% if role == "opponent" %}
-        <p>{{ duel.challenger.username }} te ha retado a un duelo de Frases célebres.</p>
+        <p>{{ duel.challenger.username }} te ha retado a un duelo de {{ duel.get_game_display }}.</p>
         <div class="quote-game__options">
             <form method="post" action="{% url 'games:duel-accept' pk=duel.pk %}">
                 {% csrf_token %}

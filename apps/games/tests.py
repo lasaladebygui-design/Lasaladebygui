@@ -8,7 +8,10 @@ from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError
 from apps.social.models import FriendRequest, Message
 
-from .models import Duel, DuelRecord, GameTierEntry, GameTierLevel, MovieQuote
+from .models import (
+    Duel, DuelRecord, GameTierEntry, GameTierLevel, MovieQuote, OscarCandidate, OscarCategory, OscarVote,
+    PersonalityAnswer, PersonalityCharacter, PersonalityQuestion, TriviaQuestion, TrueFalseStatement,
+)
 
 
 class GamesHubTests(TestCase):
@@ -244,7 +247,7 @@ class RatingDuelGameTests(TestCase):
         self.assertEqual(user.rating_duel_streak_best_movie, 4)
         self.assertEqual(user.rating_duel_streak_best_tv, 0)
 
-    def test_no_repite_la_misma_pelicula_mas_de_dos_veces(self):
+    def test_no_repite_la_misma_pelicula_mas_del_tope_sorteado(self):
         Movie.objects.filter(media_type="movie").delete()
         movies = [
             Movie.objects.create(tmdb_id=i, title=f"Peli {i}", media_type="movie", imdb_rating=str(5 + i * 0.1))
@@ -252,11 +255,228 @@ class RatingDuelGameTests(TestCase):
         ]
         session = self.client.session
         session["rating_duel_seen_movie"] = {str(movies[0].pk): 2}
+        session["rating_duel_max_repeats_movie"] = 2
         session.save()
 
         response = self.client.get(reverse("games:rating-duel"), {"type": "movie"})
         seen_ids = {response.context["left"].pk, response.context["right"].pk}
         self.assertNotIn(movies[0].pk, seen_ids)
+
+    def test_el_tope_de_repeticiones_se_sortea_entre_uno_y_tres(self):
+        response = self.client.get(reverse("games:rating-duel"), {"type": "movie"})
+        self.assertIn(self.client.session["rating_duel_max_repeats_movie"], (1, 2, 3))
+
+    def test_fallar_sortea_un_nuevo_tope_de_repeticiones_para_la_siguiente_partida(self):
+        session = self.client.session
+        session["rating_duel_max_repeats_movie"] = 3
+        session.save()
+
+        self.client.post(reverse("games:rating-duel"), {
+            "type": "movie", "left_id": self.movie_a.pk, "right_id": self.movie_b.pk, "choice": "right",
+        })
+        self.assertNotIn("rating_duel_max_repeats_movie", self.client.session)
+
+
+class TriviaGameTests(TestCase):
+    """Trivial, Malas descripciones y Cuál tiene al actor/actriz comparten
+    el mismo motor genérico (_trivia_game) que Frases célebres — aquí solo
+    se comprueba que cada categoría queda bien aislada de las demás."""
+
+    def setUp(self):
+        self.trivia = TriviaQuestion.objects.create(
+            category=TriviaQuestion.Category.TRIVIA, prompt="¿Quién dirigió Origen?",
+            correct_answer="Christopher Nolan", wrong_answer_1="Steven Spielberg", wrong_answer_2="Denis Villeneuve",
+        )
+        self.bad_description = TriviaQuestion.objects.create(
+            category=TriviaQuestion.Category.BAD_DESCRIPTION, prompt="Un pez muy nervioso busca a su hijo.",
+            correct_answer="Buscando a Nemo", wrong_answer_1="Buscando a Dory", wrong_answer_2="La vida de Pi",
+        )
+        self.actor = TriviaQuestion.objects.create(
+            category=TriviaQuestion.Category.ACTOR, prompt="Robert Downey Jr.",
+            correct_answer="Iron Man", wrong_answer_1="Batman Begins", wrong_answer_2="El hombre de acero",
+        )
+
+    def test_trivial_muestra_solo_preguntas_de_su_categoria(self):
+        response = self.client.get(reverse("games:trivia-game"))
+        self.assertEqual(response.context["question"], self.trivia)
+
+    def test_trivial_acertar_incrementa_la_racha(self):
+        response = self.client.post(reverse("games:trivia-game"), {
+            "question_id": self.trivia.pk, "answer": "Christopher Nolan",
+        })
+        self.assertEqual(response.context["streak"], 1)
+
+    def test_trivial_fallar_reinicia_la_racha_y_guarda_el_record(self):
+        user = User.objects.create(email="trivial@test.local", role=User.Role.LECTOR)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+
+        session = self.client.session
+        session["trivia_streak_trivia"] = 4
+        session.save()
+
+        response = self.client.post(reverse("games:trivia-game"), {
+            "question_id": self.trivia.pk, "answer": "nada que ver",
+        })
+        self.assertEqual(response.context["streak"], 0)
+        self.assertTrue(response.context["game_over"])
+        user.refresh_from_db()
+        self.assertEqual(user.trivia_streak_best, 4)
+
+    def test_malas_descripciones_muestra_solo_su_categoria(self):
+        response = self.client.get(reverse("games:bad-description-game"))
+        self.assertEqual(response.context["question"], self.bad_description)
+
+    def test_actor_muestra_solo_su_categoria_y_su_racha_es_independiente(self):
+        response = self.client.get(reverse("games:actor-game"))
+        self.assertEqual(response.context["question"], self.actor)
+
+        user = User.objects.create(email="actor@test.local", role=User.Role.LECTOR)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+        self.client.post(reverse("games:actor-game"), {
+            "question_id": self.actor.pk, "answer": "El hombre de acero",
+        })
+        user.refresh_from_db()
+        self.assertEqual(user.actor_streak_best, 0)
+        self.assertEqual(user.trivia_streak_best, 0)
+
+
+class EmojiGameTests(TestCase):
+    """A diferencia del resto, aquí se revela un emoji a la vez: fallar solo
+    rompe la racha si ya no quedan más emojis por revelar."""
+
+    def setUp(self):
+        self.question = TriviaQuestion.objects.create(
+            category=TriviaQuestion.Category.EMOJI, prompt="🦁 👑 🌍",
+            correct_answer="El rey león", wrong_answer_1="Madagascar", wrong_answer_2="Tarzán",
+        )
+
+    def test_al_empezar_solo_se_revela_el_primer_emoji(self):
+        response = self.client.get(reverse("games:emoji-game"))
+        self.assertEqual(response.context["revealed_emojis"], "🦁")
+        self.assertEqual(response.context["reveal_count"], 1)
+        self.assertEqual(response.context["total_emojis"], 3)
+
+    def test_fallar_con_pistas_restantes_no_rompe_la_racha_y_revela_otra(self):
+        session = self.client.session
+        session["trivia_streak_emoji"] = 2
+        session.save()
+
+        response = self.client.post(reverse("games:emoji-game"), {
+            "question_id": self.question.pk, "answer": "Madagascar",
+        })
+        self.assertEqual(response.context["streak"], 2)
+        self.assertFalse(response.context["game_over"])
+        self.assertTrue(response.context["just_wrong"])
+        self.assertEqual(response.context["revealed_emojis"], "🦁 👑")
+        self.assertEqual(response.context["question"], self.question)
+
+    def test_fallar_sin_pistas_restantes_rompe_la_racha(self):
+        session = self.client.session
+        session["trivia_streak_emoji"] = 2
+        session["emoji_current_question_id"] = self.question.pk
+        session["emoji_reveal_count"] = 3
+        session.save()
+
+        response = self.client.post(reverse("games:emoji-game"), {
+            "question_id": self.question.pk, "answer": "Madagascar",
+        })
+        self.assertEqual(response.context["streak"], 0)
+        self.assertTrue(response.context["game_over"])
+        self.assertEqual(response.context["final_streak"], 2)
+        self.assertEqual(response.context["wrong_answer"], "El rey león")
+
+    def test_acertar_con_pistas_a_medias_incrementa_la_racha_y_pasa_de_pregunta(self):
+        session = self.client.session
+        session["emoji_current_question_id"] = self.question.pk
+        session["emoji_reveal_count"] = 2
+        session.save()
+
+        response = self.client.post(reverse("games:emoji-game"), {
+            "question_id": self.question.pk, "answer": "El rey león",
+        })
+        self.assertEqual(response.context["streak"], 1)
+        # Acertar pasa a una pregunta nueva, siempre con la primera pista
+        # (nunca sigue en la misma pregunta con las pistas ya reveladas).
+        self.assertEqual(self.client.session["emoji_reveal_count"], 1)
+
+
+class TrueFalseGameTests(TestCase):
+    def setUp(self):
+        self.true_statement = TrueFalseStatement.objects.create(
+            statement="'Titanic' ganó 11 premios Óscar.", is_true=True,
+        )
+
+    def test_muestra_una_afirmacion(self):
+        response = self.client.get(reverse("games:true-false-game"))
+        self.assertEqual(response.context["statement"], self.true_statement)
+
+    def test_acertar_incrementa_la_racha(self):
+        response = self.client.post(reverse("games:true-false-game"), {
+            "statement_id": self.true_statement.pk, "answer": "true",
+        })
+        self.assertEqual(response.context["streak"], 1)
+
+    def test_fallar_reinicia_la_racha_y_guarda_el_record(self):
+        user = User.objects.create(email="vf@test.local", role=User.Role.LECTOR)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+
+        session = self.client.session
+        session["true_false_streak"] = 3
+        session.save()
+
+        response = self.client.post(reverse("games:true-false-game"), {
+            "statement_id": self.true_statement.pk, "answer": "false",
+        })
+        self.assertEqual(response.context["streak"], 0)
+        self.assertTrue(response.context["game_over"])
+        user.refresh_from_db()
+        self.assertEqual(user.true_false_streak_best, 3)
+
+
+class PersonalityQuizTests(TestCase):
+    """'Qué personaje eres': preguntas en orden fijo, cada respuesta suma un
+    punto a un personaje, gana el que más puntos tenga al final. No hay
+    racha ni fallo — es un test de personalidad, no un juego de acertar."""
+
+    def setUp(self):
+        self.char_a = PersonalityCharacter.objects.create(name="Jinx", description="Caos.")
+        self.char_b = PersonalityCharacter.objects.create(name="Miranda Priestly", description="Ambición.")
+        self.q1 = PersonalityQuestion.objects.create(text="¿Pregunta 1?", order=0)
+        self.q1_a = PersonalityAnswer.objects.create(question=self.q1, text="Opción caótica", character=self.char_a)
+        self.q1_b = PersonalityAnswer.objects.create(question=self.q1, text="Opción ambiciosa", character=self.char_b)
+        self.q2 = PersonalityQuestion.objects.create(text="¿Pregunta 2?", order=1)
+        self.q2_a = PersonalityAnswer.objects.create(question=self.q2, text="Opción caótica 2", character=self.char_a)
+        self.q2_b = PersonalityAnswer.objects.create(question=self.q2, text="Opción ambiciosa 2", character=self.char_b)
+
+    def test_empieza_mostrando_la_primera_pregunta(self):
+        response = self.client.get(reverse("games:personality-quiz"))
+        self.assertEqual(response.context["question"], self.q1)
+        self.assertEqual(response.context["progress"], 1)
+        self.assertEqual(response.context["total"], 2)
+
+    def test_responder_avanza_a_la_siguiente_pregunta(self):
+        response = self.client.post(reverse("games:personality-quiz"), {"answer_id": self.q1_a.pk})
+        self.assertEqual(response.context["question"], self.q2)
+        self.assertEqual(response.context["progress"], 2)
+
+    def test_responder_todas_muestra_el_resultado_con_mas_puntos(self):
+        self.client.post(reverse("games:personality-quiz"), {"answer_id": self.q1_a.pk})
+        response = self.client.post(reverse("games:personality-quiz"), {"answer_id": self.q2_a.pk})
+        self.assertTemplateUsed(response, "games/personality_quiz_result.html")
+        self.assertEqual(response.context["character"], self.char_a)
+
+    def test_repetir_el_test_reinicia_el_progreso(self):
+        self.client.post(reverse("games:personality-quiz"), {"answer_id": self.q1_a.pk})
+        self.client.post(reverse("games:personality-quiz"), {"answer_id": self.q2_a.pk})
+        response = self.client.post(reverse("games:personality-quiz"), {"restart": "1"}, follow=True)
+        self.assertEqual(response.context["question"], self.q1)
+        self.assertNotIn("personality_quiz_scores", self.client.session)
 
 
 class DuelTests(TestCase):
@@ -293,8 +513,43 @@ class DuelTests(TestCase):
         self.assertEqual(duel.challenger, self.alice)
         self.assertEqual(duel.opponent, self.bob)
         self.assertEqual(duel.status, Duel.Status.PENDING)
-        self.assertEqual(len(duel.quote_ids), 1)
+        self.assertEqual(len(duel.round_ids), 1)
         self.assertRedirects(response, reverse("games:duel-detail", kwargs={"pk": duel.pk}))
+
+    def test_retar_permite_elegir_el_juego(self):
+        TriviaQuestion.objects.create(
+            category=TriviaQuestion.Category.TRIVIA, prompt="¿Pregunta?",
+            correct_answer="A", wrong_answer_1="B", wrong_answer_2="C",
+        )
+        self.client.login(username="alice@test.local", password="Testpass123!")
+        self.client.post(reverse("games:duel-invite", kwargs={"username": self.bob.username}), {"game": "trivia"})
+        duel = Duel.objects.get()
+        self.assertEqual(duel.game, "trivia")
+
+    def test_retar_sin_juego_indicado_usa_frases_celebres_por_defecto(self):
+        self.client.login(username="alice@test.local", password="Testpass123!")
+        self.client.post(reverse("games:duel-invite", kwargs={"username": self.bob.username}))
+        duel = Duel.objects.get()
+        self.assertEqual(duel.game, Duel.Game.QUOTES)
+
+    def test_jugar_un_duelo_de_trivial_funciona_igual_que_el_de_frases(self):
+        question = TriviaQuestion.objects.create(
+            category=TriviaQuestion.Category.TRIVIA, prompt="¿Quién dirigió Origen?",
+            correct_answer="Nolan", wrong_answer_1="Spielberg", wrong_answer_2="Scott",
+        )
+        duel = Duel.objects.create(
+            challenger=self.alice, opponent=self.bob, game=Duel.Game.TRIVIA,
+            round_ids=[question.pk], status=Duel.Status.ACTIVE,
+        )
+        self.client.login(username="alice@test.local", password="Testpass123!")
+        response = self.client.get(reverse("games:duel-detail", kwargs={"pk": duel.pk}))
+        self.assertEqual(response.context["prompt"], "¿Quién dirigió Origen?")
+
+        response = self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
+            "round_id": question.pk, "answer": "Nolan",
+        })
+        duel.refresh_from_db()
+        self.assertEqual(duel.challenger_streak, 1)
 
     def test_el_retador_ve_pantalla_de_espera_mientras_esta_pendiente(self):
         self.client.login(username="alice@test.local", password="Testpass123!")
@@ -306,7 +561,7 @@ class DuelTests(TestCase):
 
     def test_el_retado_puede_aceptar_el_duelo(self):
         duel = Duel.objects.create(
-            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            challenger=self.alice, opponent=self.bob, round_ids=[q.pk for q in self.quotes],
         )
         self.client.login(username="bob@test.local", password="Testpass123!")
         self.client.post(reverse("games:duel-accept", kwargs={"pk": duel.pk}))
@@ -315,7 +570,7 @@ class DuelTests(TestCase):
 
     def test_el_retado_puede_rechazar_el_duelo(self):
         duel = Duel.objects.create(
-            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            challenger=self.alice, opponent=self.bob, round_ids=[q.pk for q in self.quotes],
         )
         self.client.login(username="bob@test.local", password="Testpass123!")
         response = self.client.post(reverse("games:duel-decline", kwargs={"pk": duel.pk}))
@@ -334,7 +589,7 @@ class DuelTests(TestCase):
 
     def test_el_retador_no_puede_aceptar_su_propio_duelo(self):
         duel = Duel.objects.create(
-            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            challenger=self.alice, opponent=self.bob, round_ids=[q.pk for q in self.quotes],
         )
         self.client.login(username="alice@test.local", password="Testpass123!")
         response = self.client.post(reverse("games:duel-accept", kwargs={"pk": duel.pk}))
@@ -362,25 +617,25 @@ class DuelTests(TestCase):
 
     def test_los_dos_ven_la_misma_pregunta_a_la_vez(self):
         duel = Duel.objects.create(
-            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            challenger=self.alice, opponent=self.bob, round_ids=[q.pk for q in self.quotes],
             status=Duel.Status.ACTIVE,
         )
         self.client.login(username="alice@test.local", password="Testpass123!")
         response = self.client.get(reverse("games:duel-detail", kwargs={"pk": duel.pk}))
-        self.assertEqual(response.context["quote"], self.quotes[0])
+        self.assertEqual(response.context["round_id"], self.quotes[0].pk)
 
         self.client.login(username="bob@test.local", password="Testpass123!")
         response = self.client.get(reverse("games:duel-detail", kwargs={"pk": duel.pk}))
-        self.assertEqual(response.context["quote"], self.quotes[0])
+        self.assertEqual(response.context["round_id"], self.quotes[0].pk)
 
     def test_responder_bien_y_esperar_al_rival(self):
         duel = Duel.objects.create(
-            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            challenger=self.alice, opponent=self.bob, round_ids=[q.pk for q in self.quotes],
             status=Duel.Status.ACTIVE,
         )
         self.client.login(username="alice@test.local", password="Testpass123!")
         response = self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
-            "quote_id": self.quotes[0].pk, "answer": "Película 0",
+            "round_id": self.quotes[0].pk, "answer": "Película 0",
         })
         duel.refresh_from_db()
         self.assertEqual(duel.challenger_streak, 1)
@@ -390,16 +645,16 @@ class DuelTests(TestCase):
 
     def test_cuando_los_dos_aciertan_avanza_la_ronda_para_los_dos(self):
         duel = Duel.objects.create(
-            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            challenger=self.alice, opponent=self.bob, round_ids=[q.pk for q in self.quotes],
             status=Duel.Status.ACTIVE,
         )
         self.client.login(username="alice@test.local", password="Testpass123!")
         self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
-            "quote_id": self.quotes[0].pk, "answer": "Película 0",
+            "round_id": self.quotes[0].pk, "answer": "Película 0",
         })
         self.client.login(username="bob@test.local", password="Testpass123!")
         self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
-            "quote_id": self.quotes[0].pk, "answer": "Película 0",
+            "round_id": self.quotes[0].pk, "answer": "Película 0",
         })
         duel.refresh_from_db()
         self.assertEqual(duel.current_index, 1)
@@ -413,25 +668,25 @@ class DuelTests(TestCase):
         duelo, se añade una nueva en vez de terminar el duelo — no hay
         límite de preguntas, solo el fallo lo acaba."""
         duel = Duel.objects.create(
-            challenger=self.alice, opponent=self.bob, quote_ids=[self.quotes[0].pk],
+            challenger=self.alice, opponent=self.bob, round_ids=[self.quotes[0].pk],
             status=Duel.Status.ACTIVE,
         )
         self.client.login(username="alice@test.local", password="Testpass123!")
         self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
-            "quote_id": self.quotes[0].pk, "answer": "Película 0",
+            "round_id": self.quotes[0].pk, "answer": "Película 0",
         })
         self.client.login(username="bob@test.local", password="Testpass123!")
         self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
-            "quote_id": self.quotes[0].pk, "answer": "Película 0",
+            "round_id": self.quotes[0].pk, "answer": "Película 0",
         })
         duel.refresh_from_db()
         self.assertEqual(duel.status, Duel.Status.ACTIVE)
         self.assertEqual(duel.current_index, 1)
-        self.assertEqual(len(duel.quote_ids), 2)
+        self.assertEqual(len(duel.round_ids), 2)
 
     def test_no_muestra_pregunta_x_de_n(self):
         duel = Duel.objects.create(
-            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            challenger=self.alice, opponent=self.bob, round_ids=[q.pk for q in self.quotes],
             status=Duel.Status.ACTIVE,
         )
         self.client.login(username="alice@test.local", password="Testpass123!")
@@ -440,12 +695,12 @@ class DuelTests(TestCase):
 
     def test_terminar_el_duelo_actualiza_el_marcador(self):
         duel = Duel.objects.create(
-            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            challenger=self.alice, opponent=self.bob, round_ids=[q.pk for q in self.quotes],
             status=Duel.Status.ACTIVE,
         )
         self.client.login(username="alice@test.local", password="Testpass123!")
         self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
-            "quote_id": self.quotes[0].pk, "answer": "Otra",
+            "round_id": self.quotes[0].pk, "answer": "Otra",
         })
         record = DuelRecord.get_for(self.alice, self.bob)
         self.assertIsNotNone(record)
@@ -454,7 +709,7 @@ class DuelTests(TestCase):
 
     def test_salir_de_un_duelo_terminado_lo_borra(self):
         duel = Duel.objects.create(
-            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            challenger=self.alice, opponent=self.bob, round_ids=[q.pk for q in self.quotes],
             status=Duel.Status.FINISHED, challenger_lost=True,
         )
         self.client.login(username="bob@test.local", password="Testpass123!")
@@ -477,7 +732,7 @@ class DuelTests(TestCase):
 
     def test_no_se_puede_salir_de_un_duelo_todavia_activo(self):
         duel = Duel.objects.create(
-            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            challenger=self.alice, opponent=self.bob, round_ids=[q.pk for q in self.quotes],
             status=Duel.Status.ACTIVE,
         )
         self.client.login(username="bob@test.local", password="Testpass123!")
@@ -486,12 +741,12 @@ class DuelTests(TestCase):
 
     def test_fallar_termina_el_duelo_al_instante_para_los_dos(self):
         duel = Duel.objects.create(
-            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            challenger=self.alice, opponent=self.bob, round_ids=[q.pk for q in self.quotes],
             status=Duel.Status.ACTIVE,
         )
         self.client.login(username="alice@test.local", password="Testpass123!")
         response = self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
-            "quote_id": self.quotes[0].pk, "answer": "Otra",
+            "round_id": self.quotes[0].pk, "answer": "Otra",
         })
         duel.refresh_from_db()
         self.assertEqual(duel.status, Duel.Status.FINISHED)
@@ -509,7 +764,7 @@ class DuelTests(TestCase):
 
         self.client.login(username="bob@test.local", password="Testpass123!")
         self.client.post(reverse("games:duel-detail", kwargs={"pk": duel.pk}), {
-            "quote_id": self.quotes[0].pk, "answer": "Otra",
+            "round_id": self.quotes[0].pk, "answer": "Otra",
         })
 
         self.assertFalse(Message.objects.filter(sender=self.alice, recipient=self.bob).exists())
@@ -519,7 +774,7 @@ class DuelTests(TestCase):
 
     def test_ganador_ve_has_ganado_y_perdedor_ve_ganador_contrario(self):
         duel = Duel.objects.create(
-            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            challenger=self.alice, opponent=self.bob, round_ids=[q.pk for q in self.quotes],
             status=Duel.Status.FINISHED, challenger_lost=True,
         )
         self.client.login(username="bob@test.local", password="Testpass123!")
@@ -532,7 +787,7 @@ class DuelTests(TestCase):
 
     def test_revancha_necesita_que_los_dos_le_den(self):
         duel = Duel.objects.create(
-            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            challenger=self.alice, opponent=self.bob, round_ids=[q.pk for q in self.quotes],
             status=Duel.Status.FINISHED, challenger_lost=True,
             challenger_streak=3, opponent_streak=5,
         )
@@ -554,7 +809,7 @@ class DuelTests(TestCase):
 
     def test_un_desconocido_no_puede_ver_el_duelo(self):
         duel = Duel.objects.create(
-            challenger=self.alice, opponent=self.bob, quote_ids=[q.pk for q in self.quotes],
+            challenger=self.alice, opponent=self.bob, round_ids=[q.pk for q in self.quotes],
         )
         carol = User.objects.create(email="carol2@test.local", role=User.Role.LECTOR, username="carol2")
         carol.set_password("Testpass123!")
@@ -562,6 +817,74 @@ class DuelTests(TestCase):
         self.client.login(username="carol2@test.local", password="Testpass123!")
         response = self.client.get(reverse("games:duel-detail", kwargs={"pk": duel.pk}))
         self.assertEqual(response.status_code, 404)
+
+
+class OscarCandidateTests(TestCase):
+    """Herramienta compartida (no un juego de racha personal): cualquiera
+    propone candidatas por categoría y vota su favorita, un voto por
+    categoría y usuario — votar de nuevo cambia el voto, no lo suma."""
+
+    def setUp(self):
+        self.user = User.objects.create(email="oscar@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+        self.category = OscarCategory.objects.create(name="Mejor película")
+
+    def test_pagina_accesible_sin_cuenta(self):
+        self.client.logout()
+        response = self.client.get(reverse("games:oscars"))
+        self.assertEqual(response.status_code, 200)
+
+    @patch("apps.games.views.Movie.get_or_create_from_tmdb")
+    def test_proponer_candidata_la_anade_a_la_categoria(self, mock_get_or_create):
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=1, title="Peli candidata")
+        response = self.client.post(reverse("games:oscar-candidate-add", args=[self.category.pk, 1]))
+        self.assertRedirects(response, reverse("games:oscars"))
+        self.assertTrue(OscarCandidate.objects.filter(category=self.category, movie__tmdb_id=1).exists())
+
+    @patch("apps.games.views.Movie.get_or_create_from_tmdb")
+    def test_no_duplica_la_misma_candidata_en_una_categoria(self, mock_get_or_create):
+        movie = Movie.objects.create(tmdb_id=2, title="Repetida")
+        mock_get_or_create.return_value = movie
+        self.client.post(reverse("games:oscar-candidate-add", args=[self.category.pk, 2]))
+        self.client.post(reverse("games:oscar-candidate-add", args=[self.category.pk, 2]))
+        self.assertEqual(OscarCandidate.objects.filter(category=self.category, movie=movie).count(), 1)
+
+    def test_votar_registra_el_voto(self):
+        movie = Movie.objects.create(tmdb_id=3, title="Votable")
+        candidate = OscarCandidate.objects.create(category=self.category, movie=movie, submitted_by=self.user)
+        response = self.client.post(reverse("games:oscar-vote", args=[candidate.pk]))
+        self.assertRedirects(response, reverse("games:oscars"))
+        self.assertTrue(OscarVote.objects.filter(category=self.category, user=self.user, candidate=candidate).exists())
+
+    def test_votar_de_nuevo_en_la_misma_categoria_reemplaza_el_voto(self):
+        movie_a = Movie.objects.create(tmdb_id=4, title="A")
+        movie_b = Movie.objects.create(tmdb_id=5, title="B")
+        candidate_a = OscarCandidate.objects.create(category=self.category, movie=movie_a, submitted_by=self.user)
+        candidate_b = OscarCandidate.objects.create(category=self.category, movie=movie_b, submitted_by=self.user)
+
+        self.client.post(reverse("games:oscar-vote", args=[candidate_a.pk]))
+        self.client.post(reverse("games:oscar-vote", args=[candidate_b.pk]))
+
+        votes = OscarVote.objects.filter(category=self.category, user=self.user)
+        self.assertEqual(votes.count(), 1)
+        self.assertEqual(votes.first().candidate, candidate_b)
+
+    def test_no_se_puede_votar_en_una_categoria_cerrada(self):
+        self.category.is_open = False
+        self.category.save(update_fields=["is_open"])
+        movie = Movie.objects.create(tmdb_id=6, title="Cerrada")
+        candidate = OscarCandidate.objects.create(category=self.category, movie=movie, submitted_by=self.user)
+        response = self.client.post(reverse("games:oscar-vote", args=[candidate.pk]))
+        self.assertEqual(response.status_code, 404)
+
+    @patch("apps.games.views.tmdb_search")
+    def test_buscar_usa_el_servicio_tmdb(self, mock_search):
+        mock_search.return_value = []
+        response = self.client.get(reverse("games:oscar-candidate-search", args=[self.category.pk]), {"query": "matrix"})
+        self.assertEqual(response.status_code, 200)
+        mock_search.assert_called_once_with("matrix")
 
 
 class GameTierListTests(TestCase):

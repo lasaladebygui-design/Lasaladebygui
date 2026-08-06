@@ -210,6 +210,31 @@ STORAGES = {
         if USE_SUPABASE_STORAGE
         else {"BACKEND": "django.core.files.storage.FileSystemStorage"}
     ),
+    # Fotos del tablón de Top Secret: a diferencia de "default" (avatares,
+    # portadas de artículos... pensados para ser públicos), estas NO deben
+    # tener una URL pública y permanente — solo quien tiene el código y
+    # acceso a ese tablón concreto puede verlas (ver apps/secret/views.py,
+    # photo_serve). Por eso "querystring_auth" va a True aquí (URL firmada,
+    # caduca en un minuto) y no se usa "custom_domain" (el dominio público
+    # de Supabase ignora la firma).
+    "secret_photos": (
+        {
+            "BACKEND": "storages.backends.s3.S3Storage",
+            "OPTIONS": {
+                "access_key": SUPABASE_STORAGE_ACCESS_KEY_ID,
+                "secret_key": SUPABASE_STORAGE_SECRET_ACCESS_KEY,
+                "bucket_name": SUPABASE_STORAGE_BUCKET,
+                "endpoint_url": SUPABASE_STORAGE_ENDPOINT,
+                "region_name": SUPABASE_STORAGE_REGION,
+                "querystring_auth": True,
+                "querystring_expire": 60,
+                "file_overwrite": False,
+                "addressing_style": "path",
+            },
+        }
+        if USE_SUPABASE_STORAGE
+        else {"BACKEND": "django.core.files.storage.FileSystemStorage"}
+    ),
     "staticfiles": {
         "BACKEND": (
             "django.contrib.staticfiles.storage.StaticFilesStorage"

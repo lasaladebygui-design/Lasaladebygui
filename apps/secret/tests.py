@@ -561,6 +561,52 @@ class PhotoBoardTests(TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertTrue(PhotoBoardMember.objects.filter(pk=member.pk).exists())
 
+    def test_la_pagina_del_tablon_enlaza_a_la_vista_protegida_no_a_la_url_del_storage(self):
+        photo = SecretPhoto.objects.create(
+            board_owner=self.user, uploaded_by=self.user, image=_fake_image(), description="Protegida",
+        )
+        response = self.client.get(reverse("secret:photo-board"))
+        self.assertContains(response, reverse("secret:photo-serve", args=[photo.pk]))
+        self.assertNotContains(response, photo.image.url)
+
+    def test_photo_serve_devuelve_la_imagen_al_dueno(self):
+        photo = SecretPhoto.objects.create(
+            board_owner=self.user, uploaded_by=self.user, image=_fake_image(), description="Mía",
+        )
+        response = self.client.get(reverse("secret:photo-serve", args=[photo.pk]))
+        self.assertEqual(response.status_code, 200)
+
+    def test_photo_serve_exige_el_codigo(self):
+        photo = SecretPhoto.objects.create(
+            board_owner=self.user, uploaded_by=self.user, image=_fake_image(), description="Mía",
+        )
+        self.client.post(reverse("secret:lock"))
+        response = self.client.get(reverse("secret:photo-serve", args=[photo.pk]))
+        self.assertRedirects(response, reverse("secret:gate"))
+
+    def test_photo_serve_da_404_sin_acceso_al_tablon(self):
+        other = User.objects.create(email="ajeno_foto@test.local", role=User.Role.LECTOR, username="ajeno_foto")
+        photo = SecretPhoto.objects.create(
+            board_owner=other, uploaded_by=other, image=_fake_image(), description="Ajena",
+        )
+        response = self.client.get(reverse("secret:photo-serve", args=[photo.pk]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_photo_serve_accesible_para_invitado(self):
+        friend = User.objects.create(email="invitado_foto@test.local", role=User.Role.LECTOR, username="invitado_foto")
+        friend.set_password("Testpass123!")
+        friend.save()
+        PhotoBoardMember.objects.create(owner=self.user, member=friend)
+        photo = SecretPhoto.objects.create(
+            board_owner=self.user, uploaded_by=self.user, image=_fake_image(), description="Compartida",
+        )
+
+        friend_client = self.client_class()
+        friend_client.login(username=friend.email, password="Testpass123!")
+        friend_client.post(reverse("secret:gate"), {"code": "8888"})
+        response = friend_client.get(reverse("secret:photo-serve", args=[photo.pk]))
+        self.assertEqual(response.status_code, 200)
+
 
 class CalendarTests(TestCase):
     def setUp(self):

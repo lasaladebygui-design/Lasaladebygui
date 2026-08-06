@@ -21,6 +21,7 @@ urlpatterns = [
     path("dentro/tierlist/niveles/<int:pk>/editar/", views.tier_level_update, name="tier-level-update"),
     path("dentro/tierlist/niveles/<int:pk>/borrar/", views.tier_level_delete, name="tier-level-delete"),
     path("dentro/tablon/", views.photo_board, name="photo-board"),
+    path("dentro/tablon/foto/<int:pk>/", views.photo_serve, name="photo-serve"),
     path("dentro/tablon/invitar/<str:username>/", views.photo_board_invite, name="photo-board-invite"),
     path("dentro/tablon/expulsar/<int:pk>/", views.photo_board_kick, name="photo-board-kick"),
     path("dentro/tablon/<str:username>/", views.photo_board, name="photo-board-shared"),

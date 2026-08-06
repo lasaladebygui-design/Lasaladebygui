@@ -35,20 +35,141 @@ class MovieQuote(models.Model):
         return f"«{self.quote[:40]}…» — {self.correct_title}"
 
 
+class TriviaQuestion(models.Model):
+    """Pregunta de una sola tanda de juegos que comparten el mismo
+    mecanismo (enunciado + 3 opciones, una correcta): Trivial (preguntas de
+    cine/series clásicas), Emoji (adivina el título a partir de una
+    secuencia de emojis), Malas descripciones (adivina el título a partir
+    de una sinopsis deliberadamente mala) y Cuál tiene al actor/actriz
+    (adivina en cuál de las opciones sale la persona de `image_url`). Están
+    en un único modelo, distinguido por `category`, porque las cuatro
+    comparten exactamente la misma forma — solo cambia qué se muestra como
+    enunciado y si hay imagen."""
+
+    class Category(models.TextChoices):
+        TRIVIA = "trivia", "Trivial"
+        EMOJI = "emoji", "Emoji"
+        BAD_DESCRIPTION = "bad_description", "Malas descripciones"
+        ACTOR = "actor", "Cuál tiene al actor/actriz"
+
+    category = models.CharField("categoría", max_length=20, choices=Category.choices)
+    media_type = models.CharField(
+        "tipo", max_length=5, choices=MovieQuote.MediaType.choices, default=MovieQuote.MediaType.MOVIE,
+        help_text="Las tres opciones (correcta + 2 incorrectas) deben ser del mismo tipo, para no tener que elegir entre una peli y una serie.",
+    )
+    prompt = models.TextField(
+        "enunciado",
+        help_text=(
+            "Según la categoría: la pregunta de trivia, la mala descripción, o el nombre del actor/actriz. "
+            "En Emoji, cada emoji separado por un espacio (se revelan de uno en uno, no todos a la vez): «🦁 👑»."
+        ),
+    )
+    image_url = models.URLField(
+        "imagen", blank=True,
+        help_text="Opcional — se usa sobre todo en 'Cuál tiene al actor/actriz' (foto de la persona).",
+    )
+    correct_answer = models.CharField("respuesta correcta", max_length=255)
+    wrong_answer_1 = models.CharField("respuesta incorrecta 1", max_length=255)
+    wrong_answer_2 = models.CharField("respuesta incorrecta 2", max_length=255)
+
+    class Meta:
+        verbose_name = "pregunta de trivia"
+        verbose_name_plural = "Juegos: preguntas de trivia"
+
+    def __str__(self):
+        return f"[{self.get_category_display()}] {self.prompt[:40]}"
+
+
+class TrueFalseStatement(models.Model):
+    """Afirmación del juego 'Verdadero o falso': se muestra el texto y hay
+    que decir si es cierto o no."""
+
+    statement = models.TextField("afirmación")
+    is_true = models.BooleanField("¿es verdadera?")
+
+    class Meta:
+        verbose_name = "afirmación de verdadero o falso"
+        verbose_name_plural = "Juegos: verdadero o falso"
+
+    def __str__(self):
+        return f"[{'V' if self.is_true else 'F'}] {self.statement[:50]}"
+
+
+class PersonalityCharacter(models.Model):
+    """Uno de los posibles resultados del test 'Qué personaje eres'. No
+    tiene por qué ser de cine — Jinx (Arcane) es un resultado a propósito—,
+    pero la mayoría son de películas de géneros variados (acción, romance,
+    comedia), no solo villanos de acción."""
+
+    name = models.CharField("nombre", max_length=100)
+    source = models.CharField("película/serie", max_length=100, blank=True)
+    description = models.TextField("descripción del resultado")
+    image_url = models.URLField("imagen", blank=True)
+    order = models.PositiveIntegerField("orden", default=0)
+
+    class Meta:
+        ordering = ["order", "pk"]
+        verbose_name = "Qué personaje eres: personaje"
+        verbose_name_plural = "Juegos: Qué personaje eres — personajes"
+
+    def __str__(self):
+        return self.name
+
+
+class PersonalityQuestion(models.Model):
+    """Pregunta del test — se responde una detrás de otra, en orden fijo,
+    sin racha ni fallo: es un test de personalidad, no un juego de acertar."""
+
+    text = models.TextField("pregunta")
+    order = models.PositiveIntegerField("orden", default=0)
+
+    class Meta:
+        ordering = ["order", "pk"]
+        verbose_name = "Qué personaje eres: pregunta"
+        verbose_name_plural = "Juegos: Qué personaje eres — preguntas"
+
+    def __str__(self):
+        return self.text[:60]
+
+
+class PersonalityAnswer(models.Model):
+    """Una opción de respuesta, que suma un punto para `character` si se
+    elige. Al final del test gana el personaje con más puntos acumulados."""
+
+    question = models.ForeignKey(PersonalityQuestion, verbose_name="pregunta", on_delete=models.CASCADE, related_name="answers")
+    text = models.CharField("texto", max_length=255)
+    character = models.ForeignKey(PersonalityCharacter, verbose_name="personaje", on_delete=models.CASCADE, related_name="+")
+    order = models.PositiveIntegerField("orden", default=0)
+
+    class Meta:
+        ordering = ["order", "pk"]
+        verbose_name = "Qué personaje eres: respuesta"
+        verbose_name_plural = "Juegos: Qué personaje eres — respuestas"
+
+    def __str__(self):
+        return f"{self.text} → {self.character}"
+
+
 class Duel(models.Model):
-    """Duelo de Frases célebres entre dos amigos: los dos ven la MISMA
-    pregunta a la vez (`current_index`, compartido) y avanzan juntos ronda
-    a ronda — en cuanto uno responde mal, el duelo termina ahí mismo para
-    los dos. No hay una tanda de tamaño fijo: se juega hasta fallar, igual
-    que el modo en solitario, así que `quote_ids` crece sobre la marcha en
-    vez de generarse entero de golpe al crear el duelo. Empieza como
-    invitación (`PENDING`): el retado tiene que aceptarla antes de que
-    arranque la partida."""
+    """Duelo entre dos amigos, a elegir de entre varios juegos de trivia
+    (`game`): los dos ven la MISMA pregunta a la vez (`current_index`,
+    compartido) y avanzan juntos ronda a ronda — en cuanto uno responde mal,
+    el duelo termina ahí mismo para los dos. No hay una tanda de tamaño
+    fijo: se juega hasta fallar, igual que el modo en solitario, así que
+    `round_ids` crece sobre la marcha en vez de generarse entero de golpe al
+    crear el duelo. Empieza como invitación (`PENDING`): el retado tiene que
+    aceptarla antes de que arranque la partida."""
 
     class Status(models.TextChoices):
         PENDING = "pending", "Pendiente"
         ACTIVE = "active", "En curso"
         FINISHED = "finished", "Terminado"
+
+    class Game(models.TextChoices):
+        QUOTES = "quotes", "Frases célebres"
+        TRIVIA = "trivia", "Trivial"
+        BAD_DESCRIPTION = "bad_description", "Malas descripciones"
+        ACTOR = "actor", "Cuál tiene al actor/actriz"
 
     challenger = models.ForeignKey(
         settings.AUTH_USER_MODEL, verbose_name="retador", on_delete=models.CASCADE, related_name="duels_started",
@@ -56,8 +177,9 @@ class Duel(models.Model):
     opponent = models.ForeignKey(
         settings.AUTH_USER_MODEL, verbose_name="rival", on_delete=models.CASCADE, related_name="duels_received",
     )
+    game = models.CharField("juego", max_length=20, choices=Game.choices, default=Game.QUOTES)
     status = models.CharField("estado", max_length=10, choices=Status.choices, default=Status.PENDING)
-    quote_ids = models.JSONField("frases jugadas hasta ahora (compartidas)", default=list)
+    round_ids = models.JSONField("preguntas jugadas hasta ahora (compartidas)", default=list)
     current_index = models.PositiveIntegerField("ronda actual (compartida)", default=0)
     challenger_streak = models.PositiveIntegerField("racha del retador", default=0)
     opponent_streak = models.PositiveIntegerField("racha del rival", default=0)
@@ -99,8 +221,8 @@ class Duel(models.Model):
     def opponent_of(self, user):
         return self.opponent if self.role_for(user) == "challenger" else self.challenger
 
-    def reset_for_rematch(self):
-        self.quote_ids = [MovieQuote.objects.order_by("?").values_list("pk", flat=True).first()]
+    def reset_for_rematch(self, first_round_id):
+        self.round_ids = [first_round_id]
         self.current_index = 0
         self.challenger_streak = 0
         self.opponent_streak = 0
@@ -176,6 +298,64 @@ class DuelRecord(models.Model):
 
     def losses_for(self, user):
         return self.player_high_wins if user.pk == self.player_low_id else self.player_low_wins
+
+
+class OscarCategory(models.Model):
+    """Categoría de 'Candidatos al Oscar' (p. ej. 'Mejor película'): los
+    usuarios proponen candidatas (películas del catálogo) y votan por su
+    favorita, una vez por categoría. A diferencia de los juegos de racha,
+    esto es una herramienta permanente/compartida, no algo personal."""
+
+    name = models.CharField("categoría", max_length=100)
+    is_open = models.BooleanField("abierta a candidaturas y votos", default=True)
+    order = models.PositiveIntegerField("orden", default=0)
+
+    class Meta:
+        ordering = ["order", "pk"]
+        verbose_name = "Candidatos al Oscar: categoría"
+        verbose_name_plural = "Juegos: Candidatos al Oscar — categorías"
+
+    def __str__(self):
+        return self.name
+
+
+class OscarCandidate(models.Model):
+    category = models.ForeignKey(OscarCategory, verbose_name="categoría", on_delete=models.CASCADE, related_name="candidates")
+    movie = models.ForeignKey("movies.Movie", verbose_name="película", on_delete=models.CASCADE, related_name="+")
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="propuesta por", on_delete=models.CASCADE, related_name="+",
+    )
+    created_at = models.DateTimeField("propuesta", auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Candidatos al Oscar: candidata"
+        verbose_name_plural = "Juegos: Candidatos al Oscar — candidatas"
+        constraints = [
+            models.UniqueConstraint(fields=["category", "movie"], name="una_candidata_por_categoria"),
+        ]
+
+    def __str__(self):
+        return f"{self.movie} — {self.category}"
+
+
+class OscarVote(models.Model):
+    """Un voto por usuario y categoría — votar por una candidata distinta
+    en la misma categoría reemplaza el voto anterior, no lo suma."""
+
+    category = models.ForeignKey(OscarCategory, verbose_name="categoría", on_delete=models.CASCADE, related_name="votes")
+    candidate = models.ForeignKey(OscarCandidate, verbose_name="candidata", on_delete=models.CASCADE, related_name="votes")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="usuario", on_delete=models.CASCADE, related_name="+")
+
+    class Meta:
+        verbose_name = "Candidatos al Oscar: voto"
+        verbose_name_plural = "Juegos: Candidatos al Oscar — votos"
+        constraints = [
+            models.UniqueConstraint(fields=["category", "user"], name="un_voto_por_categoria_y_usuario"),
+        ]
+
+    def __str__(self):
+        return f"{self.user} → {self.candidate} ({self.category})"
 
 
 class GameTierLevel(models.Model):

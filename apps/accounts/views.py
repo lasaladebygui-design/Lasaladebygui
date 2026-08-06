@@ -7,9 +7,7 @@ from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
-from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
-from django.core.validators import validate_email
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -22,6 +20,7 @@ from apps.core.models import SiteConfig
 from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError, tmdb_search
 from apps.secret.models import ReleaseEvent
+from apps.secret.views import secret_required
 
 from .forms import EmailAuthenticationForm, ProfileForm, RegisterForm
 from .models import EmailVerificationToken, FavoriteMovie, GoogleCalendarConnection, PushSubscription, User
@@ -145,37 +144,6 @@ def set_intro_animation(request):
 def toggle_pwa_prompt(request):
     request.user.hide_pwa_install_prompt = not request.user.hide_pwa_install_prompt
     request.user.save(update_fields=["hide_pwa_install_prompt"])
-    return redirect("accounts:settings")
-
-
-@login_required
-@require_POST
-def change_email(request):
-    new_email = request.POST.get("email", "").strip().lower()
-    try:
-        validate_email(new_email)
-    except ValidationError:
-        messages.error(request, "Ese email no es válido.")
-        return redirect("accounts:settings")
-
-    if User.objects.filter(email=new_email).exclude(pk=request.user.pk).exists():
-        messages.error(request, "Ya hay una cuenta con ese email.")
-        return redirect("accounts:settings")
-
-    if new_email == request.user.email:
-        messages.info(request, "Ese ya es tu email.")
-        return redirect("accounts:settings")
-
-    request.user.email = new_email
-    config = SiteConfig.load()
-    request.user.email_verified = not config.require_email_verification
-    request.user.save(update_fields=["email", "email_verified"])
-
-    if config.require_email_verification:
-        _send_verification_email(request, request.user)
-        messages.success(request, "Email actualizado. Te hemos enviado un correo para confirmarlo.")
-    else:
-        messages.success(request, "Email actualizado.")
     return redirect("accounts:settings")
 
 
@@ -348,6 +316,7 @@ def push_unsubscribe(request):
 GOOGLE_OAUTH_STATE_SESSION_KEY = "google_oauth_state"
 
 
+@secret_required
 @login_required
 def google_calendar_connect(request):
     if not google_calendar_enabled():
@@ -358,6 +327,7 @@ def google_calendar_connect(request):
     return redirect(get_authorization_url(redirect_uri, state))
 
 
+@secret_required
 @login_required
 def google_calendar_callback(request):
     if not google_calendar_enabled():
@@ -398,6 +368,7 @@ def google_calendar_callback(request):
     return redirect("secret:calendar")
 
 
+@secret_required
 @login_required
 @require_POST
 def google_calendar_disconnect(request):

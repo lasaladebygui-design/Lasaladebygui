@@ -4,11 +4,12 @@ from datetime import date, timedelta
 from functools import wraps
 
 import requests
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.db.models import Max
-from django.http import Http404, JsonResponse
+from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -274,6 +275,23 @@ def tier_list_reset(request):
 
 def _can_access_photo_board(viewer, owner):
     return viewer.pk == owner.pk or PhotoBoardMember.objects.filter(owner=owner, member=viewer).exists()
+
+
+@secret_required
+@login_required
+def photo_serve(request, pk):
+    """La imagen se sirve SIEMPRE por aquí, nunca por su URL de storage
+    directa: en producción esa URL va firmada y caduca al minuto (ver
+    STORAGES["secret_photos"] en settings), así que aunque alguien la copie
+    del código fuente de la página deja de funcionar casi al momento. En
+    local (sin Supabase configurado) no hay firma posible, así que el
+    archivo se manda directamente desde aquí en vez de redirigir a /media/."""
+    photo = get_object_or_404(SecretPhoto, pk=pk)
+    if not _can_access_photo_board(request.user, photo.board_owner):
+        raise Http404
+    if settings.USE_SUPABASE_STORAGE:
+        return redirect(photo.image.url)
+    return FileResponse(photo.image.open("rb"))
 
 
 @secret_required

@@ -9,10 +9,10 @@
         <h1>{{ duel.challenger.username }} vs {{ duel.opponent.username }}</h1>
         <p class="quote-game__score">Racha: <strong>{{ streak }}</strong></p>
 
-        <blockquote class="quote-game__quote">“{{ quote.quote }}”</blockquote>
+        <blockquote class="quote-game__quote">{{ prompt }}</blockquote>
         <form method="post" class="quote-game__options">
             {% csrf_token %}
-            <input type="hidden" name="quote_id" value="{{ quote.pk }}">
+            <input type="hidden" name="round_id" value="{{ round_id }}">
             {% for option in options %}
                 <button type="submit" name="answer" value="{{ option }}" class="btn btn--ghost btn--block">{{ option }}</button>
             {% endfor %}

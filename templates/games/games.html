@@ -9,31 +9,71 @@
         <h1>¿A qué jugamos?</h1>
         <p class="muted">Nada de códigos secretos aquí: entra y juega.</p>
 
+        <h2>🎮 Un jugador</h2>
         <div class="card-grid">
-            <a href="{% url 'movies:roulette-home' %}" class="card card--link">
-                <span class="card__tag">🎰</span>
-                <h3>Ruleta de películas</h3>
-                <p>Por rango de nota IMDb o con tu propia lista de candidatas.</p>
-            </a>
             <a href="{% url 'games:quote-game' %}" class="card card--link">
                 <span class="card__tag">🎬</span>
                 <h3>Frases célebres</h3>
-                <p>Te damos una frase, tú aciertas la película. A ver cuánto dura tu racha.</p>
+                <p>Te damos una frase, tú aciertas la película o serie. A ver cuánto dura tu racha.</p>
             </a>
             <a href="{% url 'games:rating-duel' %}" class="card card--link">
                 <span class="card__tag">⭐</span>
                 <h3>Cuál está mejor valorada</h3>
                 <p>Dos portadas, ¿cuál tiene mejor nota IMDb? Aguanta la racha todo lo que puedas.</p>
             </a>
+            <a href="{% url 'games:trivia-game' %}" class="card card--link">
+                <span class="card__tag">🧠</span>
+                <h3>Trivial</h3>
+                <p>Preguntas de cine y series clásicas, a tres opciones.</p>
+            </a>
+            <a href="{% url 'games:emoji-game' %}" class="card card--link">
+                <span class="card__tag">😀</span>
+                <h3>Emoji</h3>
+                <p>Adivina el título a partir de unos emojis — se revelan de uno en uno si fallas.</p>
+            </a>
+            <a href="{% url 'games:bad-description-game' %}" class="card card--link">
+                <span class="card__tag">📝</span>
+                <h3>Malas descripciones</h3>
+                <p>Sinopsis deliberadamente malas — adivina de qué película o serie es.</p>
+            </a>
+            <a href="{% url 'games:actor-game' %}" class="card card--link">
+                <span class="card__tag">🎭</span>
+                <h3>Cuál tiene al actor/actriz</h3>
+                <p>Te damos un nombre, tú aciertas en cuál de las opciones sale.</p>
+            </a>
+            <a href="{% url 'games:true-false-game' %}" class="card card--link">
+                <span class="card__tag">✅❌</span>
+                <h3>Verdadero o falso</h3>
+                <p>Afirmaciones sobre cine y series — ¿ciertas o inventadas?</p>
+            </a>
+            <a href="{% url 'games:personality-quiz' %}" class="card card--link">
+                <span class="card__tag">🎭</span>
+                <h3>Qué personaje eres</h3>
+                <p>Un test de personalidad de cine — nada de dilemas de manual, situaciones del día a día.</p>
+            </a>
+        </div>
+
+        <h2 style="margin-top:2.5rem;">🛠️ Útiles</h2>
+        <div class="card-grid">
+            <a href="{% url 'movies:roulette-home' %}" class="card card--link">
+                <span class="card__tag">🎰</span>
+                <h3>Ruleta de películas</h3>
+                <p>Por rango de nota IMDb o con tu propia lista de candidatas.</p>
+            </a>
             <a href="{% url 'games:tier-list' %}" class="card card--link">
                 <span class="card__tag">📊</span>
                 <h3>Tu tier list</h3>
                 <p>Tu propio ranking personal de películas, de S a D — nada que ver con la de Top Secret.</p>
             </a>
+            <a href="{% url 'games:oscars' %}" class="card card--link">
+                <span class="card__tag">🏆</span>
+                <h3>Candidatos al Oscar</h3>
+                <p>Propón candidatas por categoría y vota tu favorita — entre todos.</p>
+            </a>
         </div>
 
         {% if user.is_authenticated %}
-        <h2 style="margin-top:2.5rem;">Tus duelos</h2>
+        <h2 style="margin-top:2.5rem;">⚔️ Duelos (2 jugadores)</h2>
         {% if duels %}
         <div class="card-grid">
             {% for duel in duels %}
@@ -42,6 +82,7 @@
                     {% if duel.status == "pending" %}✉️{% elif duel.status == "finished" %}🏁{% else %}⚔️{% endif %}
                 </span>
                 <h3>{{ duel.challenger.username }} vs {{ duel.opponent.username }}</h3>
+                <p class="muted">{{ duel.get_game_display }}</p>
                 {% if duel.status == "pending" %}
                     <p>Pendiente de aceptar.</p>
                 {% elif duel.status == "finished" %}
@@ -60,7 +101,7 @@
         <p class="muted">Todavía no tienes duelos.</p>
         {% endif %}
 
-        <h2 style="margin-top:2.5rem;">🎯 Desafía a amigos</h2>
+        <h3 style="margin-top:1.5rem;">🎯 Desafía a amigos</h3>
         <p class="muted">Reto 1 contra 1 en directo: los dos veis la misma pregunta a la vez y jugáis juntos, ronda a ronda — en cuanto uno falla, se acaba el duelo. A tu amigo le llega la invitación en un mensaje de Social.</p>
         {% if friends %}
         <details class="tier-add-level">
@@ -70,6 +111,11 @@
                 <select name="username" id="id_duel_friend" required>
                     {% for friend in friends %}
                     <option value="{{ friend.username }}">{{ friend.username }}</option>
+                    {% endfor %}
+                </select>
+                <select name="game" required>
+                    {% for value, label in duel_games %}
+                    <option value="{{ value }}">{{ label }}</option>
                     {% endfor %}
                 </select>
                 <button type="submit" class="btn btn--accent btn--sm">Enviar solicitud</button>

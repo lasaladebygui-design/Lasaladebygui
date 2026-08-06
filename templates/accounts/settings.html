@@ -72,19 +72,34 @@
             </form>
         </div>
 
-        <div class="settings-group" x-data="themeSwitcher()">
+        <div class="settings-group">
             <h2>Apariencia</h2>
-            <p class="muted">Tema visual — se aplica al momento.</p>
-            <div class="settings-group__row">
-                {% for theme in all_themes %}
-                <button type="button" class="btn btn--sm {% if theme.pk == site_theme.pk %}btn--accent{% else %}btn--ghost{% endif %}" @click="choose('{{ theme.slug }}')">{{ theme.name }}</button>
-                {% endfor %}
-                {% if user.theme_id %}
-                <button type="button" class="link-btn" @click="reset()">Usar tema del sitio</button>
-                {% endif %}
-            </div>
+            <p class="muted">Elige un tema y pulsa Guardar. Si no eliges ninguno, ves el tema general del sitio.</p>
+            <form method="post" action="{% url 'core:set-theme' 'placeholder' %}" class="settings-group__row" id="theme-form">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'accounts:settings' %}">
+                <select name="theme_slug" id="id_theme_slug">
+                    {% for theme in all_themes %}
+                    <option value="{{ theme.slug }}" {% if theme.pk == site_theme.pk %}selected{% endif %}>{{ theme.name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn--accent btn--sm">Guardar tema</button>
+            </form>
+            {% if user.theme_id %}
+            <form method="post" action="{% url 'core:reset-theme' %}" style="margin-top:0.4rem;">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'accounts:settings' %}">
+                <button type="submit" class="link-btn">Usar el tema general del sitio en vez del mío</button>
+            </form>
+            {% endif %}
+            <script>
+                document.getElementById("theme-form").addEventListener("submit", function (event) {
+                    var slug = document.getElementById("id_theme_slug").value;
+                    this.action = "{% url 'core:set-theme' 'SLUG' %}".replace("SLUG", slug);
+                });
+            </script>
 
-            <p class="muted" style="margin-top:1rem;">Animación de intro al entrar en la web.</p>
+            <p class="muted" style="margin-top:1.2rem;">Animación al entrar en la web.</p>
             <div class="settings-group__row">
                 <form method="post" action="{% url 'accounts:set-intro-animation' %}" class="inline-form">
                     {% csrf_token %}
@@ -102,22 +117,12 @@
                     <button type="submit" class="btn btn--sm {% if user.show_intro_animation == None %}btn--accent{% else %}btn--ghost{% endif %}">Como el sitio</button>
                 </form>
             </div>
-
-            <p class="muted" style="margin-top:1rem;">Sugerencia de instalar la app (banner "📱 Instala La Sala de Bygui").</p>
-            <form method="post" action="{% url 'accounts:toggle-pwa-prompt' %}" class="inline-form">
-                {% csrf_token %}
-                <button type="submit" class="btn btn--sm {% if user.hide_pwa_install_prompt %}btn--ghost{% else %}btn--accent{% endif %}">
-                    {% if user.hide_pwa_install_prompt %}No mostrar (desactivada){% else %}Mostrar sugerencia{% endif %}
-                </button>
-            </form>
-            <div class="settings-group__row" style="margin-top:0.6rem;">
-                <span class="settings-group__placeholder" title="Próximamente">Vista dinámica / estática (próximamente, todavía no hace nada)</span>
-            </div>
         </div>
 
         <div class="settings-group">
             <h2>Notificaciones</h2>
             {% if vapid_public_key %}
+            <p class="muted">Avisos en el navegador de mensajes, respuestas y estrenos.</p>
             <button type="button" class="btn btn--ghost"
                     data-push-subscribe
                     data-subscribe-url="{% url 'accounts:push-subscribe' %}"
@@ -127,11 +132,19 @@
             {% else %}
             <p class="muted">Las notificaciones push no están disponibles ahora mismo.</p>
             {% endif %}
+            <p class="muted" style="margin-top:0.8rem;">Sugerencia de instalar la app (banner "📱 Instala La Sala de Bygui").</p>
+            <form method="post" action="{% url 'accounts:toggle-pwa-prompt' %}" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn--sm {% if user.hide_pwa_install_prompt %}btn--ghost{% else %}btn--accent{% endif %}">
+                    {% if user.hide_pwa_install_prompt %}No mostrar (desactivada){% else %}Mostrar sugerencia{% endif %}
+                </button>
+            </form>
         </div>
 
         {% if google_calendar_enabled %}
         <div class="settings-group">
             <h2>Google Calendar</h2>
+            <p class="muted">Conecta tu cuenta para que los estrenos de tu <a href="{% url 'secret:calendar' %}">calendario</a> se creen solos ahí también.</p>
             {% if google_calendar_connected %}
             <form method="post" action="{% url 'accounts:google-calendar-disconnect' %}" class="inline-form">
                 {% csrf_token %}
@@ -140,21 +153,13 @@
             {% else %}
             <a href="{% url 'accounts:google-calendar-connect' %}" class="btn btn--ghost btn--sm">📆 Conectar con Google Calendar</a>
             {% endif %}
-            <p class="muted" style="margin-top:0.4rem;">Los estrenos de tu <a href="{% url 'secret:calendar' %}">calendario</a> se crearán solos ahí también.</p>
         </div>
         {% endif %}
 
         <div class="settings-group">
-            <h2>Correo y contraseña</h2>
-            <form method="post" action="{% url 'accounts:change-email' %}" class="stacked-form">
-                {% csrf_token %}
-                <div class="field">
-                    <label for="id_settings_email">Email</label>
-                    <input type="email" id="id_settings_email" name="email" value="{{ user.email }}" required>
-                </div>
-                <button type="submit" class="btn btn--ghost btn--sm">Cambiar email</button>
-            </form>
-            <a href="{% url 'accounts:password-change' %}" class="btn btn--ghost btn--sm" style="margin-top:0.8rem;">Cambiar contraseña</a>
+            <h2>Contraseña</h2>
+            <p class="muted">El email de acceso se cambia contactando con un Admin — aquí solo puedes cambiar la contraseña.</p>
+            <a href="{% url 'accounts:password-change' %}" class="btn btn--ghost btn--sm">Cambiar contraseña</a>
         </div>
 
         <form method="post" action="{% url 'accounts:logout' %}" class="settings-group">

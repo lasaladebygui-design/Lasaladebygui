@@ -336,9 +336,9 @@ class ProfileEmailVerificationStatusTests(TestCase):
 class SettingsPageTests(TestCase):
     """Ajustes reúne lo que antes vivía suelto por el perfil (o no existía):
     rango, tema, animación de intro, sugerencia de instalar la app,
-    notificaciones, Google Calendar, cambiar email/contraseña y cerrar
-    sesión — el perfil se queda solo con la frase dinámica, las rachas de
-    juegos, imprescindibles/sugeridas y el botón a Ajustes."""
+    notificaciones, Google Calendar, cambiar contraseña y cerrar sesión —
+    el perfil se queda solo con la frase dinámica, las rachas de juegos,
+    imprescindibles/sugeridas y el botón a Ajustes."""
 
     def setUp(self):
         self.user = User.objects.create(email="ajustes@test.local", role=User.Role.EDITOR)
@@ -380,37 +380,6 @@ class SettingsPageTests(TestCase):
         self.client.post(reverse("accounts:toggle-pwa-prompt"))
         self.user.refresh_from_db()
         self.assertFalse(self.user.hide_pwa_install_prompt)
-
-    def test_cambiar_email(self):
-        response = self.client.post(reverse("accounts:change-email"), {"email": "nuevo@test.local"})
-        self.assertRedirects(response, reverse("accounts:settings"))
-        self.user.refresh_from_db()
-        self.assertEqual(self.user.email, "nuevo@test.local")
-
-    def test_cambiar_email_a_uno_ya_usado_no_lo_cambia(self):
-        User.objects.create(email="ocupado@test.local", role=User.Role.LECTOR)
-        self.client.post(reverse("accounts:change-email"), {"email": "ocupado@test.local"})
-        self.user.refresh_from_db()
-        self.assertEqual(self.user.email, "ajustes@test.local")
-
-    def test_cambiar_email_invalido_no_lo_cambia(self):
-        self.client.post(reverse("accounts:change-email"), {"email": "no-es-un-email"})
-        self.user.refresh_from_db()
-        self.assertEqual(self.user.email, "ajustes@test.local")
-
-    def test_cambiar_email_exige_verificacion_si_esta_activada(self):
-        from apps.core.models import SiteConfig
-
-        config = SiteConfig.load()
-        config.require_email_verification = True
-        config.save()
-        self.user.email_verified = True
-        self.user.save(update_fields=["email_verified"])
-
-        self.client.post(reverse("accounts:change-email"), {"email": "nuevo2@test.local"})
-        self.user.refresh_from_db()
-        self.assertFalse(self.user.email_verified)
-        self.assertEqual(len(mail.outbox), 1)
 
     def test_pagina_de_cambiar_contrasena_accesible(self):
         response = self.client.get(reverse("accounts:password-change"))
@@ -676,11 +645,21 @@ class PushSubscriptionTests(TestCase):
 
 @override_settings(GOOGLE_OAUTH_CLIENT_ID="client-id", GOOGLE_OAUTH_CLIENT_SECRET="client-secret")
 class GoogleCalendarConnectionTests(TestCase):
+    """Conectar/desconectar Google Calendar solo sirve para sincronizar el
+    calendario de Top Secret, así que exige el código igual que el resto de
+    ese apartado — sin él, ni se puede empezar el flujo de OAuth."""
+
     def setUp(self):
         self.user = User.objects.create(email="google_cal@test.local", role=User.Role.LECTOR)
         self.user.set_password("Testpass123!")
         self.user.save()
         self.client.login(username=self.user.email, password="Testpass123!")
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+
+    def test_sin_el_codigo_de_top_secret_no_se_puede_conectar(self):
+        self.client.post(reverse("secret:lock"))
+        response = self.client.get(reverse("accounts:google-calendar-connect"))
+        self.assertRedirects(response, reverse("secret:gate"))
 
     @override_settings(GOOGLE_OAUTH_CLIENT_ID="", GOOGLE_OAUTH_CLIENT_SECRET="")
     def test_connect_sin_credenciales_da_404(self):

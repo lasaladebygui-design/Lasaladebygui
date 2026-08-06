@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
+from django.core.files.storage import storages
 from django.db import models
 from django.utils.text import slugify
 
@@ -241,7 +242,11 @@ class SecretPhoto(models.Model):
         settings.AUTH_USER_MODEL, verbose_name="tablón de",
         on_delete=models.CASCADE, related_name="photo_board_photos",
     )
-    image = models.ImageField("foto", upload_to="secret_photos/")
+    # Storage aparte ("secret_photos" en STORAGES, config/settings.py): a
+    # diferencia del resto de imágenes del sitio, estas no deben tener una
+    # URL pública permanente — solo se sirven a través de la vista
+    # `photo_serve` (protegida por el código y por _can_access_photo_board).
+    image = models.ImageField("foto", upload_to="secret_photos/", storage=storages["secret_photos"])
     description = models.CharField("descripción", max_length=280, blank=True)
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, verbose_name="subida por",

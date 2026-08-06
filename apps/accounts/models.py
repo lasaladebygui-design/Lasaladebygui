@@ -43,6 +43,21 @@ class User(AbstractUser):
         "mejor racha en Cuál está mejor valorada (series)", default=0,
         help_text="Récord del juego de Juegos. Se actualiza solo al jugar.",
     )
+    trivia_streak_best = models.PositiveIntegerField(
+        "mejor racha en Trivial", default=0, help_text="Récord del juego de Juegos. Se actualiza solo al jugar.",
+    )
+    emoji_streak_best = models.PositiveIntegerField(
+        "mejor racha en Emoji", default=0, help_text="Récord del juego de Juegos. Se actualiza solo al jugar.",
+    )
+    bad_description_streak_best = models.PositiveIntegerField(
+        "mejor racha en Malas descripciones", default=0, help_text="Récord del juego de Juegos. Se actualiza solo al jugar.",
+    )
+    actor_streak_best = models.PositiveIntegerField(
+        "mejor racha en Cuál tiene al actor/actriz", default=0, help_text="Récord del juego de Juegos. Se actualiza solo al jugar.",
+    )
+    true_false_streak_best = models.PositiveIntegerField(
+        "mejor racha en Verdadero o falso", default=0, help_text="Récord del juego de Juegos. Se actualiza solo al jugar.",
+    )
     theme = models.ForeignKey(
         Theme,
         verbose_name="tema personal",
@@ -61,11 +76,11 @@ class User(AbstractUser):
     )
     essential_note = models.TextField(
         "por qué son imprescindibles", blank=True,
-        help_text="Un único texto para todo el apartado (no por película), sin límite de longitud. Visible para cualquiera que vea tu perfil.",
+        help_text="Un único texto para todo el apartado (no por película). Visible para cualquiera que vea tu perfil.",
     )
     suggested_note = models.TextField(
         "por qué las recomiendas", blank=True,
-        help_text="Un único texto para todo el apartado (no por película), sin límite de longitud. Visible para cualquiera que vea tu perfil.",
+        help_text="Un único texto para todo el apartado (no por película). Visible para cualquiera que vea tu perfil.",
     )
 
     USERNAME_FIELD = "email"
