@@ -50,6 +50,15 @@ class OscarCategoryAdmin(admin.ModelAdmin):
     list_display = ("name", "candidate_type", "is_open", "order")
     list_editable = ("is_open", "order")
     list_filter = ("candidate_type",)
+    actions = ["open_categories", "close_categories"]
+
+    @admin.action(description="Abrir a candidaturas y votos")
+    def open_categories(self, request, queryset):
+        queryset.update(is_open=True)
+
+    @admin.action(description="Cerrar a candidaturas y votos")
+    def close_categories(self, request, queryset):
+        queryset.update(is_open=False)
 
 
 @admin.register(OscarCandidate)

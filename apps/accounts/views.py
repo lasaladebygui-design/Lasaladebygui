@@ -118,6 +118,7 @@ def achievements(request):
         ("🎬 Frases célebres", user.quote_streak_best, "games:quote-game"),
         ("⭐ Cuál está mejor valorada (películas)", user.rating_duel_streak_best_movie, "games:rating-duel"),
         ("⭐ Cuál está mejor valorada (series)", user.rating_duel_streak_best_tv, "games:rating-duel"),
+        ("💰 Cuál recaudó más", user.revenue_duel_streak_best, "games:revenue-duel"),
         ("🧠 Trivial", user.trivia_streak_best, "games:trivia-game"),
         ("😀 Emoji", user.emoji_streak_best, "games:emoji-game"),
         ("📝 Malas descripciones", user.bad_description_streak_best, "games:bad-description-game"),

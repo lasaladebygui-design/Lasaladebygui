@@ -80,6 +80,37 @@ TRIVIA_QUESTIONS = [
     ("¿En qué ciudad se ambienta 'Friends'?", "Nueva York", "Los Ángeles", "Chicago", "tv"),
     ("¿Qué actor interpreta a Jon Nieve en 'Juego de Tronos'?", "Kit Harington", "Richard Madden", "Alfie Allen", "tv"),
     ("¿En qué década se ambienta 'Stranger Things'?", "Los 80", "Los 90", "Los 70", "tv"),
+
+    # Segunda tanda — un poco más exigente.
+    ("¿Quién fue el primer actor en interpretar a James Bond en la saga oficial de Eon Productions?", "Sean Connery", "Roger Moore", "George Lazenby", "movie"),
+    ("¿Cuántos premios Óscar ganó 'Titanic' (1997)?", "11", "9", "13", "movie"),
+    ("¿Qué película fue la primera en ganar 11 premios Óscar?", "Ben-Hur", "Titanic", "El señor de los anillos: El retorno del rey", "movie"),
+    ("¿En qué novela se basa 'Blade Runner'?", "¿Sueñan los androides con ovejas eléctricas?", "Fahrenheit 451", "Un mundo feliz", "movie"),
+    ("¿Qué villana de Disney canta 'Pobres almas en desgracia'?", "Úrsula", "Maléfica", "Cruella de Vil", "movie"),
+    ("¿Qué actor da voz a Woody en la versión original de 'Toy Story'?", "Tom Hanks", "Tim Allen", "Billy Crystal", "movie"),
+    ("¿Qué actor interpreta al Doctor Extraño en el UCM?", "Benedict Cumberbatch", "Benedict Wong", "Chiwetel Ejiofor", "movie"),
+    ("¿Cómo se llama la androide interpretada por Alicia Vikander en 'Ex Machina'?", "Ava", "Samantha", "Eve", "movie"),
+    ("¿Quién dirigió 'Whiplash'?", "Damien Chazelle", "Ryan Coogler", "Barry Jenkins", "movie"),
+    ("¿Qué actor interpretó al Joker en 'Escuadrón Suicida' (2016)?", "Jared Leto", "Joaquin Phoenix", "Heath Ledger", "movie"),
+    ("¿Qué director dirigió 'Cisne negro' y 'Réquiem por un sueño'?", "Darren Aronofsky", "David Fincher", "Denis Villeneuve", "movie"),
+    ("¿Qué actriz interpreta a Black Widow en el UCM?", "Scarlett Johansson", "Elizabeth Olsen", "Brie Larson", "movie"),
+    ("¿Qué película ganó el Óscar a Mejor Película en la ceremonia de 2023?", "Everything Everywhere All at Once", "Los Fabelman", "Tár", "movie"),
+    ("¿Qué actor interpreta a Thor en el UCM?", "Chris Hemsworth", "Chris Evans", "Chris Pratt", "movie"),
+    ("¿Qué saga de terror presenta a la familia Warren, investigadores paranormales?", "Expediente Warren (The Conjuring)", "Insidious", "Actividad paranormal", "movie"),
+    ("¿Quién interpreta a Lobezno en la mayoría de películas de X-Men?", "Hugh Jackman", "Patrick Stewart", "Ian McKellen", "movie"),
+    ("¿Quién dirigió '¡Fuera! (Get Out)'?", "Jordan Peele", "M. Night Shyamalan", "James Wan", "movie"),
+    ("¿Qué actor interpreta a Neo en 'Matrix'?", "Keanu Reeves", "Laurence Fishburne", "Hugo Weaving", "movie"),
+    ("¿Qué actor interpreta a Ron Weasley en la saga de Harry Potter?", "Rupert Grint", "Daniel Radcliffe", "Tom Felton", "movie"),
+    ("¿En qué año se estrenó 'Vengadores: Endgame'?", "2019", "2018", "2020", "movie"),
+    ("¿Qué actriz interpreta a Rey en la trilogía secuela de Star Wars?", "Daisy Ridley", "Felicity Jones", "Kelly Marie Tran", "movie"),
+    ("¿Qué actor interpretó al Agente Smith en 'Matrix'?", "Hugo Weaving", "Laurence Fishburne", "Keanu Reeves", "movie"),
+    ("¿Qué director dirigió las tres partes de 'El padrino'?", "Francis Ford Coppola", "Martin Scorsese", "Sidney Lumet", "movie"),
+    ("¿Qué actor interpreta a Tony Montana en 'Scarface' (1983)?", "Al Pacino", "Robert De Niro", "Joe Pesci", "movie"),
+    ("¿Qué actriz ganó el Óscar a Mejor Actriz por 'La La Land'?", "Emma Stone", "Natalie Portman", "Amy Adams", "movie"),
+    ("¿Cuántas temporadas tiene 'The Office' (versión estadounidense)?", "9", "8", "7", "tv"),
+    ("¿Qué actor interpreta a Sheldon Cooper en 'The Big Bang Theory'?", "Jim Parsons", "Johnny Galecki", "Kunal Nayyar", "tv"),
+    ("¿En qué década arranca la serie 'Peaky Blinders'?", "Los años 1920", "Los años 1950", "Los años 1980", "tv"),
+    ("¿Qué plataforma produce 'The Mandalorian'?", "Disney+", "Netflix", "HBO Max", "tv"),
 ]
 
 # Cada emoji separado por un espacio: el juego los revela de uno en uno, no
@@ -101,6 +132,23 @@ EMOJI_QUESTIONS = [
     ("🧪 🧢 🔵", "Breaking Bad", "Ozark", "The Wire", "tv"),
     ("🐉 🔥 👑", "Juego de Tronos", "La Casa del Dragón", "Vikingos", "tv"),
     ("💰 🎭 🔴", "La Casa de Papel", "Sky Rojo", "Élite", "tv"),
+
+    # Segunda tanda.
+    ("🚗 🏁 ⚡", "Cars", "Rápidos y Furiosos", "Gran Turismo", "movie"),
+    ("🐶 🎈 🏠", "Up", "El viaje de Arlo", "Coco", "movie"),
+    ("🦍 🏙️", "King Kong", "Godzilla", "Kong: la isla calavera", "movie"),
+    ("🧛 💎 ✨", "Crepúsculo", "Drácula de Bram Stoker", "Entrevista con el vampiro", "movie"),
+    ("🤠 🚀 🧸", "Toy Story", "Toy Story 2", "Los Increíbles", "movie"),
+    ("🐀 👨‍🍳 🇫🇷", "Ratatouille", "Cars", "Up", "movie"),
+    ("🧞 🪔", "Aladdín", "Las mil y una noches", "Sinbad: la leyenda de los siete mares", "movie"),
+    ("👸 🐸 💋", "Tiana y el sapo", "La sirenita", "Blancanieves y los siete enanitos", "movie"),
+    ("🐜 🦸", "Ant-Man", "Spider-Man", "Los Vengadores", "movie"),
+    ("🛸 👽 🚲", "E.T., el extraterrestre", "Señales", "Cocoon", "movie"),
+    ("🏹 🔥 👧", "Los juegos del hambre", "Brave (Indomable)", "Robin Hood", "movie"),
+    ("🧟‍♂️ 🏫", "Zombieland", "Guerra Mundial Z", "Resident Evil", "movie"),
+    ("🕵️ 🎩 🔍", "Sherlock Holmes", "El código Da Vinci", "Knives Out: Puñales por la espalda", "movie"),
+    ("🐼 🥋", "Kung Fu Panda", "Mulán", "Los Increíbles", "movie"),
+    ("🧪 🔵 🌵", "Breaking Bad", "Better Call Saul", "Ozark", "tv"),
 ]
 
 BAD_DESCRIPTION_QUESTIONS = [
@@ -119,6 +167,18 @@ BAD_DESCRIPTION_QUESTIONS = [
     ("Un profesor de química se pone a cocinar algo que no es precisamente para el instituto.", "Breaking Bad", "Ozark", "Weeds", "tv"),
     ("Un grupo de ladrones con monos rojos y máscaras de un pintor español se atrincheran en la Fábrica de Moneda y Timbre.", "La Casa de Papel", "Sky Rojo", "Vis a vis", "tv"),
     ("Varias familias nobles se pelean por una silla hecha de espadas mientras se acerca un invierno muy largo.", "Juego de Tronos", "La Casa del Dragón", "Vikingos", "tv"),
+
+    # Segunda tanda.
+    ("Un robot inflable blanco se convierte en el mejor amigo de un adolescente que acaba de perder a su hermano.", "Big Hero 6", "Wall-E", "Los Increíbles", "movie"),
+    ("Una araña radiactiva muerde a un adolescente con problemas para ligar y de repente trepa paredes.", "Spider-Man", "Venom", "Los 4 Fantásticos", "movie"),
+    ("Un abuelo gruñón ata miles de globos a su casa para escapar de la ciudad.", "Up", "El viaje de Arlo", "Coco", "movie"),
+    ("Un pirata borracho con muy mala suerte se convierte en el héroe accidental de todas sus aventuras.", "Piratas del Caribe: La maldición de la Perla Negra", "Peter Pan", "La isla del tesoro", "movie"),
+    ("Un científico se convierte en un monstruo verde gigante cada vez que se enfada de verdad.", "Hulk", "El increíble Hulk", "Venom", "movie"),
+    ("Cuatro hermanas intentan salir adelante durante la guerra mientras una de ellas sueña con ser escritora.", "Mujercitas", "Las cuatro estaciones", "Orgullo y prejuicio", "movie"),
+    ("Un mayordomo con orejas de murciélago le construye juguetes carísimos a un multimillonario traumatizado.", "Batman Begins", "El caballero oscuro", "Batman v Superman: El amanecer de la justicia", "movie"),
+    ("Un adolescente descubre que es un semidiós y pasa el verano en un campamento con otros hijos de dioses griegos.", "Percy Jackson y el ladrón del rayo", "Hércules", "Troya", "movie"),
+    ("Una niña sigue a un conejo blanco con reloj y acaba en un mundo lleno de gente muy rara.", "Alicia en el país de las maravillas", "El mago de Oz", "Coraline", "movie"),
+    ("Un adolescente descubre que su coche usado es en realidad un robot alienígena que se transforma.", "Transformers", "Bumblebee", "Iron Giant: El gigante de hierro", "movie"),
 ]
 
 # Cuál tiene al actor/actriz: sin `image_url` de partida (no hay una fuente
@@ -141,6 +201,21 @@ ACTOR_QUESTIONS = [
     ("Bryan Cranston", "Breaking Bad", "The Wire", "Ozark", "tv"),
     ("Millie Bobby Brown", "Stranger Things", "El juego del calamar", "Élite", "tv"),
     ("Emilia Clarke", "Juego de Tronos", "La Casa del Dragón", "Vikingos", "tv"),
+
+    # Segunda tanda.
+    ("Denzel Washington", "Training Day", "El indomable Will Hunting", "Buenos muchachos", "movie"),
+    ("Charlize Theron", "Mad Max: Furia en la carretera", "Wonder Woman", "Viuda Negra", "movie"),
+    ("Ryan Gosling", "La La Land", "Crazy, Stupid, Love.", "Náufrago", "movie"),
+    ("Natalie Portman", "Cisne negro", "La La Land", "Erin Brockovich", "movie"),
+    ("Brad Pitt", "El club de la lucha", "Matrix", "Uno de los nuestros", "movie"),
+    ("Anne Hathaway", "El diablo viste de Prada", "Legalmente rubia", "Divergente", "movie"),
+    ("Will Smith", "En busca de la felicidad", "Training Day", "Malas calles", "movie"),
+    ("Zendaya", "Spider-Man: Sin camino a casa", "Los juegos del hambre", "Divergente", "movie"),
+    ("Timothée Chalamet", "Dune", "Blade Runner 2049", "Interestelar", "movie"),
+    ("Cate Blanchett", "El señor de los anillos: La comunidad del anillo", "Harry Potter y la piedra filosofal", "Las crónicas de Narnia", "movie"),
+    ("Idris Elba", "Thor", "Vengadores: Endgame", "Capitán América: El primer vengador", "movie"),
+    ("Florence Pugh", "Dune: Parte dos", "Whiplash", "La La Land", "movie"),
+    ("Henry Cavill", "The Witcher", "Juego de Tronos", "Peaky Blinders", "tv"),
 ]
 
 TRUE_FALSE_STATEMENTS = [
@@ -162,6 +237,21 @@ TRUE_FALSE_STATEMENTS = [
     ("'El caballero oscuro' fue dirigida por Tim Burton.", False),
     ("'Stranger Things' se ambienta en los años 90.", False),
     ("Christopher Nolan dirigió 'Interestelar'.", True),
+
+    # Segunda tanda.
+    ("'Origen' (Inception) fue dirigida por Christopher Nolan.", True),
+    ("'El padrino' ganó el Óscar a Mejor Película.", True),
+    ("'Frozen: El reino del hielo' está basada libremente en el cuento 'La Reina de las Nieves' de Hans Christian Andersen.", True),
+    ("Timothée Chalamet interpretó a Paul Atreides en 'Dune'.", True),
+    ("'Shrek' es una producción de Disney.", False),
+    ("'Doctor Sueño' es la secuela de 'El resplandor'.", True),
+    ("James Cameron dirigió tanto 'Titanic' como 'Avatar'.", True),
+    ("'Cadena perpetua' ganó el Óscar a Mejor Película el año que se estrenó.", False),
+    ("Yoda, en las películas originales de Star Wars, era una marioneta y no un actor real sin efectos.", True),
+    ("Margot Robbie interpretó a Harley Quinn en 'Escuadrón Suicida'.", True),
+    ("'El caballero oscuro: La leyenda renace' es la primera película de la trilogía de Batman de Christopher Nolan.", False),
+    ("Hayao Miyazaki fundó el Studio Ghibli.", True),
+    ("'Grease' está protagonizada por John Travolta y Olivia Newton-John.", True),
 ]
 
 

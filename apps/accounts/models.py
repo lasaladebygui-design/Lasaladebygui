@@ -58,6 +58,9 @@ class User(AbstractUser):
     true_false_streak_best = models.PositiveIntegerField(
         "mejor racha en Verdadero o falso", default=0, help_text="Récord del juego de Juegos. Se actualiza solo al jugar.",
     )
+    revenue_duel_streak_best = models.PositiveIntegerField(
+        "mejor racha en Cuál recaudó más", default=0, help_text="Récord del juego de Juegos. Se actualiza solo al jugar.",
+    )
     theme = models.ForeignKey(
         Theme,
         verbose_name="tema personal",

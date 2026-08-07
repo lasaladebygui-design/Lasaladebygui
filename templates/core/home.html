@@ -26,7 +26,7 @@
         </div>
 
         {% if featured_articles %}
-        <div class="article-grid">
+        <div class="article-grid article-grid--five">
             {% for article in featured_articles %}
             <article class="article-card">
                 <a href="{{ article.get_absolute_url }}" class="article-card__cover-link">
@@ -72,39 +72,39 @@
             <a href="{% url 'articles:list' %}" class="card card--link">
                 <span class="card__tag">Tablón</span>
                 <h3>Artículos</h3>
-                <p>Reseñas y noticias escritas por el equipo.</p>
+                <p>Reseñas, opiniones y cotilleos de cine — escritos por el equipo.</p>
             </a>
             <a href="{% url 'forum:list' %}" class="card card--link">
                 <span class="card__tag">Debate</span>
                 <h3>Foro</h3>
-                <p>Hilos con respuestas anidadas, moderados por el equipo.</p>
+                <p>Suelta tu teoría, defiende tu peli favorita — aquí se opina de todo.</p>
             </a>
             {% if user.is_authenticated %}
             <a href="{% url 'social:home' %}" class="card card--link">
                 <span class="card__tag">Comunidad</span>
                 <h3>Social</h3>
-                <p>Amigos, mensajes y perfiles públicos.</p>
+                <p>Encuentra a tu gente, manda mensajes y presume de perfil.</p>
             </a>
             {% endif %}
             <a href="{% url 'movies:list' %}" class="card card--link">
                 <span class="card__tag">Catálogo</span>
                 <h3>Películas</h3>
-                <p>Explora el catálogo, lee sinopsis y vota tus favoritas.</p>
+                <p>Miles de títulos, notas y sinopsis — tú decides qué es lo mejor.</p>
             </a>
             <a href="{% url 'games:hub' %}" class="card card--link">
                 <span class="card__tag">Jugar</span>
                 <h3>Juegos</h3>
-                <p>Frases célebres, duelos y tier list.</p>
+                <p>Entra a divertirte.</p>
             </a>
             <a href="{% url 'shop:list' %}" class="card card--link">
                 <span class="card__tag">Tienda</span>
                 <h3>Tienda</h3>
-                <p>Productos de la sala.</p>
+                <p>Lleva la Sala contigo — merchandising oficial.</p>
             </a>
             <a href="{% url 'secret:gate' %}" class="card card--link">
                 <span class="card__tag">Top Secret</span>
                 <h3>Maletín Tarantino</h3>
-                <p>Código de acceso y recomendaciones personales.</p>
+                <p>Solo para quien tenga el código. ¿Te atreves?</p>
             </a>
         </div>
     </div>

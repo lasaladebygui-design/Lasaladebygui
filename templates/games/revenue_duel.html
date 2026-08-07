@@ -1,18 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Cuál está mejor valorada{% endblock %}
+{% block title %}Cuál recaudó más{% endblock %}
 
 {% block content %}
 <section class="section">
     <div class="wrap wrap--narrow">
         <span class="card__tag">Juegos</span>
-        <h1>⭐ ¿Cuál está mejor valorada?</h1>
-
-        <div class="media-type-toggle">
-            <span class="btn btn--sm btn--accent">{% if media_type == 'tv' %}Series{% else %}Películas{% endif %}</span>
-            <span class="btn btn--sm btn--ghost">{% if anon_mode %}🙈 Modo anónimo{% else %}👁️ Con nota{% endif %}</span>
-            <a href="{% url 'games:rating-duel' %}" class="btn btn--ghost btn--sm">🔀 Cambiar</a>
-        </div>
+        <h1>💰 ¿Cuál recaudó más?</h1>
 
         <div class="rating-duel__scoreboard">
             <span>Racha actual: <strong>{{ streak }}</strong></span>
@@ -38,7 +32,7 @@
                 {% endif %}
                 <span class="rating-duel__overlay">
                     <span class="rating-duel__title">{{ round_result.left_title }}</span>
-                    {% if not anon_mode %}<span class="rating-duel__rating">⭐ {{ round_result.left_rating }}</span>{% endif %}
+                    <span class="rating-duel__rating">💰 {{ round_result.left_revenue }}</span>
                 </span>
             </div>
             <span class="rating-duel__vs">VS</span>
@@ -50,14 +44,12 @@
                 {% endif %}
                 <span class="rating-duel__overlay">
                     <span class="rating-duel__title">{{ round_result.right_title }}</span>
-                    {% if not anon_mode %}<span class="rating-duel__rating">⭐ {{ round_result.right_rating }}</span>{% endif %}
+                    <span class="rating-duel__rating">💰 {{ round_result.right_revenue }}</span>
                 </span>
             </div>
         </div>
-        <form method="post" class="rating-duel__continue" {% if round_result.correct and not round_result.game_over %}id="rating-duel-autoadvance"{% endif %}>
+        <form method="post" class="rating-duel__continue" {% if round_result.correct and not round_result.game_over %}id="revenue-duel-autoadvance"{% endif %}>
             {% csrf_token %}
-            <input type="hidden" name="type" value="{{ media_type }}">
-            <input type="hidden" name="anon" value="{% if anon_mode %}1{% else %}0{% endif %}">
             <input type="hidden" name="advance" value="1">
             {% if round_result.game_over %}
                 {% if round_result.is_new_record %}<p class="quote-game__record">🎉 ¡Felicidades! Nuevo récord personal.</p>{% endif %}
@@ -69,21 +61,16 @@
         </form>
         {% if round_result.correct and not round_result.game_over %}
         <script>
-            // Aciertas -> se ve el verde un instante y se pasa solo a la
-            // siguiente ronda, sin tener que pulsar nada. Al fallar (game
-            // over) sigue haciendo falta el botón "Jugar de nuevo" a propósito.
             setTimeout(function () {
-                var form = document.getElementById("rating-duel-autoadvance");
+                var form = document.getElementById("revenue-duel-autoadvance");
                 if (form) form.requestSubmit();
             }, 900);
         </script>
         {% endif %}
         {% elif left and right %}
-        <p class="muted rating-duel__hint">Elige la que creas que tiene mejor nota IMDb.</p>
+        <p class="muted rating-duel__hint">Elige la que creas que recaudó más en taquilla.</p>
         <form method="post" class="rating-duel">
             {% csrf_token %}
-            <input type="hidden" name="type" value="{{ media_type }}">
-            <input type="hidden" name="anon" value="{% if anon_mode %}1{% else %}0{% endif %}">
             <input type="hidden" name="left_id" value="{{ left.pk }}">
             <input type="hidden" name="right_id" value="{{ right.pk }}">
             <button type="submit" name="choice" value="left" class="rating-duel__card">
@@ -111,7 +98,7 @@
             </button>
         </form>
         {% else %}
-        <p class="muted">Todavía no hay suficientes {% if media_type == 'tv' %}series{% else %}películas{% endif %} con nota IMDb en el catálogo para jugar.</p>
+        <p class="muted">Todavía no hay suficientes películas con recaudación conocida en el catálogo para jugar.</p>
         {% endif %}
     </div>
 </section>

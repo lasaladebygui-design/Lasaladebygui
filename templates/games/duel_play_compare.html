@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Duelo: {{ duel.challenger.username }} vs {{ duel.opponent.username }}{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <span class="card__tag">Juegos · Duelo · {{ duel.get_game_display }}</span>
+        <h1>{{ duel.challenger.username }} vs {{ duel.opponent.username }}</h1>
+        <p class="quote-game__score">Racha: <strong>{{ streak }}</strong></p>
+        <p class="muted rating-duel__hint">Elige la que creas que gana.</p>
+
+        <form method="post" class="rating-duel">
+            {% csrf_token %}
+            <input type="hidden" name="left_id" value="{{ left.pk }}">
+            <input type="hidden" name="right_id" value="{{ right.pk }}">
+            <button type="submit" name="choice" value="left" class="rating-duel__card">
+                {% if left.poster_url %}
+                    <img src="{{ left.poster_url }}" alt="" class="rating-duel__poster">
+                {% else %}
+                    <div class="rating-duel__poster rating-duel__poster--placeholder"><span>🎬</span></div>
+                {% endif %}
+                <span class="rating-duel__overlay">
+                    <span class="rating-duel__title">{{ left.title }}</span>
+                    {% if left.year %}<span class="rating-duel__year">{{ left.year }}</span>{% endif %}
+                </span>
+            </button>
+            <span class="rating-duel__vs">VS</span>
+            <button type="submit" name="choice" value="right" class="rating-duel__card">
+                {% if right.poster_url %}
+                    <img src="{{ right.poster_url }}" alt="" class="rating-duel__poster">
+                {% else %}
+                    <div class="rating-duel__poster rating-duel__poster--placeholder"><span>🎬</span></div>
+                {% endif %}
+                <span class="rating-duel__overlay">
+                    <span class="rating-duel__title">{{ right.title }}</span>
+                    {% if right.year %}<span class="rating-duel__year">{{ right.year }}</span>{% endif %}
+                </span>
+            </button>
+        </form>
+    </div>
+</section>
+{% endblock %}

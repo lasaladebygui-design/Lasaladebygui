@@ -417,7 +417,16 @@ JAZZMIN_SETTINGS = {
         "movies", "movies.Movie", "movies.SavedMovie", "movies.SavedMovieList",
         "movies.Vote", "movies.RouletteRatingSeen", "movies.RouletteSavedSeen",
         "social",
+        # Juegos, agrupados por tipo — igual que en el propio hub de
+        # Juegos (/juegos/): primero los de un jugador (racha), luego el
+        # test de personalidad, luego las herramientas compartidas
+        # (tier list, Candidatos al Oscar), y por último los duelos.
         "games",
+        "games.MovieQuote", "games.TriviaQuestion", "games.TrueFalseStatement",
+        "games.PersonalityCharacter", "games.PersonalityQuestion",
+        "games.GameTierLevel", "games.GameTierEntry",
+        "games.OscarCategory", "games.OscarCandidate", "games.OscarVote",
+        "games.Duel", "games.DuelRecord",
         "shop",
         "secret", "secret.SecretMovie", "secret.Genre",
         "secret.TierListEntry", "secret.TierLevel",

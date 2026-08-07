@@ -148,6 +148,60 @@ class PrivateArticleTests(TestCase):
         self.assertTrue(article.is_private)
 
 
+class ArticleListSearchAndScrollTests(TestCase):
+    """Búsqueda por palabras (título/texto) y scroll infinito (un sensor
+    HTMX que pide la siguiente página al entrar en pantalla, en vez de la
+    paginación con números)."""
+
+    def setUp(self):
+        self.author = make_user("autor_busqueda@test.local", User.Role.EDITOR)
+        self.matching = Article.objects.create(
+            title="Todo sobre Matrix", body="<p>una reseña cualquiera</p>", author=self.author,
+        )
+        self.matching_by_body = Article.objects.create(
+            title="Reseña genérica", body="<p>hablamos de Matrix Reloaded aquí</p>", author=self.author,
+        )
+        self.not_matching = Article.objects.create(
+            title="Sobre otra película", body="<p>nada que ver</p>", author=self.author,
+        )
+
+    def test_busca_por_titulo(self):
+        response = self.client.get(reverse("articles:list"), {"q": "Matrix"})
+        self.assertContains(response, "Todo sobre Matrix")
+        self.assertContains(response, "Reseña genérica")
+        self.assertNotContains(response, "Sobre otra película")
+
+    def test_sin_resultados_muestra_aviso(self):
+        response = self.client.get(reverse("articles:list"), {"q": "esto no existe en ningún artículo"})
+        self.assertContains(response, "Sin resultados")
+
+    def test_peticion_htmx_devuelve_solo_el_fragmento(self):
+        response = self.client.get(reverse("articles:list"), HTTP_HX_REQUEST="true")
+        self.assertTemplateUsed(response, "articles/_article_cards.html")
+        self.assertNotContains(response, "<h1>Artículos</h1>")
+
+    def test_hay_sensor_de_scroll_si_queda_otra_pagina(self):
+        for i in range(10):
+            Article.objects.create(title=f"Extra {i}", body="<p>x</p>", author=self.author)
+        response = self.client.get(reverse("articles:list"))
+        self.assertContains(response, "article-grid__sentinel")
+        self.assertContains(response, "hx-trigger=\"revealed\"")
+
+    def test_no_hay_sensor_en_la_ultima_pagina(self):
+        response = self.client.get(reverse("articles:list"))
+        self.assertNotContains(response, "article-grid__sentinel")
+
+    def test_el_sensor_conserva_la_busqueda_y_la_lista(self):
+        tag = Tag.objects.create(name="Acción", slug="accion")
+        self.matching.tags.add(tag)
+        for i in range(10):
+            article = Article.objects.create(title=f"Matrix extra {i}", body="<p>x</p>", author=self.author)
+            article.tags.add(tag)
+        response = self.client.get(reverse("articles:list"), {"q": "Matrix", "tag": "accion"})
+        self.assertContains(response, "tag=accion")
+        self.assertContains(response, "q=Matrix")
+
+
 class ArticleDeleteTagCleanupTests(TestCase):
     def setUp(self):
         self.admin = make_user("admin_tags@test.local", User.Role.ADMIN)

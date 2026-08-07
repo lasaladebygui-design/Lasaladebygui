@@ -8,6 +8,7 @@ urlpatterns = [
     path("", views.games_hub, name="hub"),
     path("frases/", views.quote_game, name="quote-game"),
     path("mejor-valorada/", views.rating_duel_game, name="rating-duel"),
+    path("mayor-taquilla/", views.revenue_duel_game, name="revenue-duel"),
     path("trivial/", views.trivia_game, name="trivia-game"),
     path("emoji/", views.emoji_game, name="emoji-game"),
     path("malas-descripciones/", views.bad_description_game, name="bad-description-game"),

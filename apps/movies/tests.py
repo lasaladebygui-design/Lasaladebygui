@@ -138,6 +138,16 @@ class SavedMovieTests(TestCase):
         self.assertContains(response, "Guardar serie")
         self.assertNotContains(response, "Guardar película")
 
+    def test_la_ficha_muestra_la_recaudacion_si_se_conoce(self):
+        self.movie.revenue = 2_798_000_000
+        self.movie.save(update_fields=["revenue"])
+        response = self.client.get(reverse("movies:detail", args=[self.movie.pk]))
+        self.assertContains(response, "$2.798.000.000")
+
+    def test_la_ficha_no_muestra_recaudacion_si_no_se_conoce(self):
+        response = self.client.get(reverse("movies:detail", args=[self.movie.pk]))
+        self.assertNotContains(response, "💰")
+
     def test_mis_peliculas_muestra_solo_lo_votado(self):
         other_movie = make_movie(2, "Movie B", "7.0")
         Vote.objects.create(movie=self.movie, user=self.user, score=9)

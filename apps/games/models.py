@@ -166,10 +166,14 @@ class Duel(models.Model):
         FINISHED = "finished", "Terminado"
 
     class Game(models.TextChoices):
+        RATING = "rating", "Cuál está mejor valorada"
+        REVENUE = "revenue", "Cuál recaudó más"
         QUOTES = "quotes", "Frases célebres"
         TRIVIA = "trivia", "Trivial"
-        BAD_DESCRIPTION = "bad_description", "Malas descripciones"
         ACTOR = "actor", "Cuál tiene al actor/actriz"
+        TRUE_FALSE = "true_false", "Verdadero o falso"
+        EMOJI = "emoji", "Emoji"
+        BAD_DESCRIPTION = "bad_description", "Malas descripciones"
 
     challenger = models.ForeignKey(
         settings.AUTH_USER_MODEL, verbose_name="retador", on_delete=models.CASCADE, related_name="duels_started",

@@ -1,0 +1,24 @@
+{% load accounts_extras %}
+{% for article in page_obj %}
+<article class="article-card">
+    <a href="{{ article.get_absolute_url }}" class="article-card__cover-link">
+        {% if article.cover %}
+            <img src="{{ article.cover.url }}" alt="" class="article-card__cover">
+        {% else %}
+            <div class="article-card__cover article-card__cover--placeholder"><span>🎬</span></div>
+        {% endif %}
+    </a>
+    <div class="article-card__body">
+        {% if article.tags.all %}
+            <span class="card__tag">{{ article.tags.all.0.name }}</span>
+        {% endif %}
+        <h3>{% if article.is_private %}🔒 {% endif %}<a href="{{ article.get_absolute_url }}">{{ article.title }}</a></h3>
+        <p class="muted article-card__meta">{% username_badge article.author "autor eliminado" %} · {{ article.created_at|date:"d/m/Y" }}</p>
+    </div>
+</article>
+{% endfor %}
+{% if page_obj.has_next %}
+<div class="article-grid__sentinel"
+     hx-get="{% url 'articles:list' %}?page={{ page_obj.next_page_number }}{% if tag_param %}&tag={{ tag_param }}{% endif %}{% if query %}&q={{ query }}{% endif %}"
+     hx-trigger="revealed" hx-swap="outerHTML"></div>
+{% endif %}

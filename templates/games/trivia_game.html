@@ -15,7 +15,14 @@
         </p>
         {% endif %}
 
-        {% if game_over %}
+        {% if game_won %}
+        <div class="quote-game__gameover quote-game__gameover--won">
+            <p class="quote-game__record">🏆 ¡Has ganado! Te las sabes todas — no queda ni una pregunta por responder.</p>
+            {% if is_new_record %}<p class="quote-game__record">🎉 Además, nuevo récord personal.</p>{% endif %}
+            <p class="quote-game__final">Racha final: <strong>{{ final_streak }}</strong></p>
+            <a href="{% url 'games:trivia-game' %}" class="btn btn--accent btn--block">Jugar de nuevo</a>
+        </div>
+        {% elif game_over %}
         <div class="quote-game__gameover">
             {% if is_new_record %}
                 <p class="quote-game__record">🎉 ¡Felicidades! Nuevo récord personal.</p>

@@ -16,17 +16,23 @@
             {% endif %}
         </div>
 
+        <form method="get" class="field article-search">
+            <input type="search" name="q" value="{{ query }}" placeholder="Buscar por título o texto…">
+            {% if tag_param %}<input type="hidden" name="tag" value="{{ tag_param }}">{% endif %}
+            <button type="submit" class="btn btn--ghost btn--sm">Buscar</button>
+        </form>
+
         {% if tags %}
         <div class="media-type-toggle">
-            <a href="{% url 'articles:list' %}" class="btn btn--sm {% if not tag_param %}btn--accent{% else %}btn--ghost{% endif %}">Todos</a>
-            <a href="?tag=none" class="btn btn--sm {% if tag_param == 'none' %}btn--accent{% else %}btn--ghost{% endif %}">Sin listas</a>
+            <a href="{% url 'articles:list' %}{% if query %}?q={{ query }}{% endif %}" class="btn btn--sm {% if not tag_param %}btn--accent{% else %}btn--ghost{% endif %}">Todos</a>
+            <a href="?tag=none{% if query %}&q={{ query }}{% endif %}" class="btn btn--sm {% if tag_param == 'none' %}btn--accent{% else %}btn--ghost{% endif %}">Sin listas</a>
             <details class="list-filter">
                 <summary class="btn btn--sm {% if active_tag %}btn--accent{% else %}btn--ghost{% endif %}">
                     {% if active_tag %}{{ active_tag.name }}{% else %}Filtrar por lista{% endif %} ▾
                 </summary>
                 <div class="list-picker__menu">
                     {% for tag in tags %}
-                    <a href="?tag={{ tag.slug }}" class="list-picker__item{% if active_tag == tag %} list-picker__item--active{% endif %}">{{ tag.name }}</a>
+                    <a href="?tag={{ tag.slug }}{% if query %}&q={{ query }}{% endif %}" class="list-picker__item{% if active_tag == tag %} list-picker__item--active{% endif %}">{{ tag.name }}</a>
                     {% endfor %}
                 </div>
             </details>
@@ -34,30 +40,16 @@
         {% endif %}
 
         {% if page_obj.object_list %}
-        <div class="article-grid">
-            {% for article in page_obj %}
-            <article class="article-card">
-                <a href="{{ article.get_absolute_url }}" class="article-card__cover-link">
-                    {% if article.cover %}
-                        <img src="{{ article.cover.url }}" alt="" class="article-card__cover">
-                    {% else %}
-                        <div class="article-card__cover article-card__cover--placeholder"><span>🎬</span></div>
-                    {% endif %}
-                </a>
-                <div class="article-card__body">
-                    {% if article.tags.all %}
-                        <span class="card__tag">{{ article.tags.all.0.name }}</span>
-                    {% endif %}
-                    <h3>{% if article.is_private %}🔒 {% endif %}<a href="{{ article.get_absolute_url }}">{{ article.title }}</a></h3>
-                    <p class="muted article-card__meta">{% username_badge article.author "autor eliminado" %} · {{ article.created_at|date:"d/m/Y" }}</p>
-                </div>
-            </article>
-            {% endfor %}
+        <div class="article-grid" id="article-grid">
+            {% include "articles/_article_cards.html" %}
         </div>
-
-        {% include "partials/pagination.html" with page_obj=page_obj %}
         {% else %}
-        <p class="muted">Todavía no hay artículos{% if active_tag %} en esta lista{% elif tag_param == 'none' %} sin listas{% endif %}.</p>
+        <p class="muted">
+            {% if query %}Sin resultados para «{{ query }}».
+            {% elif active_tag %}Todavía no hay artículos en esta lista.
+            {% elif tag_param == 'none' %}Todavía no hay artículos sin listas.
+            {% else %}Todavía no hay artículos.{% endif %}
+        </p>
         {% endif %}
     </div>
 </section>

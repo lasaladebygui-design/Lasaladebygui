@@ -190,7 +190,13 @@ class Command(BaseCommand):
             if created:
                 created_characters += 1
 
-        images_updated = self._backfill_images(characters_by_name)
+        # Poda personajes de repartos anteriores (p. ej. Tony Stark antes de
+        # cambiarlo por Nikki Freeman): si no, se quedan huérfanos en la
+        # base de datos y sus respuestas viejas siguen apareciendo como
+        # opción de más en la pregunta donde estaban, junto a la nueva.
+        removed_characters = PersonalityCharacter.objects.exclude(name__in=characters_by_name.keys())
+        removed_characters_count = removed_characters.count()
+        removed_characters.delete()
 
         created_questions = 0
         created_answers = 0
@@ -198,16 +204,24 @@ class Command(BaseCommand):
             question, created = PersonalityQuestion.objects.get_or_create(text=text, defaults={"order": order})
             if created:
                 created_questions += 1
+            valid_answer_texts = set()
             for answer_order, (answer_text, character_name) in enumerate(answers):
+                valid_answer_texts.add(answer_text)
                 _, answer_created = PersonalityAnswer.objects.get_or_create(
                     question=question, text=answer_text,
                     defaults={"character": characters_by_name[character_name], "order": answer_order},
                 )
                 if answer_created:
                     created_answers += 1
+            # Poda respuestas de versiones anteriores de esta misma pregunta
+            # (mismo motivo: si no, se acumulan opciones de más).
+            question.answers.exclude(text__in=valid_answer_texts).delete()
+
+        images_updated = self._backfill_images(characters_by_name)
 
         self.stdout.write(self.style.SUCCESS(
             f"Seed de 'Qué personaje eres' completado: {created_characters} personajes, "
-            f"{created_questions} preguntas, {created_answers} respuestas nuevas y "
+            f"{created_questions} preguntas, {created_answers} respuestas nuevas, "
+            f"{removed_characters_count} personajes obsoletos podados y "
             f"{images_updated} fotos de personajes actualizadas (el resto ya existía)."
         ))

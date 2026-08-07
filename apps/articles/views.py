@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 
@@ -13,6 +14,13 @@ from .permissions import can_create_articles, can_delete_article, can_edit_artic
 
 
 def article_list(request):
+    """Scroll infinito: cada tanda de tarjetas trae pegado al final un
+    sensor invisible (`hx-trigger="revealed"`) que, en cuanto entra en la
+    pantalla al hacer scroll, pide la siguiente página y se reemplaza a sí
+    mismo por las nuevas tarjetas + su propio sensor — así hasta que no
+    queda página siguiente. Si la petición viene de ahí (cabecera
+    HX-Request), se devuelve solo el fragmento de tarjetas, no la página
+    entera."""
     articles = Article.objects.select_related("author").prefetch_related("tags")
     if not can_manage_private_articles(request.user):
         articles = articles.filter(is_private=False)
@@ -25,16 +33,24 @@ def article_list(request):
         active_tag = get_object_or_404(Tag, slug=tag_slug)
         articles = articles.filter(tags=active_tag)
 
+    query = request.GET.get("q", "").strip()
+    if query:
+        articles = articles.filter(Q(title__icontains=query) | Q(body__icontains=query)).distinct()
+
     paginator = Paginator(articles, 9)
     page = paginator.get_page(request.GET.get("page"))
 
-    return render(request, "articles/list.html", {
+    context = {
         "page_obj": page,
         "tags": Tag.objects.all(),
         "active_tag": active_tag,
         "tag_param": tag_slug or "",
+        "query": query,
         "can_create": can_create_articles(request.user),
-    })
+    }
+    if request.headers.get("HX-Request"):
+        return render(request, "articles/_article_cards.html", context)
+    return render(request, "articles/list.html", context)
 
 
 def article_detail(request, slug):

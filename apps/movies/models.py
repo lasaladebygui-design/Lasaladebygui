@@ -29,6 +29,10 @@ class Movie(models.Model):
         "nota IMDb", max_digits=3, decimal_places=1, null=True, blank=True,
         help_text="Obtenida de OMDb (omdbapi.com). Vacía si OMDb no tiene nota para este título.",
     )
+    revenue = models.BigIntegerField(
+        "recaudación (USD)", null=True, blank=True,
+        help_text="Obtenida de TMDb. Solo para películas — TMDb no tiene este dato para series.",
+    )
     created_at = models.DateTimeField("añadida", auto_now_add=True)
 
     class Meta:
@@ -50,6 +54,10 @@ class Movie(models.Model):
         return services.poster_url(self.poster_path)
 
     @property
+    def revenue_display(self):
+        return f"${self.revenue:,}".replace(",", ".") if self.revenue is not None else ""
+
+    @property
     def is_tv(self):
         return self.media_type == self.MediaType.TV
 
@@ -62,6 +70,9 @@ class Movie(models.Model):
         details = services.tmdb_get_details(tmdb_id, media_type=media_type)
         imdb_id = (details.get("external_ids") or {}).get("imdb_id") or ""
         imdb_rating = services.omdb_get_imdb_rating(imdb_id) if imdb_id else None
+        # TMDb solo trae "revenue" para películas — las series no tienen
+        # ese dato (no hay "recaudación" de una serie).
+        revenue = details.get("revenue") if media_type == cls.MediaType.MOVIE else None
 
         if media_type == cls.MediaType.TV:
             title = details.get("name") or details.get("original_name") or "(sin título)"
@@ -79,6 +90,7 @@ class Movie(models.Model):
             poster_path=details.get("poster_path") or "",
             overview=details.get("overview") or "",
             imdb_rating=imdb_rating,
+            revenue=revenue or None,
         )
 
     @property

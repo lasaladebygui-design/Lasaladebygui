@@ -30,6 +30,12 @@ class Command(BaseCommand):
       llamar a una API cara — son idempotentes y baratas, así que no tiene
       sentido dejar esos juegos vacíos en producción esperando a que
       alguien se acuerde de activar un flag.
+    - Si RUN_BACKFILL_MOVIE_REVENUE=true, rellena la recaudación (TMDb) de
+      las películas que ya estaban en el catálogo sin ese dato — hace falta
+      para "Cuál recaudó más". Como sí llama a la API por cada película,
+      va detrás de su propia variable (igual que RUN_SEED_MOVIES); conviene
+      quitarla después de la primera vez que converja (deja de encontrar
+      películas sin recaudación).
     """
 
     help = "Bootstrap de producción: primer Admin y/o contenido de ejemplo, vía variables de entorno."
@@ -39,6 +45,7 @@ class Command(BaseCommand):
         self._maybe_seed_movies()
         self._maybe_seed_quotes()
         self._seed_games_content()
+        self._maybe_backfill_movie_revenue()
 
     def _ensure_admin(self):
         email = os.environ.get("DJANGO_SUPERUSER_EMAIL")
@@ -72,3 +79,7 @@ class Command(BaseCommand):
         call_command("seed_trivia")
         call_command("seed_oscar_categories")
         call_command("seed_personality_quiz")
+
+    def _maybe_backfill_movie_revenue(self):
+        if os.environ.get("RUN_BACKFILL_MOVIE_REVENUE", "").lower() in ("1", "true", "yes"):
+            call_command("backfill_movie_revenue")

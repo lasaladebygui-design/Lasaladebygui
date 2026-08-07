@@ -11,30 +11,25 @@
 
         <h2>🎮 Un jugador</h2>
         <div class="card-grid">
-            <a href="{% url 'games:quote-game' %}" class="card card--link">
-                <span class="card__tag">🎬</span>
-                <h3>Frases célebres</h3>
-                <p>Te damos una frase, tú aciertas la película o serie. A ver cuánto dura tu racha.</p>
-            </a>
             <a href="{% url 'games:rating-duel' %}" class="card card--link">
                 <span class="card__tag">⭐</span>
                 <h3>Cuál está mejor valorada</h3>
                 <p>Dos portadas, ¿cuál tiene mejor nota IMDb? Aguanta la racha todo lo que puedas.</p>
             </a>
+            <a href="{% url 'games:revenue-duel' %}" class="card card--link">
+                <span class="card__tag">💰</span>
+                <h3>Cuál recaudó más</h3>
+                <p>Dos portadas, ¿cuál se llevó más pasta en taquilla?</p>
+            </a>
+            <a href="{% url 'games:quote-game' %}" class="card card--link">
+                <span class="card__tag">🎬</span>
+                <h3>Frases célebres</h3>
+                <p>Te damos una frase, tú aciertas la película o serie. A ver cuánto dura tu racha.</p>
+            </a>
             <a href="{% url 'games:trivia-game' %}" class="card card--link">
                 <span class="card__tag">🧠</span>
                 <h3>Trivial</h3>
                 <p>Preguntas de cine y series clásicas, a tres opciones.</p>
-            </a>
-            <a href="{% url 'games:emoji-game' %}" class="card card--link">
-                <span class="card__tag">😀</span>
-                <h3>Emoji</h3>
-                <p>Adivina el título a partir de unos emojis — se revelan de uno en uno si fallas.</p>
-            </a>
-            <a href="{% url 'games:bad-description-game' %}" class="card card--link">
-                <span class="card__tag">📝</span>
-                <h3>Malas descripciones</h3>
-                <p>Sinopsis deliberadamente malas — adivina de qué película o serie es.</p>
             </a>
             <a href="{% url 'games:actor-game' %}" class="card card--link">
                 <span class="card__tag">🎭</span>
@@ -45,6 +40,16 @@
                 <span class="card__tag">✅❌</span>
                 <h3>Verdadero o falso</h3>
                 <p>Afirmaciones sobre cine y series — ¿ciertas o inventadas?</p>
+            </a>
+            <a href="{% url 'games:emoji-game' %}" class="card card--link">
+                <span class="card__tag">😀</span>
+                <h3>Emoji</h3>
+                <p>Adivina el título a partir de unos emojis — se revelan de uno en uno si fallas.</p>
+            </a>
+            <a href="{% url 'games:bad-description-game' %}" class="card card--link">
+                <span class="card__tag">📝</span>
+                <h3>Malas descripciones</h3>
+                <p>Sinopsis deliberadamente malas — adivina de qué película o serie es.</p>
             </a>
             <a href="{% url 'games:personality-quiz' %}" class="card card--link">
                 <span class="card__tag">🎭</span>

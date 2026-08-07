@@ -580,6 +580,25 @@ main { flex: 1; }
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: calc(var(--space-unit) * 6);
 }
+/* Solo para "Últimos artículos" de la portada: exactamente 5 en una fila
+   (se encogen para caber) en vez de dejar que el auto-fill de arriba los
+   pase a una segunda fila. */
+.article-grid--five { grid-template-columns: repeat(5, 1fr); }
+@media (max-width: 640px) {
+    .article-grid--five { grid-template-columns: repeat(2, 1fr); }
+}
+/* Sensor invisible del scroll infinito (templates/articles/_article_cards.html)
+   — ocupa todo el ancho de la fila y no se ve, solo dispara la siguiente
+   tanda al entrar en pantalla. */
+.article-grid__sentinel { grid-column: 1 / -1; height: 1px; }
+
+.article-search {
+    display: flex;
+    gap: calc(var(--space-unit) * 2);
+    max-width: 420px;
+    margin-bottom: calc(var(--space-unit) * 4);
+}
+.article-search input { flex: 1; }
 
 .article-card {
     background: var(--color-surface);
@@ -1449,6 +1468,7 @@ main { flex: 1; }
 }
 .quote-game__record { color: var(--color-accent-secondary); font-weight: 600; font-size: 1.1rem; }
 .quote-game__final { font-size: 1.2rem; margin-bottom: calc(var(--space-unit) * 6); }
+.quote-game__gameover--won { border-color: var(--color-success); box-shadow: 0 0 0 1px var(--color-success); }
 
 /* --- Juegos: Trivial / Emoji / Malas descripciones / Actor / V-F ------- */
 

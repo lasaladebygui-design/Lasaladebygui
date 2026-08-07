@@ -52,6 +52,7 @@ class ThemeAdmin(ColorWidgetMixin, admin.ModelAdmin):
 
     list_display = ("name", "slug", "is_published", "is_dark", "color_accent", "color_accent_secondary")
     list_editable = ("is_published",)
+    actions = ["publish_themes", "unpublish_themes"]
     prepopulated_fields = {"slug": ("name",)}
     fieldsets = (
         (None, {"fields": ("name", "slug", "description", "is_dark", "is_published")}),
@@ -65,6 +66,14 @@ class ThemeAdmin(ColorWidgetMixin, admin.ModelAdmin):
         ("Tipografía", {"fields": ("font_heading", "font_body")}),
         ("Espaciados y forma", {"fields": ("space_unit", "radius_base")}),
     )
+
+    @admin.action(description="Publicar (mostrar en el selector de temas)")
+    def publish_themes(self, request, queryset):
+        queryset.update(is_published=True)
+
+    @admin.action(description="Despublicar (ocultar del selector de temas)")
+    def unpublish_themes(self, request, queryset):
+        queryset.update(is_published=False)
 
 
 class SingletonAdmin(admin.ModelAdmin):
