@@ -16,7 +16,7 @@ services:
       - key: RUN_SEED_QUOTES
         value: "false"
       - key: RUN_BACKFILL_MOVIE_REVENUE
-        value: "false"
+        value: "true"
       - key: PYTHON_VERSION
         value: 3.13.0
       - key: DJANGO_SECRET_KEY

@@ -263,6 +263,37 @@ class ProfileTests(TestCase):
         self.assertContains(response, reverse("accounts:achievements"))
 
 
+class UsernameChangeTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create(email="nick@test.local", role=User.Role.LECTOR, username="nick_viejo")
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.other = User.objects.create(email="otro@test.local", role=User.Role.LECTOR, username="ya_existe")
+        self.other.set_password("Testpass123!")
+        self.other.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+    def test_ajustes_muestra_el_formulario_de_nombre_de_usuario(self):
+        response = self.client.get(reverse("accounts:settings"))
+        self.assertContains(response, "nick_viejo")
+
+    def test_cambiar_el_nombre_de_usuario(self):
+        response = self.client.post(reverse("accounts:change-username"), {"username": "nick_nuevo"})
+        self.assertRedirects(response, reverse("accounts:settings"))
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "nick_nuevo")
+
+    def test_no_se_puede_repetir_un_nombre_de_usuario_ya_en_uso(self):
+        self.client.post(reverse("accounts:change-username"), {"username": "ya_existe"})
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "nick_viejo")
+
+    def test_no_se_permiten_caracteres_invalidos(self):
+        self.client.post(reverse("accounts:change-username"), {"username": "con espacios!"})
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "nick_viejo")
+
+
 class AchievementsTests(TestCase):
     def setUp(self):
         self.user = User.objects.create(

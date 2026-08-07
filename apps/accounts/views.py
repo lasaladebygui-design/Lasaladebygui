@@ -24,7 +24,7 @@ from apps.movies.services import MovieAPIError, tmdb_search
 from apps.secret.models import ReleaseEvent
 from apps.secret.views import secret_required
 
-from .forms import EmailAuthenticationForm, ProfileForm, RegisterForm
+from .forms import EmailAuthenticationForm, ProfileForm, RegisterForm, UsernameChangeForm
 from .models import EmailVerificationToken, FavoriteMovie, GoogleCalendarConnection, PushSubscription, User
 
 
@@ -151,9 +151,24 @@ def settings_page(request):
 
     return render(request, "accounts/settings.html", {
         "form": form,
+        "username_form": UsernameChangeForm(instance=request.user),
         "google_calendar_enabled": google_calendar_enabled(),
         "google_calendar_connected": hasattr(request.user, "google_calendar_connection"),
     })
+
+
+@login_required
+def change_username(request):
+    if request.method == "POST":
+        form = UsernameChangeForm(request.POST, instance=request.user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Nombre de usuario actualizado.")
+            return redirect("accounts:settings")
+        messages.error(request, "; ".join(
+            error for errors in form.errors.values() for error in errors
+        ))
+    return redirect("accounts:settings")
 
 
 @login_required

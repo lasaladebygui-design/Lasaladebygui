@@ -55,8 +55,6 @@
                 {% if round_result.is_new_record %}<p class="quote-game__record">🎉 ¡Felicidades! Nuevo récord personal.</p>{% endif %}
                 <p class="quote-game__final">Racha final: <strong>{{ round_result.final_streak }}</strong></p>
                 <button type="submit" class="btn btn--accent btn--block">Jugar de nuevo</button>
-            {% else %}
-                <button type="submit" class="btn btn--accent btn--block">Siguiente ronda →</button>
             {% endif %}
         </form>
         {% if round_result.correct and not round_result.game_over %}

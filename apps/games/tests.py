@@ -1320,6 +1320,21 @@ class SeedOscarCategoriesCommandTests(TestCase):
         ).exists())
         self.assertGreaterEqual(OscarCategory.objects.count(), 15)
 
+    def test_corrige_el_tipo_de_una_categoria_sembrada_por_una_version_antigua(self):
+        # Antes de que existiera candidate_type, "Mejor actor" se creaba con
+        # el valor por defecto del modelo ("movie") — get_or_create nunca
+        # corregía esto en pases posteriores, así que la categoría se
+        # quedaba bloqueada sin poder proponer personas ni mostrar su foto.
+        OscarCategory.objects.create(name="Mejor actor", candidate_type=OscarCategory.CandidateType.MOVIE, order=99)
+        call_command("seed_oscar_categories")
+        category = OscarCategory.objects.get(name="Mejor actor")
+        self.assertEqual(category.candidate_type, OscarCategory.CandidateType.PERSON)
+
+    def test_elimina_categorias_obsoletas_que_ya_no_existen(self):
+        OscarCategory.objects.create(name="Mejor serie", candidate_type=OscarCategory.CandidateType.MOVIE)
+        call_command("seed_oscar_categories")
+        self.assertFalse(OscarCategory.objects.filter(name="Mejor serie").exists())
+
 
 class GameTierListTests(TestCase):
     """Tier list personal por usuario, en Juegos — distinta de la de Top

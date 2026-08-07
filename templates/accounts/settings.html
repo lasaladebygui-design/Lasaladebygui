@@ -22,6 +22,17 @@
             <h2>Tu cuenta</h2>
             <p class="muted">Rango: <strong>{{ user.get_role_display }}</strong></p>
 
+            <form method="post" action="{% url 'accounts:change-username' %}" class="stacked-form" style="margin-top:1rem;">
+                {% csrf_token %}
+                <div class="field">
+                    <label for="{{ username_form.username.id_for_label }}">Nombre de usuario</label>
+                    {{ username_form.username }}
+                    <p class="muted">Con este nombre te encuentran en Social y en tu perfil público.</p>
+                    {% for error in username_form.username.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
+                </div>
+                <button type="submit" class="btn btn--accent btn--sm">Guardar nombre</button>
+            </form>
+
             {% if site_config.require_email_verification %}
                 {% if user.email_verified %}
                 <p class="muted">✅ Email verificado</p>

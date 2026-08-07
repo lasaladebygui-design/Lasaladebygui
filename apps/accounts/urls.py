@@ -12,6 +12,7 @@ urlpatterns = [
     path("perfil/", views.profile, name="profile"),
     path("perfil/logros/", views.achievements, name="achievements"),
     path("perfil/ajustes/", views.settings_page, name="settings"),
+    path("perfil/ajustes/nombre-de-usuario/", views.change_username, name="change-username"),
     path("perfil/ajustes/animacion/", views.set_intro_animation, name="set-intro-animation"),
     path("perfil/ajustes/instalar-app/", views.toggle_pwa_prompt, name="toggle-pwa-prompt"),
     path("perfil/favoritas/<str:category>/", views.favorites_page, name="favorites-page"),

@@ -78,6 +78,21 @@ class ProfileForm(forms.ModelForm):
         labels = {"avatar": "Foto de perfil"}
 
 
+class UsernameChangeForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ["username"]
+        labels = {"username": "Nombre de usuario"}
+
+    def clean_username(self):
+        username = self.cleaned_data["username"].strip()
+        if not USERNAME_RE.match(username):
+            raise forms.ValidationError("Solo letras, números, puntos, guiones y guiones bajos.")
+        if User.objects.filter(username__iexact=username).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError("Ese nombre de usuario ya está en uso.")
+        return username
+
+
 class EmailAuthenticationForm(AuthenticationForm):
     username = forms.EmailField(
         label="Correo electrónico",
