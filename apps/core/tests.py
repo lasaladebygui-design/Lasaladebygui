@@ -180,6 +180,19 @@ class BootstrapProductionTests(TestCase):
         call_command("bootstrap_production")
         self.assertFalse(MovieQuote.objects.exists())
 
+    @override_settings(TMDB_API_KEY="")
+    def test_el_contenido_de_juegos_se_carga_siempre_sin_variables(self):
+        """A diferencia de las películas y las frases (gated por variables
+        de entorno, porque cuestan llamadas a APIs), Trivial/Emoji/Malas
+        descripciones/Actor/Verdadero o falso, Oscar y Qué personaje eres
+        se cargan siempre — son baratos e idempotentes."""
+        from apps.games.models import OscarCategory, PersonalityCharacter, TriviaQuestion
+
+        call_command("bootstrap_production")
+        self.assertTrue(TriviaQuestion.objects.exists())
+        self.assertTrue(OscarCategory.objects.exists())
+        self.assertTrue(PersonalityCharacter.objects.exists())
+
 
 class ServiceWorkerTests(TestCase):
     """El service worker se sirve en /sw.js (raíz), no bajo /static/js/: es
@@ -366,6 +379,28 @@ class ThemePreviewTests(TestCase):
         response = self.client.get(reverse("core:theme-preview"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Así se ve este tema")
+
+
+class ThemeAdminFormTests(TestCase):
+    """El admin de Temas usa un desplegable para las tipografías (solo las
+    que están cargadas de verdad en el sitio) y ya no deja tocar el ancho
+    máximo de contenido desde el formulario."""
+
+    def setUp(self):
+        user = User.objects.create(email="theme_admin@test.local", role=User.Role.ADMIN, is_staff=True, is_superuser=True)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+        self.theme = Theme.objects.get(slug="cinephile")
+
+    def test_tipografia_es_un_desplegable(self):
+        response = self.client.get(reverse("admin:core_theme_change", args=[self.theme.pk]))
+        self.assertContains(response, '<select name="font_heading"')
+        self.assertContains(response, "Bebas Neue (grande, tipo cartel)")
+
+    def test_no_se_puede_editar_el_ancho_maximo_desde_el_formulario(self):
+        response = self.client.get(reverse("admin:core_theme_change", args=[self.theme.pk]))
+        self.assertNotContains(response, 'name="max_content_width"')
 
 
 @override_settings(VAPID_PUBLIC_KEY="clave-publica", VAPID_PRIVATE_KEY="clave-privada")

@@ -70,6 +70,41 @@ def tmdb_search(query, media_type="movie"):
     return results
 
 
+@dataclass
+class TMDbPersonResult:
+    tmdb_id: int
+    name: str
+    profile_path: str
+
+    @property
+    def profile_url(self):
+        return poster_url(self.profile_path)
+
+
+def tmdb_search_person(query):
+    """Busca actores/actrices por nombre en TMDb — para la foto de perfil,
+    usada tanto en el juego 'Cuál tiene al actor/actriz' como en el
+    resultado de 'Qué personaje eres' (ahí, la foto de quien interpretó al
+    personaje, ya que TMDb no tiene fotos de personajes de ficción)."""
+    try:
+        response = requests.get(
+            f"{TMDB_BASE_URL}/search/person",
+            params={"api_key": settings.TMDB_API_KEY, "query": query, "language": "es-ES"},
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise MovieAPIError("No se pudo contactar con TMDb.") from exc
+
+    data = response.json()
+    return [
+        TMDbPersonResult(
+            tmdb_id=item["id"], name=item.get("name", ""), profile_path=item.get("profile_path") or "",
+        )
+        for item in data.get("results", [])
+    ]
+
+
 def tmdb_get_details(tmdb_id, media_type="movie"):
     """Detalles de una película o serie por su id de TMDb, incluido el
     imdb_id (bajo `external_ids`)."""

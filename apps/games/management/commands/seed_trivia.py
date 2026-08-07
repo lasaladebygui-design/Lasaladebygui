@@ -24,6 +24,62 @@ TRIVIA_QUESTIONS = [
     ("¿En qué ciudad se ambienta principalmente 'Breaking Bad'?", "Albuquerque", "Denver", "Phoenix", "tv"),
     ("¿Cuántas temporadas tiene 'Juego de Tronos'?", "8", "7", "6", "tv"),
     ("¿Qué actor interpreta a Walter White en 'Breaking Bad'?", "Bryan Cranston", "Aaron Paul", "Giancarlo Esposito", "tv"),
+
+    # 🎬 Películas
+    ("¿En qué año se estrenó 'El padrino'?", "1972", "1974", "1969", "movie"),
+    ("¿Cuál es la película más taquillera de la historia (sin ajustar por inflación)?", "Avatar", "Vengadores: Endgame", "Titanic", "movie"),
+    ("¿A qué trilogía pertenece 'Las dos torres'?", "El señor de los anillos", "El hobbit", "Star Wars", "movie"),
+    ("¿Cuál fue la primera película de Pixar?", "Toy Story", "Bichos", "Monstruos, S.A.", "movie"),
+    ("¿Qué película ganó el primer Óscar a Mejor Película de la historia?", "Alas (Wings)", "Cavalcade", "Amanecer", "movie"),
+
+    # 🎭 Actores y actrices
+    ("¿Qué actriz ha ganado más premios Óscar a Mejor Actriz (4 en total)?", "Katharine Hepburn", "Meryl Streep", "Bette Davis", "movie"),
+    ("¿Qué actriz tiene más nominaciones al Óscar de la historia?", "Meryl Streep", "Katharine Hepburn", "Judi Dench", "movie"),
+    ("¿Qué actor interpreta a Jack Sparrow en 'Piratas del Caribe'?", "Johnny Depp", "Orlando Bloom", "Geoffrey Rush", "movie"),
+    ("¿Qué actriz interpreta a la joven Furiosa en 'Furiosa: De la saga Mad Max'?", "Anya Taylor-Joy", "Charlize Theron", "Margot Robbie", "movie"),
+    ("¿Qué actor ganó el Óscar a Mejor Actor por 'El renacido'?", "Leonardo DiCaprio", "Matt Damon", "Bryan Cranston", "movie"),
+
+    # 🎥 Directores
+    ("¿Quién dirigió 'Tiburón' (Jaws)?", "Steven Spielberg", "George Lucas", "Ridley Scott", "movie"),
+    ("¿Quién dirigió la trilogía original de 'El señor de los anillos'?", "Peter Jackson", "Guillermo del Toro", "James Cameron", "movie"),
+    ("¿Qué director es conocido por sus planos simétricos y películas como 'El gran hotel Budapest'?", "Wes Anderson", "Tim Burton", "Wong Kar-wai", "movie"),
+    ("¿Quién dirigió 'Parásitos'?", "Bong Joon-ho", "Park Chan-wook", "Kim Ki-duk", "movie"),
+    ("¿Quién fue la primera mujer en ganar el Óscar a Mejor Director/a?", "Kathryn Bigelow", "Sofia Coppola", "Greta Gerwig", "movie"),
+
+    # 🎼 Bandas sonoras
+    ("¿Quién compuso la banda sonora de 'Star Wars'?", "John Williams", "Hans Zimmer", "Danny Elfman", "movie"),
+    ("¿Quién compuso la banda sonora de 'El rey león' (1994)?", "Hans Zimmer", "Alan Menken", "John Williams", "movie"),
+    ("¿Quién compuso la banda sonora de 'Interestelar'?", "Hans Zimmer", "John Williams", "Thomas Newman", "movie"),
+    ("¿Qué compositor firma la música de la mayoría de películas de Christopher Nolan?", "Hans Zimmer", "John Williams", "Alexandre Desplat", "movie"),
+    ("¿Quién compuso la banda sonora de 'Cadena perpetua'?", "Thomas Newman", "Hans Zimmer", "James Horner", "movie"),
+
+    # 🏆 Premios
+    ("¿Cómo se llaman los premios de cine más importantes de España?", "Goya", "Feroz", "Fotogramas de Plata", "movie"),
+    ("¿En qué país se celebra el Festival de Cannes?", "Francia", "Italia", "España", "movie"),
+    ("¿Qué festival de cine entrega la Palma de Oro?", "Cannes", "Venecia", "Berlín", "movie"),
+    ("¿Qué festival de cine entrega el León de Oro?", "Venecia", "Cannes", "Berlín", "movie"),
+    ("¿Qué festival de cine entrega el Oso de Oro?", "Berlín", "Venecia", "Cannes", "movie"),
+
+    # 📅 Años de estreno
+    ("¿En qué año se estrenó la primera película de Harry Potter?", "2001", "1999", "2003", "movie"),
+    ("¿En qué año se estrenó 'Matrix'?", "1999", "1997", "2001", "movie"),
+    ("¿En qué año se estrenó 'Parque Jurásico'?", "1993", "1991", "1995", "movie"),
+    ("¿En qué año se estrenó 'Toy Story', la primera película de Pixar?", "1995", "1993", "1997", "movie"),
+    ("¿En qué año se estrenó 'El rey león' original?", "1994", "1992", "1996", "movie"),
+
+    # 🌍 Cine por países
+    ("¿De qué país es originaria la industria de cine conocida como 'Bollywood'?", "India", "Pakistán", "Bangladés", "movie"),
+    ("¿De qué país es 'Parásitos', ganadora del Óscar a Mejor Película en 2020?", "Corea del Sur", "Japón", "China", "movie"),
+    ("¿De qué país es el director Pedro Almodóvar?", "España", "México", "Argentina", "movie"),
+    ("¿De qué país son los estudios de animación como Ghibli?", "Japón", "Corea del Sur", "China", "movie"),
+    ("¿De qué país es 'Amélie'?", "Francia", "Bélgica", "Italia", "movie"),
+
+    # 📺 Series
+    ("¿En qué plataforma se estrenó originalmente 'Stranger Things'?", "Netflix", "HBO Max", "Amazon Prime Video", "tv"),
+    ("¿Cuántas temporadas tiene 'Breaking Bad'?", "5", "6", "4", "tv"),
+    ("¿En qué ciudad se ambienta 'Friends'?", "Nueva York", "Los Ángeles", "Chicago", "tv"),
+    ("¿Qué actor interpreta a Jon Nieve en 'Juego de Tronos'?", "Kit Harington", "Richard Madden", "Alfie Allen", "tv"),
+    ("¿En qué década se ambienta 'Stranger Things'?", "Los 80", "Los 90", "Los 70", "tv"),
 ]
 
 # Cada emoji separado por un espacio: el juego los revela de uno en uno, no

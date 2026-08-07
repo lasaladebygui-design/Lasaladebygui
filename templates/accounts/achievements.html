@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Tus logros{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow">
+        <div class="section-header">
+            <div>
+                <span class="card__tag">Perfil</span>
+                <h1>🏆 Tus logros</h1>
+            </div>
+            <a href="{% url 'accounts:profile' %}" class="btn btn--ghost">← Volver al perfil</a>
+        </div>
+
+        <h2>Mejores rachas</h2>
+        <div class="settings-group">
+            {% for label, best, url_name in game_records %}
+            <p class="muted" style="display:flex; justify-content:space-between;">
+                <a href="{% url url_name %}">{{ label }}</a>
+                <strong>{{ best }}</strong>
+            </p>
+            {% endfor %}
+        </div>
+
+        <h2 style="margin-top:1.5rem;">⚔️ Duelos</h2>
+        <div class="settings-group">
+            <p class="muted" style="display:flex; justify-content:space-between;">
+                <span>Ganados</span>
+                <strong>{{ duel_summary.wins }}</strong>
+            </p>
+            <p class="muted" style="display:flex; justify-content:space-between;">
+                <span>Perdidos</span>
+                <strong>{{ duel_summary.losses }}</strong>
+            </p>
+            <p class="muted" style="display:flex; justify-content:space-between;">
+                <span>Empatados</span>
+                <strong>{{ duel_summary.draws }}</strong>
+            </p>
+        </div>
+    </div>
+</section>
+{% endblock %}

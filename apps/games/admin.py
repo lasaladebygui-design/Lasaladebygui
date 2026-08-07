@@ -47,15 +47,16 @@ class PersonalityQuestionAdmin(admin.ModelAdmin):
 
 @admin.register(OscarCategory)
 class OscarCategoryAdmin(admin.ModelAdmin):
-    list_display = ("name", "is_open", "order")
+    list_display = ("name", "candidate_type", "is_open", "order")
     list_editable = ("is_open", "order")
+    list_filter = ("candidate_type",)
 
 
 @admin.register(OscarCandidate)
 class OscarCandidateAdmin(admin.ModelAdmin):
-    list_display = ("movie", "category", "submitted_by", "created_at")
+    list_display = ("display_title", "category", "submitted_by", "created_at")
     list_filter = ("category",)
-    search_fields = ("movie__title",)
+    search_fields = ("movie__title", "person_name")
     autocomplete_fields = ("movie",)
 
 

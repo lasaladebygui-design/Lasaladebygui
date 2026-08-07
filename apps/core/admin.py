@@ -12,11 +12,25 @@ COLOR_FIELDS = (
     "color_danger", "color_success",
 )
 
+# Solo estas cuatro tipografías están cargadas de verdad en el sitio
+# (templates/base.html, enlace a Google Fonts) — escribir un nombre a mano
+# que no esté aquí no rompe nada, pero cae en la fuente del sistema sin que
+# se note por qué. Un desplegable evita ese despiste.
+FONT_FIELDS = ("font_heading", "font_body")
+FONT_CHOICES = [
+    ("'Playfair Display', Georgia, serif", "Playfair Display (elegante, serif)"),
+    ("'Bebas Neue', Impact, sans-serif", "Bebas Neue (grande, tipo cartel)"),
+    ("'Special Elite', 'Playfair Display', Georgia, serif", "Special Elite (máquina de escribir)"),
+    ("'Inter', system-ui, -apple-system, sans-serif", "Inter (moderna, sans-serif)"),
+]
+
 
 class ColorWidgetMixin:
     def formfield_for_dbfield(self, db_field, request, **kwargs):
         if db_field.name in COLOR_FIELDS:
             kwargs["widget"] = forms.TextInput(attrs={"type": "color"})
+        elif db_field.name in FONT_FIELDS:
+            kwargs["widget"] = forms.Select(choices=FONT_CHOICES)
         return super().formfield_for_dbfield(db_field, request, **kwargs)
 
 
@@ -49,7 +63,7 @@ class ThemeAdmin(ColorWidgetMixin, admin.ModelAdmin):
         }),
         ("Estados", {"fields": ("color_danger", "color_success")}),
         ("Tipografía", {"fields": ("font_heading", "font_body")}),
-        ("Espaciados y forma", {"fields": ("space_unit", "radius_base", "max_content_width")}),
+        ("Espaciados y forma", {"fields": ("space_unit", "radius_base")}),
     )
 
 

@@ -10,6 +10,7 @@ urlpatterns = [
     path("login/", views.EmailLoginView.as_view(), name="login"),
     path("logout/", views.logout_view, name="logout"),
     path("perfil/", views.profile, name="profile"),
+    path("perfil/logros/", views.achievements, name="achievements"),
     path("perfil/ajustes/", views.settings_page, name="settings"),
     path("perfil/ajustes/animacion/", views.set_intro_animation, name="set-intro-animation"),
     path("perfil/ajustes/instalar-app/", views.toggle_pwa_prompt, name="toggle-pwa-prompt"),

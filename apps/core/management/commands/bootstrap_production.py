@@ -23,6 +23,13 @@ class Command(BaseCommand):
       célebres" (equivalente a `seed_quotes`). Es idempotente (no duplica si
       ya existen), así que es seguro dejarla activada si prefieres no volver
       a tocar las variables de entorno.
+    - El resto de contenido de ejemplo de Juegos (Trivial/Emoji/Malas
+      descripciones/Actor/Verdadero o falso, Candidatos al Oscar y Qué
+      personaje eres) se carga siempre, sin variable de entorno: a
+      diferencia de las películas, no hace falta pedir permiso para
+      llamar a una API cara — son idempotentes y baratas, así que no tiene
+      sentido dejar esos juegos vacíos en producción esperando a que
+      alguien se acuerde de activar un flag.
     """
 
     help = "Bootstrap de producción: primer Admin y/o contenido de ejemplo, vía variables de entorno."
@@ -31,6 +38,7 @@ class Command(BaseCommand):
         self._ensure_admin()
         self._maybe_seed_movies()
         self._maybe_seed_quotes()
+        self._seed_games_content()
 
     def _ensure_admin(self):
         email = os.environ.get("DJANGO_SUPERUSER_EMAIL")
@@ -59,3 +67,8 @@ class Command(BaseCommand):
     def _maybe_seed_quotes(self):
         if os.environ.get("RUN_SEED_QUOTES", "").lower() in ("1", "true", "yes"):
             call_command("seed_quotes")
+
+    def _seed_games_content(self):
+        call_command("seed_trivia")
+        call_command("seed_oscar_categories")
+        call_command("seed_personality_quiz")

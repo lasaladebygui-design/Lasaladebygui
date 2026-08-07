@@ -258,6 +258,47 @@ class ProfileTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "rotating-quotes-data")
 
+    def test_el_perfil_enlaza_a_ver_logros(self):
+        response = self.client.get(reverse("accounts:profile"))
+        self.assertContains(response, reverse("accounts:achievements"))
+
+
+class AchievementsTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create(
+            email="logros@test.local", role=User.Role.LECTOR,
+            quote_streak_best=5, rating_duel_streak_best_movie=3, trivia_streak_best=2,
+        )
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+    def test_requiere_login(self):
+        self.client.logout()
+        response = self.client.get(reverse("accounts:achievements"))
+        self.assertRedirects(response, f"{reverse('accounts:login')}?next={reverse('accounts:achievements')}")
+
+    def test_muestra_las_rachas_de_todos_los_juegos(self):
+        response = self.client.get(reverse("accounts:achievements"))
+        self.assertContains(response, "Frases célebres")
+        self.assertContains(response, "Trivial")
+        self.assertContains(response, "Verdadero o falso")
+
+    def test_muestra_el_marcador_de_duelos_acumulado_de_varios_rivales(self):
+        from apps.games.models import DuelRecord
+
+        rival_a = User.objects.create(email="rival_a@test.local", role=User.Role.LECTOR)
+        rival_b = User.objects.create(email="rival_b@test.local", role=User.Role.LECTOR)
+        DuelRecord.record_result(self.user, rival_a, self.user)
+        DuelRecord.record_result(self.user, rival_a, self.user)
+        DuelRecord.record_result(self.user, rival_b, rival_b)
+        DuelRecord.record_result(self.user, rival_b, None)
+
+        response = self.client.get(reverse("accounts:achievements"))
+        self.assertEqual(response.context["duel_summary"]["wins"], 2)
+        self.assertEqual(response.context["duel_summary"]["losses"], 1)
+        self.assertEqual(response.context["duel_summary"]["draws"], 1)
+
 
 class NavPanelLinkTests(TestCase):
     """El enlace 'Panel' del desplegable es solo para el Admin — Gestor y

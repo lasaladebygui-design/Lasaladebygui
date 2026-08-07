@@ -1470,6 +1470,10 @@ main { flex: 1; }
 .trivia-game__true-false-btn--true:hover { border-color: var(--color-success); color: var(--color-success); }
 .trivia-game__true-false-btn--false:hover { border-color: var(--color-danger); color: var(--color-danger); }
 
+.personality-quiz__why { text-align: left; margin-top: calc(var(--space-unit) * 4); }
+.personality-quiz__why ul { margin: 0.4rem 0 0; padding-left: 1.2rem; color: var(--color-text-muted); }
+.personality-quiz__why li { margin-bottom: 0.2rem; }
+
 /* --- Juego: Cuál está mejor valorada ---------------------------------- */
 
 .rating-duel__scoreboard {

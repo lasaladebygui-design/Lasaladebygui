@@ -21,10 +21,10 @@
             <div class="card-grid">
                 {% for candidate in row.candidates %}
                 <div class="card{% if candidate.pk == row.my_vote_id %} card--accent{% endif %}">
-                    {% if candidate.movie.poster_url %}
-                        <img src="{{ candidate.movie.poster_url }}" alt="" class="search-result__poster" style="width:100%;height:auto;border-radius:var(--radius-base);">
+                    {% if candidate.display_photo %}
+                        <img src="{{ candidate.display_photo }}" alt="" class="search-result__poster" style="width:100%;height:auto;border-radius:var(--radius-base);">
                     {% endif %}
-                    <h3>{{ candidate.movie.title }}</h3>
+                    <h3>{{ candidate.display_title }}</h3>
                     <p class="muted">{{ candidate.votes.all|length }} voto{{ candidate.votes.all|length|pluralize }}{% if candidate.pk == row.my_vote_id %} · tu voto{% endif %}</p>
                     {% if user.is_authenticated and row.category.is_open %}
                     <form method="post" action="{% url 'games:oscar-vote' candidate.pk %}">
@@ -45,7 +45,7 @@
             <details class="tier-add-level" style="margin-top:0.8rem;">
                 <summary class="btn btn--ghost btn--sm">+ Proponer candidata</summary>
                 <div class="field">
-                    <input type="text" placeholder="Buscar título…" autocomplete="off"
+                    <input type="text" placeholder="{% if row.category.candidate_type == 'person' %}Buscar nombre…{% else %}Buscar título…{% endif %}" autocomplete="off"
                            hx-get="{% url 'games:oscar-candidate-search' row.category.pk %}"
                            hx-trigger="keyup changed delay:400ms, search"
                            hx-target="#oscar-search-results-{{ row.category.pk }}"

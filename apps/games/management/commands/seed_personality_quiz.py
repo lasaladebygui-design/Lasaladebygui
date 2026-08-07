@@ -1,6 +1,26 @@
+from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from apps.games.models import PersonalityAnswer, PersonalityCharacter, PersonalityQuestion
+from apps.movies.services import MovieAPIError, tmdb_search_person
+
+# Foto de perfil de quien interpretó a cada personaje (TMDb no tiene fotos
+# de personajes de ficción, así que se usa la del actor/actriz real). Nikki
+# Freeman se queda fuera a propósito: sin certeza fiable del reparto, mejor
+# sin foto que con una equivocada — se puede añadir a mano desde el admin.
+ACTOR_FOR_CHARACTER = {
+    "Jinx": "Ella Purnell",
+    "Joker": "Heath Ledger",
+    "Michael Corleone": "Al Pacino",
+    "Harley Quinn": "Margot Robbie",
+    "V": "Hugo Weaving",
+    "Katniss Everdeen": "Jennifer Lawrence",
+    "Steve Rogers (Capitán América)": "Chris Evans",
+    "Mia Dolan": "Emma Stone",
+    "Sam Wheat": "Patrick Swayze",
+    "Elle Woods": "Reese Witherspoon",
+    "Miranda Priestly": "Meryl Streep",
+}
 
 # 12 personajes de cine (y uno de serie/videojuego a propósito: Jinx) que
 # cubren registros bien distintos — no solo acción: también romance,
@@ -13,7 +33,7 @@ CHARACTERS = [
     ("V", "V de Vendetta", "🎭 Crees en las ideas más que en ti mismo. Estás dispuesto a perderlo todo — incluso tu nombre — por algo en lo que de verdad crees."),
     ("Katniss Everdeen", "Los juegos del hambre", "🏹 No pediste ser el centro de nada, pero cuando alguien que quieres está en peligro, no hay sistema ni autoridad que te pare."),
     ("Steve Rogers (Capitán América)", "Vengadores", "🛡️ Haces lo correcto aunque signifique hacerlo solo. Tu brújula moral no negocia, ni siquiera cuando sería mucho más fácil mirar hacia otro lado."),
-    ("Tony Stark (Iron Man)", "Iron Man", "⚙️ Escondes lo que sientes detrás de una broma y una solución brillante. Te importa mucho más de lo que admites, y se nota sobre todo cuando crees que nadie mira."),
+    ("Nikki Freeman", "Obsession", "🔪 Cuando quieres a alguien, lo quieres entero — y no llevas nada bien que se aleje. Ves la lealtad en blanco y negro: o estás conmigo del todo, o me has traicionado. Lo llamas amor; para el resto es una obsesión."),
     ("Mia Dolan", "La La Land", "🌆 Persigues lo que quieres aunque el precio sea alto y el camino solitario. Prefieres el 'y si...' de haberlo intentado a la comodidad de no haberlo hecho."),
     ("Sam Wheat", "Ghost", "👻 Sientes todo por dentro y lo dices tarde, o casi nunca. Lo que más te importa no lo gritas, lo proteges — aunque nunca llegue a enterarse del todo."),
     ("Elle Woods", "Legalmente rubia", "💗 Te subestiman constantemente y lo conviertes en tu mejor arma. Amable primero, pero no confundas eso con ser blanda — trabajas el doble y lo demuestras."),
@@ -51,7 +71,7 @@ QUESTIONS = [
     ("Tienes la oportunidad de conseguir lo que siempre quisiste, pero significa dejar atrás a alguien importante. ¿Qué haces?", [
         ("Voy a por ello, es mi sueño y no pienso renunciar", "Mia Dolan"),
         ("Me quedo, las personas importan más que cualquier sueño", "Steve Rogers (Capitán América)"),
-        ("Busco la manera de tenerlo todo, aunque sea complicado", "Tony Stark (Iron Man)"),
+        ("No dejo atrás a esa persona ni loca — encuentro la forma de que sigamos juntos, cueste lo que cueste", "Nikki Freeman"),
         ("Voy a por ello sin mirar atrás, sin dramas", "Miranda Priestly"),
     ]),
     ("¿Cómo prefieres pasar un fin de semana libre?", [
@@ -69,13 +89,13 @@ QUESTIONS = [
     ("¿Qué tipo de final de película prefieres?", [
         ("Agridulce, que se quede algo pendiente", "Mia Dolan"),
         ("Feliz, aunque sea poco realista", "Elle Woods"),
-        ("Con un giro que nadie viera venir", "Tony Stark (Iron Man)"),
+        ("Donde el amor gana pase lo que pase, aunque tenga que imponerse", "Nikki Freeman"),
         ("Donde alguien lo sacrifique todo por una idea", "V"),
     ]),
     ("Estás en una discusión que sabes que vas a perder. ¿Qué haces?", [
         ("Cedo, no merece la pena discutir por orgullo", "Elle Woods"),
         ("Sigo hasta el final, aunque pierda", "V"),
-        ("Cambio de tema con una broma", "Tony Stark (Iron Man)"),
+        ("No hay discusión que 'pierda' — insisto hasta que la otra persona cede", "Nikki Freeman"),
         ("Dejo que crean que ganaron... por ahora", "Michael Corleone"),
     ]),
     ("¿Qué te describe mejor cuando trabajas en equipo?", [
@@ -123,7 +143,7 @@ QUESTIONS = [
     ("Te ofrecen un atajo fácil para conseguir lo que quieres, pero no del todo limpio. ¿Qué haces?", [
         ("Lo rechazo, prefiero llegar despacio pero limpio", "Elle Woods"),
         ("Lo cojo, los resultados hablan por sí solos", "Michael Corleone"),
-        ("Lo cojo y ya improviso sobre la marcha", "Tony Stark (Iron Man)"),
+        ("Lo cojo sin dudarlo — si de verdad quiero algo, no me importa cómo conseguirlo", "Nikki Freeman"),
         ("Lo rechazo, y encima se lo cuento a quien deba saberlo", "Katniss Everdeen"),
     ]),
     ("Si mañana desapareciera todo lo que has construido, ¿qué harías?", [
@@ -141,6 +161,24 @@ class Command(BaseCommand):
         "ejecutar también contra producción — no crea usuarios de ejemplo."
     )
 
+    def _backfill_images(self, characters_by_name):
+        if not settings.TMDB_API_KEY:
+            return 0
+        updated = 0
+        for name, actor_name in ACTOR_FOR_CHARACTER.items():
+            character = characters_by_name[name]
+            if character.image_url:
+                continue
+            try:
+                results = tmdb_search_person(actor_name)
+            except MovieAPIError:
+                continue
+            if results and results[0].profile_url:
+                character.image_url = results[0].profile_url
+                character.save(update_fields=["image_url"])
+                updated += 1
+        return updated
+
     def handle(self, *args, **options):
         characters_by_name = {}
         created_characters = 0
@@ -151,6 +189,8 @@ class Command(BaseCommand):
             characters_by_name[name] = character
             if created:
                 created_characters += 1
+
+        images_updated = self._backfill_images(characters_by_name)
 
         created_questions = 0
         created_answers = 0
@@ -168,5 +208,6 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(
             f"Seed de 'Qué personaje eres' completado: {created_characters} personajes, "
-            f"{created_questions} preguntas y {created_answers} respuestas nuevas (el resto ya existía)."
+            f"{created_questions} preguntas, {created_answers} respuestas nuevas y "
+            f"{images_updated} fotos de personajes actualizadas (el resto ya existía)."
         ))

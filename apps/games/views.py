@@ -9,7 +9,7 @@ from django.urls import reverse
 
 from apps.accounts.models import User
 from apps.movies.models import Movie
-from apps.movies.services import MovieAPIError, tmdb_search
+from apps.movies.services import MovieAPIError, tmdb_search, tmdb_search_person
 from apps.social.models import Message, are_friends, friends_of
 
 from .forms import GameTierLevelForm
@@ -141,6 +141,13 @@ def _rating_duel_champion_key(media_type):
     return f"rating_duel_champion_id_{media_type}"
 
 
+RATING_DUEL_MAX_CHAMPION_STREAK = 2
+
+
+def _rating_duel_champion_streak_key(media_type):
+    return f"rating_duel_champion_streak_{media_type}"
+
+
 def _rating_duel_best_anon_key(media_type):
     return f"rating_duel_streak_best_anon_{media_type}"
 
@@ -247,7 +254,24 @@ def rating_duel_game(request):
                 streak += 1
                 request.session[streak_key] = streak
                 winner = left if left_wins else right
-                request.session[champion_key] = winner.pk
+                champion_streak_key = _rating_duel_champion_streak_key(media_type)
+                if left_wins:
+                    # La campeona revalida el puesto: no se deja que se
+                    # repita más de RATING_DUEL_MAX_CHAMPION_STREAK rondas
+                    # seguidas — si no, en cuanto sabes que tiene la nota
+                    # más alta, la votas hasta el infinito. Al tope, se
+                    # jubila (campeona Y retadora nuevas), sin tocar la
+                    # racha: el juego sigue igual.
+                    champion_streak = request.session.get(champion_streak_key, 1)
+                    if champion_streak >= RATING_DUEL_MAX_CHAMPION_STREAK:
+                        request.session.pop(champion_key, None)
+                        request.session.pop(champion_streak_key, None)
+                    else:
+                        request.session[champion_key] = winner.pk
+                        request.session[champion_streak_key] = champion_streak + 1
+                else:
+                    request.session[champion_key] = winner.pk
+                    request.session[champion_streak_key] = 1
             else:
                 previous_best = (
                     getattr(request.user, _rating_duel_best_field(media_type)) if request.user.is_authenticated
@@ -258,6 +282,7 @@ def rating_duel_game(request):
                 _register_rating_duel_best(request, media_type, streak)
                 request.session[streak_key] = 0
                 request.session.pop(champion_key, None)
+                request.session.pop(_rating_duel_champion_streak_key(media_type), None)
                 request.session.pop(_rating_duel_max_repeats_key(media_type), None)
                 streak = 0
                 game_over = True
@@ -280,6 +305,7 @@ def rating_duel_game(request):
             champion = _pick_rated_movie(request, media_type)
             if champion:
                 request.session[champion_key] = champion.pk
+                request.session[_rating_duel_champion_streak_key(media_type)] = 1
         challenger = _pick_rated_movie(request, media_type, exclude_id=champion.pk) if champion else None
 
     best = (
@@ -562,17 +588,21 @@ def personality_quiz(request):
     if request.method == "POST" and 0 <= index < total:
         answer = get_object_or_404(PersonalityAnswer, pk=request.POST.get("answer_id"), question=questions[index])
         char_id = str(answer.character_id)
-        scores[char_id] = scores.get(char_id, 0) + 1
+        # Se guarda el propio texto de cada respuesta elegida (no solo un
+        # contador) para poder explicar el resultado con tus respuestas.
+        scores.setdefault(char_id, []).append(answer.text)
         index += 1
         request.session[PERSONALITY_SCORES_KEY] = scores
         request.session[PERSONALITY_INDEX_KEY] = index
 
     if total and index >= total:
         result = None
+        why = []
         if scores:
-            best_id = max(scores, key=scores.get)
+            best_id = max(scores, key=lambda char_id: len(scores[char_id]))
             result = PersonalityCharacter.objects.filter(pk=best_id).first()
-        return render(request, "games/personality_quiz_result.html", {"character": result})
+            why = scores[best_id]
+        return render(request, "games/personality_quiz_result.html", {"character": result, "why": why})
 
     question = questions[index] if index < total else None
     return render(request, "games/personality_quiz.html", {
@@ -922,13 +952,19 @@ def oscar_home(request):
 
 @login_required
 def oscar_candidate_search(request, category_id):
+    """Busca en TMDb películas o personas, según `category.candidate_type`
+    — las categorías de intérpretes/dirección proponen personas (con foto),
+    el resto proponen películas del catálogo, igual que en el tier list."""
     category = get_object_or_404(OscarCategory, pk=category_id)
     query = request.GET.get("query", "").strip()
     results = []
     error = None
     if query:
         try:
-            results = tmdb_search(query)[:8]
+            if category.candidate_type == OscarCategory.CandidateType.PERSON:
+                results = tmdb_search_person(query)[:8]
+            else:
+                results = tmdb_search(query)[:8]
         except MovieAPIError as exc:
             error = str(exc)
     return render(request, "games/_oscar_search_results.html", {
@@ -938,7 +974,9 @@ def oscar_candidate_search(request, category_id):
 
 @login_required
 def oscar_candidate_add(request, category_id, tmdb_id):
-    category = get_object_or_404(OscarCategory, pk=category_id, is_open=True)
+    category = get_object_or_404(
+        OscarCategory, pk=category_id, is_open=True, candidate_type=OscarCategory.CandidateType.MOVIE,
+    )
     if request.method == "POST":
         try:
             movie = Movie.get_or_create_from_tmdb(tmdb_id)
@@ -956,11 +994,34 @@ def oscar_candidate_add(request, category_id, tmdb_id):
 
 
 @login_required
+def oscar_candidate_add_person(request, category_id):
+    category = get_object_or_404(
+        OscarCategory, pk=category_id, is_open=True, candidate_type=OscarCategory.CandidateType.PERSON,
+    )
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        tmdb_person_id = request.POST.get("tmdb_person_id")
+        if name and tmdb_person_id:
+            _, created = OscarCandidate.objects.get_or_create(
+                category=category, person_tmdb_id=tmdb_person_id,
+                defaults={
+                    "person_name": name, "person_photo_url": request.POST.get("photo_url", ""),
+                    "submitted_by": request.user,
+                },
+            )
+            if created:
+                messages.success(request, f"«{name}» propuesto/a en {category.name}.")
+            else:
+                messages.info(request, f"«{name}» ya estaba propuesto/a en {category.name}.")
+    return redirect("games:oscars")
+
+
+@login_required
 def oscar_vote(request, candidate_id):
     candidate = get_object_or_404(OscarCandidate, pk=candidate_id, category__is_open=True)
     if request.method == "POST":
         OscarVote.objects.update_or_create(
             category=candidate.category, user=request.user, defaults={"candidate": candidate},
         )
-        messages.success(request, f"Voto registrado por «{candidate.movie.title}».")
+        messages.success(request, f"Voto registrado por «{candidate.display_title}».")
     return redirect("games:oscars")

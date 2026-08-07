@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.core.management import call_command
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from apps.accounts.models import User
@@ -276,6 +277,36 @@ class RatingDuelGameTests(TestCase):
         })
         self.assertNotIn("rating_duel_max_repeats_movie", self.client.session)
 
+    def test_la_campeona_no_se_repite_mas_de_dos_rondas_seguidas(self):
+        champion = Movie.objects.create(tmdb_id=50, title="Campeona", media_type="movie", imdb_rating="9.5")
+        challenger_1 = Movie.objects.create(tmdb_id=51, title="Retadora 1", media_type="movie", imdb_rating="5.0")
+        challenger_2 = Movie.objects.create(tmdb_id=52, title="Retadora 2", media_type="movie", imdb_rating="5.1")
+        Movie.objects.create(tmdb_id=53, title="Retadora 3", media_type="movie", imdb_rating="5.2")
+
+        session = self.client.session
+        session["rating_duel_max_repeats_movie"] = 3  # fuera del experimento: que no interfiera el otro tope
+        session["rating_duel_champion_id_movie"] = champion.pk
+        session["rating_duel_champion_streak_movie"] = 1
+        session.save()
+
+        # Ronda 1: la campeona defiende el puesto (1ª defensa -> streak 2).
+        self.client.post(reverse("games:rating-duel"), {
+            "type": "movie", "left_id": champion.pk, "right_id": challenger_1.pk, "choice": "left",
+        })
+        self.assertEqual(self.client.session["rating_duel_champion_streak_movie"], 2)
+        self.assertEqual(self.client.session["rating_duel_champion_id_movie"], champion.pk)
+        self.client.post(reverse("games:rating-duel"), {"type": "movie", "advance": "1"})
+
+        # Ronda 2: la campeona defiende otra vez -> llega al tope y se jubila.
+        self.client.post(reverse("games:rating-duel"), {
+            "type": "movie", "left_id": champion.pk, "right_id": challenger_2.pk, "choice": "left",
+        })
+        self.assertNotIn("rating_duel_champion_id_movie", self.client.session)
+        self.assertNotIn("rating_duel_champion_streak_movie", self.client.session)
+
+        # La racha del juego sigue intacta — no se ha fallado ninguna ronda.
+        self.assertEqual(self.client.session["rating_duel_streak_movie"], 2)
+
 
 class TriviaGameTests(TestCase):
     """Trivial, Malas descripciones y Cuál tiene al actor/actriz comparten
@@ -471,12 +502,49 @@ class PersonalityQuizTests(TestCase):
         self.assertTemplateUsed(response, "games/personality_quiz_result.html")
         self.assertEqual(response.context["character"], self.char_a)
 
+    def test_el_resultado_explica_con_tus_propias_respuestas(self):
+        self.client.post(reverse("games:personality-quiz"), {"answer_id": self.q1_a.pk})
+        response = self.client.post(reverse("games:personality-quiz"), {"answer_id": self.q2_a.pk})
+        self.assertEqual(response.context["why"], ["Opción caótica", "Opción caótica 2"])
+        self.assertContains(response, "Opción caótica 2")
+
     def test_repetir_el_test_reinicia_el_progreso(self):
         self.client.post(reverse("games:personality-quiz"), {"answer_id": self.q1_a.pk})
         self.client.post(reverse("games:personality-quiz"), {"answer_id": self.q2_a.pk})
         response = self.client.post(reverse("games:personality-quiz"), {"restart": "1"}, follow=True)
         self.assertEqual(response.context["question"], self.q1)
         self.assertNotIn("personality_quiz_scores", self.client.session)
+
+
+class SeedPersonalityQuizCommandTests(TestCase):
+    """El comando crea los 12 personajes (Nikki Freeman en vez de Iron Man,
+    tras el cambio pedido) y, si hay TMDB_API_KEY, rellena la foto de perfil
+    del actor/actriz de cada uno (salvo Nikki, sin actor confirmado)."""
+
+    @override_settings(TMDB_API_KEY="")
+    def test_crea_nikki_freeman_no_iron_man(self):
+        call_command("seed_personality_quiz")
+        self.assertTrue(PersonalityCharacter.objects.filter(name="Nikki Freeman").exists())
+        self.assertFalse(PersonalityCharacter.objects.filter(name__icontains="Iron Man").exists())
+        self.assertEqual(PersonalityCharacter.objects.count(), 12)
+
+    @override_settings(TMDB_API_KEY="")
+    def test_sin_api_key_no_rellena_fotos(self):
+        call_command("seed_personality_quiz")
+        self.assertFalse(PersonalityCharacter.objects.exclude(image_url="").exists())
+
+    @override_settings(TMDB_API_KEY="fake-key")
+    @patch("apps.games.management.commands.seed_personality_quiz.tmdb_search_person")
+    def test_con_api_key_rellena_fotos_de_personajes_mapeados(self, mock_search):
+        from apps.movies.services import TMDbPersonResult
+
+        mock_search.return_value = [TMDbPersonResult(tmdb_id=1, name="Actor", profile_path="/foto.jpg")]
+        call_command("seed_personality_quiz")
+
+        jinx = PersonalityCharacter.objects.get(name="Jinx")
+        self.assertIn("/foto.jpg", jinx.image_url)
+        nikki = PersonalityCharacter.objects.get(name="Nikki Freeman")
+        self.assertEqual(nikki.image_url, "")
 
 
 class DuelTests(TestCase):
@@ -885,6 +953,80 @@ class OscarCandidateTests(TestCase):
         response = self.client.get(reverse("games:oscar-candidate-search", args=[self.category.pk]), {"query": "matrix"})
         self.assertEqual(response.status_code, 200)
         mock_search.assert_called_once_with("matrix")
+
+    def test_categoria_de_persona_proponer_la_anade(self):
+        person_category = OscarCategory.objects.create(
+            name="Mejor actor", candidate_type=OscarCategory.CandidateType.PERSON,
+        )
+        response = self.client.post(reverse("games:oscar-candidate-add-person", args=[person_category.pk]), {
+            "tmdb_person_id": "42", "name": "Actor Ejemplo", "photo_url": "https://image.tmdb.org/t/p/w500/foto.jpg",
+        })
+        self.assertRedirects(response, reverse("games:oscars"))
+        candidate = OscarCandidate.objects.get(category=person_category)
+        self.assertEqual(candidate.person_name, "Actor Ejemplo")
+        self.assertEqual(candidate.display_title, "Actor Ejemplo")
+        self.assertEqual(candidate.display_photo, "https://image.tmdb.org/t/p/w500/foto.jpg")
+
+    def test_categoria_de_pelicula_no_acepta_anadir_persona(self):
+        response = self.client.post(reverse("games:oscar-candidate-add-person", args=[self.category.pk]), {
+            "tmdb_person_id": "42", "name": "Actor Ejemplo", "photo_url": "",
+        })
+        self.assertEqual(response.status_code, 404)
+
+    def test_categoria_de_persona_no_acepta_anadir_pelicula(self):
+        person_category = OscarCategory.objects.create(
+            name="Mejor actriz", candidate_type=OscarCategory.CandidateType.PERSON,
+        )
+        response = self.client.post(reverse("games:oscar-candidate-add", args=[person_category.pk, 1]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_no_duplica_la_misma_persona_en_una_categoria(self):
+        person_category = OscarCategory.objects.create(
+            name="Mejor director/a", candidate_type=OscarCategory.CandidateType.PERSON,
+        )
+        for _ in range(2):
+            self.client.post(reverse("games:oscar-candidate-add-person", args=[person_category.pk]), {
+                "tmdb_person_id": "99", "name": "Repetido/a", "photo_url": "",
+            })
+        self.assertEqual(OscarCandidate.objects.filter(category=person_category, person_tmdb_id=99).count(), 1)
+
+    @patch("apps.games.views.tmdb_search_person")
+    def test_buscar_en_categoria_de_persona_usa_tmdb_search_person(self, mock_search):
+        person_category = OscarCategory.objects.create(
+            name="Mejor actor de reparto", candidate_type=OscarCategory.CandidateType.PERSON,
+        )
+        mock_search.return_value = []
+        response = self.client.get(
+            reverse("games:oscar-candidate-search", args=[person_category.pk]), {"query": "de niro"},
+        )
+        self.assertEqual(response.status_code, 200)
+        mock_search.assert_called_once_with("de niro")
+
+
+class SeedTriviaCommandTests(TestCase):
+    def test_carga_un_buen_numero_de_preguntas_por_categoria_y_es_idempotente(self):
+        call_command("seed_trivia")
+        trivia_count = TriviaQuestion.objects.filter(category=TriviaQuestion.Category.TRIVIA).count()
+        self.assertGreaterEqual(trivia_count, 50)
+        self.assertGreater(TriviaQuestion.objects.filter(category=TriviaQuestion.Category.EMOJI).count(), 0)
+        self.assertGreater(TrueFalseStatement.objects.count(), 0)
+
+        call_command("seed_trivia")
+        self.assertEqual(
+            TriviaQuestion.objects.filter(category=TriviaQuestion.Category.TRIVIA).count(), trivia_count,
+        )
+
+
+class SeedOscarCategoriesCommandTests(TestCase):
+    def test_carga_categorias_reales_con_su_tipo(self):
+        call_command("seed_oscar_categories")
+        self.assertTrue(OscarCategory.objects.filter(
+            name="Mejor película", candidate_type=OscarCategory.CandidateType.MOVIE,
+        ).exists())
+        self.assertTrue(OscarCategory.objects.filter(
+            name="Mejor actor", candidate_type=OscarCategory.CandidateType.PERSON,
+        ).exists())
+        self.assertGreaterEqual(OscarCategory.objects.count(), 15)
 
 
 class GameTierListTests(TestCase):

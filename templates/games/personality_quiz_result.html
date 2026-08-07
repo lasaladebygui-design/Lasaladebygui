@@ -16,6 +16,17 @@
             {% endif %}
             <p class="quote-game__record">{{ character.name }}{% if character.source %} <span class="muted">({{ character.source }})</span>{% endif %}</p>
             <p>{{ character.description }}</p>
+
+            {% if why %}
+            <div class="personality-quiz__why">
+                <p class="muted">Por qué te ha tocado {{ character.name }} — esto es lo que respondiste:</p>
+                <ul>
+                    {% for reason in why %}
+                    <li>{{ reason }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
         </div>
         {% else %}
         <p class="muted">No se pudo calcular un resultado.</p>

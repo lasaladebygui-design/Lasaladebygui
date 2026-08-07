@@ -6,7 +6,7 @@ from django.urls import reverse
 from apps.accounts.models import User
 
 from .models import Movie, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, SavedMovieList, Vote
-from .services import MovieAPIError
+from .services import MovieAPIError, tmdb_search_person
 
 
 def make_user(email):
@@ -18,6 +18,43 @@ def make_user(email):
 
 def make_movie(tmdb_id, title, imdb_rating):
     return Movie.objects.create(tmdb_id=tmdb_id, title=title, imdb_rating=imdb_rating)
+
+
+class TmdbSearchPersonTests(TestCase):
+    """tmdb_search_person: para la foto de perfil de un actor/actriz, usada
+    en 'Cuál tiene al actor/actriz' y en el resultado de 'Qué personaje
+    eres' (foto de quien interpretó al personaje)."""
+
+    @override_settings(TMDB_API_KEY="fake-tmdb-key")
+    @patch("requests.get")
+    def test_devuelve_nombre_y_foto_de_perfil(self, mock_get):
+        mock_get.return_value.raise_for_status.return_value = None
+        mock_get.return_value.json.return_value = {
+            "results": [{"id": 42, "name": "Actor Ejemplo", "profile_path": "/foto.jpg"}],
+        }
+        results = tmdb_search_person("Actor Ejemplo")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].tmdb_id, 42)
+        self.assertEqual(results[0].name, "Actor Ejemplo")
+        self.assertIn("/foto.jpg", results[0].profile_url)
+
+    @override_settings(TMDB_API_KEY="fake-tmdb-key")
+    @patch("requests.get")
+    def test_sin_foto_de_perfil_devuelve_url_vacia(self, mock_get):
+        mock_get.return_value.raise_for_status.return_value = None
+        mock_get.return_value.json.return_value = {
+            "results": [{"id": 43, "name": "Sin foto", "profile_path": None}],
+        }
+        results = tmdb_search_person("Sin foto")
+        self.assertEqual(results[0].profile_url, "")
+
+    @override_settings(TMDB_API_KEY="fake-tmdb-key")
+    @patch("requests.get")
+    def test_fallo_de_red_lanza_movieapierror(self, mock_get):
+        import requests
+        mock_get.side_effect = requests.RequestException("boom")
+        with self.assertRaises(MovieAPIError):
+            tmdb_search_person("lo que sea")
 
 
 class VoteTests(TestCase):

@@ -8,6 +8,7 @@ from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.core.mail import send_mail
+from django.db.models import Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -17,6 +18,7 @@ from django.views.decorators.http import require_POST
 
 from apps.core.google_calendar import exchange_code_for_tokens, get_authorization_url, google_calendar_enabled
 from apps.core.models import SiteConfig
+from apps.games.models import DuelRecord
 from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError, tmdb_search
 from apps.secret.models import ReleaseEvent
@@ -104,6 +106,35 @@ def profile(request):
         "suggested_count": FavoriteMovie.objects.filter(user=request.user, category="suggested").count(),
     }
     return render(request, "accounts/profile.html", context)
+
+
+@login_required
+def achievements(request):
+    """Récords de todos los juegos (uno por usuario, guardados en el propio
+    User) + el marcador acumulado de duelos contra cualquier rival (DuelRecord,
+    uno por pareja de jugadores — aquí se suman todos los tuyos en uno solo)."""
+    user = request.user
+    game_records = [
+        ("🎬 Frases célebres", user.quote_streak_best, "games:quote-game"),
+        ("⭐ Cuál está mejor valorada (películas)", user.rating_duel_streak_best_movie, "games:rating-duel"),
+        ("⭐ Cuál está mejor valorada (series)", user.rating_duel_streak_best_tv, "games:rating-duel"),
+        ("🧠 Trivial", user.trivia_streak_best, "games:trivia-game"),
+        ("😀 Emoji", user.emoji_streak_best, "games:emoji-game"),
+        ("📝 Malas descripciones", user.bad_description_streak_best, "games:bad-description-game"),
+        ("🎭 Cuál tiene al actor/actriz", user.actor_streak_best, "games:actor-game"),
+        ("✅❌ Verdadero o falso", user.true_false_streak_best, "games:true-false-game"),
+    ]
+
+    duel_records = DuelRecord.objects.filter(Q(player_low=user) | Q(player_high=user))
+    duel_summary = {
+        "wins": sum(record.wins_for(user) for record in duel_records),
+        "losses": sum(record.losses_for(user) for record in duel_records),
+        "draws": sum(record.draws for record in duel_records),
+    }
+
+    return render(request, "accounts/achievements.html", {
+        "game_records": game_records, "duel_summary": duel_summary,
+    })
 
 
 @login_required

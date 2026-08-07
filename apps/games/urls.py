@@ -32,5 +32,6 @@ urlpatterns = [
     path("oscars/", views.oscar_home, name="oscars"),
     path("oscars/<int:category_id>/buscar/", views.oscar_candidate_search, name="oscar-candidate-search"),
     path("oscars/<int:category_id>/anadir/<int:tmdb_id>/", views.oscar_candidate_add, name="oscar-candidate-add"),
+    path("oscars/<int:category_id>/anadir-persona/", views.oscar_candidate_add_person, name="oscar-candidate-add-person"),
     path("oscars/votar/<int:candidate_id>/", views.oscar_vote, name="oscar-vote"),
 ]

@@ -6,19 +6,39 @@
 
 {% if results %}
 <ul class="search-results">
-    {% for movie in results %}
-    <li class="search-result">
-        {% if movie.poster_url %}
-            <img src="{{ movie.poster_url }}" alt="" class="search-result__poster">
-        {% endif %}
-        <div class="search-result__body">
-            <strong>{{ movie.title }}</strong> <span class="muted">{{ movie.year }}</span>
-        </div>
-        <form method="post" action="{% url 'games:oscar-candidate-add' category.pk movie.tmdb_id %}">
-            {% csrf_token %}
-            <button type="submit" class="btn btn--ghost btn--sm">Proponer</button>
-        </form>
-    </li>
-    {% endfor %}
+    {% if category.candidate_type == "person" %}
+        {% for person in results %}
+        <li class="search-result">
+            {% if person.profile_url %}
+                <img src="{{ person.profile_url }}" alt="" class="search-result__poster">
+            {% endif %}
+            <div class="search-result__body">
+                <strong>{{ person.name }}</strong>
+            </div>
+            <form method="post" action="{% url 'games:oscar-candidate-add-person' category.pk %}">
+                {% csrf_token %}
+                <input type="hidden" name="tmdb_person_id" value="{{ person.tmdb_id }}">
+                <input type="hidden" name="name" value="{{ person.name }}">
+                <input type="hidden" name="photo_url" value="{{ person.profile_url }}">
+                <button type="submit" class="btn btn--ghost btn--sm">Proponer</button>
+            </form>
+        </li>
+        {% endfor %}
+    {% else %}
+        {% for movie in results %}
+        <li class="search-result">
+            {% if movie.poster_url %}
+                <img src="{{ movie.poster_url }}" alt="" class="search-result__poster">
+            {% endif %}
+            <div class="search-result__body">
+                <strong>{{ movie.title }}</strong> <span class="muted">{{ movie.year }}</span>
+            </div>
+            <form method="post" action="{% url 'games:oscar-candidate-add' category.pk movie.tmdb_id %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn--ghost btn--sm">Proponer</button>
+            </form>
+        </li>
+        {% endfor %}
+    {% endif %}
 </ul>
 {% endif %}

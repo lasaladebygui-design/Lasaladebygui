@@ -301,12 +301,24 @@ class DuelRecord(models.Model):
 
 
 class OscarCategory(models.Model):
-    """Categoría de 'Candidatos al Oscar' (p. ej. 'Mejor película'): los
-    usuarios proponen candidatas (películas del catálogo) y votan por su
-    favorita, una vez por categoría. A diferencia de los juegos de racha,
-    esto es una herramienta permanente/compartida, no algo personal."""
+    """Categoría de 'Candidatos al Oscar' (p. ej. 'Mejor película', 'Mejor
+    actor'): los usuarios proponen candidatas y votan por su favorita, una
+    vez por categoría. A diferencia de los juegos de racha, esto es una
+    herramienta permanente/compartida, no algo personal.
+
+    `candidate_type` decide qué se propone: una película del catálogo
+    (categorías como Mejor película o Mejor banda sonora) o una persona
+    (Mejor actor, Mejor actriz, Mejor director...) — buscada por nombre vía
+    TMDb, con su foto, sin que haga falta un modelo de "Persona" aparte."""
+
+    class CandidateType(models.TextChoices):
+        MOVIE = "movie", "Película"
+        PERSON = "person", "Persona (actor/actriz, director/a...)"
 
     name = models.CharField("categoría", max_length=100)
+    candidate_type = models.CharField(
+        "tipo de candidata", max_length=10, choices=CandidateType.choices, default=CandidateType.MOVIE,
+    )
     is_open = models.BooleanField("abierta a candidaturas y votos", default=True)
     order = models.PositiveIntegerField("orden", default=0)
 
@@ -320,8 +332,17 @@ class OscarCategory(models.Model):
 
 
 class OscarCandidate(models.Model):
+    """Una candidata dentro de una categoría — o una película (`movie`) o
+    una persona (`person_name`/`person_photo_url`/`person_tmdb_id`), según
+    `category.candidate_type`. Nunca se rellenan los dos a la vez."""
+
     category = models.ForeignKey(OscarCategory, verbose_name="categoría", on_delete=models.CASCADE, related_name="candidates")
-    movie = models.ForeignKey("movies.Movie", verbose_name="película", on_delete=models.CASCADE, related_name="+")
+    movie = models.ForeignKey(
+        "movies.Movie", verbose_name="película", on_delete=models.CASCADE, related_name="+", null=True, blank=True,
+    )
+    person_name = models.CharField("nombre", max_length=150, blank=True)
+    person_photo_url = models.URLField("foto", blank=True)
+    person_tmdb_id = models.PositiveIntegerField("id de TMDb", null=True, blank=True)
     submitted_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, verbose_name="propuesta por", on_delete=models.CASCADE, related_name="+",
     )
@@ -332,11 +353,20 @@ class OscarCandidate(models.Model):
         verbose_name = "Candidatos al Oscar: candidata"
         verbose_name_plural = "Juegos: Candidatos al Oscar — candidatas"
         constraints = [
-            models.UniqueConstraint(fields=["category", "movie"], name="una_candidata_por_categoria"),
+            models.UniqueConstraint(fields=["category", "movie"], name="una_pelicula_candidata_por_categoria"),
+            models.UniqueConstraint(fields=["category", "person_tmdb_id"], name="una_persona_candidata_por_categoria"),
         ]
 
     def __str__(self):
-        return f"{self.movie} — {self.category}"
+        return f"{self.display_title} — {self.category}"
+
+    @property
+    def display_title(self):
+        return self.movie.title if self.movie else self.person_name
+
+    @property
+    def display_photo(self):
+        return self.movie.poster_url if self.movie else self.person_photo_url
 
 
 class OscarVote(models.Model):
