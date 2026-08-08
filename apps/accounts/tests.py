@@ -335,6 +335,11 @@ class UserAdminBroadcastEmailTests(TestCase):
         self.assertEqual(recipients, {self.user_a.email, self.user_b.email})
         self.assertEqual(mail.outbox[0].subject, "Aviso importante")
 
+    def test_las_acciones_del_listado_salen_como_botones_no_como_desplegable(self):
+        response = self.client.get(reverse("admin:accounts_user_changelist"))
+        self.assertContains(response, "admin-action-buttons__btn")
+        self.assertContains(response, "📧 Enviar un email a los seleccionados")
+
     def test_no_es_accesible_para_quien_no_es_staff(self):
         self.client.logout()
         lector = User.objects.create(email="lector_broadcast@test.local", role=User.Role.LECTOR)

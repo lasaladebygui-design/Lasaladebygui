@@ -44,21 +44,21 @@ class UserAdmin(DjangoUserAdmin):
 
     actions = ["banear_usuarios", "desbanear_usuarios", "enviar_email"]
 
-    @admin.action(description="Banear usuarios seleccionados")
+    @admin.action(description="🚫 Banear a los seleccionados")
     def banear_usuarios(self, request, queryset):
         for user in queryset:
             user.role = User.Role.BANEADO
             user.save()
         self.message_user(request, f"{queryset.count()} usuario(s) baneado(s).")
 
-    @admin.action(description="Desbanear usuarios seleccionados (pasan a Lector)")
+    @admin.action(description="✅ Desbanear a los seleccionados (pasan a Lector)")
     def desbanear_usuarios(self, request, queryset):
         for user in queryset.filter(role=User.Role.BANEADO):
             user.role = User.Role.LECTOR
             user.save()
         self.message_user(request, "Usuarios desbaneados.")
 
-    @admin.action(description="Enviar un email a los usuarios seleccionados")
+    @admin.action(description="📧 Enviar un email a los seleccionados")
     def enviar_email(self, request, queryset):
         # "Enviar a todos" no necesita nada especial: el propio changelist ya
         # deja seleccionar "los N usuarios en todas las páginas" con el

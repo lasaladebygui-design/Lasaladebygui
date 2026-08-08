@@ -1,7 +1,9 @@
+import logging
+
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.core.mail import send_mail
+from django.core.mail import get_connection, send_mail
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import Http404
@@ -12,6 +14,8 @@ from apps.core.push import send_push_to_users
 from .forms import ArticleCommentForm, ArticleForm
 from .models import Article, ArticleView, Tag
 from .permissions import can_create_articles, can_delete_article, can_edit_article, can_manage_private_articles
+
+logger = logging.getLogger(__name__)
 
 
 def article_list(request):
@@ -94,6 +98,12 @@ def article_detail(request, slug):
 
 
 def _notify_users_of_new_article(request, article):
+    """Avisa por email — nunca debe poder romper la publicación del
+    artículo (ya guardado antes de llegar aquí): un fallo de SMTP o una
+    lista larga de destinatarios no puede tirar la petición abajo. Cada
+    envío va sin fail_silently (para que un fallo real quede registrado en
+    los logs, en vez de desaparecer sin dejar pista) pero atrapado uno a
+    uno, así un destinatario que falle no se lleva por delante al resto."""
     User = get_user_model()
     recipients = User.objects.filter(
         is_active=True, email_notify_new_articles=True,
@@ -108,8 +118,22 @@ def _notify_users_of_new_article(request, article):
         f"{article.title}\n{url}\n\n"
         "Puedes desactivar estos avisos desde Ajustes > Notificaciones."
     )
-    for user in recipients:
-        send_mail(subject=subject, message=message, from_email=None, recipient_list=[user.email])
+    connection = get_connection()
+    connection.open()
+    sent = 0
+    try:
+        for user in recipients:
+            try:
+                send_mail(
+                    subject=subject, message=message, from_email=None,
+                    recipient_list=[user.email], connection=connection,
+                )
+                sent += 1
+            except Exception:
+                logger.exception("No se pudo avisar por email a %s del artículo «%s»", user.email, article.title)
+    finally:
+        connection.close()
+    logger.info("Aviso de artículo nuevo «%s»: %d/%d emails enviados.", article.title, sent, recipients.count())
 
 
 @login_required
@@ -126,15 +150,21 @@ def article_create(request):
             form.save_m2m()
             messages.success(request, "Artículo publicado.")
             if not article.is_private:
-                User = get_user_model()
-                subscribers = User.objects.filter(push_subscriptions__isnull=False).exclude(pk=article.author_id).distinct()
-                send_push_to_users(
-                    subscribers,
-                    title="Nuevo artículo",
-                    body=article.title,
-                    url=article.get_absolute_url(),
-                )
-                _notify_users_of_new_article(request, article)
+                # El artículo ya está guardado a estas alturas: un fallo al
+                # avisar (push o email) nunca debe impedir que se vea la
+                # página del artículo recién publicado.
+                try:
+                    User = get_user_model()
+                    subscribers = User.objects.filter(push_subscriptions__isnull=False).exclude(pk=article.author_id).distinct()
+                    send_push_to_users(
+                        subscribers,
+                        title="Nuevo artículo",
+                        body=article.title,
+                        url=article.get_absolute_url(),
+                    )
+                    _notify_users_of_new_article(request, article)
+                except Exception:
+                    logger.exception("Fallo al avisar del artículo nuevo «%s»", article.title)
             return redirect(article.get_absolute_url())
     else:
         form = ArticleForm(user=request.user)

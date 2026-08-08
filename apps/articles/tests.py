@@ -350,3 +350,14 @@ class NewArticleEmailTests(TestCase):
             "title": "Privado sin avisos", "body": "<p>x</p>", "tags_input": "", "is_private": "on",
         })
         self.assertEqual(len(mail.outbox), 0)
+
+    @patch("apps.articles.views.send_mail", side_effect=OSError("SMTP caído"))
+    def test_un_fallo_de_smtp_no_rompe_la_publicacion(self, mock_send_mail):
+        # Si el servidor de email falla (SMTP caído, credenciales mal
+        # puestas...), publicar el artículo tiene que seguir funcionando —
+        # el artículo ya está guardado antes de intentar avisar a nadie.
+        response = self.client.post(reverse("articles:create"), {
+            "title": "Publicado pese al fallo de email", "body": "<p>cuerpo</p>", "tags_input": "",
+        })
+        article = Article.objects.get(title="Publicado pese al fallo de email")
+        self.assertRedirects(response, article.get_absolute_url())

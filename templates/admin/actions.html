@@ -1,0 +1,60 @@
+{% load i18n jazzmin %}
+{% get_jazzmin_ui_tweaks as jazzmin_ui %}
+
+{# Botones en vez de desplegable: mismo mecanismo de Django por debajo (el
+   <select> sigue ahí, solo oculto) — cada botón le pone su valor y dispara
+   el envío, así no hace falta reescribir nada del lado del servidor. #}
+<style>
+    .admin-action-buttons { display: inline-flex; flex-wrap: wrap; gap: 0.4rem; margin-right: 0.8rem; }
+</style>
+<div class="actions">
+    {% block actions %}
+        {% block actions-form %}
+            {% for field in action_form %}
+                {% if field.name == "action" %}
+                    <div class="admin-action-buttons">
+                        {% for value, label in field.field.choices %}
+                            {% if value %}
+                            <button type="button" class="btn btn-sm {{ jazzmin_ui.button_classes.secondary }} admin-action-buttons__btn" data-action-value="{{ value }}">{{ label }}</button>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    <span style="display:none;">{{ field }}</span>
+                {% else %}
+                    <label style="display:none;">{{ field }}</label>
+                {% endif %}
+            {% endfor %}
+        {% endblock %}
+        {% block actions-submit %}
+            <button type="submit" id="admin-action-go" style="display:none;" name="index" value="{{ action_index|default:0 }}">{% trans "Go" %}</button>
+        {% endblock %}
+        {% block actions-counter %}
+            {% if actions_selection_counter %}
+                <span class="action-counter" data-actions-icnt="{{ cl.result_list|length }}">{{ selection_note }}</span>
+                {% if cl.result_count != cl.result_list|length %}
+                    <span class="all hidden">{{ selection_note_all }}</span>
+                    <span class="question hidden">
+                        <a href="#" title="{% trans "Click here to select the objects across all pages" %}">
+                            {% blocktrans with cl.result_count as total_count %}Select all {{ total_count }} {{ module_name }}{% endblocktrans %}
+                        </a>
+                    </span>
+                    <span class="clear" style="display: none;"><a href="#">{% trans "Clear selection" %}</a></span>
+                {% endif %}
+            {% endif %}
+        {% endblock %}
+    {% endblock %}
+</div>
+<script>
+document.addEventListener("click", function (event) {
+    var btn = event.target.closest(".admin-action-buttons__btn");
+    if (!btn) return;
+    var form = btn.closest("form");
+    var checked = form.querySelectorAll('input[name="_selected_action"]:checked');
+    if (!checked.length) {
+        alert("Selecciona al menos uno de la lista antes de elegir una acción.");
+        return;
+    }
+    form.querySelector('select[name="action"]').value = btn.dataset.actionValue;
+    document.getElementById("admin-action-go").click();
+});
+</script>

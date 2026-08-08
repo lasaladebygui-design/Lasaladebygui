@@ -67,11 +67,11 @@ class ThemeAdmin(ColorWidgetMixin, admin.ModelAdmin):
         ("Espaciados y forma", {"fields": ("space_unit", "radius_base")}),
     )
 
-    @admin.action(description="Publicar (mostrar en el selector de temas)")
+    @admin.action(description="👁️ Publicar (mostrar en el selector de temas)")
     def publish_themes(self, request, queryset):
         queryset.update(is_published=True)
 
-    @admin.action(description="Despublicar (ocultar del selector de temas)")
+    @admin.action(description="🙈 Despublicar (ocultar del selector de temas)")
     def unpublish_themes(self, request, queryset):
         queryset.update(is_published=False)
 

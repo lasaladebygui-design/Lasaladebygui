@@ -27,11 +27,11 @@ class ArticleAdmin(admin.ModelAdmin):
     inlines = [ArticleCommentInline]
     actions = ["make_private", "make_public"]
 
-    @admin.action(description="Marcar como privados (solo Gestor/Admin)")
+    @admin.action(description="🔒 Marcar como privados (solo Gestor/Admin)")
     def make_private(self, request, queryset):
         queryset.update(is_private=True)
 
-    @admin.action(description="Marcar como públicos")
+    @admin.action(description="🌐 Marcar como públicos")
     def make_public(self, request, queryset):
         queryset.update(is_private=False)
 
