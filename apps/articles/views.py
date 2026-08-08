@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.core.mail import send_mail
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import Http404
@@ -92,6 +93,25 @@ def article_detail(request, slug):
     })
 
 
+def _notify_users_of_new_article(request, article):
+    User = get_user_model()
+    recipients = User.objects.filter(
+        is_active=True, email_notify_new_articles=True,
+    ).exclude(pk=article.author_id).exclude(email="")
+    if not recipients.exists():
+        return
+
+    url = request.build_absolute_uri(article.get_absolute_url())
+    subject = f"Nuevo artículo en La Sala de Bygui: {article.title}"
+    message = (
+        f"{article.author} ha publicado un nuevo artículo:\n\n"
+        f"{article.title}\n{url}\n\n"
+        "Puedes desactivar estos avisos desde Ajustes > Notificaciones."
+    )
+    for user in recipients:
+        send_mail(subject=subject, message=message, from_email=None, recipient_list=[user.email])
+
+
 @login_required
 def article_create(request):
     if not can_create_articles(request.user):
@@ -114,6 +134,7 @@ def article_create(request):
                     body=article.title,
                     url=article.get_absolute_url(),
                 )
+                _notify_users_of_new_article(request, article)
             return redirect(article.get_absolute_url())
     else:
         form = ArticleForm(user=request.user)
@@ -139,6 +160,20 @@ def article_update(request, slug):
     return render(request, "articles/form.html", {"form": form, "is_new": False, "article": article})
 
 
+def _delete_articles_and_orphan_tags(articles):
+    # Un tag que se quede sin ningún artículo tras borrar estos ya no sirve
+    # para nada (no hay forma de llegar a él desde ningún sitio), así que se
+    # borra también — salvo que otro artículo lo siga usando.
+    tags = set(Tag.objects.filter(articles__in=articles))
+    count = len(articles)
+    for article in articles:
+        article.delete()
+    for tag in tags:
+        if not tag.articles.exists():
+            tag.delete()
+    return count
+
+
 @login_required
 def article_delete(request, slug):
     article = get_object_or_404(Article, slug=slug)
@@ -146,15 +181,26 @@ def article_delete(request, slug):
         raise Http404
 
     if request.method == "POST":
-        # Un tag que se quede sin ningún artículo tras borrar este ya no
-        # sirve para nada (no hay forma de llegar a él desde ningún sitio),
-        # así que se borra también — salvo que otro artículo lo siga usando.
-        tags = list(article.tags.all())
-        article.delete()
-        for tag in tags:
-            if not tag.articles.exists():
-                tag.delete()
+        _delete_articles_and_orphan_tags([article])
         messages.success(request, "Artículo eliminado.")
         return redirect("articles:list")
 
     return render(request, "articles/confirm_delete.html", {"article": article})
+
+
+@login_required
+def article_bulk_delete(request):
+    if request.method != "POST":
+        raise Http404
+
+    slugs = request.POST.getlist("slugs")
+    articles = [
+        article for article in Article.objects.filter(slug__in=slugs)
+        if can_delete_article(request.user, article)
+    ]
+    if articles:
+        count = _delete_articles_and_orphan_tags(articles)
+        messages.success(request, f"{count} artículo(s) eliminado(s).")
+    else:
+        messages.info(request, "No se ha eliminado ningún artículo.")
+    return redirect("articles:list")

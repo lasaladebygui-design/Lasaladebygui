@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from django.core import mail
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -223,6 +224,63 @@ class ArticleDeleteTagCleanupTests(TestCase):
         self.assertIn(self.shared_tag, self.other_article.tags.all())
 
 
+class ArticleBulkDeleteTests(TestCase):
+    """Selección múltiple para borrar varios artículos de golpe desde el
+    listado — el checkbox de cada tarjeta solo sale si puedes borrar ESE
+    artículo en concreto (misma regla que el borrado individual)."""
+
+    def setUp(self):
+        self.gestor = make_user("gestor_bulk@test.local", User.Role.GESTOR)
+        self.editor = make_user("editor_bulk@test.local", User.Role.EDITOR)
+        self.other_editor = make_user("editor_bulk2@test.local", User.Role.EDITOR)
+        self.own_article = Article.objects.create(title="Mío", body="<p>x</p>", author=self.editor)
+        self.other_article = Article.objects.create(title="Ajeno", body="<p>y</p>", author=self.other_editor)
+
+    def _login(self, user):
+        self.client.login(username=user.email, password="Testpass123!")
+
+    def test_el_editor_solo_ve_el_checkbox_en_sus_propios_articulos(self):
+        self._login(self.editor)
+        response = self.client.get(reverse("articles:list"))
+        self.assertContains(response, f'value="{self.own_article.slug}"')
+        self.assertNotContains(response, f'value="{self.other_article.slug}"')
+
+    def test_el_gestor_ve_el_checkbox_en_todos(self):
+        self._login(self.gestor)
+        response = self.client.get(reverse("articles:list"))
+        self.assertContains(response, f'value="{self.own_article.slug}"')
+        self.assertContains(response, f'value="{self.other_article.slug}"')
+
+    def test_el_gestor_puede_borrar_varios_de_golpe(self):
+        self._login(self.gestor)
+        self.client.post(reverse("articles:bulk-delete"), {
+            "slugs": [self.own_article.slug, self.other_article.slug],
+        })
+        self.assertFalse(Article.objects.filter(pk=self.own_article.pk).exists())
+        self.assertFalse(Article.objects.filter(pk=self.other_article.pk).exists())
+
+    def test_el_editor_no_puede_borrar_el_articulo_ajeno_aunque_lo_incluya_a_mano(self):
+        self._login(self.editor)
+        self.client.post(reverse("articles:bulk-delete"), {
+            "slugs": [self.own_article.slug, self.other_article.slug],
+        })
+        self.assertFalse(Article.objects.filter(pk=self.own_article.pk).exists())
+        self.assertTrue(Article.objects.filter(pk=self.other_article.pk).exists())
+
+    def test_borrar_varios_limpia_los_tags_huerfanos(self):
+        tag = Tag.objects.create(name="Solo aquí")
+        self.own_article.tags.add(tag)
+        self._login(self.editor)
+        self.client.post(reverse("articles:bulk-delete"), {"slugs": [self.own_article.slug]})
+        self.assertFalse(Tag.objects.filter(pk=tag.pk).exists())
+
+    def test_anonimo_no_ve_checkbox_ni_puede_borrar(self):
+        response = self.client.get(reverse("articles:list"))
+        self.assertNotContains(response, 'class="article-card__select"')
+        self.client.post(reverse("articles:bulk-delete"), {"slugs": [self.own_article.slug]})
+        self.assertTrue(Article.objects.filter(pk=self.own_article.pk).exists())
+
+
 class LatestArticlesLinkTests(TestCase):
     def test_la_ficha_enlaza_a_los_cinco_ultimos_sin_incluirse_a_si_misma(self):
         author = make_user("autor_ultimos@test.local", User.Role.EDITOR)
@@ -253,3 +311,42 @@ class NewArticlePushTests(TestCase):
         subscribers = list(mock_send.call_args.args[0])
         self.assertIn(self.subscriber, subscribers)
         self.assertNotIn(self.author, subscribers)
+
+
+class NewArticleEmailTests(TestCase):
+    """Al publicar un artículo (no privado) se avisa por email a todos los
+    usuarios que no lo hayan desactivado en Ajustes — no solo con push."""
+
+    def setUp(self):
+        self.author = make_user("autor_email@test.local", User.Role.EDITOR)
+        self.reader = make_user("lector_email@test.local", User.Role.LECTOR)
+        self.opted_out = make_user("sin_avisos_email@test.local", User.Role.LECTOR)
+        self.opted_out.email_notify_new_articles = False
+        self.opted_out.save()
+        self.client.login(username=self.author.email, password="Testpass123!")
+
+    def test_publicar_articulo_avisa_por_email_a_quien_no_lo_ha_desactivado(self):
+        self.client.post(reverse("articles:create"), {
+            "title": "Con aviso por email", "body": "<p>cuerpo</p>", "tags_input": "",
+        })
+        recipients = {sent.to[0] for sent in mail.outbox}
+        self.assertIn(self.reader.email, recipients)
+        self.assertNotIn(self.opted_out.email, recipients)
+        self.assertNotIn(self.author.email, recipients)
+
+    def test_el_email_incluye_el_titulo_y_el_enlace(self):
+        response = self.client.post(reverse("articles:create"), {
+            "title": "Con aviso por email", "body": "<p>cuerpo</p>", "tags_input": "",
+        }, follow=True)
+        article = Article.objects.get(title="Con aviso por email")
+        sent_to_reader = next(sent for sent in mail.outbox if sent.to == [self.reader.email])
+        self.assertIn(article.title, sent_to_reader.subject)
+        self.assertIn(article.get_absolute_url(), sent_to_reader.body)
+
+    def test_un_articulo_privado_no_manda_email(self):
+        gestor = make_user("gestor_email@test.local", User.Role.GESTOR)
+        self.client.login(username=gestor.email, password="Testpass123!")
+        self.client.post(reverse("articles:create"), {
+            "title": "Privado sin avisos", "body": "<p>x</p>", "tags_input": "", "is_private": "on",
+        })
+        self.assertEqual(len(mail.outbox), 0)

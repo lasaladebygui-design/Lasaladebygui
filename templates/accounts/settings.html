@@ -150,6 +150,14 @@
                     {% if user.hide_pwa_install_prompt %}No mostrar (desactivada){% else %}Mostrar sugerencia{% endif %}
                 </button>
             </form>
+
+            <p class="muted" style="margin-top:0.8rem;">Avisarme por email cuando se publique un artículo nuevo.</p>
+            <form method="post" action="{% url 'accounts:toggle-email-new-articles' %}" class="inline-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn--sm {% if user.email_notify_new_articles %}btn--accent{% else %}btn--ghost{% endif %}">
+                    {% if user.email_notify_new_articles %}Activados{% else %}Desactivados{% endif %}
+                </button>
+            </form>
         </div>
 
         {% if google_calendar_enabled %}

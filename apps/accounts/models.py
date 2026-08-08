@@ -77,6 +77,9 @@ class User(AbstractUser):
     hide_pwa_install_prompt = models.BooleanField(
         "ocultar sugerencia de instalar la app", default=False,
     )
+    email_notify_new_articles = models.BooleanField(
+        "avisos por email de artículos nuevos", default=True,
+    )
     essential_note = models.TextField(
         "por qué son imprescindibles", blank=True,
         help_text="Un único texto para todo el apartado (no por película). Visible para cualquiera que vea tu perfil.",

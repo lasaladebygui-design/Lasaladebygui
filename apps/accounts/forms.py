@@ -93,6 +93,11 @@ class UsernameChangeForm(forms.ModelForm):
         return username
 
 
+class BroadcastEmailForm(forms.Form):
+    subject = forms.CharField(label="Asunto", max_length=200)
+    message = forms.CharField(label="Mensaje", widget=forms.Textarea(attrs={"rows": 8}))
+
+
 class EmailAuthenticationForm(AuthenticationForm):
     username = forms.EmailField(
         label="Correo electrónico",

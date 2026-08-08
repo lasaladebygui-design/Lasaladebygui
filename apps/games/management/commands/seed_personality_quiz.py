@@ -40,117 +40,118 @@ CHARACTERS = [
     ("Miranda Priestly", "El diablo viste de Prada", "👠 No pides perdón por saber lo que quieres. Los resultados hablan por ti, y no tienes ningún interés en gustarle a todo el mundo."),
 ]
 
-# Cada pregunta: (texto, [(texto_respuesta, nombre_personaje), x4]). Mezcla
-# de dilemas cotidianos (nada de "a quién sacrificas") y preferencias/
-# reacciones, tal y como se acordó con el dueño del sitio.
+# Cada pregunta: (texto, [(texto_respuesta, nombre_personaje), x4]). En vez
+# de dilemas de la vida real, cada una plantea una decisión propia de una
+# escena de película (atracos, batallas, juicios, dobles vidas...) — la
+# respuesta que elijas es la que tomaría tu personaje en esa misma escena.
 QUESTIONS = [
-    ("Un compañero de trabajo se lleva el mérito de algo que hiciste tú. ¿Qué haces?", [
-        ("Lo dejo pasar, no merece la pena el conflicto", "Sam Wheat"),
-        ("Se lo digo en privado y le doy la oportunidad de corregirlo", "Steve Rogers (Capitán América)"),
-        ("Lo dejo claro delante de todos, que quede constancia", "Katniss Everdeen"),
-        ("Empiezo a jugar mis cartas para que la próxima vez el mérito sea mío", "Michael Corleone"),
+    ("Un atraco perfecto se tuerce en el último segundo y un miembro del equipo se queda atrás. ¿Qué haces?", [
+        ("Vuelvo a por él aunque ponga en peligro todo el golpe", "Steve Rogers (Capitán América)"),
+        ("Sigo con el plan tal y como estaba pensado, sin rodeos", "Michael Corleone"),
+        ("Convierto el caos en la mejor parte del plan — nunca sale como se espera, y mejor así", "Jinx"),
+        ("Le prendo fuego a todo el botín y me voy andando; ver arder algo bonito no tiene precio", "Joker"),
     ]),
-    ("¿Qué es lo que más valoras en la gente que te rodea?", [
-        ("Lealtad, pase lo que pase", "Harley Quinn"),
-        ("Honestidad, aunque duela", "Steve Rogers (Capitán América)"),
-        ("Ambición, que quieran llegar lejos", "Miranda Priestly"),
-        ("Sentido del humor, que no se lo tomen todo tan en serio", "Jinx"),
+    ("Te ofrecen dirigir el negocio familiar, pero significa dejar atrás tu propia vida para siempre. ¿Qué haces?", [
+        ("Lo acepto sin dudar, la familia va antes que cualquier otra cosa", "Michael Corleone"),
+        ("Lo rechazo — mi vida y mis sueños no se negocian con nadie", "Mia Dolan"),
+        ("Lo acepto solo si la persona que quiero viene conmigo, no pienso elegir", "Nikki Freeman"),
+        ("Pido tiempo — algo así no se decide con prisas", "Sam Wheat"),
     ]),
-    ("Descubres un secreto que podría hacer mucho daño a alguien que quieres. ¿Qué haces?", [
-        ("Me lo guardo para siempre, para protegerle", "Sam Wheat"),
-        ("Se lo cuento aunque duela, prefiero la verdad", "Katniss Everdeen"),
-        ("Lo uso solo si alguna vez me hace falta", "Michael Corleone"),
-        ("Lo suelto en el peor momento posible, por diversión", "Joker"),
+    ("El edificio se derrumba y solo da tiempo a salvar a una persona o completar la misión de semanas. ¿Qué haces?", [
+        ("Salvo a la persona, siempre, sin pensarlo dos veces", "Steve Rogers (Capitán América)"),
+        ("Completo la misión — hay cosas más grandes en juego que una sola vida", "Miranda Priestly"),
+        ("Salvo a la persona Y encuentro la forma de salvar también la misión — no pienso elegir", "Nikki Freeman"),
+        ("Dejo que decida el caos del momento — hay una belleza rara en perderlo todo de golpe", "Jinx"),
     ]),
-    ("Te acaban de dar una mala noticia. ¿Cómo reaccionas?", [
-        ("Me río, si no me río me hundo", "Jinx"),
-        ("Me quedo en silencio, lo proceso por dentro", "Sam Wheat"),
-        ("Ya estoy pensando en el siguiente movimiento", "Miranda Priestly"),
-        ("Necesito desahogarme con alguien ya mismo", "Harley Quinn"),
+    ("Estás infiltrado en la organización que llevas años intentando derribar, y te ofrecen un ascenso dentro de ella. ¿Qué haces?", [
+        ("Lo acepto — cuanto más arriba llegue, más daño puedo hacerles desde dentro", "Katniss Everdeen"),
+        ("Lo acepto y disfruto cada segundo del juego de dobles vidas", "Joker"),
+        ("Lo acepto, es la jugada perfecta — nadie lo va a ver venir", "Michael Corleone"),
+        ("Lo rechazo — mi lucha no necesita un cargo dentro de su sistema, necesita destruirlo entero", "V"),
     ]),
-    ("Tienes la oportunidad de conseguir lo que siempre quisiste, pero significa dejar atrás a alguien importante. ¿Qué haces?", [
-        ("Voy a por ello, es mi sueño y no pienso renunciar", "Mia Dolan"),
-        ("Me quedo, las personas importan más que cualquier sueño", "Steve Rogers (Capitán América)"),
-        ("No dejo atrás a esa persona ni loca — encuentro la forma de que sigamos juntos, cueste lo que cueste", "Nikki Freeman"),
-        ("Voy a por ello sin mirar atrás, sin dramas", "Miranda Priestly"),
+    ("En medio de una batalla campal, tu bando está a punto de perder. ¿Qué haces?", [
+        ("Doy la cara al frente, aunque sea yo solo contra todos", "Steve Rogers (Capitán América)"),
+        ("Lidero una última carga imposible, dando igual las probabilidades", "V"),
+        ("Cambio de bando en el peor momento posible, solo por ver las caras", "Joker"),
+        ("Convierto la derrota en el espectáculo más loco que se ha visto nunca", "Jinx"),
     ]),
-    ("¿Cómo prefieres pasar un fin de semana libre?", [
-        ("Organizando algo espectacular, aunque sea un caos", "Jinx"),
-        ("Tranquilo, con alguien especial, sin planes", "Sam Wheat"),
-        ("Trabajando en algo mío, mejorando algo", "Miranda Priestly"),
-        ("Al aire libre, lejos de la gente", "Katniss Everdeen"),
+    ("Descubres que la persona de la que te has enamorado en el trabajo esconde un secreto peligroso. ¿Qué haces?", [
+        ("Me da igual el secreto, no pienso alejarme de esa persona jamás", "Nikki Freeman"),
+        ("Lo guardo para mí y la protejo en silencio, aunque nunca llegue a saberlo", "Sam Wheat"),
+        ("Se lo pregunto directamente, prefiero la verdad incómoda a la duda", "Katniss Everdeen"),
+        ("Guardo el secreto — puede que me haga falta usarlo algún día", "Michael Corleone"),
     ]),
-    ("Un amigo te pide ayuda para algo que sabes que está mal. ¿Qué haces?", [
-        ("Le ayudo de todas formas, la lealtad va primero", "Harley Quinn"),
-        ("Le digo que no y le explico por qué", "Steve Rogers (Capitán América)"),
-        ("Le ayudo, pero me aseguro de que me deba una", "Michael Corleone"),
-        ("Le ayudo... y convierto el lío en algo aún más grande", "Jinx"),
+    ("Un rival profesional que te ha subestimado toda la vida te reta en público a demostrar quién vale más. ¿Qué haces?", [
+        ("Le devuelvo la humillación con resultados, no con palabras", "Elle Woods"),
+        ("Acepto el reto y me aseguro de que todos vean cómo pierde", "Miranda Priestly"),
+        ("Convierto el reto en un caos tan grande que hasta se olvida de por qué empezó", "Harley Quinn"),
+        ("Paso de él — no tengo nada que demostrarle a nadie", "V"),
     ]),
-    ("¿Qué tipo de final de película prefieres?", [
-        ("Agridulce, que se quede algo pendiente", "Mia Dolan"),
-        ("Feliz, aunque sea poco realista", "Elle Woods"),
-        ("Donde el amor gana pase lo que pase, aunque tenga que imponerse", "Nikki Freeman"),
-        ("Donde alguien lo sacrifique todo por una idea", "V"),
+    ("Estás en el juicio que va a decidir tu futuro, y tienes la última palabra ante el jurado. ¿Qué dices?", [
+        ("La verdad completa, aunque me condene a mí", "Katniss Everdeen"),
+        ("Justo lo que hace falta para ganar el caso, ni una palabra de más", "Miranda Priestly"),
+        ("Uso mi discurso para desmontar a todo el sistema desde dentro", "V"),
+        ("Convierto mi defensa en el momento más memorable de la sala — que rían o que lloren, pero que no lo olviden", "Jinx"),
     ]),
-    ("Estás en una discusión que sabes que vas a perder. ¿Qué haces?", [
-        ("Cedo, no merece la pena discutir por orgullo", "Elle Woods"),
-        ("Sigo hasta el final, aunque pierda", "V"),
-        ("No hay discusión que 'pierda' — insisto hasta que la otra persona cede", "Nikki Freeman"),
-        ("Dejo que crean que ganaron... por ahora", "Michael Corleone"),
+    ("Un amigo cercano te pide que le ayudes a hacer algo que sabes que va a acabar mal para los dos. ¿Qué haces?", [
+        ("Le ayudo de todas formas — la lealtad va antes que las consecuencias", "Harley Quinn"),
+        ("Le digo que no, y le explico exactamente por qué", "Steve Rogers (Capitán América)"),
+        ("Le ayudo, pero me aseguro de que me deba una grande", "Michael Corleone"),
+        ("Le ayudo... y lo convierto en algo todavía más grande de lo que pedía", "Jinx"),
     ]),
-    ("¿Qué te describe mejor cuando trabajas en equipo?", [
-        ("Soy quien mantiene la calma cuando todo se tuerce", "Steve Rogers (Capitán América)"),
-        ("Soy quien sube la energía de todos", "Jinx"),
-        ("Soy quien más curra, aunque nadie lo note", "Elle Woods"),
-        ("Soy quien toma las decisiones difíciles", "Michael Corleone"),
+    ("Todo sale mal en el peor segundo posible del momento más importante de tu vida (una boda, una final, un estreno). ¿Qué haces?", [
+        ("Improviso algo que nadie esperaba y me lo paso mejor así", "Harley Quinn"),
+        ("Sigo hasta el final aunque salga imperfecto, no pienso rendirme", "Mia Dolan"),
+        ("Me río del desastre — si no me río, me hundo", "Jinx"),
+        ("Lo convierto en parte del espectáculo, como si lo hubiera planeado así desde el principio", "Miranda Priestly"),
     ]),
-    ("Tienes que elegir entre decir una verdad incómoda o mantener la paz. ¿Qué eliges?", [
-        ("La verdad, siempre, aunque incomode", "Katniss Everdeen"),
-        ("La paz, hay batallas que no vale la pena pelear", "Sam Wheat"),
-        ("La verdad, pero la digo de la forma más directa posible", "Miranda Priestly"),
-        ("Ninguna de las dos, cambio las reglas del juego", "Joker"),
+    ("Alguien de tu propio equipo te traiciona en mitad de la misión más importante. ¿Cómo respondes?", [
+        ("Corto por lo sano, sin venganza ni dramas, y sigo adelante", "Katniss Everdeen"),
+        ("Nunca lo olvido, y algún día se lo hago pagar con calma", "Michael Corleone"),
+        ("Le doy una segunda oportunidad, aunque sé que no debería", "Harley Quinn"),
+        ("Lo convierto en un juego para ver qué más es capaz de hacer", "Joker"),
     ]),
-    ("¿Qué te haría más ilusión conseguir?", [
-        ("Que alguien crea en mí cuando nadie más lo hizo", "Elle Woods"),
-        ("Cambiar algo del sistema, aunque sea pequeño", "V"),
-        ("Ser imprescindible en lo mío", "Miranda Priestly"),
-        ("Vivir una historia de amor que valga la pena", "Mia Dolan"),
-    ]),
-    ("Alguien te traiciona. ¿Cómo respondes?", [
-        ("Corto por lo sano, sin venganza ni drama", "Katniss Everdeen"),
-        ("Nunca lo olvido, y algún día se lo recuerdo", "Michael Corleone"),
-        ("Le doy una segunda oportunidad, aunque no debería", "Harley Quinn"),
-        ("Lo convierto en un juego para ver qué más hace", "Joker"),
-    ]),
-    ("¿Qué es lo que más miedo te da?", [
-        ("Que no quede nadie que se acuerde de mí", "Sam Wheat"),
-        ("Convertirme en alguien que no reconozco", "Steve Rogers (Capitán América)"),
-        ("Perder el control de todo lo que he construido", "Miranda Priestly"),
-        ("Que se acabe la diversión", "Jinx"),
-    ]),
-    ("Ves a alguien haciendo bullying a otra persona. ¿Qué haces?", [
-        ("Intervengo directamente, ahí mismo", "Steve Rogers (Capitán América)"),
-        ("Ayudo a la víctima después, en privado", "Elle Woods"),
-        ("Me aseguro de que quien lo hizo lo pague, tarde o temprano", "Katniss Everdeen"),
-        ("Convierto la situación en un espectáculo que nadie olvide", "Jinx"),
-    ]),
-    ("¿Qué tipo de líder serías?", [
-        ("Uno que lidera con el ejemplo, sin buscar aplausos", "Steve Rogers (Capitán América)"),
-        ("Uno que inspira aunque dé miedo", "V"),
-        ("Uno que consigue resultados, guste o no", "Miranda Priestly"),
-        ("Uno impredecible, que nadie sabe qué esperar", "Joker"),
-    ]),
-    ("Te ofrecen un atajo fácil para conseguir lo que quieres, pero no del todo limpio. ¿Qué haces?", [
+    ("Tienes en las manos el plan perfecto para conseguir todo lo que siempre quisiste, pero el camino no es del todo limpio. ¿Qué haces?", [
         ("Lo rechazo, prefiero llegar despacio pero limpio", "Elle Woods"),
-        ("Lo cojo, los resultados hablan por sí solos", "Michael Corleone"),
-        ("Lo cojo sin dudarlo — si de verdad quiero algo, no me importa cómo conseguirlo", "Nikki Freeman"),
-        ("Lo rechazo, y encima se lo cuento a quien deba saberlo", "Katniss Everdeen"),
+        ("Lo cojo sin dudar — los resultados hablan por sí solos", "Michael Corleone"),
+        ("Lo cojo sin pensarlo dos veces — si de verdad quiero algo, no me importa cómo conseguirlo", "Nikki Freeman"),
+        ("Lo rechazo, y de paso aviso a quien debería saberlo", "Katniss Everdeen"),
     ]),
-    ("Si mañana desapareciera todo lo que has construido, ¿qué harías?", [
-        ("Empezar de cero, sin mirar atrás", "Mia Dolan"),
-        ("Reconstruirlo exactamente igual, más fuerte", "Miranda Priestly"),
-        ("Reírme, total, nada dura para siempre", "Jinx"),
-        ("Buscar a quien me importa antes que nada", "Sam Wheat"),
+    ("En la última escena de tu propia historia, ¿qué final eliges?", [
+        ("El agridulce, el que deja algo pendiente", "Mia Dolan"),
+        ("El feliz, aunque sea poco realista — me lo he ganado", "Elle Woods"),
+        ("El que hace que el amor gane pase lo que pase, aunque tenga que imponerse", "Nikki Freeman"),
+        ("El que hace que alguien lo sacrifique todo por una idea", "V"),
+    ]),
+    ("Diriges la reunión más tensa del año y algo sale terriblemente mal en directo delante de todos. ¿Qué haces?", [
+        ("Mantengo la calma como si nada — el pánico no ayuda a nadie", "Steve Rogers (Capitán América)"),
+        ("Subo la energía de la sala hasta que se olvidan de que algo iba mal", "Jinx"),
+        ("Sigo trabajando el doble para arreglarlo, aunque todavía nadie lo note", "Elle Woods"),
+        ("Tomo la decisión más dura sin pestañear — ya lidiaré con las quejas después", "Miranda Priestly"),
+    ]),
+    ("Descubres que podrías cambiar tu propio pasado, pero eso borraría a la persona en la que te has convertido. ¿Qué haces?", [
+        ("Lo dejo tal cual — no cambiaría nada de lo que me ha hecho quien soy", "V"),
+        ("Lo cambiaría todo con tal de recuperar a quien más quiero", "Sam Wheat"),
+        ("Lo dejo tal cual, y reconstruyo lo que se rompa por el camino, más fuerte que antes", "Miranda Priestly"),
+        ("Me da igual el pasado — lo único que importa es la próxima jugada", "Michael Corleone"),
+    ]),
+    ("En la persecución más importante de tu vida, tienes que elegir entre atrapar al culpable o salvar a un inocente en peligro. ¿Qué haces?", [
+        ("Salvo al inocente, siempre — el culpable puede esperar", "Steve Rogers (Capitán América)"),
+        ("Atrapo al culpable — es la única forma de que esto no vuelva a pasar", "Katniss Everdeen"),
+        ("Encuentro la forma de hacer las dos cosas, cueste lo que cueste", "Nikki Freeman"),
+        ("Uso el caos del momento a mi favor y desaparezco con lo que necesito", "Joker"),
+    ]),
+    ("Un mentor al que admirabas se revela como alguien completamente distinto a quien creías. ¿Qué haces?", [
+        ("Le doy la espalda sin mirar atrás — la decepción no admite segundas partes", "Katniss Everdeen"),
+        ("Sigo cerca, en silencio, procesándolo por dentro", "Sam Wheat"),
+        ("Lo uso para aprender exactamente cómo NO quiero acabar siendo", "Elle Woods"),
+        ("Me da igual quién sea de verdad — sigo el plan que ya tenía, con o sin él", "Michael Corleone"),
+    ]),
+    ("Si mañana desaparece de golpe todo lo que has construido hasta ahora, ¿qué haces?", [
+        ("Empiezo de cero, sin mirar atrás", "Mia Dolan"),
+        ("Lo reconstruyo exactamente igual, más fuerte que antes", "Miranda Priestly"),
+        ("Me río, total, nada dura para siempre", "Jinx"),
+        ("Busco a quien de verdad me importa antes que nada", "Sam Wheat"),
     ]),
 ]
 

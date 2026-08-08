@@ -15,6 +15,7 @@ urlpatterns = [
     path("perfil/ajustes/nombre-de-usuario/", views.change_username, name="change-username"),
     path("perfil/ajustes/animacion/", views.set_intro_animation, name="set-intro-animation"),
     path("perfil/ajustes/instalar-app/", views.toggle_pwa_prompt, name="toggle-pwa-prompt"),
+    path("perfil/ajustes/avisos-articulos/", views.toggle_email_new_articles, name="toggle-email-new-articles"),
     path("perfil/favoritas/<str:category>/", views.favorites_page, name="favorites-page"),
     path("perfil/favoritas/<str:category>/<str:media_type>/buscar/", views.favorite_search, name="favorite-search"),
     path("perfil/favoritas/<str:category>/<str:media_type>/anadir/<int:tmdb_id>/", views.favorite_add, name="favorite-add"),

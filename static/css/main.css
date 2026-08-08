@@ -600,6 +600,8 @@ main { flex: 1; }
 }
 .article-search input { flex: 1; }
 
+.bulk-delete-bar { margin-bottom: calc(var(--space-unit) * 3); }
+
 .article-card {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
@@ -607,7 +609,19 @@ main { flex: 1; }
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    position: relative;
 }
+.article-card__select-label {
+    position: absolute;
+    top: 0.6rem;
+    left: 0.6rem;
+    z-index: 1;
+    background: var(--color-surface);
+    border-radius: var(--radius-base);
+    padding: 0.3rem;
+    line-height: 0;
+}
+.article-card__select { width: 1.1rem; height: 1.1rem; cursor: pointer; }
 .article-card__cover-link { display: block; }
 .article-card__cover {
     width: 100%;

@@ -40,9 +40,28 @@
         {% endif %}
 
         {% if page_obj.object_list %}
-        <div class="article-grid" id="article-grid">
-            {% include "articles/_article_cards.html" %}
-        </div>
+        <form method="post" action="{% url 'articles:bulk-delete' %}" id="bulk-delete-form">
+            {% csrf_token %}
+            {% if user.is_authenticated %}
+            <div class="bulk-delete-bar">
+                <button type="submit" class="btn btn--ghost btn--sm" id="bulk-delete-button" disabled
+                        onclick="return confirm('¿Eliminar los artículos seleccionados?');">
+                    🗑️ Eliminar seleccionados
+                </button>
+            </div>
+            {% endif %}
+            <div class="article-grid" id="article-grid">
+                {% include "articles/_article_cards.html" %}
+            </div>
+        </form>
+        <script>
+            document.getElementById("bulk-delete-form").addEventListener("change", function (event) {
+                if (event.target.matches(".article-card__select")) {
+                    var any = this.querySelectorAll(".article-card__select:checked").length > 0;
+                    document.getElementById("bulk-delete-button").disabled = !any;
+                }
+            });
+        </script>
         {% else %}
         <p class="muted">
             {% if query %}Sin resultados para «{{ query }}».

@@ -680,7 +680,7 @@ class SeedPersonalityQuizCommandTests(TestCase):
         huérfanas, no dejarlos sueltos junto a los nuevos."""
         old_iron_man = PersonalityCharacter.objects.create(name="Tony Stark (Iron Man)", description="Viejo.")
         question = PersonalityQuestion.objects.create(
-            text="Tienes la oportunidad de conseguir lo que siempre quisiste, pero significa dejar atrás a alguien importante. ¿Qué haces?",
+            text="Un atraco perfecto se tuerce en el último segundo y un miembro del equipo se queda atrás. ¿Qué haces?",
         )
         PersonalityAnswer.objects.create(
             question=question, text="Busco la manera de tenerlo todo, aunque sea complicado", character=old_iron_man,

@@ -194,6 +194,14 @@ def toggle_pwa_prompt(request):
     return redirect("accounts:settings")
 
 
+@login_required
+@require_POST
+def toggle_email_new_articles(request):
+    request.user.email_notify_new_articles = not request.user.email_notify_new_articles
+    request.user.save(update_fields=["email_notify_new_articles"])
+    return redirect("accounts:settings")
+
+
 def _favorites_context(favorites):
     def group(category, media_type):
         return [f for f in favorites if f.category == category and f.movie.media_type == media_type]

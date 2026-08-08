@@ -1,6 +1,10 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
+from django.core.mail import send_mail
+from django.shortcuts import redirect, render
+from django.urls import path, reverse
 
+from .forms import BroadcastEmailForm
 from .models import EmailVerificationToken, FavoriteMovie, GoogleCalendarConnection, PushSubscription, User
 
 
@@ -38,7 +42,7 @@ class UserAdmin(DjangoUserAdmin):
         }),
     )
 
-    actions = ["banear_usuarios", "desbanear_usuarios"]
+    actions = ["banear_usuarios", "desbanear_usuarios", "enviar_email"]
 
     @admin.action(description="Banear usuarios seleccionados")
     def banear_usuarios(self, request, queryset):
@@ -53,6 +57,52 @@ class UserAdmin(DjangoUserAdmin):
             user.role = User.Role.LECTOR
             user.save()
         self.message_user(request, "Usuarios desbaneados.")
+
+    @admin.action(description="Enviar un email a los usuarios seleccionados")
+    def enviar_email(self, request, queryset):
+        # "Enviar a todos" no necesita nada especial: el propio changelist ya
+        # deja seleccionar "los N usuarios en todas las páginas" con el
+        # filtro/búsqueda que tengas puesto, así que esta misma acción sirve
+        # tanto para unos pocos concretos como para todos a la vez.
+        ids = ",".join(str(pk) for pk in queryset.values_list("pk", flat=True))
+        return redirect(f"{reverse('admin:accounts_user_send_email')}?ids={ids}")
+
+    def get_urls(self):
+        custom = [
+            path(
+                "enviar-email/",
+                self.admin_site.admin_view(self.send_email_view),
+                name="accounts_user_send_email",
+            ),
+        ]
+        return custom + super().get_urls()
+
+    def send_email_view(self, request):
+        ids = (request.POST if request.method == "POST" else request.GET).get("ids", "")
+        pks = [pk for pk in ids.split(",") if pk]
+        recipients = User.objects.filter(pk__in=pks).exclude(email="").order_by("email")
+
+        form = BroadcastEmailForm(request.POST if request.method == "POST" else None)
+        if request.method == "POST" and form.is_valid():
+            for recipient in recipients:
+                send_mail(
+                    subject=form.cleaned_data["subject"],
+                    message=form.cleaned_data["message"],
+                    from_email=None,
+                    recipient_list=[recipient.email],
+                )
+            self.message_user(request, f"Email enviado a {recipients.count()} usuario(s).")
+            return redirect("admin:accounts_user_changelist")
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Enviar email a usuarios",
+            "form": form,
+            "recipients": recipients,
+            "ids": ids,
+            "opts": self.model._meta,
+        }
+        return render(request, "admin/accounts/user/send_email.html", context)
 
 
 @admin.register(EmailVerificationToken)

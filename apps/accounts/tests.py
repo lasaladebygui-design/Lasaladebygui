@@ -294,6 +294,57 @@ class UsernameChangeTests(TestCase):
         self.assertEqual(self.user.username, "nick_viejo")
 
 
+class UserAdminBroadcastEmailTests(TestCase):
+    """Desde el admin de usuarios: seleccionar varios (o "todos" con el
+    enlace nativo de Django de seleccionar todas las páginas) y mandarles
+    un email desde una pantalla intermedia con asunto y mensaje."""
+
+    def setUp(self):
+        self.admin = User.objects.create(email="admin_broadcast@test.local", role=User.Role.ADMIN)
+        self.admin.set_password("Testpass123!")
+        self.admin.save()
+        self.user_a = User.objects.create(email="destino_a@test.local", role=User.Role.LECTOR)
+        self.user_b = User.objects.create(email="destino_b@test.local", role=User.Role.LECTOR)
+        self.client.login(username=self.admin.email, password="Testpass123!")
+
+    def test_la_accion_redirige_a_la_pantalla_de_envio_con_los_ids(self):
+        response = self.client.post(reverse("admin:accounts_user_changelist"), {
+            "action": "enviar_email",
+            "_selected_action": [self.user_a.pk, self.user_b.pk],
+        })
+        self.assertEqual(response.status_code, 302)
+        ids_param = response.url.split("ids=")[1]
+        self.assertEqual(set(ids_param.split(",")), {str(self.user_a.pk), str(self.user_b.pk)})
+
+    def test_la_pantalla_de_envio_lista_los_destinatarios(self):
+        url = reverse("admin:accounts_user_send_email") + f"?ids={self.user_a.pk},{self.user_b.pk}"
+        response = self.client.get(url)
+        self.assertContains(response, self.user_a.email)
+        self.assertContains(response, self.user_b.email)
+
+    def test_enviar_manda_un_email_a_cada_destinatario_seleccionado(self):
+        url = reverse("admin:accounts_user_send_email")
+        response = self.client.post(url, {
+            "ids": f"{self.user_a.pk},{self.user_b.pk}",
+            "subject": "Aviso importante",
+            "message": "Hola, esto es un aviso.",
+        })
+        self.assertRedirects(response, reverse("admin:accounts_user_changelist"))
+        self.assertEqual(len(mail.outbox), 2)
+        recipients = {sent.to[0] for sent in mail.outbox}
+        self.assertEqual(recipients, {self.user_a.email, self.user_b.email})
+        self.assertEqual(mail.outbox[0].subject, "Aviso importante")
+
+    def test_no_es_accesible_para_quien_no_es_staff(self):
+        self.client.logout()
+        lector = User.objects.create(email="lector_broadcast@test.local", role=User.Role.LECTOR)
+        lector.set_password("Testpass123!")
+        lector.save()
+        self.client.login(username=lector.email, password="Testpass123!")
+        response = self.client.get(reverse("admin:accounts_user_send_email") + f"?ids={self.user_a.pk}")
+        self.assertNotEqual(response.status_code, 200)
+
+
 class AchievementsTests(TestCase):
     def setUp(self):
         self.user = User.objects.create(

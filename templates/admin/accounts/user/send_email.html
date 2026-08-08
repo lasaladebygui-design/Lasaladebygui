@@ -1,0 +1,36 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls jazzmin %}
+{% get_jazzmin_ui_tweaks as jazzmin_ui %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+    &rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+    &rsaquo; Enviar email
+</div>
+{% endblock %}
+
+{% block content %}
+<p class="help">
+    Destinatarios: <strong>{{ recipients.count }}</strong> usuario(s).
+    {% if not recipients %}
+        <span style="color:#b00;">Ninguno tiene un email válido — vuelve al listado y selecciona usuarios primero.</span>
+    {% endif %}
+</p>
+<ul style="max-height:180px; overflow-y:auto; margin-bottom:1.5rem;">
+    {% for recipient in recipients %}
+    <li>{{ recipient.email }}{% if recipient.username %} ({{ recipient.username }}){% endif %}</li>
+    {% endfor %}
+</ul>
+
+<form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="ids" value="{{ ids }}">
+    {{ form.as_p }}
+    <div class="submit-row">
+        <input type="submit" value="Enviar" class="btn btn-sm {{ jazzmin_ui.button_classes.success }}"
+               {% if not recipients %}disabled{% endif %}>
+        <a href="{% url opts|admin_urlname:'changelist' %}" class="btn btn-sm {{ jazzmin_ui.button_classes.secondary }}">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

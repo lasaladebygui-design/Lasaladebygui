@@ -1,6 +1,11 @@
-{% load accounts_extras %}
+{% load accounts_extras articles_extras %}
 {% for article in page_obj %}
 <article class="article-card">
+    {% if article|can_delete:user %}
+    <label class="article-card__select-label">
+        <input type="checkbox" name="slugs" value="{{ article.slug }}" class="article-card__select">
+    </label>
+    {% endif %}
     <a href="{{ article.get_absolute_url }}" class="article-card__cover-link">
         {% if article.cover %}
             <img src="{{ article.cover.url }}" alt="" class="article-card__cover">
