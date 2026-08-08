@@ -3,16 +3,20 @@
 
 {# Botones en vez de desplegable: mismo mecanismo de Django por debajo (el
    <select> sigue ahí, solo oculto) — cada botón le pone su valor y dispara
-   el envío, así no hace falta reescribir nada del lado del servidor. #}
+   el envío, así no hace falta reescribir nada del lado del servidor. Los
+   botones solo se ven cuando hay algo seleccionado: antes de eso no hay
+   nada que hacer con ellos. #}
 <style>
-    .admin-action-buttons { display: inline-flex; flex-wrap: wrap; gap: 0.4rem; margin-right: 0.8rem; }
+    .admin-action-buttons-wrap { display: none; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin-right: 0.8rem; }
+    .admin-action-buttons-wrap--visible { display: inline-flex; }
 </style>
 <div class="actions">
     {% block actions %}
         {% block actions-form %}
             {% for field in action_form %}
                 {% if field.name == "action" %}
-                    <div class="admin-action-buttons">
+                    <div class="admin-action-buttons-wrap" id="admin-action-buttons-wrap">
+                        <span class="muted" style="margin-right:0.3rem;">Con los seleccionados:</span>
                         {% for value, label in field.field.choices %}
                             {% if value %}
                             <button type="button" class="btn btn-sm {{ jazzmin_ui.button_classes.secondary }} admin-action-buttons__btn" data-action-value="{{ value }}">{{ label }}</button>
@@ -45,16 +49,31 @@
     {% endblock %}
 </div>
 <script>
-document.addEventListener("click", function (event) {
-    var btn = event.target.closest(".admin-action-buttons__btn");
-    if (!btn) return;
-    var form = btn.closest("form");
-    var checked = form.querySelectorAll('input[name="_selected_action"]:checked');
-    if (!checked.length) {
-        alert("Selecciona al menos uno de la lista antes de elegir una acción.");
-        return;
+(function () {
+    function refresh() {
+        var form = document.getElementById("changelist-form");
+        var wrap = document.getElementById("admin-action-buttons-wrap");
+        if (!form || !wrap) return;
+        var any = form.querySelectorAll('input[name="_selected_action"]:checked').length > 0;
+        wrap.classList.toggle("admin-action-buttons-wrap--visible", any);
     }
-    form.querySelector('select[name="action"]').value = btn.dataset.actionValue;
-    document.getElementById("admin-action-go").click();
-});
+
+    document.addEventListener("DOMContentLoaded", refresh);
+    // "setTimeout 0" para leer el estado de las casillas ya actualizado,
+    // tanto si el clic fue en una fila como en "seleccionar todas".
+    document.addEventListener("click", function (event) {
+        if (event.target.closest("#action-toggle")) setTimeout(refresh, 0);
+    });
+    document.addEventListener("change", function (event) {
+        if (event.target.matches('input[name="_selected_action"]')) setTimeout(refresh, 0);
+    });
+
+    document.addEventListener("click", function (event) {
+        var btn = event.target.closest(".admin-action-buttons__btn");
+        if (!btn) return;
+        var form = btn.closest("form");
+        form.querySelector('select[name="action"]').value = btn.dataset.actionValue;
+        document.getElementById("admin-action-go").click();
+    });
+})();
 </script>

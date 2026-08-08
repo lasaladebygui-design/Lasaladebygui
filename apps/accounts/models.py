@@ -224,8 +224,12 @@ class EmailVerificationToken(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     used_at = models.DateTimeField(null=True, blank=True)
 
+    class Meta:
+        verbose_name = "enlace de verificación de email"
+        verbose_name_plural = "cuentas: enlaces de verificación de email"
+
     def __str__(self):
-        return f"Token de verificación de {self.user}"
+        return f"Enlace de verificación de {self.user}"
 
     @property
     def is_used(self):
@@ -245,11 +249,11 @@ class PushSubscription(models.Model):
     created_at = models.DateTimeField("creada", auto_now_add=True)
 
     class Meta:
-        verbose_name = "suscripción push"
-        verbose_name_plural = "suscripciones push"
+        verbose_name = "dispositivo con notificaciones activadas"
+        verbose_name_plural = "cuentas: dispositivos con notificaciones activadas"
 
     def __str__(self):
-        return f"Suscripción de {self.user}"
+        return f"Notificaciones activadas para {self.user}"
 
 
 class GoogleCalendarConnection(models.Model):

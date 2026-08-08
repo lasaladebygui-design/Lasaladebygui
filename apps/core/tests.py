@@ -402,6 +402,21 @@ class ThemeAdminFormTests(TestCase):
         response = self.client.get(reverse("admin:core_theme_change", args=[self.theme.pk]))
         self.assertNotContains(response, 'name="max_content_width"')
 
+    def test_hay_un_apartado_para_el_color_de_la_luz_del_proyector(self):
+        response = self.client.get(reverse("admin:core_theme_change", args=[self.theme.pk]))
+        self.assertContains(response, "Animación de inicio")
+        self.assertContains(response, 'name="color_intro_light"')
+        self.assertContains(response, 'type="color"')
+
+
+class IntroLightThemeTests(TestCase):
+    def test_theme_css_incluye_el_color_de_la_luz_del_proyector(self):
+        theme = Theme.objects.get(slug="cinephile")
+        self.client.post(reverse("core:set-theme", args=[theme.slug]))
+        response = self.client.get(reverse("theme-css"))
+        self.assertContains(response, "--color-intro-light")
+        self.assertContains(response, theme.color_intro_light)
+
 
 @override_settings(VAPID_PUBLIC_KEY="clave-publica", VAPID_PRIVATE_KEY="clave-privada")
 class PushHelperTests(TestCase):

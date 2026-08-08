@@ -23,6 +23,8 @@
     --color-danger: {{ theme.color_danger }};
     --color-success: {{ theme.color_success }};
 
+    --color-intro-light: {{ theme.color_intro_light }};
+
     --font-heading: {{ theme.font_heading }};
     --font-body: {{ theme.font_body }};
 

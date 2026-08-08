@@ -671,6 +671,24 @@ class SeedPersonalityQuizCommandTests(TestCase):
         self.assertTrue(PersonalityCharacter.objects.filter(name="Nikki Freeman").exists())
         self.assertFalse(PersonalityCharacter.objects.filter(name__icontains="Iron Man").exists())
         self.assertEqual(PersonalityCharacter.objects.count(), 12)
+        self.assertEqual(PersonalityQuestion.objects.count(), 18)
+
+    @override_settings(TMDB_API_KEY="")
+    def test_reejecutar_el_comando_no_duplica_preguntas(self):
+        # Bug real: al reescribir el texto de las 18 preguntas (a decisiones
+        # de película) se quedaban las 18 antiguas sueltas en la base de
+        # datos junto a las 18 nuevas — 36 en vez de 18. get_or_create por
+        # texto nunca las borra solo, hace falta podarlas explícitamente.
+        call_command("seed_personality_quiz")
+        call_command("seed_personality_quiz")
+        self.assertEqual(PersonalityQuestion.objects.count(), 18)
+
+    @override_settings(TMDB_API_KEY="")
+    def test_poda_preguntas_de_una_version_anterior_del_cuestionario(self):
+        old_question = PersonalityQuestion.objects.create(text="Un compañero de trabajo se lleva el mérito. ¿Qué haces?")
+        call_command("seed_personality_quiz")
+        self.assertFalse(PersonalityQuestion.objects.filter(pk=old_question.pk).exists())
+        self.assertEqual(PersonalityQuestion.objects.count(), 18)
 
     @override_settings(TMDB_API_KEY="")
     def test_poda_personajes_y_respuestas_de_repartos_anteriores(self):

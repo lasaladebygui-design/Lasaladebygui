@@ -205,6 +205,9 @@ class Command(BaseCommand):
             question, created = PersonalityQuestion.objects.get_or_create(text=text, defaults={"order": order})
             if created:
                 created_questions += 1
+            elif question.order != order:
+                question.order = order
+                question.save(update_fields=["order"])
             valid_answer_texts = set()
             for answer_order, (answer_text, character_name) in enumerate(answers):
                 valid_answer_texts.add(answer_text)
@@ -218,11 +221,21 @@ class Command(BaseCommand):
             # (mismo motivo: si no, se acumulan opciones de más).
             question.answers.exclude(text__in=valid_answer_texts).delete()
 
+        # Poda preguntas de versiones anteriores del cuestionario (p. ej. al
+        # reescribir todo el texto de las 18 preguntas a decisiones de
+        # película): si no, las viejas se quedan sueltas en la base de datos
+        # y el test acaba con 36 preguntas en vez de 18.
+        valid_question_texts = {text for text, _ in QUESTIONS}
+        removed_questions = PersonalityQuestion.objects.exclude(text__in=valid_question_texts)
+        removed_questions_count = removed_questions.count()
+        removed_questions.delete()
+
         images_updated = self._backfill_images(characters_by_name)
 
         self.stdout.write(self.style.SUCCESS(
             f"Seed de 'Qué personaje eres' completado: {created_characters} personajes, "
             f"{created_questions} preguntas, {created_answers} respuestas nuevas, "
-            f"{removed_characters_count} personajes obsoletos podados y "
+            f"{removed_characters_count} personajes obsoletos podados, "
+            f"{removed_questions_count} preguntas obsoletas podadas y "
             f"{images_updated} fotos de personajes actualizadas (el resto ya existía)."
         ))

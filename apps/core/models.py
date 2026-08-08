@@ -74,6 +74,11 @@ class Theme(models.Model):
     color_danger = hex_field("#EF4444", "color de error/baneo")
     color_success = hex_field("#22C55E", "color de éxito")
 
+    # Animación de inicio
+    color_intro_light = hex_field(
+        "#FFDFAF", "luz del proyector en la animación de inicio",
+    )
+
     # Tipografía
     font_heading = models.CharField(
         "fuente de titulares", max_length=200, default="'Playfair Display', Georgia, serif"

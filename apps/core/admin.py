@@ -10,6 +10,7 @@ COLOR_FIELDS = (
     "color_accent", "color_accent_hover", "color_on_accent",
     "color_accent_secondary", "color_accent_secondary_hover", "color_on_accent_secondary",
     "color_danger", "color_success",
+    "color_intro_light",
 )
 
 # Solo estas cuatro tipografías están cargadas de verdad en el sitio
@@ -63,6 +64,10 @@ class ThemeAdmin(ColorWidgetMixin, admin.ModelAdmin):
             "fields": ("color_accent_secondary", "color_accent_secondary_hover", "color_on_accent_secondary"),
         }),
         ("Estados", {"fields": ("color_danger", "color_success")}),
+        ("Animación de inicio", {
+            "fields": ("color_intro_light",),
+            "description": "Color de la luz del proyector que se ve un instante al entrar en la web, antes de que cargue el resto del tema.",
+        }),
         ("Tipografía", {"fields": ("font_heading", "font_body")}),
         ("Espaciados y forma", {"fields": ("space_unit", "radius_base")}),
     )
