@@ -32,7 +32,15 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 RENDER_EXTERNAL_HOSTNAME = env("RENDER_EXTERNAL_HOSTNAME", default=None)
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
-    CSRF_TRUSTED_ORIGINS = [f"https://{RENDER_EXTERNAL_HOSTNAME}"]
+
+# A partir de ALLOWED_HOSTS entero, no solo del hostname de Render: si el
+# sitio también se sirve desde un dominio propio (añadido a ALLOWED_HOSTS
+# por variable de entorno), sin esto los POST desde ese dominio —el login
+# incluido— fallan con "La verificación CSRF ha fallado" aunque el GET de
+# la misma página cargue bien (403 en vez de "host no permitido").
+CSRF_TRUSTED_ORIGINS = [
+    f"https://{host}" for host in ALLOWED_HOSTS if host not in ("localhost", "127.0.0.1")
+]
 
 # Render siempre define RENDER_EXTERNAL_HOSTNAME (no hace falta configurarlo
 # a mano): sirve para detectar "esto es un despliegue real" incluso si
