@@ -1,6 +1,7 @@
 from django.conf import settings
 
 from .models import SiteConfig, Theme, get_effective_theme
+from .notifications import unread_notifications_count
 
 
 def site_context(request):
@@ -17,4 +18,5 @@ def site_context(request):
         "all_themes": Theme.objects.filter(is_published=True),
         "vapid_public_key": settings.VAPID_PUBLIC_KEY,
         "show_intro_animation": show_intro_animation,
+        "unread_notifications_count": unread_notifications_count(user),
     }

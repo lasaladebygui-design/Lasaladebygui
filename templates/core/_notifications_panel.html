@@ -1,0 +1,17 @@
+{% if feed %}
+<ul class="notif-panel__list">
+    {% for item in feed %}
+    <li class="notif-panel__item">
+        <a href="{{ item.url|default:'#' }}" class="notif-panel__link">
+            <span class="notif-panel__icon">{{ item.icon }}</span>
+            <span class="notif-panel__body">
+                <span class="notif-panel__text">{{ item.text }}</span>
+                {% if item.detail %}<span class="notif-panel__detail">{{ item.detail }}</span>{% endif %}
+            </span>
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="notif-panel__empty muted">No hay nada nuevo por aquí.</p>
+{% endif %}

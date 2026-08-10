@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.contrib.staticfiles import finders
 from django.core.mail import EmailMessage
 from django.http import FileResponse, Http404, JsonResponse
@@ -12,7 +13,8 @@ from apps.articles.models import Article
 from apps.articles.permissions import can_manage_private_articles
 
 from .forms import ContactForm
-from .models import SESSION_THEME_KEY, ContactLink, SiteConfig, Theme, get_effective_theme
+from .models import SESSION_THEME_KEY, Announcement, ContactLink, SiteConfig, Theme, get_effective_theme
+from .notifications import notifications_feed
 
 
 def home(request):
@@ -20,6 +22,19 @@ def home(request):
     if not can_manage_private_articles(request.user):
         articles = articles.filter(is_private=False)
     return TemplateResponse(request, "core/home.html", {"featured_articles": articles[:5]})
+
+
+@login_required
+def notifications_panel(request):
+    """Contenido de la campanita — se pide por HTMX al abrir el
+    desplegable. Abrirlo ya marca como leídos los avisos del equipo
+    (Announcement, lo único que gestiona esta campanita de verdad); los
+    mensajes/solicitudes/artículos se marcan leídos donde ya se marcaban
+    antes (su propia página), esto solo enseña que los tienes pendientes."""
+    feed = notifications_feed(request.user)
+    for announcement in Announcement.objects.exclude(read_by=request.user):
+        announcement.read_by.add(request.user)
+    return render(request, "core/_notifications_panel.html", {"feed": feed})
 
 
 def donations(request):

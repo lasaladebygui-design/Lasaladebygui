@@ -15,7 +15,8 @@ from config.storage import supabase_public_domain
 
 from . import google_calendar as google_calendar_module
 from . import push as push_module
-from .models import SESSION_THEME_KEY, ContactLink, SiteConfig, Theme, get_effective_theme
+from .models import SESSION_THEME_KEY, Announcement, ContactLink, SiteConfig, Theme, get_effective_theme
+from .notifications import notifications_feed, unread_notifications_count
 
 
 class HomeTests(TestCase):
@@ -561,3 +562,80 @@ class TemplateCommentSyntaxTests(TestCase):
                         offenders.append(f"{path.relative_to(base_dir)}:{lineno}")
                     start = idx + 2
         self.assertEqual(offenders, [], f"Comentarios {{# #}} sin cerrar en la misma línea: {offenders}")
+
+
+def _make_user(email, role=None):
+    from apps.accounts.models import User as UserModel
+
+    user = UserModel(email=email, role=role or UserModel.Role.LECTOR)
+    user.set_password("Testpass123!")
+    user.save()
+    return user
+
+
+class NotificationsBellTests(TestCase):
+    """Campanita de la cabecera: agrega mensajes sin leer, solicitudes de
+    amistad, avisos del equipo (Announcement) y artículos nuevos que no has
+    visto — sin duplicar datos, cada cosa se sigue marcando como leída donde
+    ya se marcaba (menos Announcement, que es nuevo y se marca al abrir)."""
+
+    def setUp(self):
+        self.user = _make_user("campana@test.local")
+        self.other = _make_user("otra_persona@test.local")
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+    def test_sin_nada_pendiente_el_contador_es_cero(self):
+        self.assertEqual(unread_notifications_count(self.user), 0)
+
+    def test_un_mensaje_sin_leer_cuenta(self):
+        from apps.social.models import Message
+
+        Message.objects.create(sender=self.other, recipient=self.user, body="Hola")
+        self.assertEqual(unread_notifications_count(self.user), 1)
+        feed = notifications_feed(self.user)
+        self.assertEqual(feed[0]["kind"], "message")
+
+    def test_una_solicitud_de_amistad_pendiente_cuenta(self):
+        from apps.social.models import FriendRequest
+
+        FriendRequest.objects.create(from_user=self.other, to_user=self.user)
+        self.assertEqual(unread_notifications_count(self.user), 1)
+
+    def test_un_articulo_nuevo_que_no_has_visto_cuenta(self):
+        Article.objects.create(title="Recién publicado", body="<p>x</p>", author=self.other)
+        self.assertEqual(unread_notifications_count(self.user), 1)
+
+    def test_tu_propio_articulo_no_cuenta_como_pendiente(self):
+        Article.objects.create(title="Mío", body="<p>x</p>", author=self.user)
+        self.assertEqual(unread_notifications_count(self.user), 0)
+
+    def test_un_articulo_ya_visto_deja_de_contar(self):
+        from apps.articles.models import ArticleView
+
+        article = Article.objects.create(title="Visto", body="<p>x</p>", author=self.other)
+        ArticleView.objects.create(article=article, user=self.user)
+        self.assertEqual(unread_notifications_count(self.user), 0)
+
+    def test_un_aviso_del_equipo_cuenta_hasta_que_se_abre_el_panel(self):
+        Announcement.objects.create(title="Mantenimiento", body="El sábado a las 10.")
+        self.assertEqual(unread_notifications_count(self.user), 1)
+
+        response = self.client.get(reverse("core:notifications-panel"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Mantenimiento")
+
+        self.assertEqual(unread_notifications_count(self.user), 0)
+
+    def test_el_panel_de_avisos_requiere_login(self):
+        self.client.logout()
+        response = self.client.get(reverse("core:notifications-panel"))
+        self.assertNotEqual(response.status_code, 200)
+
+    def test_un_aviso_del_equipo_sale_en_el_admin_de_usuarios_al_crearlo(self):
+        admin = _make_user("admin_avisos@test.local", role=User.Role.ADMIN)
+        self.client.login(username=admin.email, password="Testpass123!")
+        self.client.post(reverse("admin:core_announcement_add"), {
+            "title": "Aviso de prueba", "body": "Cuerpo", "url": "",
+        })
+        announcement = Announcement.objects.get(title="Aviso de prueba")
+        self.assertEqual(announcement.created_by, admin)

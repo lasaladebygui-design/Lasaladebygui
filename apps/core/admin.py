@@ -2,7 +2,7 @@ from django import forms
 from django.contrib import admin
 from django.shortcuts import redirect
 
-from .models import ContactLink, SiteConfig, Theme
+from .models import Announcement, ContactLink, SiteConfig, Theme
 
 COLOR_FIELDS = (
     "color_bg", "color_surface", "color_border",
@@ -115,3 +115,29 @@ class ContactLinkAdmin(admin.ModelAdmin):
     list_display = ("platform", "label", "url", "order")
     list_editable = ("order",)
     list_filter = ("platform",)
+
+
+@admin.register(Announcement)
+class AnnouncementAdmin(admin.ModelAdmin):
+    """Enviar un aviso ES publicarlo aquí: en cuanto se guarda, sale para
+    todo el mundo en la campanita de la cabecera — no hace falta elegir
+    destinatarios ni nada más. Para que llegue por email en vez de (o además
+    de) esto, usa "Enviar un email" en el admin de usuarios."""
+
+    list_display = ("title", "created_by", "created_at", "read_count")
+    readonly_fields = ("created_at",)
+    fields = ("title", "body", "url", "created_at")
+
+    @admin.display(description="leído por")
+    def read_count(self, obj):
+        return obj.read_by.count()
+
+    def get_changeform_initial_data(self, request):
+        initial = super().get_changeform_initial_data(request)
+        initial.setdefault("created_by", request.user.pk)
+        return initial
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)

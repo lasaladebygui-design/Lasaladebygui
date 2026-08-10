@@ -26,6 +26,7 @@
     <script>window.BYGUI_HIDE_PWA_PROMPT = {% if user.is_authenticated and user.hide_pwa_install_prompt %}true{% else %}false{% endif %};</script>
     <script src="{% static 'js/pwa_install.js' %}"></script>
     {% if user.is_authenticated %}<script src="{% static 'js/push_subscribe.js' %}"></script>{% endif %}
+    {% if user.is_authenticated %}<script src="{% static 'js/notif_bell.js' %}"></script>{% endif %}
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
     <script>
@@ -102,6 +103,16 @@
                 </a>
 
                 {% if user.is_authenticated %}
+                    <div class="notif-bell" x-data="notifBell()">
+                        <button type="button" class="notif-bell__toggle" @click="toggle()" @click.outside="open = false" :aria-expanded="open.toString()" title="Avisos">
+                            <span aria-hidden="true">🔔</span>
+                            {% if unread_notifications_count %}
+                            <span class="notif-bell__badge">{{ unread_notifications_count }}</span>
+                            {% endif %}
+                            <span class="visually-hidden">Avisos</span>
+                        </button>
+                        <div class="notif-bell__menu" x-show="open" x-cloak x-transition x-html="html"></div>
+                    </div>
                     <a href="{% url 'accounts:profile' %}" class="header-profile">
                         {% if user.avatar %}
                             <img src="{{ user.avatar.url }}" alt="" class="header-profile__avatar">

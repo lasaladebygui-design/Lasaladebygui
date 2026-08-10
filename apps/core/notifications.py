@@ -1,0 +1,98 @@
+"""Campanita de la cabecera: agrega en un único sitio los avisos que ya
+existían repartidos por la web (mensajes sin leer, solicitudes de amistad,
+artículos nuevos que no has visto) más los avisos que publique el equipo
+(Announcement) — sin duplicar ningún dato, cada cosa sigue viviendo donde
+ya vivía, esto solo la reúne para enseñarla junta."""
+
+from datetime import timedelta
+
+from django.urls import reverse
+from django.utils import timezone
+
+from .models import Announcement
+
+RECENT_ARTICLES_DAYS = 30
+
+
+def _unseen_articles(user):
+    from apps.articles.models import Article, ArticleView
+    from apps.articles.permissions import can_manage_private_articles
+
+    articles = Article.objects.exclude(
+        pk__in=ArticleView.objects.filter(user=user).values("article_id")
+    ).exclude(author=user)
+    if not can_manage_private_articles(user):
+        articles = articles.filter(is_private=False)
+    cutoff = timezone.now() - timedelta(days=RECENT_ARTICLES_DAYS)
+    return articles.filter(created_at__gte=cutoff)
+
+
+def unread_notifications_count(user):
+    if user is None or not user.is_authenticated:
+        return 0
+
+    from apps.social.models import FriendRequest, Message
+
+    count = 0
+    count += Message.objects.filter(recipient=user, read_at__isnull=True).count()
+    count += FriendRequest.objects.filter(to_user=user, accepted=False).count()
+    count += Announcement.objects.exclude(read_by=user).count()
+    count += _unseen_articles(user).count()
+    return count
+
+
+def notifications_feed(user, limit_per_category=5):
+    if user is None or not user.is_authenticated:
+        return []
+
+    from apps.social.models import FriendRequest, Message
+
+    items = []
+
+    unread_messages = (
+        Message.objects.filter(recipient=user, read_at__isnull=True)
+        .select_related("sender").order_by("-created_at")[:limit_per_category]
+    )
+    for msg in unread_messages:
+        items.append({
+            "kind": "message", "icon": "💬",
+            "text": f"{msg.sender} te ha escrito",
+            "detail": msg.body[:80],
+            "url": reverse("social:conversation", args=[msg.sender.username]),
+            "created_at": msg.created_at,
+        })
+
+    pending_requests = (
+        FriendRequest.objects.filter(to_user=user, accepted=False)
+        .select_related("from_user").order_by("-created_at")[:limit_per_category]
+    )
+    for fr in pending_requests:
+        items.append({
+            "kind": "friend_request", "icon": "🧑‍🤝‍🧑",
+            "text": f"{fr.from_user} quiere ser tu amigo",
+            "detail": "",
+            "url": reverse("social:friends"),
+            "created_at": fr.created_at,
+        })
+
+    announcements = Announcement.objects.exclude(read_by=user).order_by("-created_at")[:limit_per_category]
+    for ann in announcements:
+        items.append({
+            "kind": "announcement", "icon": "📣",
+            "text": ann.title,
+            "detail": ann.body[:80],
+            "url": ann.url,
+            "created_at": ann.created_at,
+        })
+
+    for article in _unseen_articles(user).order_by("-created_at")[:limit_per_category]:
+        items.append({
+            "kind": "article", "icon": "📰",
+            "text": f"Nuevo artículo: {article.title}",
+            "detail": "",
+            "url": article.get_absolute_url(),
+            "created_at": article.created_at,
+        })
+
+    items.sort(key=lambda item: item["created_at"], reverse=True)
+    return items

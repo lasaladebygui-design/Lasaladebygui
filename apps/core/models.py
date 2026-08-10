@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.validators import RegexValidator
 from django.db import models
 
@@ -221,6 +222,36 @@ class ContactLink(models.Model):
     @property
     def icon(self):
         return self.PLATFORM_ICONS.get(self.platform, "🔗")
+
+
+class Announcement(models.Model):
+    """Aviso corto del equipo, visible para todos en la campanita de la
+    cabecera hasta que cada usuario lo marca como leído (al abrir el
+    desplegable) — pensado para avisos rápidos que no necesitan llegar al
+    correo (para eso está "Enviar un email" en el admin de usuarios)."""
+
+    title = models.CharField("título", max_length=120)
+    body = models.TextField("mensaje", blank=True)
+    url = models.CharField(
+        "enlace", max_length=300, blank=True,
+        help_text="Opcional — a dónde lleva al pulsarlo. Puede ser una ruta interna (/articulos/) o una URL completa.",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="publicado por",
+        on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    created_at = models.DateTimeField("publicado", auto_now_add=True)
+    read_by = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, verbose_name="leído por", blank=True, related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "aviso"
+        verbose_name_plural = "Sitio: avisos"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title
 
 
 SESSION_THEME_KEY = "theme_slug"
