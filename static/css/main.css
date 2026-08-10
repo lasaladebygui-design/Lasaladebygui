@@ -1031,34 +1031,75 @@ main { flex: 1; }
     font: inherit;
 }
 
-.roulette-machine { margin-top: calc(var(--space-unit) * 8); }
-.reel-window {
+/* Ruleta tipo tragaperras: 3 tiras que giran por separado y frenan en
+   momentos distintos, todas acabando en el mismo cartel — marco con luces
+   de marquesina persiguiéndose y una línea de pago cruzando el centro,
+   como una máquina de verdad. Ver static/js/roulette.js. */
+.slot-machine { margin-top: calc(var(--space-unit) * 8); }
+
+.slot-machine__lights {
+    display: flex;
+    justify-content: space-between;
+    max-width: 420px;
+    margin: 0 auto 0.6rem;
+    padding-inline: 0.6rem;
+}
+.slot-machine__lights span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-accent-secondary);
+    box-shadow: 0 0 6px 1px var(--color-accent-secondary);
+    animation: slot-lights-chase 1.2s ease-in-out infinite;
+}
+.slot-machine__lights span:nth-child(even) { animation-delay: 0.4s; }
+@keyframes slot-lights-chase { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+
+.slot-machine__reels {
     position: relative;
-    width: 220px;
-    aspect-ratio: 2 / 3;
+    display: flex;
+    justify-content: center;
+    gap: calc(var(--space-unit) * 3);
+    padding: calc(var(--space-unit) * 4) calc(var(--space-unit) * 3);
+    max-width: 420px;
     margin-inline: auto;
     border-radius: var(--radius-base);
-    overflow: hidden;
-    border: 2px solid var(--color-accent-secondary);
-    background: var(--color-surface);
-    box-shadow: 0 0 0 4px var(--color-bg), 0 8px 24px rgba(0,0,0,.35);
+    background: linear-gradient(180deg, var(--color-surface), var(--color-bg));
+    border: 3px solid var(--color-accent-secondary);
+    box-shadow: 0 0 0 4px var(--color-bg), 0 10px 30px rgba(0,0,0,.4), inset 0 0 20px rgba(0,0,0,.5);
 }
-.reel-window__poster {
+
+.slot-reel {
+    position: relative;
+    width: 96px;
+    aspect-ratio: 2 / 3;
+    border-radius: calc(var(--radius-base) - 2px);
+    overflow: hidden;
+    background: var(--color-bg);
+    box-shadow: inset 0 4px 8px rgba(0,0,0,.5), inset 0 -4px 8px rgba(0,0,0,.5);
+}
+.slot-reel__poster {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: filter 0.15s ease;
 }
-.reel-window__shine {
+.slot-reel--spinning .slot-reel__poster { filter: blur(3px) brightness(0.85); }
+
+.slot-machine__payline {
     position: absolute;
-    inset: 0;
-    background: repeating-linear-gradient(
-        180deg, transparent 0, transparent 8px, rgba(255,255,255,.08) 8px, rgba(255,255,255,.08) 10px
-    );
-    animation: reel-scroll 0.15s linear infinite;
+    left: 5%;
+    right: 5%;
+    top: 50%;
+    height: 2px;
+    background: var(--color-danger);
+    box-shadow: 0 0 8px 1px var(--color-danger);
+    transform: translateY(-50%);
+    pointer-events: none;
+    opacity: 0.85;
 }
-@keyframes reel-scroll { from { transform: translateY(0); } to { transform: translateY(18px); } }
 
 .roulette-result { margin-top: calc(var(--space-unit) * 6); }
 .movie-card--result {
@@ -2255,7 +2296,8 @@ main { flex: 1; }
     .movie-detail { grid-template-columns: 1fr; }
     .movie-detail__poster { max-width: 220px; margin-inline: auto; }
     .rating-form__row { flex-direction: column; gap: calc(var(--space-unit) * 4); }
-    .reel-window { width: 170px; }
+    .slot-reel { width: 76px; }
+    .slot-machine__reels { gap: calc(var(--space-unit) * 2); padding: calc(var(--space-unit) * 3) calc(var(--space-unit) * 2); }
     .movie-card--result { flex-direction: column; max-width: 260px; }
     .movie-card--result .movie-card__poster { width: 100%; }
     .strip-card--link { flex-direction: column; align-items: flex-start; }

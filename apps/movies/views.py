@@ -14,6 +14,7 @@ from .models import Movie, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, Sa
 from .services import MovieAPIError, tmdb_search
 
 SPIN_DECOYS = 5
+SPIN_REELS = 3
 MEDIA_TYPES = ("movie", "tv", "all")
 
 
@@ -27,11 +28,18 @@ def _media_type_from_request(request):
 
 
 def _build_reel(final_movie, decoy_pool):
-    decoys = [m for m in decoy_pool if m.pk != final_movie.pk]
-    random.shuffle(decoys)
-    decoys = decoys[:SPIN_DECOYS] or [final_movie] * SPIN_DECOYS
-    reel = decoys + [final_movie]
-    return json.dumps([m.poster_url or "" for m in reel])
+    """Tres tiras (tipo tragaperras) que giran por separado y acaban todas
+    en el mismo cartel — cada una baraja sus propios señuelos, así no se ven
+    tres tiras idénticas girando a la vez."""
+    others = [m for m in decoy_pool if m.pk != final_movie.pk]
+    reels = []
+    for _ in range(SPIN_REELS):
+        decoys = list(others)
+        random.shuffle(decoys)
+        decoys = decoys[:SPIN_DECOYS] or [final_movie] * SPIN_DECOYS
+        reel = decoys + [final_movie]
+        reels.append([m.poster_url or "" for m in reel])
+    return json.dumps(reels)
 
 
 # --- Catálogo y votación ----------------------------------------------------

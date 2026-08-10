@@ -1,3 +1,4 @@
+import json
 from unittest.mock import patch
 
 from django.test import TestCase, override_settings
@@ -318,8 +319,16 @@ class RouletteRatingTests(TestCase):
         # carrusel/cartel nunca llegaba a mostrarse. Debe ir en comillas simples.
         response = self.client.post(reverse("movies:roulette-rating"), {"min_rating": 7, "max_rating": 9})
         content = response.content.decode()
-        self.assertIn("roulette-machine\" x-data='{", content)
-        self.assertNotIn('roulette-machine" x-data="{', content)
+        self.assertIn("slot-machine\" x-data='slotSpin(", content)
+        self.assertNotIn('slot-machine" x-data="slotSpin(', content)
+
+    def test_la_tragaperras_tiene_tres_tiras_que_acaban_en_el_mismo_cartel(self):
+        response = self.client.post(reverse("movies:roulette-rating"), {"min_rating": 7, "max_rating": 9})
+        parsed = json.loads(response.context["reel_json"])
+        self.assertEqual(len(parsed), 3)
+        result_poster = response.context["result"].poster_url or ""
+        for reel in parsed:
+            self.assertEqual(reel[-1], result_poster)
 
 
 class RouletteListTests(TestCase):

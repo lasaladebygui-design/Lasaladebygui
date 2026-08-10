@@ -1,21 +1,21 @@
+{% load static %}
 {% if reel_json %}
-<div class="roulette-machine" x-data='{
-    posters: {{ reel_json|safe }},
-    index: 0,
-    spinning: true,
-    init() {
-        const iv = setInterval(() => { this.index = (this.index + 1) % this.posters.length }, 110);
-        setTimeout(() => { clearInterval(iv); this.index = this.posters.length - 1; this.spinning = false; }, 1300);
-    }
-}'>
-    <div class="reel-window">
-        <template x-for="(poster, i) in posters" :key="i">
-            <img :src="poster || ''" x-show="index === i" x-cloak class="reel-window__poster" alt="">
+<div class="slot-machine" x-data='slotSpin({{ reel_json|safe }})' x-init="init()">
+    <div class="slot-machine__lights">
+        <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <div class="slot-machine__reels">
+        <template x-for="(posters, r) in reels" :key="r">
+            <div class="slot-reel" :class="{ 'slot-reel--spinning': spinning[r] }">
+                <template x-for="(poster, i) in posters" :key="i">
+                    <img :src="poster || ''" x-show="indices[r] === i" x-cloak class="slot-reel__poster" alt="">
+                </template>
+            </div>
         </template>
-        <div class="reel-window__shine" x-show="spinning" x-cloak></div>
+        <div class="slot-machine__payline"></div>
     </div>
 
-    <div x-show="!spinning" x-cloak x-transition class="roulette-result">
+    <div x-show="allStopped" x-cloak x-transition class="roulette-result">
         <div class="movie-card movie-card--result">
             {% if result.poster_url %}
                 <img src="{{ result.poster_url }}" alt="" class="movie-card__poster">
@@ -28,4 +28,5 @@
         </div>
     </div>
 </div>
+<script src="{% static 'js/roulette.js' %}"></script>
 {% endif %}
