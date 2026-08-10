@@ -7,6 +7,7 @@ from django.core.paginator import Paginator
 from django.db.models import Max, Q
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse
 
 from .forms import MovieSearchForm, RatingRangeForm, VoteForm
@@ -110,12 +111,19 @@ def movie_detail(request, pk):
     movie = get_object_or_404(Movie, pk=pk)
     user_vote = None
     is_saved = False
+    saved_lists = []
+    current_list_ids = set()
     if request.user.is_authenticated:
         user_vote = Vote.objects.filter(movie=movie, user=request.user).first()
         is_saved = SavedMovie.objects.filter(movie=movie, user=request.user).exists()
+        saved_lists = SavedMovieList.objects.filter(user=request.user)
+        current_list_ids = set(
+            SavedMovie.objects.filter(movie=movie, user=request.user).values_list("sublists__pk", flat=True)
+        )
     vote_form = VoteForm(initial={"score": user_vote.score if user_vote else None})
     return render(request, "movies/detail.html", {
         "movie": movie, "vote_form": vote_form, "user_vote": user_vote, "is_saved": is_saved,
+        "saved_lists": saved_lists, "current_list_ids": current_list_ids,
     })
 
 
@@ -130,6 +138,37 @@ def movie_save_toggle(request, pk):
         else:
             messages.success(request, "¡Guardada en tus películas!")
     return redirect("movies:detail", pk=movie.pk)
+
+
+@login_required
+def movie_save_lists(request, pk):
+    """Marcar en qué listas está una guardada, directamente desde su ficha
+    (no solo desde 'Guardadas') — guardarla y añadirla a listas es un único
+    paso: marcar una casilla ya la guarda si no lo estaba todavía. Solo
+    aparece si ya tienes alguna lista creada, así no estorba a quien no usa
+    listas."""
+    movie = get_object_or_404(Movie, pk=pk)
+    just_saved = False
+    if request.method == "POST":
+        saved, created = SavedMovie.objects.get_or_create(movie=movie, user=request.user)
+        just_saved = created
+        list_ids = request.POST.getlist("sublists")
+        saved.sublists.set(SavedMovieList.objects.filter(user=request.user, pk__in=list_ids))
+
+    saved_lists = SavedMovieList.objects.filter(user=request.user)
+    current_list_ids = set(
+        SavedMovie.objects.filter(movie=movie, user=request.user).values_list("sublists__pk", flat=True)
+    )
+    menu_html = render_to_string("movies/_save_lists_menu.html", {
+        "movie": movie, "saved_lists": saved_lists, "current_list_ids": current_list_ids,
+    }, request=request)
+    if just_saved:
+        # Marcar una lista guarda la película de paso si no lo estaba —
+        # el botón "Guardar película" de al lado tiene que reflejarlo,
+        # por eso este trozo extra "fuera de banda" (hx-swap-oob) además
+        # del propio desplegable de listas.
+        menu_html += render_to_string("movies/_save_toggle_oob.html", {}, request=request)
+    return HttpResponse(menu_html)
 
 
 @login_required

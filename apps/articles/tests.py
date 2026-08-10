@@ -6,7 +6,7 @@ from django.urls import reverse
 
 from apps.accounts.models import PushSubscription, User
 
-from .models import Article, Tag
+from .models import Article, ArticleIdea, Tag
 
 
 def make_user(email, role):
@@ -380,3 +380,25 @@ class NewArticleEmailTests(TestCase):
         })
         article = Article.objects.get(title="Publicado pese al fallo de email")
         self.assertRedirects(response, article.get_absolute_url())
+
+
+class ArticleIdeaAdminTests(TestCase):
+    """Cuaderno de ideas para futuros artículos, desde el admin."""
+
+    def setUp(self):
+        self.admin = make_user("admin_ideas@test.local", User.Role.ADMIN)
+        self.client.login(username=self.admin.email, password="Testpass123!")
+
+    def test_crear_una_idea_apunta_quien_la_escribio(self):
+        self.client.post(reverse("admin:articles_articleidea_add"), {
+            "text": "Las mejores escenas de persecución de los 80", "notes": "", "is_done": "",
+        })
+        idea = ArticleIdea.objects.get(text="Las mejores escenas de persecución de los 80")
+        self.assertEqual(idea.created_by, self.admin)
+        self.assertFalse(idea.is_done)
+
+    def test_se_puede_marcar_como_ya_escrita_desde_el_listado(self):
+        idea = ArticleIdea.objects.create(text="Ranking de finales de saga", created_by=self.admin)
+        response = self.client.get(reverse("admin:articles_articleidea_changelist"))
+        self.assertContains(response, "Ranking de finales de saga")
+        self.assertContains(response, 'name="form-0-is_done"')

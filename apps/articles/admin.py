@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Article, ArticleComment, ArticleView, Tag
+from .models import Article, ArticleComment, ArticleIdea, ArticleView, Tag
 
 
 @admin.register(Tag)
@@ -51,6 +51,29 @@ class ArticleCommentAdmin(admin.ModelAdmin):
     list_display = ("article", "author", "created_at")
     list_filter = ("created_at",)
     search_fields = ("body", "author__email")
+
+
+@admin.register(ArticleIdea)
+class ArticleIdeaAdmin(admin.ModelAdmin):
+    """Cuaderno de ideas: un sitio para apuntar temas de futuros artículos
+    sin tener que escribirlos ya — marcar "ya escrito" cuando se use."""
+
+    list_display = ("text", "is_done", "created_by", "created_at")
+    list_editable = ("is_done",)
+    list_filter = ("is_done",)
+    search_fields = ("text", "notes")
+    fields = ("text", "notes", "is_done", "created_at")
+    readonly_fields = ("created_at",)
+
+    def get_changeform_initial_data(self, request):
+        initial = super().get_changeform_initial_data(request)
+        initial.setdefault("created_by", request.user.pk)
+        return initial
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(ArticleView)

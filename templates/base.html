@@ -105,7 +105,7 @@
                 {% if user.is_authenticated %}
                     <div class="notif-bell" x-data="notifBell()">
                         <button type="button" class="notif-bell__toggle" @click="toggle()" @click.outside="open = false" :aria-expanded="open.toString()" title="Avisos">
-                            <span aria-hidden="true">🔔</span>
+                            <span aria-hidden="true">📰</span>
                             {% if unread_notifications_count %}
                             <span class="notif-bell__badge">{{ unread_notifications_count }}</span>
                             {% endif %}

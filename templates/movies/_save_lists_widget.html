@@ -1,0 +1,10 @@
+{% if saved_lists %}
+<div class="save-lists" x-data="{ open: false }">
+    <button type="button" class="save-lists__toggle" @click="open = !open" @click.outside="open = false" :aria-expanded="open.toString()" title="Añadir a listas">
+        📋 <span class="visually-hidden">Añadir a listas</span>
+    </button>
+    <div class="save-lists__menu" x-show="open" x-cloak x-transition>
+        {% include "movies/_save_lists_menu.html" %}
+    </div>
+</div>
+{% endif %}

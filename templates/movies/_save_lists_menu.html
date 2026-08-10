@@ -1,0 +1,9 @@
+<form id="save-lists-menu" hx-post="{% url 'movies:save-lists' movie.pk %}" hx-target="#save-lists-menu" hx-swap="outerHTML" hx-trigger="change">
+    {% csrf_token %}
+    {% for list in saved_lists %}
+    <label class="save-lists__option">
+        <input type="checkbox" name="sublists" value="{{ list.pk }}" {% if list.pk in current_list_ids %}checked{% endif %}>
+        {{ list.name }}
+    </label>
+    {% endfor %}
+</form>

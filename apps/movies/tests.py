@@ -198,6 +198,55 @@ class SavedMovieTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
 
+class MovieSaveListsWidgetTests(TestCase):
+    """Marcar listas directamente desde la ficha de la película — al lado
+    del botón de guardar, sin estorbar a quien no tiene listas creadas."""
+
+    def setUp(self):
+        self.user = make_user("con_listas@test.local")
+        self.movie = make_movie(1, "Movie A", "8.0")
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+    def test_sin_listas_creadas_no_sale_el_selector(self):
+        response = self.client.get(reverse("movies:detail", args=[self.movie.pk]))
+        self.assertNotContains(response, "save-lists__toggle")
+
+    def test_con_listas_creadas_sale_el_selector(self):
+        SavedMovieList.objects.create(user=self.user, name="Terror")
+        response = self.client.get(reverse("movies:detail", args=[self.movie.pk]))
+        self.assertContains(response, "save-lists__toggle")
+        self.assertContains(response, "Terror")
+
+    def test_marcar_una_lista_guarda_la_pelicula_si_no_lo_estaba(self):
+        lista = SavedMovieList.objects.create(user=self.user, name="Terror")
+        self.client.post(reverse("movies:save-lists", args=[self.movie.pk]), {"sublists": [lista.pk]})
+        saved = SavedMovie.objects.get(user=self.user, movie=self.movie)
+        self.assertIn(lista, saved.sublists.all())
+
+    def test_desmarcar_todas_deja_la_pelicula_guardada_sin_listas(self):
+        lista = SavedMovieList.objects.create(user=self.user, name="Terror")
+        saved = SavedMovie.objects.create(user=self.user, movie=self.movie)
+        saved.sublists.add(lista)
+
+        self.client.post(reverse("movies:save-lists", args=[self.movie.pk]), {})
+
+        saved.refresh_from_db()
+        self.assertTrue(SavedMovie.objects.filter(pk=saved.pk).exists())
+        self.assertEqual(list(saved.sublists.all()), [])
+
+    def test_no_se_pueden_usar_listas_ajenas(self):
+        other_user = make_user("otra_persona_listas@test.local")
+        ajena = SavedMovieList.objects.create(user=other_user, name="Ajena")
+        self.client.post(reverse("movies:save-lists", args=[self.movie.pk]), {"sublists": [ajena.pk]})
+        saved = SavedMovie.objects.get(user=self.user, movie=self.movie)
+        self.assertEqual(list(saved.sublists.all()), [])
+
+    def test_anonimo_no_puede_usar_el_selector(self):
+        self.client.logout()
+        response = self.client.post(reverse("movies:save-lists", args=[self.movie.pk]), {})
+        self.assertIn("/cuenta/login/", response.url)
+
+
 class SavedMovieSublistTests(TestCase):
     def setUp(self):
         self.user = make_user("sublistas@test.local")

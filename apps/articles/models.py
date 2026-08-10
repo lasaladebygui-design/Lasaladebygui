@@ -104,3 +104,26 @@ class ArticleView(models.Model):
 
     def __str__(self):
         return f"{self.user} vio «{self.article}»"
+
+
+class ArticleIdea(models.Model):
+    """Cuaderno de ideas para futuros artículos — solo un apunte rápido del
+    tema, no un borrador; escribir el artículo de verdad se sigue haciendo
+    desde "Añadir artículo" cuando llegue el momento."""
+
+    text = models.CharField("idea", max_length=200)
+    notes = models.TextField("notas", blank=True)
+    is_done = models.BooleanField("ya escrito", default=False)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="apuntada por",
+        on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    created_at = models.DateTimeField("apuntada", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "idea de artículo"
+        verbose_name_plural = "Artículos: ideas"
+        ordering = ["is_done", "-created_at"]
+
+    def __str__(self):
+        return self.text
