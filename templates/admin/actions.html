@@ -1,11 +1,13 @@
 {% load i18n jazzmin %}
 {% get_jazzmin_ui_tweaks as jazzmin_ui %}
 
-{# Botones en vez de desplegable: mismo mecanismo de Django por debajo (el
-   <select> sigue ahí, solo oculto) — cada botón le pone su valor y dispara
-   el envío, así no hace falta reescribir nada del lado del servidor. Los
-   botones solo se ven cuando hay algo seleccionado: antes de eso no hay
-   nada que hacer con ellos. #}
+{% comment %}
+Botones en vez de desplegable: mismo mecanismo de Django por debajo (el
+<select> sigue ahí, solo oculto) — cada botón le pone su valor y dispara
+el envío, así no hace falta reescribir nada del lado del servidor. Los
+botones solo se ven cuando hay algo seleccionado: antes de eso no hay
+nada que hacer con ellos.
+{% endcomment %}
 <style>
     .admin-action-buttons-wrap { display: none; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin-right: 0.8rem; }
     .admin-action-buttons-wrap--visible { display: inline-flex; }

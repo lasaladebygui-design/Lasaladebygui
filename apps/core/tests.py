@@ -362,25 +362,6 @@ class AdminAccessTests(TestCase):
         self.assertRedirects(response, "/admin/login/?next=/admin/", fetch_redirect_response=False)
 
 
-class ThemePreviewTests(TestCase):
-    """Página de muestra que se carga en un iframe dentro del admin de
-    Temas, para ver en vivo cómo queda una combinación de colores antes de
-    guardar (apps/core/admin.py, ThemeAdmin + static/js/admin_theme_preview.js)."""
-
-    def test_anonimo_no_accede(self):
-        response = self.client.get(reverse("core:theme-preview"))
-        self.assertNotEqual(response.status_code, 200)
-
-    def test_admin_accede(self):
-        user = User.objects.create(email="preview_admin@test.local", role=User.Role.ADMIN, is_staff=True)
-        user.set_password("Testpass123!")
-        user.save()
-        self.client.login(username=user.email, password="Testpass123!")
-        response = self.client.get(reverse("core:theme-preview"))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Así se ve este tema")
-
-
 class ThemeAdminFormTests(TestCase):
     """El admin de Temas usa un desplegable para las tipografías (solo las
     que están cargadas de verdad en el sitio) y ya no deja tocar el ancho
@@ -402,19 +383,34 @@ class ThemeAdminFormTests(TestCase):
         response = self.client.get(reverse("admin:core_theme_change", args=[self.theme.pk]))
         self.assertNotContains(response, 'name="max_content_width"')
 
-    def test_hay_un_apartado_para_el_color_de_la_luz_del_proyector(self):
+    def test_los_colores_de_la_animacion_de_inicio_son_editables(self):
         response = self.client.get(reverse("admin:core_theme_change", args=[self.theme.pk]))
-        self.assertContains(response, "Animación de inicio")
         self.assertContains(response, 'name="color_intro_light"')
+        self.assertContains(response, 'name="color_intro_lamp"')
+        self.assertContains(response, 'name="color_intro_chair"')
         self.assertContains(response, 'type="color"')
+
+    def test_los_colores_estan_todos_juntos_en_un_unico_apartado(self):
+        # Antes había 5 apartados de colores por separado (Fondo y
+        # superficies, Texto, Acento principal...); ahora están todos juntos
+        # en "Colores", en cuadrícula — menos compartimentado.
+        response = self.client.get(reverse("admin:core_theme_change", args=[self.theme.pk]))
+        self.assertContains(response, "theme-color-grid")
+        self.assertNotContains(response, "Fondo y superficies")
+
+    def test_ya_no_hay_vista_previa_por_iframe(self):
+        response = self.client.get(reverse("admin:core_theme_change", args=[self.theme.pk]))
+        self.assertNotContains(response, "theme-preview-frame")
 
 
 class IntroLightThemeTests(TestCase):
-    def test_theme_css_incluye_el_color_de_la_luz_del_proyector(self):
+    def test_theme_css_incluye_los_colores_de_la_animacion_de_inicio(self):
         theme = Theme.objects.get(slug="cinephile")
         self.client.post(reverse("core:set-theme", args=[theme.slug]))
         response = self.client.get(reverse("theme-css"))
         self.assertContains(response, "--color-intro-light")
+        self.assertContains(response, "--color-intro-lamp")
+        self.assertContains(response, "--color-intro-chair")
         self.assertContains(response, theme.color_intro_light)
 
 

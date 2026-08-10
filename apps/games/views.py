@@ -806,7 +806,15 @@ def personality_quiz(request):
         index = 0
 
     if request.method == "POST" and 0 <= index < total:
-        answer = get_object_or_404(PersonalityAnswer, pk=request.POST.get("answer_id"), question=questions[index])
+        try:
+            answer = PersonalityAnswer.objects.get(pk=request.POST.get("answer_id"), question=questions[index])
+        except (PersonalityAnswer.DoesNotExist, ValueError, TypeError):
+            # Partida a medias de antes de un cambio de contenido del test
+            # (la respuesta que se envía ya no existe en esa pregunta) — se
+            # reinicia en limpio en vez de romper con un error.
+            request.session.pop(PERSONALITY_INDEX_KEY, None)
+            request.session.pop(PERSONALITY_SCORES_KEY, None)
+            return redirect("games:personality-quiz")
         char_id = str(answer.character_id)
         # Se guarda el propio texto de cada respuesta elegida (no solo un
         # contador) para poder explicar el resultado con tus respuestas.

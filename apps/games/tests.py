@@ -659,6 +659,25 @@ class PersonalityQuizTests(TestCase):
         self.assertEqual(response.context["question"], self.q1)
         self.assertNotIn("personality_quiz_scores", self.client.session)
 
+    def test_una_respuesta_que_ya_no_existe_reinicia_en_vez_de_romper(self):
+        # Bug real: si el contenido del test cambia (se reescriben las
+        # preguntas) mientras alguien está a mitad de partida, la página que
+        # tiene abierta manda un answer_id de una respuesta ya borrada — no
+        # debe reventar con un 404, se reinicia en limpio.
+        self.client.post(reverse("games:personality-quiz"), {"answer_id": self.q1_a.pk})
+        stale_answer_id = self.q2_a.pk
+        self.q2_a.delete()
+
+        response = self.client.post(reverse("games:personality-quiz"), {"answer_id": stale_answer_id}, follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["question"], self.q1)
+        self.assertNotIn("personality_quiz_scores", self.client.session)
+
+    def test_un_answer_id_no_numerico_no_revienta(self):
+        response = self.client.post(reverse("games:personality-quiz"), {"answer_id": "no-es-un-numero"}, follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["question"], self.q1)
+
 
 class SeedPersonalityQuizCommandTests(TestCase):
     """El comando crea los 12 personajes (Nikki Freeman en vez de Iron Man,

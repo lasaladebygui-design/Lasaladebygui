@@ -10,7 +10,7 @@ COLOR_FIELDS = (
     "color_accent", "color_accent_hover", "color_on_accent",
     "color_accent_secondary", "color_accent_secondary_hover", "color_on_accent_secondary",
     "color_danger", "color_success",
-    "color_intro_light",
+    "color_intro_light", "color_intro_lamp", "color_intro_chair",
 )
 
 # Solo estas cuatro tipografías están cargadas de verdad en el sitio
@@ -37,19 +37,16 @@ class ColorWidgetMixin:
 
 @admin.register(Theme)
 class ThemeAdmin(ColorWidgetMixin, admin.ModelAdmin):
-    """Gestión de temas: crear/editar temas nuevos sin tocar código.
-    El tema que se aplica a la web se elige en Sitio → Configuración del sitio.
+    """Gestión de temas: crear/editar temas nuevos sin tocar código. El tema
+    que se aplica a la web se elige en Sitio → Configuración del sitio.
 
-    Al editar un tema se ve una vista previa en vivo (un iframe con una
-    página de muestra aparte + `static/js/admin_theme_preview.js`, que va
-    empujando cada cambio de campo como variable CSS dentro de ese iframe),
-    para no tener que adivinar de memoria cómo queda una combinación de
-    colores antes de guardar."""
-
-    change_form_template = "admin/core/theme/change_form.html"
+    Todos los colores viven juntos en un único apartado, en cuadrícula (ver
+    admin_theme_form.css) en vez de repartidos en muchos apartados pequeños
+    — más cómodo para comparar/ajustar de un vistazo. (Hubo una vista previa
+    en vivo por iframe aquí; se quitó porque Render no la dejaba cargar.)"""
 
     class Media:
-        js = ("js/admin_theme_preview.js",)
+        css = {"all": ("css/admin_theme_form.css",)}
 
     list_display = ("name", "slug", "is_published", "is_dark", "color_accent", "color_accent_secondary")
     list_editable = ("is_published",)
@@ -57,19 +54,19 @@ class ThemeAdmin(ColorWidgetMixin, admin.ModelAdmin):
     prepopulated_fields = {"slug": ("name",)}
     fieldsets = (
         (None, {"fields": ("name", "slug", "description", "is_dark", "is_published")}),
-        ("Fondo y superficies", {"fields": ("color_bg", "color_surface", "color_border")}),
-        ("Texto", {"fields": ("color_text", "color_text_muted")}),
-        ("Acento principal", {"fields": ("color_accent", "color_accent_hover", "color_on_accent")}),
-        ("Acento secundario", {
-            "fields": ("color_accent_secondary", "color_accent_secondary_hover", "color_on_accent_secondary"),
+        ("Colores", {
+            "fields": (
+                "color_bg", "color_surface", "color_border",
+                "color_text", "color_text_muted",
+                "color_accent", "color_accent_hover", "color_on_accent",
+                "color_accent_secondary", "color_accent_secondary_hover", "color_on_accent_secondary",
+                "color_danger", "color_success",
+                "color_intro_light", "color_intro_lamp", "color_intro_chair",
+            ),
+            "classes": ("theme-color-grid",),
+            "description": "Las tres últimas (luz, lámpara, sillón) son solo para la animación de inicio.",
         }),
-        ("Estados", {"fields": ("color_danger", "color_success")}),
-        ("Animación de inicio", {
-            "fields": ("color_intro_light",),
-            "description": "Color de la luz del proyector que se ve un instante al entrar en la web, antes de que cargue el resto del tema.",
-        }),
-        ("Tipografía", {"fields": ("font_heading", "font_body")}),
-        ("Espaciados y forma", {"fields": ("space_unit", "radius_base")}),
+        ("Tipografía y espaciado", {"fields": ("font_heading", "font_body", "space_unit", "radius_base")}),
     )
 
     @admin.action(description="👁️ Publicar (mostrar en el selector de temas)")

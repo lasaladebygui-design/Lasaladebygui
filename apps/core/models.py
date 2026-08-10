@@ -78,6 +78,12 @@ class Theme(models.Model):
     color_intro_light = hex_field(
         "#FFDFAF", "luz del proyector en la animación de inicio",
     )
+    color_intro_lamp = hex_field(
+        "#B4A9E8", "lámpara en la animación de inicio",
+    )
+    color_intro_chair = hex_field(
+        "#8D7FCB", "sillón en la animación de inicio",
+    )
 
     # Tipografía
     font_heading = models.CharField(

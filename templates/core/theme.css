@@ -24,6 +24,8 @@
     --color-success: {{ theme.color_success }};
 
     --color-intro-light: {{ theme.color_intro_light }};
+    --color-intro-lamp: {{ theme.color_intro_lamp }};
+    --color-intro-chair: {{ theme.color_intro_chair }};
 
     --font-heading: {{ theme.font_heading }};
     --font-body: {{ theme.font_body }};

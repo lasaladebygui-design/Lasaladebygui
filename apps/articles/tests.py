@@ -281,6 +281,25 @@ class ArticleBulkDeleteTests(TestCase):
         self.assertTrue(Article.objects.filter(pk=self.own_article.pk).exists())
 
 
+class ArticleAdminTests(TestCase):
+    """Formulario de artículo en el admin: el autor se rellena solo con
+    quien ha iniciado sesión (se puede cambiar a mano), y tags/autor usan
+    un buscador en vivo en vez del widget de doble columna con flechas."""
+
+    def setUp(self):
+        self.admin = make_user("admin_articulos@test.local", User.Role.ADMIN)
+        self.client.login(username=self.admin.email, password="Testpass123!")
+
+    def test_el_formulario_de_alta_rellena_el_autor_con_quien_ha_iniciado_sesion(self):
+        response = self.client.get(reverse("admin:articles_article_add"))
+        self.assertEqual(response.context["adminform"].form.initial.get("author"), self.admin.pk)
+
+    def test_tags_usa_autocomplete_no_el_widget_de_doble_columna(self):
+        response = self.client.get(reverse("admin:articles_article_add"))
+        self.assertNotContains(response, "selector-available")
+        self.assertContains(response, 'data-field-name="tags"')
+
+
 class LatestArticlesLinkTests(TestCase):
     def test_la_ficha_enlaza_a_los_cinco_ultimos_sin_incluirse_a_si_misma(self):
         author = make_user("autor_ultimos@test.local", User.Role.EDITOR)

@@ -1,5 +1,4 @@
 from django.contrib import messages
-from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.staticfiles import finders
 from django.core.mail import EmailMessage
 from django.http import FileResponse, Http404, JsonResponse
@@ -50,17 +49,6 @@ def contact(request):
         form = ContactForm()
 
     return render(request, "core/contact.html", {"form": form, "contact_links": contact_links})
-
-
-@staff_member_required
-def theme_preview(request):
-    """Página de muestra (header, tarjetas, botones, texto) que se carga en
-    un <iframe> dentro del formulario de tema del admin — el JS de ahí
-    (static/js/admin_theme_preview.js) cambia las variables CSS de este
-    documento en vivo, según se editan los campos, sin tener que guardar
-    para verlo. Vive en su propia página (no en el propio admin) para que
-    los estilos de main.css no puedan chocar con los del admin."""
-    return render(request, "core/theme_preview.html")
 
 
 @cache_control(private=True, no_cache=True)

@@ -21,7 +21,29 @@
     </div>
 
     <div class="intro__center">
-        <img src="{% static 'img/logo-icon.svg' %}" alt="" class="intro__logo">
+        {# Inline (no <img>) para que la lámpara/sillón puedan tomar el color
+           del tema — un <img src="..."> a un .svg externo no puede leer
+           variables CSS de la página. #}
+        <svg viewBox="0 0 64 64" role="img" aria-hidden="true" class="intro__logo">
+            <defs>
+                <radialGradient id="intro-logo-glow" cx="50%" cy="30%" r="60%">
+                    <stop offset="0%" stop-color="var(--color-intro-light)" stop-opacity="0.9"/>
+                    <stop offset="100%" stop-color="var(--color-intro-light)" stop-opacity="0"/>
+                </radialGradient>
+            </defs>
+            <circle cx="32" cy="20" r="16" fill="url(#intro-logo-glow)"/>
+            <line x1="32" y1="2" x2="32" y2="12" stroke="var(--color-intro-lamp)" stroke-width="1.5"/>
+            <path d="M22 12 L42 12 L37 20 L27 20 Z" fill="none" stroke="var(--color-intro-lamp)" stroke-width="2" stroke-linejoin="round"/>
+            <circle cx="32" cy="22" r="2.3" fill="var(--color-intro-light)"/>
+            <path d="M16 44 v-8 a6 6 0 0 1 6-6 h20 a6 6 0 0 1 6 6 v8"
+                  fill="none" stroke="var(--color-intro-chair)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M13 38 a3 3 0 0 1 3-3 v9 a3 3 0 0 1 -3-3 z" fill="none" stroke="var(--color-intro-chair)" stroke-width="2.2" stroke-linejoin="round"/>
+            <path d="M51 38 a3 3 0 0 0 -3-3 v9 a3 3 0 0 0 3-3 z" fill="none" stroke="var(--color-intro-chair)" stroke-width="2.2" stroke-linejoin="round"/>
+            <path d="M16 44 h32 v6 a2 2 0 0 1 -2 2 h-28 a2 2 0 0 1 -2-2 z"
+                  fill="none" stroke="var(--color-intro-chair)" stroke-width="2.5" stroke-linejoin="round"/>
+            <line x1="19" y1="52" x2="19" y2="57" stroke="var(--color-intro-chair)" stroke-width="2.2" stroke-linecap="round"/>
+            <line x1="45" y1="52" x2="45" y2="57" stroke="var(--color-intro-chair)" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
         <p class="intro__title">La sala de <em>Bygui</em></p>
     </div>
 

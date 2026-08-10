@@ -1,0 +1,22 @@
+/* Temas visuales (admin): antes había 5 apartados de colores por separado
+   (Fondo y superficies, Texto, Acento principal...); ahora están todos
+   juntos en un único apartado "Colores" (ver fieldsets en apps/core/admin.py)
+   — esto solo lo hace más denso/cómodo de recorrer, con el color al lado
+   de cada nombre en vez de debajo y con menos aire entre filas. Jazzmin no
+   genera un <fieldset> real: cada apartado es un .card > .card-body, y cada
+   campo un .form-group con .row > label + col (Bootstrap). */
+
+.card.theme-color-grid .card-body { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.card.theme-color-grid .form-group {
+    margin-bottom: 0;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+.card.theme-color-grid .form-group .row { align-items: center; }
+.card.theme-color-grid .form-group label { margin-bottom: 0; font-size: 0.85rem; }
+.card.theme-color-grid input[type="color"] {
+    width: 64px;
+    height: 2rem;
+    padding: 2px;
+    cursor: pointer;
+}

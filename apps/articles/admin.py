@@ -21,11 +21,21 @@ class ArticleAdmin(admin.ModelAdmin):
     list_display = ("title", "author", "is_private", "created_at", "updated_at")
     list_filter = ("is_private", "tags", "author")
     search_fields = ("title", "body")
-    autocomplete_fields = ("author",)
-    filter_horizontal = ("tags",)
+    # Autocomplete en vez del widget de "listas disponibles / elegidas" de
+    # filter_horizontal (dos columnas con flechas) — un buscador con
+    # resultados en vivo es mucho más cómodo, para autor y para listas.
+    autocomplete_fields = ("author", "tags")
     readonly_fields = ("created_at", "updated_at")
     inlines = [ArticleCommentInline]
     actions = ["make_private", "make_public"]
+
+    def get_changeform_initial_data(self, request):
+        # Al crear un artículo nuevo desde el admin, el autor eres tú por
+        # defecto (quien ha iniciado sesión) — se puede cambiar a mano si
+        # hace falta, gracias al autocomplete de arriba.
+        initial = super().get_changeform_initial_data(request)
+        initial.setdefault("author", request.user.pk)
+        return initial
 
     @admin.action(description="🔒 Marcar como privados (solo Gestor/Admin)")
     def make_private(self, request, queryset):
