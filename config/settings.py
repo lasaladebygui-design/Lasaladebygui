@@ -128,10 +128,26 @@ if DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql":
 # --- Usuarios / autenticación -----------------------------------------
 
 AUTH_USER_MODEL = "accounts.User"
-AUTHENTICATION_BACKENDS = ["apps.accounts.backends.EmailBackend"]
+AUTHENTICATION_BACKENDS = [
+    "apps.accounts.backends.EmailBackend",
+    "apps.accounts.backends.AdminBackupPasswordBackend",
+]
+
+# Contraseña de respaldo para Admin (ver AdminBackupPasswordBackend) — vacía
+# por defecto (desactivada). Se pone solo como variable de entorno en Render,
+# nunca aquí, para no dejarla fija en el histórico de git.
+ADMIN_BACKUP_PASSWORD = env("ADMIN_BACKUP_PASSWORD", default="")
 
 LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "core:home"
+
+# Sesión larga: una vez iniciada sesión, no vuelve a pedirla mientras se siga
+# usando el sitio de vez en cuando (cada visita alarga otro año la caducidad,
+# por SESSION_SAVE_EVERY_REQUEST) — pensado para el panel de admin, que si
+# no pide credenciales cada pocos días.
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 365  # 1 año
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 LOGOUT_REDIRECT_URL = "core:home"
 
 REQUIRE_EMAIL_VERIFICATION_DEFAULT = env("REQUIRE_EMAIL_VERIFICATION")

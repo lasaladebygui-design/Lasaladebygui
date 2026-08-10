@@ -53,7 +53,11 @@ def register(request):
         form = RegisterForm(request.POST)
         if form.is_valid():
             user = form.save()
-            auth_login(request, user)
+            # Backend explícito: con dos backends configurados (desde que
+            # existe AdminBackupPasswordBackend), Django ya no puede
+            # adivinar solo cuál usar para un login que no pasó por
+            # authenticate() primero.
+            auth_login(request, user, backend="apps.accounts.backends.EmailBackend")
             config = SiteConfig.load()
             if config.require_email_verification:
                 _send_verification_email(request, user)

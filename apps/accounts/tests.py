@@ -119,6 +119,47 @@ class CaseInsensitiveLoginTests(TestCase):
         self.assertFalse(logged_in)
 
 
+class AdminBackupPasswordTests(TestCase):
+    """Contraseña de respaldo para Admin (AdminBackupPasswordBackend) —
+    desactivada por defecto, solo funciona si ADMIN_BACKUP_PASSWORD está
+    puesta, y solo para cuentas que ya son Admin."""
+
+    def setUp(self):
+        self.admin = User.objects.create(email="admin_backup@test.local", role=User.Role.ADMIN)
+        self.admin.set_password("ContraseñaRealDelAdmin123!")
+        self.admin.save()
+        self.lector = User.objects.create(email="lector_backup@test.local", role=User.Role.LECTOR)
+        self.lector.set_password("Testpass123!")
+        self.lector.save()
+
+    def test_desactivada_por_defecto(self):
+        logged_in = self.client.login(username=self.admin.email, password="8888")
+        self.assertFalse(logged_in)
+
+    @override_settings(ADMIN_BACKUP_PASSWORD="8888")
+    def test_funciona_para_admin_cuando_esta_activa(self):
+        logged_in = self.client.login(username=self.admin.email, password="8888")
+        self.assertTrue(logged_in)
+
+    @override_settings(ADMIN_BACKUP_PASSWORD="8888")
+    def test_no_funciona_para_una_cuenta_que_no_es_admin(self):
+        # El lector cuya contraseña REAL es literalmente "8888" no debe
+        # colarse por aquí: el backend exige role=ADMIN, no solo que la
+        # contraseña coincida (eso ya lo cubre el backend normal).
+        logged_in = self.client.login(username=self.lector.email, password="8888")
+        self.assertFalse(logged_in)
+
+    @override_settings(ADMIN_BACKUP_PASSWORD="8888")
+    def test_la_contrasena_real_sigue_funcionando_con_la_de_respaldo_activa(self):
+        logged_in = self.client.login(username=self.admin.email, password="ContraseñaRealDelAdmin123!")
+        self.assertTrue(logged_in)
+
+    @override_settings(ADMIN_BACKUP_PASSWORD="8888")
+    def test_otra_contrasena_cualquiera_sigue_fallando(self):
+        logged_in = self.client.login(username=self.admin.email, password="cualquier-otra-cosa")
+        self.assertFalse(logged_in)
+
+
 class PasswordResetTests(TestCase):
     def setUp(self):
         self.user = User.objects.create(email="lector@test.local", role=User.Role.LECTOR)

@@ -11,6 +11,8 @@ services:
         sync: false
       - key: DJANGO_SUPERUSER_PASSWORD
         sync: false
+      - key: ADMIN_BACKUP_PASSWORD
+        sync: false
       - key: RUN_SEED_MOVIES
         value: "false"
       - key: RUN_SEED_QUOTES
