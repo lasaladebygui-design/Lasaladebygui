@@ -113,11 +113,15 @@ class Theme(models.Model):
             "como tema activo del sitio desde Configuración del sitio)."
         ),
     )
+    order = models.PositiveIntegerField(
+        "orden", default=0,
+        help_text="Orden en el que aparece en el selector de temas — menor va primero.",
+    )
 
     class Meta:
         verbose_name = "tema visual"
         verbose_name_plural = "temas visuales"
-        ordering = ["name"]
+        ordering = ["order", "name"]
 
     def __str__(self):
         return self.name

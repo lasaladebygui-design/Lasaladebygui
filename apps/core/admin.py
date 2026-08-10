@@ -13,7 +13,7 @@ COLOR_FIELDS = (
     "color_intro_light", "color_intro_lamp", "color_intro_chair",
 )
 
-# Solo estas cuatro tipografías están cargadas de verdad en el sitio
+# Solo estas tipografías están cargadas de verdad en el sitio
 # (templates/base.html, enlace a Google Fonts) — escribir un nombre a mano
 # que no esté aquí no rompe nada, pero cae en la fuente del sistema sin que
 # se note por qué. Un desplegable evita ese despiste.
@@ -23,6 +23,10 @@ FONT_CHOICES = [
     ("'Bebas Neue', Impact, sans-serif", "Bebas Neue (grande, tipo cartel)"),
     ("'Special Elite', 'Playfair Display', Georgia, serif", "Special Elite (máquina de escribir)"),
     ("'Inter', system-ui, -apple-system, sans-serif", "Inter (moderna, sans-serif)"),
+    ("'Cinzel', Georgia, serif", "Cinzel (clásica, tipo épica/romana)"),
+    ("'Oswald', Impact, sans-serif", "Oswald (condensada, titulares)"),
+    ("'Cormorant Garamond', Georgia, serif", "Cormorant Garamond (fina, romántica)"),
+    ("'Poppins', system-ui, -apple-system, sans-serif", "Poppins (geométrica, redondeada)"),
 ]
 
 
@@ -48,12 +52,13 @@ class ThemeAdmin(ColorWidgetMixin, admin.ModelAdmin):
     class Media:
         css = {"all": ("css/admin_theme_form.css",)}
 
-    list_display = ("name", "slug", "is_published", "is_dark", "color_accent", "color_accent_secondary")
-    list_editable = ("is_published",)
+    list_display = ("name", "slug", "order", "is_published", "is_dark", "color_accent", "color_accent_secondary")
+    list_editable = ("order", "is_published")
+    ordering = ("order", "name")
     actions = ["publish_themes", "unpublish_themes"]
     prepopulated_fields = {"slug": ("name",)}
     fieldsets = (
-        (None, {"fields": ("name", "slug", "description", "is_dark", "is_published")}),
+        (None, {"fields": ("name", "slug", "description", "order", "is_dark", "is_published")}),
         ("Colores", {
             "fields": (
                 "color_bg", "color_surface", "color_border",

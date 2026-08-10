@@ -287,6 +287,16 @@ class ThemeSwitcherTests(TestCase):
         self.assertNotIn(self.noir, response.context["all_themes"])
         self.assertIn(self.vintage, response.context["all_themes"])
 
+    def test_el_selector_respeta_el_orden_configurado(self):
+        self.noir.order = 1
+        self.noir.save(update_fields=["order"])
+        self.vintage.order = 0
+        self.vintage.save(update_fields=["order"])
+
+        response = self.client.get(reverse("core:home"))
+        themes = list(response.context["all_themes"])
+        self.assertLess(themes.index(self.vintage), themes.index(self.noir))
+
     def test_un_tema_despublicado_sigue_funcionando_si_ya_estaba_puesto(self):
         user = User.objects.create(email="lector3@test.local", role=User.Role.LECTOR, theme=self.noir)
         user.set_password("Testpass123!")
@@ -380,6 +390,13 @@ class ThemeAdminFormTests(TestCase):
         response = self.client.get(reverse("admin:core_theme_change", args=[self.theme.pk]))
         self.assertContains(response, '<select name="font_heading"')
         self.assertContains(response, "Bebas Neue (grande, tipo cartel)")
+
+    def test_hay_mas_tipografias_disponibles(self):
+        response = self.client.get(reverse("admin:core_theme_change", args=[self.theme.pk]))
+        self.assertContains(response, "Cinzel (clásica, tipo épica/romana)")
+        self.assertContains(response, "Oswald (condensada, titulares)")
+        self.assertContains(response, "Cormorant Garamond (fina, romántica)")
+        self.assertContains(response, "Poppins (geométrica, redondeada)")
 
     def test_no_se_puede_editar_el_ancho_maximo_desde_el_formulario(self):
         response = self.client.get(reverse("admin:core_theme_change", args=[self.theme.pk]))
