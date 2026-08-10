@@ -1,6 +1,8 @@
 from datetime import date
+from pathlib import Path
 from unittest.mock import Mock, patch
 
+from django.conf import settings
 from django.core import mail
 from django.core.management import call_command
 from django.test import TestCase, override_settings
@@ -519,3 +521,26 @@ class GoogleCalendarServiceTests(TestCase):
         mock_delete.return_value = Mock(status_code=404)
 
         google_calendar_module.delete_event(self.connection, "id-inexistente")  # no debe lanzar excepción
+
+
+class TemplateCommentSyntaxTests(TestCase):
+    """Django no soporta comentarios {# ... #} de varias líneas — si {# no
+    se cierra con #} en la MISMA línea, el texto se filtra tal cual en la
+    página en vez de desaparecer (nos pasó dos veces ya: templates/admin/
+    actions.html y templates/base.html). {% comment %}...{% endcomment %}
+    sí puede abarcar varias líneas — ese no es el problema aquí."""
+
+    def test_no_hay_comentarios_llave_almohadilla_sin_cerrar_en_la_misma_linea(self):
+        base_dir = Path(settings.BASE_DIR) / "templates"
+        offenders = []
+        for path in base_dir.rglob("*.html"):
+            for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+                start = 0
+                while True:
+                    idx = line.find("{#", start)
+                    if idx == -1:
+                        break
+                    if "#}" not in line[idx:]:
+                        offenders.append(f"{path.relative_to(base_dir)}:{lineno}")
+                    start = idx + 2
+        self.assertEqual(offenders, [], f"Comentarios {{# #}} sin cerrar en la misma línea: {offenders}")
