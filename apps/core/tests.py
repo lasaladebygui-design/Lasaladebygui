@@ -647,6 +647,35 @@ class NotificationsBellTests(TestCase):
         response = self.client.get(reverse("core:notifications-panel"))
         self.assertNotEqual(response.status_code, 200)
 
+    def test_un_articulo_nuevo_en_la_tienda_cuenta(self):
+        from apps.shop.models import Product
+
+        Product.objects.create(name="Taza de la Sala")
+        self.assertEqual(unread_notifications_count(self.user), 1)
+        feed = notifications_feed(self.user)
+        self.assertEqual(feed[0]["kind"], "product")
+
+    def test_desactivada_desde_admin_el_contador_es_cero(self):
+        from apps.social.models import Message
+
+        Message.objects.create(sender=self.other, recipient=self.user, body="Hola")
+        self.assertEqual(unread_notifications_count(self.user), 1)
+
+        config = SiteConfig.load()
+        config.notifications_bell_enabled = False
+        config.save()
+
+        self.assertEqual(unread_notifications_count(self.user), 0)
+        self.assertEqual(notifications_feed(self.user), [])
+
+    def test_desactivada_desde_admin_no_sale_la_campanita_en_la_cabecera(self):
+        config = SiteConfig.load()
+        config.notifications_bell_enabled = False
+        config.save()
+
+        response = self.client.get(reverse("core:home"))
+        self.assertNotContains(response, "notif-bell")
+
     def test_un_aviso_del_equipo_sale_en_el_admin_de_usuarios_al_crearlo(self):
         admin = _make_user("admin_avisos@test.local", role=User.Role.ADMIN)
         self.client.login(username=admin.email, password="Testpass123!")

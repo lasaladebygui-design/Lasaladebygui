@@ -76,6 +76,18 @@
             </div>
 
             <div class="site-header__right">
+                {% if user.is_authenticated and site_config.notifications_bell_enabled %}
+                    <div class="notif-bell" x-data="notifBell()">
+                        <button type="button" class="notif-bell__toggle" @click="toggle()" @click.outside="open = false" :aria-expanded="open.toString()" title="Avisos">
+                            <span aria-hidden="true">📰</span>
+                            {% if unread_notifications_count %}
+                            <span class="notif-bell__badge">{{ unread_notifications_count }}</span>
+                            {% endif %}
+                            <span class="visually-hidden">Avisos</span>
+                        </button>
+                        <div class="notif-bell__menu" x-show="open" x-cloak x-transition x-html="html"></div>
+                    </div>
+                {% endif %}
                 <div class="theme-switcher" x-data="themeSwitcher()">
                     <button type="button" class="theme-switcher__toggle" @click="open = !open" @click.outside="open = false" :aria-expanded="open.toString()" title="Cambiar tema visual">
                         <span aria-hidden="true">🌙</span>
@@ -103,16 +115,6 @@
                 </a>
 
                 {% if user.is_authenticated %}
-                    <div class="notif-bell" x-data="notifBell()">
-                        <button type="button" class="notif-bell__toggle" @click="toggle()" @click.outside="open = false" :aria-expanded="open.toString()" title="Avisos">
-                            <span aria-hidden="true">📰</span>
-                            {% if unread_notifications_count %}
-                            <span class="notif-bell__badge">{{ unread_notifications_count }}</span>
-                            {% endif %}
-                            <span class="visually-hidden">Avisos</span>
-                        </button>
-                        <div class="notif-bell__menu" x-show="open" x-cloak x-transition x-html="html"></div>
-                    </div>
                     <a href="{% url 'accounts:profile' %}" class="header-profile">
                         {% if user.avatar %}
                             <img src="{{ user.avatar.url }}" alt="" class="header-profile__avatar">

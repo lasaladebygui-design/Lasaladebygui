@@ -9,9 +9,10 @@ from datetime import timedelta
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Announcement
+from .models import Announcement, SiteConfig
 
 RECENT_ARTICLES_DAYS = 30
+RECENT_PRODUCTS_DAYS = 30
 
 
 def _unseen_articles(user):
@@ -27,8 +28,20 @@ def _unseen_articles(user):
     return articles.filter(created_at__gte=cutoff)
 
 
+def _recent_products():
+    # La tienda no tiene "visto/no visto" por usuario como los artículos
+    # (no hay carrito ni cuenta de por medio para eso): se avisa de
+    # cualquier artículo añadido en los últimos RECENT_PRODUCTS_DAYS días.
+    from apps.shop.models import Product
+
+    cutoff = timezone.now() - timedelta(days=RECENT_PRODUCTS_DAYS)
+    return Product.objects.filter(created_at__gte=cutoff)
+
+
 def unread_notifications_count(user):
     if user is None or not user.is_authenticated:
+        return 0
+    if not SiteConfig.load().notifications_bell_enabled:
         return 0
 
     from apps.social.models import FriendRequest, Message
@@ -38,11 +51,14 @@ def unread_notifications_count(user):
     count += FriendRequest.objects.filter(to_user=user, accepted=False).count()
     count += Announcement.objects.exclude(read_by=user).count()
     count += _unseen_articles(user).count()
+    count += _recent_products().count()
     return count
 
 
 def notifications_feed(user, limit_per_category=5):
     if user is None or not user.is_authenticated:
+        return []
+    if not SiteConfig.load().notifications_bell_enabled:
         return []
 
     from apps.social.models import FriendRequest, Message
@@ -96,6 +112,15 @@ def notifications_feed(user, limit_per_category=5):
             "detail": "",
             "url": article.get_absolute_url(),
             "created_at": article.created_at,
+        })
+
+    for product in _recent_products().order_by("-created_at")[:limit_per_category]:
+        items.append({
+            "kind": "product", "icon": "🛒",
+            "text": f"Nuevo en la tienda: {product.name}",
+            "detail": "",
+            "url": reverse("shop:list"),
+            "created_at": product.created_at,
         })
 
     items.sort(key=lambda item: item["created_at"], reverse=True)

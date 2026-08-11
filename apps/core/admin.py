@@ -107,6 +107,10 @@ class SiteConfigAdmin(SingletonAdmin):
     fieldsets = (
         (None, {"fields": ("tagline",)}),
         ("Donaciones", {"fields": ("bizum_number",)}),
+        ("Campanita de avisos", {
+            "fields": ("notifications_bell_enabled",),
+            "description": "Cubre mensajes, solicitudes de amistad, artículos nuevos, avisos del equipo y novedades de la tienda.",
+        }),
         ("Animación de entrada", {"fields": ("show_intro_animation", "intro_sound")}),
         ("Tema visual", {
             "fields": ("active_theme",),

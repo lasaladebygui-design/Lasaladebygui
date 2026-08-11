@@ -159,6 +159,11 @@ class SiteConfig(SingletonModel):
         default=True,
         help_text="Se muestra una vez por sesión de navegador. Desactívala para quitarla de toda la web.",
     )
+    notifications_bell_enabled = models.BooleanField(
+        "activar campanita de avisos",
+        default=True,
+        help_text="Desactívala para quitar la campanita de avisos de toda la web (mensajes, amistad, artículos, tienda...).",
+    )
     intro_sound = models.FileField(
         "sonido de la intro",
         upload_to="intro_sound/",
