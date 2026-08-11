@@ -395,6 +395,11 @@ main { flex: 1; }
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: calc(var(--space-unit) * 5);
 }
+/* Candidatos al Oscar: es habitual tener bastantes por categoría, así que
+   caben 4 por fila en vez del tamaño grande genérico de .card-grid. */
+.card-grid--oscars { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 860px) { .card-grid--oscars { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px) { .card-grid--oscars { grid-template-columns: 1fr; } }
 
 .card {
     background: var(--color-surface);
@@ -1366,11 +1371,12 @@ main { flex: 1; }
 .secret-movie__row {
     display: flex;
     align-items: center;
-    gap: calc(var(--space-unit) * 3);
-    padding: calc(var(--space-unit) * 3) 0;
+    gap: calc(var(--space-unit) * 4);
+    padding: calc(var(--space-unit) * 3) calc(var(--space-unit) * 2);
     cursor: pointer;
     background: none;
     border: none;
+    border-radius: var(--radius-base);
     width: 100%;
     text-align: left;
 }
@@ -1390,9 +1396,10 @@ main { flex: 1; }
     background: var(--color-surface);
     font-size: 1.4rem;
 }
-.secret-movie__body { flex: 1; min-width: 0; }
-.secret-movie__title { display: block; font-size: 1.05rem; }
-.secret-movie__lists { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.4rem; }
+.secret-movie__title { flex: 1; min-width: 0; font-size: 1.05rem; }
+.secret-movie__lists { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.6rem; }
+.secret-movie__lists-toggle { font-size: 0.85rem; }
+.secret-movie__hint { font-size: 0.8rem; margin: 0.6rem 0 0; }
 
 .secret-movie__rating {
     flex-shrink: 0;
@@ -1410,43 +1417,40 @@ main { flex: 1; }
 .secret-movie__rating-suffix { font-size: 0.65rem; opacity: 0.75; }
 
 .secret-movie__detail {
-    display: flex;
-    gap: calc(var(--space-unit) * 4);
-    padding: 0 0 calc(var(--space-unit) * 5);
-    border-top: 1px dashed var(--color-border);
-    margin-top: calc(var(--space-unit) * -1);
-    padding-top: calc(var(--space-unit) * 4);
+    padding: 0.5rem calc(var(--space-unit) * 2) calc(var(--space-unit) * 4);
 }
-.secret-movie__detail-poster { width: 110px; aspect-ratio: 2/3; object-fit: cover; border-radius: var(--radius-base); flex-shrink: 0; }
-.secret-movie__detail-body { flex: 1; min-width: 0; }
-.secret-movie__detail-title { margin: 0 0 0.5rem; }
-.secret-movie__synopsis { margin: calc(var(--space-unit) * 3) 0; line-height: 1.6; }
-.secret-movie__rating--detail { width: 80px; height: 80px; flex-shrink: 0; align-self: flex-start; }
-.secret-movie__rating--detail .secret-movie__rating-number { font-size: 1.7rem; }
-
-.secret-verdict { margin-top: calc(var(--space-unit) * 3); }
-.secret-verdict__label { display: block; font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 0.4rem; }
-.secret-verdict__options { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.secret-verdict__btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.3rem 0.7rem;
-    border-radius: 999px;
-    border: 1px solid var(--color-border);
-    background: none;
-    color: var(--color-text-muted);
-    font-size: 0.8rem;
-    cursor: pointer;
-}
-.secret-verdict__btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
-.secret-verdict__btn--active { border-color: var(--color-accent-secondary); color: var(--color-accent-secondary); background: color-mix(in srgb, var(--color-accent-secondary) 15%, transparent); }
 
 @media (max-width: 560px) {
-    .secret-movie__detail { flex-direction: column; }
-    .secret-movie__rating--detail { align-self: flex-start; }
+    .secret-movie__row { gap: calc(var(--space-unit) * 2); padding-inline: calc(var(--space-unit) * 1); }
     .secret-movie__rating { width: 52px; height: 52px; }
     .secret-movie__rating-number { font-size: 1.1rem; }
+    .secret-movie__title { font-size: 0.95rem; }
+}
+
+/* --- Top Secret: ficha de una película (pantalla completa, mismo layout
+   que la ficha de películas del catálogo — portada a un lado, cuerpo al
+   otro — solo que aquí la nota es la personal, grande y coloreada) -------- */
+
+.secret-movie-detail__back { margin-bottom: calc(var(--space-unit) * 5); }
+.secret-movie-detail__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: calc(var(--space-unit) * 4);
+    flex-wrap: wrap;
+}
+.secret-movie-detail__header h1 { margin: 0; }
+.secret-movie-detail__rating { width: 84px; height: 84px; }
+.secret-movie-detail__rating .secret-movie__rating-number { font-size: 1.8rem; }
+.secret-movie-detail__verdict {
+    display: inline-block;
+    margin-top: calc(var(--space-unit) * 3);
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+}
+
+@media (max-width: 560px) {
+    .secret-movie-detail__header { flex-direction: column; align-items: flex-start; }
 }
 
 /* --- Tier list --------------------------------------------------------------- */
@@ -1891,6 +1895,19 @@ main { flex: 1; }
 .rating-duel__card--result:hover { transform: none; }
 .rating-duel__card--correct { border-color: var(--color-success); box-shadow: 0 0 0 3px var(--color-success), 0 12px 28px rgba(0, 0, 0, 0.4); }
 .rating-duel__card--wrong { border-color: var(--color-danger); box-shadow: 0 0 0 3px var(--color-danger), 0 12px 28px rgba(0, 0, 0, 0.4); }
+
+.btn--flash-correct {
+    background: var(--color-success) !important;
+    border-color: var(--color-success) !important;
+    color: #0B1416 !important;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.btn--flash-wrong {
+    background: var(--color-danger) !important;
+    border-color: var(--color-danger) !important;
+    color: #0B1416 !important;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
 .rating-duel__continue { margin-top: calc(var(--space-unit) * 5); text-align: center; }
 .rating-duel__vs {
     position: absolute;

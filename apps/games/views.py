@@ -1325,3 +1325,20 @@ def oscar_vote(request, candidate_id):
         )
         messages.success(request, f"Voto registrado por «{candidate.display_title}».")
     return redirect("games:oscars")
+
+
+@login_required
+def oscar_candidate_withdraw(request, candidate_id):
+    """Retirar una candidata propuesta por error (título repetido, persona
+    equivocada...) — solo quien la propuso o un admin pueden quitarla; se
+    borra entera junto con los votos que tuviera (on_delete=CASCADE en
+    OscarVote.candidate), no solo el propio voto."""
+    candidate = get_object_or_404(OscarCandidate, pk=candidate_id)
+    if candidate.submitted_by_id != request.user.pk and not request.user.is_staff:
+        messages.error(request, "Solo quien propuso una candidata (o un admin) puede retirarla.")
+        return redirect("games:oscars")
+    if request.method == "POST":
+        title = candidate.display_title
+        candidate.delete()
+        messages.success(request, f"Candidata «{title}» retirada.")
+    return redirect("games:oscars")

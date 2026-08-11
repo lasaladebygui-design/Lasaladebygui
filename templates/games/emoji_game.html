@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Emoji{% endblock %}
 
 {% block content %}
-<section class="section">
+<section class="section" id="game-root">
     <div class="wrap wrap--narrow">
         <span class="card__tag">Juegos</span>
         <h1>😀 Emoji</h1>
@@ -36,7 +37,7 @@
         {% if just_wrong %}<p class="muted">❌ No era — una pista más:</p>{% endif %}
         <blockquote class="quote-game__quote trivia-game__emoji">{{ revealed_emojis }}</blockquote>
         <p class="muted trivia-game__emoji-progress">Pista {{ reveal_count }} de {{ total_emojis }}</p>
-        <form method="post" class="quote-game__options">
+        <form method="post" class="quote-game__options js-streak-answer-form">
             {% csrf_token %}
             <input type="hidden" name="question_id" value="{{ question.pk }}">
             {% for option in options %}
@@ -48,4 +49,5 @@
         {% endif %}
     </div>
 </section>
+<script src="{% static 'js/streak_game.js' %}"></script>
 {% endblock %}

@@ -150,15 +150,11 @@ def full_list(request):
 
 
 @secret_required
-def set_movie_verdict(request, pk):
-    if request.method != "POST":
-        return redirect("secret:list")
-    movie = get_object_or_404(SecretMovie, pk=pk)
-    verdict = request.POST.get("verdict", "")
-    valid_values = {choice for choice, _ in SecretMovie.RatingVerdict.choices}
-    movie.rating_verdict = verdict if verdict in valid_values else ""
-    movie.save(update_fields=["rating_verdict"])
-    return render(request, "secret/_movie_verdict.html", {
+def movie_detail(request, pk):
+    movie = get_object_or_404(
+        SecretMovie.objects.prefetch_related("genres").select_related("movie"), pk=pk,
+    )
+    return render(request, "secret/movie_detail.html", {
         "movie": movie, "rating_config": TopSecretConfig.load(),
     })
 

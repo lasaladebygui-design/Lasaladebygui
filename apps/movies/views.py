@@ -29,6 +29,29 @@ def _media_type_from_request(request):
     return value if value in MEDIA_TYPES else "movie"
 
 
+def _random_row(queryset):
+    """Elige una fila al azar sin `order_by("?")`: ese truco obliga a la
+    base de datos a calcular un número aleatorio y ORDENAR LA TABLA ENTERA
+    solo para quedarse con una fila — con un catálogo grande es justo lo que
+    seguía haciendo lenta la ruleta incluso después de dejar de traer todo a
+    Python. Contar filas y saltar a un OFFSET al azar es muchísimo más
+    barato para la base de datos."""
+    count = queryset.count()
+    if not count:
+        return None
+    return queryset[random.randrange(count)]
+
+
+def _random_sample(queryset, sample_size):
+    """Igual que `_random_row` pero para varias filas: salta a un tramo al
+    azar y coge de ahí, en vez de ordenar la tabla entera al azar."""
+    count = queryset.count()
+    if count <= sample_size:
+        return list(queryset)
+    offset = random.randint(0, count - sample_size)
+    return list(queryset[offset:offset + sample_size])
+
+
 def _build_reel(final_movie, decoy_queryset):
     """Tres tiras (tipo tragaperras) que giran por separado y acaban todas
     en el mismo cartel — cada una baraja sus propios señuelos, así no se ven
@@ -38,7 +61,7 @@ def _build_reel(final_movie, decoy_queryset):
     trae una muestra aleatoria acotada de la base de datos en vez de volcarlo
     todo a Python, que es justo lo que hacía tardar tanto en cargar la
     ruleta por nota (se traía el catálogo completo dos veces por cada giro)."""
-    others = list(decoy_queryset.exclude(pk=final_movie.pk).order_by("?")[:DECOY_SAMPLE_SIZE])
+    others = _random_sample(decoy_queryset.exclude(pk=final_movie.pk), DECOY_SAMPLE_SIZE)
     reels = []
     for _ in range(SPIN_REELS):
         decoys = list(others)
@@ -342,9 +365,11 @@ def roulette_rating(request):
 
         # random.choice(list(unseen)) traía el catálogo entero a Python solo
         # para elegir una fila — con miles de películas eso es justo lo que
-        # hacía tardar la ruleta en cargar. order_by("?").first() deja que
-        # la propia base de datos elija la fila y solo transfiere esa una.
-        result = unseen.order_by("?").first()
+        # hacía tardar la ruleta en cargar. _random_row cuenta y salta a un
+        # offset al azar en vez de eso (y en vez de order_by("?"), que
+        # también sale caro: obliga a la base de datos a ordenar la tabla
+        # entera al azar solo para quedarse con una fila).
+        result = _random_row(unseen)
 
         if not candidates.exists():
             messages.warning(request, "Todavía no hay películas del catálogo en ese rango de nota.")

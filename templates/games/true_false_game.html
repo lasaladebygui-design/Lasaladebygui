@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Verdadero o falso{% endblock %}
 
 {% block content %}
-<section class="section">
+<section class="section" id="game-root">
     <div class="wrap wrap--narrow">
         <span class="card__tag">Juegos</span>
         <h1>✅❌ Verdadero o falso</h1>
@@ -33,7 +34,7 @@
         </div>
         {% elif statement %}
         <blockquote class="quote-game__quote">{{ statement.statement }}</blockquote>
-        <form method="post" class="trivia-game__true-false">
+        <form method="post" class="trivia-game__true-false js-streak-answer-form">
             {% csrf_token %}
             <input type="hidden" name="statement_id" value="{{ statement.pk }}">
             <button type="submit" name="answer" value="true" class="btn btn--ghost btn--block trivia-game__true-false-btn trivia-game__true-false-btn--true">✅ Verdadero</button>
@@ -44,4 +45,5 @@
         {% endif %}
     </div>
 </section>
+<script src="{% static 'js/streak_game.js' %}"></script>
 {% endblock %}

@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Cuál tiene al actor/actriz{% endblock %}
 
 {% block content %}
-<section class="section">
+<section class="section" id="game-root">
     <div class="wrap wrap--narrow">
         <span class="card__tag">Juegos</span>
         <h1>🎭 Cuál tiene al actor/actriz</h1>
@@ -38,7 +39,7 @@
             {% endif %}
             <blockquote class="quote-game__quote">¿En cuál de estas sale <strong>{{ question.prompt }}</strong>?</blockquote>
         </div>
-        <form method="post" class="quote-game__options">
+        <form method="post" class="quote-game__options js-streak-answer-form">
             {% csrf_token %}
             <input type="hidden" name="question_id" value="{{ question.pk }}">
             {% for option in options %}
@@ -50,4 +51,5 @@
         {% endif %}
     </div>
 </section>
+<script src="{% static 'js/streak_game.js' %}"></script>
 {% endblock %}

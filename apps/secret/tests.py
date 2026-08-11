@@ -153,21 +153,26 @@ class SecretMovieViewTests(TestCase):
         self.assertNotContains(response, "#1 —")
         self.assertNotContains(response, "#2 —")
 
-    def test_marcar_evaluacion_real_de_una_pelicula(self):
-        response = self.client.post(
-            reverse("secret:set-movie-verdict", args=[self.a.pk]), {"verdict": "sobrevalorada"}
-        )
+    def test_las_listas_no_salen_visibles_de_entrada_en_la_fila(self):
+        terror = Genre.objects.create(name="Terror")
+        self.a.genres.add(terror)
+
+        response = self.client.get(reverse("secret:list"))
+        self.assertContains(response, "Ver listas")
+        self.assertNotContains(response, "Marca varias para cruzarlas")
+
+    def test_cada_fila_enlaza_a_su_ficha_de_detalle(self):
+        response = self.client.get(reverse("secret:list"))
+        self.assertContains(response, reverse("secret:movie-detail", args=[self.a.pk]))
+
+    def test_pagina_de_detalle_muestra_portada_nota_y_comentario(self):
+        self.a.comment = "Mi comentario sobre esta película."
+        self.a.save(update_fields=["comment"])
+
+        response = self.client.get(reverse("secret:movie-detail", args=[self.a.pk]))
         self.assertEqual(response.status_code, 200)
-        self.a.refresh_from_db()
-        self.assertEqual(self.a.rating_verdict, "sobrevalorada")
-
-    def test_volver_a_marcar_la_misma_evaluacion_la_quita(self):
-        self.a.rating_verdict = "bien_valorada"
-        self.a.save(update_fields=["rating_verdict"])
-
-        self.client.post(reverse("secret:set-movie-verdict", args=[self.a.pk]), {"verdict": ""})
-        self.a.refresh_from_db()
-        self.assertEqual(self.a.rating_verdict, "")
+        self.assertContains(response, self.a.title)
+        self.assertContains(response, "Mi comentario sobre esta película.")
 
     def test_buscador_por_nota_filtra_por_genero(self):
         terror = Genre.objects.create(name="Terror")
