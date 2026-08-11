@@ -5,8 +5,8 @@ from .models import Article, ArticleComment, ArticleIdea, ArticleView, Tag
 
 @admin.register(Tag)
 class TagAdmin(admin.ModelAdmin):
-    list_display = ("name", "slug")
-    prepopulated_fields = {"slug": ("name",)}
+    list_display = ("name",)
+    exclude = ("slug",)
     search_fields = ("name",)
 
 
@@ -26,6 +26,7 @@ class ArticleAdmin(admin.ModelAdmin):
     # resultados en vivo es mucho más cómodo, para autor y para listas.
     autocomplete_fields = ("author", "tags")
     readonly_fields = ("created_at", "updated_at")
+    exclude = ("slug",)
     inlines = [ArticleCommentInline]
     actions = ["make_private", "make_public"]
 

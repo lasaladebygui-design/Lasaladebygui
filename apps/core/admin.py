@@ -27,6 +27,12 @@ FONT_CHOICES = [
     ("'Oswald', Impact, sans-serif", "Oswald (condensada, titulares)"),
     ("'Cormorant Garamond', Georgia, serif", "Cormorant Garamond (fina, romántica)"),
     ("'Poppins', system-ui, -apple-system, sans-serif", "Poppins (geométrica, redondeada)"),
+    ("'Abril Fatface', Georgia, serif", "Abril Fatface (cartel de cine, muy gruesa)"),
+    ("'Creepster', 'Special Elite', cursive", "Creepster (terror, goteante)"),
+    ("'Space Mono', monospace", "Space Mono (técnica, ciencia ficción)"),
+    ("'Caveat', cursive", "Caveat (manuscrita, cercana)"),
+    ("'Merriweather', Georgia, serif", "Merriweather (periódico, muy legible)"),
+    ("'Righteous', sans-serif", "Righteous (redondeada, divertida)"),
 ]
 
 
@@ -52,13 +58,12 @@ class ThemeAdmin(ColorWidgetMixin, admin.ModelAdmin):
     class Media:
         css = {"all": ("css/admin_theme_form.css",)}
 
-    list_display = ("name", "slug", "order", "is_published", "is_dark", "color_accent", "color_accent_secondary")
+    list_display = ("name", "order", "is_published", "is_dark", "color_accent", "color_accent_secondary")
     list_editable = ("order", "is_published")
     ordering = ("order", "name")
     actions = ["publish_themes", "unpublish_themes"]
-    prepopulated_fields = {"slug": ("name",)}
     fieldsets = (
-        (None, {"fields": ("name", "slug", "description", "order", "is_dark", "is_published")}),
+        (None, {"fields": ("name", "description", "order", "is_dark", "is_published")}),
         ("Colores", {
             "fields": (
                 "color_bg", "color_surface", "color_border",
@@ -100,7 +105,7 @@ class SingletonAdmin(admin.ModelAdmin):
 @admin.register(SiteConfig)
 class SiteConfigAdmin(SingletonAdmin):
     fieldsets = (
-        (None, {"fields": ("tagline", "contact_email", "require_email_verification")}),
+        (None, {"fields": ("tagline",)}),
         ("Donaciones", {"fields": ("bizum_number",)}),
         ("Animación de entrada", {"fields": ("show_intro_animation",)}),
         ("Tema visual", {

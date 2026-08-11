@@ -34,10 +34,16 @@ class HomeTests(TestCase):
 
 
 class ContactFormTests(TestCase):
-    def test_envio_valido_llega_al_email_configurado(self):
-        config = SiteConfig.load()
-        config.contact_email = "contacto@lasaladebygui.local"
-        config.save()
+    """"Escríbenos" ya no manda un email (el SMTP no era de fiar) — en su
+    lugar, cada Admin recibe el mensaje como un aviso de Social."""
+
+    def setUp(self):
+        self.admin = User.objects.create(email="admin_contacto@test.local", role=User.Role.ADMIN)
+        self.admin.set_password("Testpass123!")
+        self.admin.save()
+
+    def test_envio_valido_llega_como_mensaje_de_social_al_admin(self):
+        from apps.social.models import Message
 
         response = self.client.post(reverse("core:contact"), {
             "name": "Ana",
@@ -46,14 +52,24 @@ class ContactFormTests(TestCase):
             "website": "",
         })
         self.assertRedirects(response, reverse("core:contact"))
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, ["contacto@lasaladebygui.local"])
-        self.assertEqual(mail.outbox[0].reply_to, ["ana@example.com"])
+        msg = Message.objects.get(recipient=self.admin)
+        self.assertEqual(msg.sender, self.admin)
+        self.assertIn("Ana", msg.body)
+        self.assertIn("ana@example.com", msg.body)
+        self.assertIn("Hola, os escribo para...", msg.body)
 
-    def test_honeypot_relleno_no_envia_email(self):
-        config = SiteConfig.load()
-        config.contact_email = "contacto@lasaladebygui.local"
-        config.save()
+    def test_llega_a_todos_los_admin_si_hay_varios(self):
+        from apps.social.models import Message
+
+        otro_admin = User.objects.create(email="admin2_contacto@test.local", role=User.Role.ADMIN)
+        self.client.post(reverse("core:contact"), {
+            "name": "Ana", "email": "ana@example.com", "message": "Hola", "website": "",
+        })
+        self.assertTrue(Message.objects.filter(recipient=self.admin).exists())
+        self.assertTrue(Message.objects.filter(recipient=otro_admin).exists())
+
+    def test_honeypot_relleno_no_manda_nada(self):
+        from apps.social.models import Message
 
         response = self.client.post(reverse("core:contact"), {
             "name": "Bot",
@@ -62,32 +78,19 @@ class ContactFormTests(TestCase):
             "website": "http://spam.example.com",
         })
         self.assertRedirects(response, reverse("core:contact"))
-        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(Message.objects.count(), 0)
 
 
 class ContactLinkTests(TestCase):
-    """Enlaces de contacto alternativos (Instagram, WhatsApp...): deben
-    verse en /contacto/ tanto si el email de contacto está configurado
-    como si no, ya que son una vía aparte."""
+    """Enlaces de contacto alternativos (Instagram, WhatsApp...) en /contacto/."""
 
-    def test_se_muestran_sin_email_de_contacto_configurado(self):
+    def test_se_muestran_los_enlaces(self):
         ContactLink.objects.create(
             platform=ContactLink.Platform.INSTAGRAM, label="@lasaladebygui", url="https://instagram.com/lasaladebygui",
         )
         response = self.client.get(reverse("core:contact"))
         self.assertContains(response, "@lasaladebygui")
         self.assertContains(response, "https://instagram.com/lasaladebygui")
-
-    def test_se_muestran_con_email_de_contacto_configurado(self):
-        config = SiteConfig.load()
-        config.contact_email = "contacto@lasaladebygui.local"
-        config.save()
-        ContactLink.objects.create(
-            platform=ContactLink.Platform.WHATSAPP, label="600 000 000", url="https://wa.me/34600000000",
-        )
-        response = self.client.get(reverse("core:contact"))
-        self.assertIsNotNone(response.context["form"])
-        self.assertContains(response, "https://wa.me/34600000000")
 
     def test_orden_respeta_el_campo_order(self):
         segundo = ContactLink.objects.create(platform=ContactLink.Platform.OTRO, label="Segundo", url="https://b.example.com", order=2)

@@ -13,17 +13,30 @@ def _default_code_hash():
 
 
 class TopSecretConfig(SingletonModel):
-    """Código de acceso al maletín Tarantino. Se guarda hasheado (igual que
-    una contraseña de usuario), nunca en texto plano — ni siquiera el admin
-    puede ver el código actual, solo fijar uno nuevo."""
+    """Código de acceso al maletín Tarantino (se guarda hasheado, nunca en
+    texto plano) y ajustes de color de la lista completa: a partir de qué
+    nota una película se pinta como bien valorada, regular o mal valorada,
+    y con qué color exacto — todo editable sin tocar código."""
 
     access_code_hash = models.CharField(
         "código de acceso (hash)", max_length=128, default=_default_code_hash
     )
 
+    rating_good_threshold = models.DecimalField(
+        "nota a partir de la cual se considera alta", max_digits=3, decimal_places=1, default=8.0,
+    )
+    rating_mid_threshold = models.DecimalField(
+        "nota a partir de la cual se considera media",
+        max_digits=3, decimal_places=1, default=6.0,
+        help_text="Por debajo de esta nota se considera baja.",
+    )
+    color_rating_good = models.CharField("color de nota alta", max_length=7, default="#22C55E")
+    color_rating_mid = models.CharField("color de nota media", max_length=7, default="#FFB347")
+    color_rating_bad = models.CharField("color de nota baja", max_length=7, default="#EF4444")
+
     class Meta:
-        verbose_name = "Top Secret: código de acceso"
-        verbose_name_plural = "Top Secret: código de acceso"
+        verbose_name = "Top Secret: código de acceso y colores"
+        verbose_name_plural = "Top Secret: código de acceso y colores"
 
     def __str__(self):
         return "Código de acceso al maletín Tarantino"
@@ -33,6 +46,13 @@ class TopSecretConfig(SingletonModel):
 
     def set_code(self, code):
         self.access_code_hash = make_password(code)
+
+    def rating_color(self, personal_rating):
+        if personal_rating >= self.rating_good_threshold:
+            return self.color_rating_good
+        if personal_rating >= self.rating_mid_threshold:
+            return self.color_rating_mid
+        return self.color_rating_bad
 
 
 class Genre(models.Model):
@@ -80,6 +100,16 @@ class SecretMovie(models.Model):
     movie = models.ForeignKey(
         Movie, verbose_name="película del catálogo (opcional, para la portada)",
         on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+
+    class RatingVerdict(models.TextChoices):
+        OVERRATED = "sobrevalorada", "Sobrevalorada"
+        WELL_RATED = "bien_valorada", "Bien valorada"
+        UNDERRATED = "infravalorada", "Infravalorada"
+
+    rating_verdict = models.CharField(
+        "evaluación real", max_length=20, choices=RatingVerdict.choices, blank=True, default="",
+        help_text="¿Tu nota está por encima, por debajo o acorde con lo que de verdad merece? Opcional.",
     )
 
     class Meta:
@@ -138,6 +168,12 @@ class SecretMovie(models.Model):
     @property
     def poster_url(self):
         return self.movie.poster_url if self.movie else ""
+
+    RATING_VERDICT_ICONS = {"sobrevalorada": "↑", "bien_valorada": "=", "infravalorada": "↓"}
+
+    @property
+    def rating_verdict_icon(self):
+        return self.RATING_VERDICT_ICONS.get(self.rating_verdict, "")
 
 
 class TierLevel(models.Model):
@@ -299,7 +335,7 @@ class CalendarDayNote(models.Model):
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, verbose_name="usuario", on_delete=models.CASCADE, related_name="calendar_day_notes")
     date = models.DateField("fecha")
-    note = models.CharField("comentario", max_length=280)
+    note = models.TextField("comentario")
 
     class Meta:
         verbose_name = "comentario del calendario"

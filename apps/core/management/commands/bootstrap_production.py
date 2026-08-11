@@ -57,11 +57,8 @@ class Command(BaseCommand):
             self.stdout.write("Ya existe un Admin: no se crea ninguno nuevo.")
             return
 
-        user, _ = User.objects.get_or_create(
-            email=email, defaults={"role": User.Role.ADMIN, "email_verified": True}
-        )
+        user, _ = User.objects.get_or_create(email=email, defaults={"role": User.Role.ADMIN})
         user.role = User.Role.ADMIN
-        user.email_verified = True
         user.set_password(password)
         user.save()
         self.stdout.write(self.style.SUCCESS(f"Admin creado: {email}"))

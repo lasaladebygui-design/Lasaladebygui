@@ -135,15 +135,32 @@ def by_rating(request):
 @secret_required
 def full_list(request):
     form = FullListFilterForm(request.GET or None)
-    movies = SecretMovie.objects.prefetch_related("genres").all()
+    movies = SecretMovie.objects.prefetch_related("genres").select_related("movie").all()
     if form.is_valid():
-        genre = form.cleaned_data.get("genre")
+        genres = form.cleaned_data.get("genres")
         rating = form.cleaned_data.get("rating")
-        if genre:
-            movies = movies.filter(genres=genre)
+        if genres:
+            for genre in genres:
+                movies = movies.filter(genres=genre)
         if rating:
             movies = movies.filter(personal_rating=rating)
-    return render(request, "secret/list.html", {"movies": movies, "form": form})
+    return render(request, "secret/list.html", {
+        "movies": movies, "form": form, "rating_config": TopSecretConfig.load(),
+    })
+
+
+@secret_required
+def set_movie_verdict(request, pk):
+    if request.method != "POST":
+        return redirect("secret:list")
+    movie = get_object_or_404(SecretMovie, pk=pk)
+    verdict = request.POST.get("verdict", "")
+    valid_values = {choice for choice, _ in SecretMovie.RatingVerdict.choices}
+    movie.rating_verdict = verdict if verdict in valid_values else ""
+    movie.save(update_fields=["rating_verdict"])
+    return render(request, "secret/_movie_verdict.html", {
+        "movie": movie, "rating_config": TopSecretConfig.load(),
+    })
 
 
 @secret_required
@@ -503,7 +520,7 @@ def calendar_day_note(request):
     except (TypeError, ValueError):
         raise Http404
 
-    note = request.POST.get("note", "").strip()[:280]
+    note = request.POST.get("note", "").strip()
     if note:
         CalendarDayNote.objects.update_or_create(user=request.user, date=note_date, defaults={"note": note})
     else:

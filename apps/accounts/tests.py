@@ -455,52 +455,6 @@ class NavPanelLinkTests(TestCase):
         self.assertNotContains(response, ">Panel<")
 
 
-class ProfileEmailVerificationStatusTests(TestCase):
-    """Ajustes debe reflejar si el email está verificado y ofrecer reenviar
-    el correo — antes esto no tenía ningún hueco visible en la web, así que
-    no había forma de saber si el email de verificación se había perdido o
-    de pedir que se reenviara."""
-
-    def setUp(self):
-        from apps.core.models import SiteConfig
-
-        config = SiteConfig.load()
-        config.require_email_verification = True
-        config.save()
-
-        self.user = User.objects.create(email="lector@test.local", role=User.Role.LECTOR)
-        self.user.set_password("Testpass123!")
-        self.user.save()
-        self.client.login(username=self.user.email, password="Testpass123!")
-
-    def test_muestra_aviso_y_boton_de_reenviar_si_no_esta_verificado(self):
-        response = self.client.get(reverse("accounts:settings"))
-        self.assertContains(response, "no has verificado")
-        self.assertContains(response, reverse("accounts:resend-verification"))
-
-    def test_muestra_verificado_si_ya_lo_esta(self):
-        self.user.email_verified = True
-        self.user.save()
-        response = self.client.get(reverse("accounts:settings"))
-        self.assertContains(response, "Email verificado")
-        self.assertNotContains(response, "no has verificado")
-
-    def test_reenviar_envia_un_email(self):
-        self.client.post(reverse("accounts:resend-verification"))
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertIn(self.user.email, mail.outbox[0].to)
-
-    def test_sin_exigir_verificacion_no_se_muestra_nada(self):
-        from apps.core.models import SiteConfig
-
-        config = SiteConfig.load()
-        config.require_email_verification = False
-        config.save()
-
-        response = self.client.get(reverse("accounts:settings"))
-        self.assertNotContains(response, "no has verificado")
-        self.assertNotContains(response, "Email verificado")
-
 
 class SettingsPageTests(TestCase):
     """Ajustes reúne lo que antes vivía suelto por el perfil (o no existía):

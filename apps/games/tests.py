@@ -1196,6 +1196,18 @@ class OscarCandidateTests(TestCase):
         response = self.client.get(reverse("games:oscars"))
         self.assertEqual(response.status_code, 200)
 
+    def test_el_buscador_manda_el_texto_escrito_al_servidor(self):
+        # Bug real: el <input> del buscador de "+ Proponer candidata" no
+        # tenía name="query" — sin nombre, htmx no incluye el valor escrito
+        # en la petición GET, así que la búsqueda SIEMPRE volvía vacía (el
+        # propio JS del navegador nunca mandaba lo que escribías, aunque la
+        # vista en sí funcionase perfectamente al probarla por su cuenta).
+        # Esto es justo lo que un test que llama a la vista directamente
+        # (con el "query" ya puesto a mano) no puede detectar.
+        response = self.client.get(reverse("games:oscars"))
+        self.assertContains(response, f'name="query"')
+        self.assertContains(response, f'hx-get="{reverse("games:oscar-candidate-search", args=[self.category.pk])}"')
+
     @patch("apps.games.views.Movie.get_or_create_from_tmdb")
     def test_proponer_candidata_la_anade_a_la_categoria(self, mock_get_or_create):
         mock_get_or_create.return_value = Movie.objects.create(tmdb_id=1, title="Peli candidata")

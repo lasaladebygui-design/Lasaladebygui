@@ -33,19 +33,6 @@
                 <button type="submit" class="btn btn--accent btn--sm">Guardar nombre</button>
             </form>
 
-            {% if site_config.require_email_verification %}
-                {% if user.email_verified %}
-                <p class="muted">✅ Email verificado</p>
-                {% else %}
-                <div>
-                    <p class="field-errors">⚠️ Todavía no has verificado tu email. Revisa tu bandeja de entrada (y spam).</p>
-                    <form method="post" action="{% url 'accounts:resend-verification' %}" class="inline-form">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn--ghost btn--sm">Reenviar email de verificación</button>
-                    </form>
-                </div>
-                {% endif %}
-            {% endif %}
 
             <form method="post" enctype="multipart/form-data" class="stacked-form" style="margin-top:1rem;">
                 {% csrf_token %}

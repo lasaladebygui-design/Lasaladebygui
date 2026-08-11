@@ -14,7 +14,7 @@ class SecretMovieForm(forms.ModelForm):
 
     class Meta:
         model = SecretMovie
-        fields = ["title", "personal_rating", "tie_break", "comment", "movie"]
+        fields = ["title", "personal_rating", "tie_break", "comment", "movie", "rating_verdict"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -65,9 +65,13 @@ class RatingSearchForm(forms.Form):
 
 
 class FullListFilterForm(forms.Form):
-    genre = forms.ModelChoiceField(
-        label="Lista", queryset=Genre.objects.all(), to_field_name="slug",
-        required=False, empty_label="Todas",
+    genres = forms.ModelMultipleChoiceField(
+        label="Listas",
+        queryset=Genre.objects.all(),
+        to_field_name="slug",
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        help_text="Marca varias para cruzarlas: solo aparecen las películas que estén en todas las marcadas.",
     )
     rating = forms.ChoiceField(label="Nota", required=False)
 

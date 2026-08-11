@@ -7,17 +7,14 @@ from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
-from django.core.mail import send_mail
 from django.db.models import Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from apps.core.google_calendar import exchange_code_for_tokens, get_authorization_url, google_calendar_enabled
-from apps.core.models import SiteConfig
 from apps.games.models import DuelRecord
 from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError, tmdb_search
@@ -25,24 +22,7 @@ from apps.secret.models import ReleaseEvent
 from apps.secret.views import secret_required
 
 from .forms import EmailAuthenticationForm, ProfileForm, RegisterForm, UsernameChangeForm
-from .models import EmailVerificationToken, FavoriteMovie, GoogleCalendarConnection, PushSubscription, User
-
-
-def _send_verification_email(request, user):
-    token = EmailVerificationToken.objects.create(user=user)
-    verify_url = request.build_absolute_uri(
-        reverse("accounts:verify-email", args=[token.token])
-    )
-    message = render_to_string(
-        "accounts/email/verify_email.txt",
-        {"user": user, "verify_url": verify_url},
-    )
-    send_mail(
-        subject="Confirma tu email en La Sala de Bygui",
-        message=message,
-        from_email=None,
-        recipient_list=[user.email],
-    )
+from .models import FavoriteMovie, GoogleCalendarConnection, PushSubscription, User
 
 
 def register(request):
@@ -58,15 +38,7 @@ def register(request):
             # adivinar solo cuál usar para un login que no pasó por
             # authenticate() primero.
             auth_login(request, user, backend="apps.accounts.backends.EmailBackend")
-            config = SiteConfig.load()
-            if config.require_email_verification:
-                _send_verification_email(request, user)
-                messages.success(
-                    request,
-                    "¡Cuenta creada! Te hemos enviado un email para confirmarla.",
-                )
-            else:
-                messages.success(request, "¡Bienvenido/a a La Sala de Bygui!")
+            messages.success(request, "¡Bienvenido/a a La Sala de Bygui!")
             return redirect("core:home")
     else:
         form = RegisterForm()
@@ -83,24 +55,6 @@ def logout_view(request):
     auth_logout(request)
     messages.info(request, "Has cerrado sesión.")
     return redirect("core:home")
-
-
-def verify_email(request, token):
-    verification = get_object_or_404(EmailVerificationToken, token=token)
-    if verification.is_used:
-        messages.warning(request, "Ese enlace de verificación ya se usó.")
-        return redirect("accounts:login")
-
-    user = verification.user
-    user.email_verified = True
-    user.save(update_fields=["email_verified"])
-    from django.utils import timezone
-
-    verification.used_at = timezone.now()
-    verification.save(update_fields=["used_at"])
-
-    messages.success(request, "Email confirmado. Ya puedes iniciar sesión.")
-    return redirect("accounts:login")
 
 
 @login_required
@@ -329,17 +283,6 @@ def favorite_category_note(request, category):
         setattr(request.user, field, request.POST.get("note", "").strip())
         request.user.save(update_fields=[field])
     return redirect("accounts:favorites-page", category)
-
-
-@login_required
-def resend_verification(request):
-    user = request.user
-    if user.email_verified:
-        messages.info(request, "Tu email ya está verificado.")
-    else:
-        _send_verification_email(request, user)
-        messages.success(request, "Te hemos reenviado el email de verificación.")
-    return redirect("core:home")
 
 
 @login_required

@@ -5,7 +5,7 @@ from django.shortcuts import redirect, render
 from django.urls import path, reverse
 
 from .forms import BroadcastEmailForm
-from .models import EmailVerificationToken, FavoriteMovie, GoogleCalendarConnection, PushSubscription, User
+from .models import FavoriteMovie, GoogleCalendarConnection, PushSubscription, User
 
 
 @admin.register(User)
@@ -17,12 +17,11 @@ class UserAdmin(DjangoUserAdmin):
         "email",
         "username",
         "role",
-        "email_verified",
         "is_active",
         "date_joined",
     )
     list_editable = ("role",)
-    list_filter = ("role", "is_active", "email_verified")
+    list_filter = ("role", "is_active")
     search_fields = ("email", "username")
     readonly_fields = ("date_joined", "last_login")
 
@@ -31,7 +30,7 @@ class UserAdmin(DjangoUserAdmin):
         ("Datos personales", {"fields": ("first_name", "last_name", "bio")}),
         ("Perfil público", {"fields": ("avatar",)}),
         ("Preferencias", {"fields": ("theme",)}),
-        ("Rol y estado", {"fields": ("role", "email_verified", "is_active", "is_staff", "is_superuser")}),
+        ("Rol y estado", {"fields": ("role", "is_active", "is_staff", "is_superuser")}),
         ("Permisos avanzados", {"fields": ("groups", "user_permissions"), "classes": ("collapse",)}),
         ("Fechas", {"fields": ("last_login", "date_joined")}),
     )
@@ -103,13 +102,6 @@ class UserAdmin(DjangoUserAdmin):
             "opts": self.model._meta,
         }
         return render(request, "admin/accounts/user/send_email.html", context)
-
-
-@admin.register(EmailVerificationToken)
-class EmailVerificationTokenAdmin(admin.ModelAdmin):
-    list_display = ("user", "created_at", "used_at")
-    readonly_fields = ("token", "created_at")
-    search_fields = ("user__email",)
 
 
 @admin.register(FavoriteMovie)

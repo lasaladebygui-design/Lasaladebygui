@@ -19,7 +19,7 @@
                 <h3>{{ product.name }}</h3>
                 {% if product.price %}<p class="card__tag">{{ product.price }} €</p>{% endif %}
                 {% if product.description %}<p>{{ product.description }}</p>{% endif %}
-                {% if product.url %}<a href="{{ product.url }}" class="btn btn--ghost btn--sm" target="_blank" rel="noopener">Más info</a>{% endif %}
+                {% if product.url %}<a href="{{ product.url }}" class="btn btn--ghost btn--sm" target="_blank" rel="noopener">Web del artículo</a>{% endif %}
             </div>
             {% endfor %}
         </div>

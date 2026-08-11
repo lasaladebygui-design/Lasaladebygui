@@ -18,7 +18,7 @@ class Command(BaseCommand):
         for email, password, role, username in DEMO_USERS:
             user, created = User.objects.get_or_create(
                 email=email,
-                defaults={"username": username, "role": role, "email_verified": True},
+                defaults={"username": username, "role": role},
             )
             if created:
                 user.set_password(password)

@@ -54,11 +54,15 @@ def notifications_feed(user, limit_per_category=5):
         .select_related("sender").order_by("-created_at")[:limit_per_category]
     )
     for msg in unread_messages:
+        # Los mensajes de "Escríbenos" se autoenvían (sender == recipient,
+        # ya que quien escribe no tiene por qué tener cuenta) — se avisan
+        # con un texto distinto para que no diga que te has escrito a ti.
+        is_contact_message = msg.sender_id == msg.recipient_id
         items.append({
-            "kind": "message", "icon": "💬",
-            "text": f"{msg.sender} te ha escrito",
+            "kind": "message", "icon": "✉️" if is_contact_message else "💬",
+            "text": "Nuevo mensaje por «Escríbenos»" if is_contact_message else f"{msg.sender} te ha escrito",
             "detail": msg.body[:80],
-            "url": reverse("social:conversation", args=[msg.sender.username]),
+            "url": reverse("social:home") if is_contact_message else reverse("social:conversation", args=[msg.sender.username]),
             "created_at": msg.created_at,
         })
 

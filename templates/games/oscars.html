@@ -45,7 +45,7 @@
             <details class="tier-add-level" style="margin-top:0.8rem;">
                 <summary class="btn btn--ghost btn--sm">+ Proponer candidata</summary>
                 <div class="field">
-                    <input type="text" placeholder="{% if row.category.candidate_type == 'person' %}Buscar nombre…{% else %}Buscar título…{% endif %}" autocomplete="off"
+                    <input type="text" name="query" placeholder="{% if row.category.candidate_type == 'person' %}Buscar nombre…{% else %}Buscar título…{% endif %}" autocomplete="off"
                            hx-get="{% url 'games:oscar-candidate-search' row.category.pk %}"
                            hx-trigger="keyup changed delay:400ms, search"
                            hx-target="#oscar-search-results-{{ row.category.pk }}"

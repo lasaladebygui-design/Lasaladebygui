@@ -1,7 +1,0 @@
-Hola {{ user.username }},
-
-Gracias por registrarte en La Sala de Bygui. Confirma tu email haciendo clic en este enlace:
-
-{{ verify_url }}
-
-Si no has sido tú, puedes ignorar este mensaje.

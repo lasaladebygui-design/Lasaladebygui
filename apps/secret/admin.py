@@ -29,7 +29,15 @@ class TopSecretConfigForm(forms.ModelForm):
 
     class Meta:
         model = TopSecretConfig
-        fields = []
+        fields = [
+            "rating_good_threshold", "rating_mid_threshold",
+            "color_rating_good", "color_rating_mid", "color_rating_bad",
+        ]
+        widgets = {
+            "color_rating_good": forms.TextInput(attrs={"type": "color"}),
+            "color_rating_mid": forms.TextInput(attrs={"type": "color"}),
+            "color_rating_bad": forms.TextInput(attrs={"type": "color"}),
+        }
 
     def save(self, commit=True):
         instance = super().save(commit=False)
@@ -44,19 +52,31 @@ class TopSecretConfigForm(forms.ModelForm):
 @admin.register(TopSecretConfig)
 class TopSecretConfigAdmin(SingletonAdmin):
     form = TopSecretConfigForm
-    fieldsets = ((None, {"fields": ("new_code",)}),)
+    fieldsets = (
+        (None, {"fields": ("new_code",)}),
+        ("Colores de la lista completa según nota", {
+            "fields": (
+                "rating_good_threshold", "color_rating_good",
+                "rating_mid_threshold", "color_rating_mid",
+                "color_rating_bad",
+            ),
+            "description": "Por debajo de la nota media, el color siempre es el de \"nota baja\".",
+        }),
+    )
 
 
 @admin.register(Genre)
 class GenreAdmin(admin.ModelAdmin):
     list_display = ("name",)
+    exclude = ("slug",)
     search_fields = ("name",)
 
 
 @admin.register(SecretMovie)
 class SecretMovieAdmin(admin.ModelAdmin):
     form = SecretMovieForm
-    list_display = ("number", "title", "personal_rating", "tie_break", "genre_list")
+    list_display = ("number", "title", "personal_rating", "rating_verdict", "tie_break", "genre_list")
+    list_filter = ("rating_verdict",)
     search_fields = ("title",)
     autocomplete_fields = ("movie",)
     ordering = ("number",)

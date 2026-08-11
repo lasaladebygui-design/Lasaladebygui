@@ -11,6 +11,7 @@ urlpatterns = [
     path("dentro/numero/", views.by_number, name="by-number"),
     path("dentro/nota/", views.by_rating, name="by-rating"),
     path("dentro/lista/", views.full_list, name="list"),
+    path("dentro/lista/<int:pk>/evaluacion/", views.set_movie_verdict, name="set-movie-verdict"),
     path("dentro/otros/", views.other, name="other"),
     path("dentro/tierlist/", views.tier_list, name="tier-list"),
     path("dentro/tierlist/buscar/", views.tier_list_search, name="tier-list-search"),

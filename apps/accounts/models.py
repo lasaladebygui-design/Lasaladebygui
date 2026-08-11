@@ -1,5 +1,3 @@
-import uuid
-
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
@@ -28,7 +26,6 @@ class User(AbstractUser):
     username = models.CharField("nombre de usuario", max_length=150, unique=True, blank=True)
     email = models.EmailField("correo electrónico", unique=True)
     role = models.CharField("rol", max_length=20, choices=Role.choices, default=Role.LECTOR)
-    email_verified = models.BooleanField("email verificado", default=False)
     bio = models.TextField("biografía", blank=True)
     avatar = models.ImageField("foto de perfil", upload_to="avatars/", blank=True, null=True)
     quote_streak_best = models.PositiveIntegerField(
@@ -214,26 +211,6 @@ class FavoriteMovie(models.Model):
 
     def __str__(self):
         return f"{self.user} — {self.get_category_display()}: {self.movie}"
-
-
-class EmailVerificationToken(models.Model):
-    """Token de un solo uso para confirmar el email de un usuario."""
-
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="verification_tokens")
-    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    used_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        verbose_name = "enlace de verificación de email"
-        verbose_name_plural = "cuentas: enlaces de verificación de email"
-
-    def __str__(self):
-        return f"Enlace de verificación de {self.user}"
-
-    @property
-    def is_used(self):
-        return self.used_at is not None
 
 
 class PushSubscription(models.Model):

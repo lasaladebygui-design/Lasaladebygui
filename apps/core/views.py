@@ -1,7 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.staticfiles import finders
-from django.core.mail import EmailMessage
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.response import TemplateResponse
@@ -42,28 +41,32 @@ def donations(request):
 
 
 def contact(request):
-    config = SiteConfig.load()
     contact_links = ContactLink.objects.all()
 
     if request.method == "POST":
         form = ContactForm(request.POST)
         if form.is_valid():
             if not form.is_spam():
-                EmailMessage(
-                    subject=f"[Contacto La Sala de Bygui] {form.cleaned_data['name']}",
-                    body=(
-                        f"De: {form.cleaned_data['name']} <{form.cleaned_data['email']}>\n\n"
-                        f"{form.cleaned_data['message']}"
-                    ),
-                    to=[config.contact_email],
-                    reply_to=[form.cleaned_data["email"]],
-                ).send()
+                _notify_admins_of_contact_message(form.cleaned_data["name"], form.cleaned_data["email"], form.cleaned_data["message"])
             messages.success(request, "¡Mensaje enviado! Te responderemos lo antes posible.")
             return redirect("core:contact")
     else:
         form = ContactForm()
 
     return render(request, "core/contact.html", {"form": form, "contact_links": contact_links})
+
+
+def _notify_admins_of_contact_message(name, email, message):
+    """"Escríbenos" ya no manda un email (el SMTP no era de fiar) — en su
+    lugar, cada Admin recibe el mensaje como un aviso de Social (mensaje
+    autoenviado, ya que quien escribe no tiene por qué tener cuenta), donde
+    también aparece en su campanita de avisos."""
+    from apps.accounts.models import User
+    from apps.social.models import Message
+
+    body = f"Mensaje de «Escríbenos» de {name} <{email}>:\n\n{message}"
+    for admin in User.objects.filter(role=User.Role.ADMIN):
+        Message.objects.create(sender=admin, recipient=admin, body=body)
 
 
 @cache_control(private=True, no_cache=True)

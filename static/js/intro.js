@@ -9,7 +9,7 @@ function introOverlay() {
                 return;
             }
             this.playSound();
-            this._timer = setTimeout(() => this.finish(), 3400);
+            this._timer = setTimeout(() => this.finish(), 5400);
         },
 
         skip() {

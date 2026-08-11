@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.validators import RegexValidator
 from django.db import models
+from django.utils.text import slugify
 
 hex_color_validator = RegexValidator(
     regex=r"^#[0-9A-Fa-f]{6}$",
@@ -127,6 +128,17 @@ class Theme(models.Model):
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base = slugify(self.name) or "tema"
+            candidate = base
+            suffix = 0
+            while Theme.objects.filter(slug=candidate).exclude(pk=self.pk).exists():
+                suffix += 1
+                candidate = f"{base}-{suffix}"
+            self.slug = candidate
+        super().save(*args, **kwargs)
+
 
 class SiteConfig(SingletonModel):
     """Ajustes generales del sitio, editables desde el admin."""
@@ -134,16 +146,6 @@ class SiteConfig(SingletonModel):
     tagline = models.CharField(
         "eslogan", max_length=200,
         default="Cine, pelis, series y debates. Todo en una misma sala.",
-    )
-    require_email_verification = models.BooleanField(
-        "exigir verificación de email al registrarse",
-        default=False,
-        help_text="Si está activado, los usuarios nuevos deben confirmar su email antes de iniciar sesión.",
-    )
-    contact_email = models.EmailField(
-        "email de contacto",
-        blank=True,
-        help_text="Dirección a la que llegan los mensajes del formulario de contacto.",
     )
     bizum_number = models.CharField(
         "número de Bizum",

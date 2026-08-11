@@ -120,11 +120,20 @@ class SecretMovieViewTests(TestCase):
         response = self.client.get(reverse("secret:list"))
         self.assertEqual(list(response.context["movies"]), [self.a, self.b])
 
-    def test_lista_completa_filtra_por_genero(self):
+    def test_lista_completa_filtra_por_lista(self):
         terror = Genre.objects.create(name="Terror")
         self.a.genres.add(terror)
 
-        response = self.client.get(reverse("secret:list"), {"genre": terror.slug})
+        response = self.client.get(reverse("secret:list"), {"genres": [terror.slug]})
+        self.assertEqual(list(response.context["movies"]), [self.a])
+
+    def test_lista_completa_filtra_por_varias_listas_a_la_vez(self):
+        terror = Genre.objects.create(name="Terror")
+        slasher = Genre.objects.create(name="Slasher")
+        self.a.genres.add(terror, slasher)
+        self.b.genres.add(terror)
+
+        response = self.client.get(reverse("secret:list"), {"genres": [terror.slug, slasher.slug]})
         self.assertEqual(list(response.context["movies"]), [self.a])
 
     def test_lista_completa_filtra_por_nota(self):
@@ -136,8 +145,29 @@ class SecretMovieViewTests(TestCase):
         self.a.genres.add(terror)
         self.b.genres.add(terror)
 
-        response = self.client.get(reverse("secret:list"), {"genre": terror.slug, "rating": "9.0"})
+        response = self.client.get(reverse("secret:list"), {"genres": [terror.slug], "rating": "9.0"})
         self.assertEqual(list(response.context["movies"]), [self.a])
+
+    def test_no_se_muestra_el_numero_interno_en_la_lista(self):
+        response = self.client.get(reverse("secret:list"))
+        self.assertNotContains(response, "#1 —")
+        self.assertNotContains(response, "#2 —")
+
+    def test_marcar_evaluacion_real_de_una_pelicula(self):
+        response = self.client.post(
+            reverse("secret:set-movie-verdict", args=[self.a.pk]), {"verdict": "sobrevalorada"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.rating_verdict, "sobrevalorada")
+
+    def test_volver_a_marcar_la_misma_evaluacion_la_quita(self):
+        self.a.rating_verdict = "bien_valorada"
+        self.a.save(update_fields=["rating_verdict"])
+
+        self.client.post(reverse("secret:set-movie-verdict", args=[self.a.pk]), {"verdict": ""})
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.rating_verdict, "")
 
     def test_buscador_por_nota_filtra_por_genero(self):
         terror = Genre.objects.create(name="Terror")
