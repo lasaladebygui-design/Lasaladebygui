@@ -164,6 +164,11 @@ class SiteConfig(SingletonModel):
         default=True,
         help_text="Desactívala para quitar la campanita de avisos de toda la web (mensajes, amistad, artículos, tienda...).",
     )
+    recent_activity_enabled = models.BooleanField(
+        "mostrar actividad reciente en la portada",
+        default=True,
+        help_text="Últimos comentarios de Artículos y del Foro, mezclados por fecha, en la sala principal.",
+    )
     intro_sound = models.FileField(
         "sonido de la intro",
         upload_to="intro_sound/",

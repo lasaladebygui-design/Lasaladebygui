@@ -428,6 +428,7 @@ JAZZMIN_SETTINGS = {
     # "Ver sitio" que Django ya pone en el desplegable de usuario).
     "topmenu_links": [
         {"name": "← Volver a la web", "url": "core:home", "new_window": False},
+        {"name": "⬇️ Exportar a Excel", "url": "core:admin-export-excel", "new_window": False},
     ],
     "custom_css": "css/admin_custom.css",
     # Bloques del menú lateral, en este orden: Artículos, Foro, Películas,

@@ -1,9 +1,11 @@
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.contrib.staticfiles import finders
-from django.http import FileResponse, Http404, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.response import TemplateResponse
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import cache_control
 from django.views.decorators.http import require_POST
@@ -17,10 +19,15 @@ from .notifications import notifications_feed
 
 
 def home(request):
+    from .activity import recent_activity
+
     articles = Article.objects.select_related("author").prefetch_related("tags")
     if not can_manage_private_articles(request.user):
         articles = articles.filter(is_private=False)
-    return TemplateResponse(request, "core/home.html", {"featured_articles": articles[:5]})
+    return TemplateResponse(request, "core/home.html", {
+        "featured_articles": articles[:5],
+        "recent_activity": recent_activity(request.user),
+    })
 
 
 @login_required
@@ -117,4 +124,51 @@ def service_worker(request):
         raise Http404
     response = FileResponse(open(path, "rb"), content_type="application/javascript")
     response["Service-Worker-Allowed"] = "/"
+    return response
+
+
+@staff_member_required
+def export_excel(request):
+    """Copia de seguridad rápida en Excel de lo que no está en ningún otro
+    sitio si la web "explota": el comentario de cada día del calendario
+    personal, la lista de Top Secret (nota, listas, comentario) y las
+    guardadas de cada usuario agrupadas por su lista. Un botón en el panel
+    (topmenu de Jazzmin), nada que requiera entrar a ningún modelo."""
+    from openpyxl import Workbook
+    from openpyxl.utils import get_column_letter
+
+    from apps.movies.models import SavedMovie
+    from apps.secret.models import CalendarDayNote, SecretMovie
+
+    wb = Workbook()
+
+    ws_calendar = wb.active
+    ws_calendar.title = "Calendario"
+    ws_calendar.append(["Usuario", "Fecha", "Comentario"])
+    for note in CalendarDayNote.objects.select_related("user").order_by("user_id", "date"):
+        ws_calendar.append([str(note.user), note.date.strftime("%d/%m/%Y"), note.note])
+
+    ws_secret = wb.create_sheet("Top Secret")
+    ws_secret.append(["Nombre", "Nota", "Listas", "Comentario"])
+    for movie in SecretMovie.objects.prefetch_related("genres").order_by("number"):
+        listas = ", ".join(movie.genres.values_list("name", flat=True))
+        ws_secret.append([movie.title, float(movie.personal_rating), listas, movie.comment])
+
+    ws_saved = wb.create_sheet("Guardadas")
+    ws_saved.append(["Usuario", "Lista", "Película"])
+    for saved in SavedMovie.objects.select_related("user", "movie").prefetch_related("sublists").order_by("user_id", "movie__title"):
+        listas = ", ".join(saved.sublists.values_list("name", flat=True)) or "Sin lista"
+        ws_saved.append([str(saved.user), listas, saved.movie.title])
+
+    for ws in wb.worksheets:
+        for col_idx, column_cells in enumerate(ws.columns, start=1):
+            max_len = max((len(str(cell.value)) for cell in column_cells if cell.value is not None), default=10)
+            ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 2, 60)
+
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    filename = f"bygui_backup_{timezone.now():%Y%m%d_%H%M}.xlsx"
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    wb.save(response)
     return response

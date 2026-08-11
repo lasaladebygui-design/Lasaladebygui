@@ -1,5 +1,7 @@
 from django.contrib import admin
 
+from apps.core.admin import SortableAdminMixin
+
 from .models import (
     Duel, DuelRecord, GameTierEntry, GameTierLevel, MovieQuote, OscarCandidate, OscarCategory, OscarVote,
     PersonalityAnswer, PersonalityCharacter, PersonalityQuestion, TriviaQuestion, TrueFalseStatement,
@@ -28,9 +30,11 @@ class TrueFalseStatementAdmin(admin.ModelAdmin):
 
 
 @admin.register(PersonalityCharacter)
-class PersonalityCharacterAdmin(admin.ModelAdmin):
-    list_display = ("name", "source", "order")
+class PersonalityCharacterAdmin(SortableAdminMixin, admin.ModelAdmin):
+    list_display = ("name", "source")
+    list_display_links = ("name",)
     search_fields = ("name", "source")
+    exclude = ("order",)
 
 
 class PersonalityAnswerInline(admin.TabularInline):
@@ -40,16 +44,20 @@ class PersonalityAnswerInline(admin.TabularInline):
 
 
 @admin.register(PersonalityQuestion)
-class PersonalityQuestionAdmin(admin.ModelAdmin):
-    list_display = ("text", "order")
+class PersonalityQuestionAdmin(SortableAdminMixin, admin.ModelAdmin):
+    list_display = ("text",)
+    list_display_links = ("text",)
     inlines = [PersonalityAnswerInline]
+    exclude = ("order",)
 
 
 @admin.register(OscarCategory)
-class OscarCategoryAdmin(admin.ModelAdmin):
-    list_display = ("name", "candidate_type", "is_open", "order")
-    list_editable = ("is_open", "order")
+class OscarCategoryAdmin(SortableAdminMixin, admin.ModelAdmin):
+    list_display = ("name", "candidate_type", "is_open")
+    list_display_links = ("name",)
+    list_editable = ("is_open",)
     list_filter = ("candidate_type",)
+    exclude = ("order",)
     actions = ["open_categories", "close_categories"]
 
     @admin.action(description="🔓 Abrir a candidaturas y votos")

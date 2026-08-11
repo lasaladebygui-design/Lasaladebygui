@@ -398,8 +398,19 @@ main { flex: 1; }
 /* Candidatos al Oscar: es habitual tener bastantes por categoría, así que
    caben 4 por fila en vez del tamaño grande genérico de .card-grid. */
 .card-grid--oscars { grid-template-columns: repeat(4, 1fr); }
+.card-grid--oscars .card { padding: calc(var(--space-unit) * 4); }
 @media (max-width: 860px) { .card-grid--oscars { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 480px) { .card-grid--oscars { grid-template-columns: 1fr; } }
+
+.oscars-candidate__photo {
+    width: 100%;
+    max-width: 160px;
+    aspect-ratio: 2/3;
+    object-fit: cover;
+    border-radius: var(--radius-base);
+    display: block;
+    margin: 0 auto calc(var(--space-unit) * 3);
+}
 
 .card {
     background: var(--color-surface);
@@ -667,6 +678,21 @@ main { flex: 1; }
    — ocupa todo el ancho de la fila y no se ve, solo dispara la siguiente
    tanda al entrar en pantalla. */
 .article-grid__sentinel { grid-column: 1 / -1; height: 1px; }
+
+/* --- Portada: actividad reciente --------------------------------------- */
+
+.activity-feed { list-style: none; margin: calc(var(--space-unit) * 4) 0 0; padding: 0; }
+.activity-feed__item {
+    display: flex;
+    gap: calc(var(--space-unit) * 3);
+    padding: calc(var(--space-unit) * 3) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+.activity-feed__item:last-child { border-bottom: none; }
+.activity-feed__icon { font-size: 1.3rem; flex-shrink: 0; }
+.activity-feed__body { flex: 1; min-width: 0; }
+.activity-feed__meta { margin: 0 0 0.3rem; font-size: 0.9rem; }
+.activity-feed__text { margin: 0; color: var(--color-text-muted); }
 
 .article-search {
     display: flex;
@@ -2571,6 +2597,22 @@ main { flex: 1; }
     .site-header__right { gap: calc(var(--space-unit) * 2); }
     .header-profile__name { display: none; }
     .brand__text { display: none; }
+
+    /* En desktop, .notif-bell__menu/.theme-switcher__menu se anclan con
+       right:0 a su propio botón — funciona porque ese botón está pegado al
+       borde derecho. En móvil la campanita se movió junto al selector de
+       tema (más a la izquierda del grupo), así que anclarse a su propio
+       botón sacaba el desplegable ancho fuera de la pantalla por la
+       izquierda. Aquí se ancla al viewport en vez de al botón. */
+    .notif-bell__menu,
+    .theme-switcher__menu {
+        position: fixed;
+        top: 60px;
+        left: calc(var(--space-unit) * 3);
+        right: calc(var(--space-unit) * 3);
+        width: auto;
+        max-width: none;
+    }
 
     .hero__actions { flex-direction: column; align-items: stretch; }
     .hero__actions .btn { width: 100%; }

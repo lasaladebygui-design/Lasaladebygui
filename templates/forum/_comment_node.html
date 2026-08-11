@@ -1,5 +1,5 @@
 {% load accounts_extras %}
-<li class="thread-comment" data-comment-id="{{ comment.pk }}">
+<li class="thread-comment" id="comment-{{ comment.pk }}" data-comment-id="{{ comment.pk }}">
     <div class="thread-comment__body">
         <p class="comment__meta">
             {% if comment.is_deleted %}—{% elif user.is_authenticated and comment.author and comment.author != user %}<a href="{% url 'social:public-profile' username=comment.author.username %}">{% username_badge comment.author "usuario eliminado" %}</a>{% else %}{% username_badge comment.author "usuario eliminado" %}{% endif %}

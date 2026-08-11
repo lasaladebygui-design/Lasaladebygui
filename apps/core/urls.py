@@ -11,4 +11,5 @@ urlpatterns = [
     path("contacto/", views.contact, name="contact"),
     path("tema/reset/", views.reset_theme, name="reset-theme"),
     path("tema/<slug:slug>/", views.set_theme, name="set-theme"),
+    path("admin-exportar/", views.export_excel, name="admin-export-excel"),
 ]

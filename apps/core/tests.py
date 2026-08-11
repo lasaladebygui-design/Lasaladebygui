@@ -33,6 +33,65 @@ class HomeTests(TestCase):
         self.assertContains(response, "Mi artículo de prueba")
 
 
+class RecentActivityTests(TestCase):
+    """Actividad reciente de la portada: últimos comentarios de Artículos
+    y del Foro, mezclados por fecha, desactivable desde admin."""
+
+    def setUp(self):
+        self.user = _make_user("actividad@test.local")
+
+    def test_un_comentario_de_articulo_sale_en_la_portada(self):
+        from apps.articles.models import Article, ArticleComment
+
+        article = Article.objects.create(title="Crítica de prueba", body="Cuerpo")
+        ArticleComment.objects.create(article=article, author=self.user, body="Muy buena reseña.")
+
+        response = self.client.get(reverse("core:home"))
+        self.assertContains(response, "Muy buena reseña.")
+        self.assertContains(response, f"{article.get_absolute_url()}#comment-")
+
+    def test_un_comentario_de_foro_sale_en_la_portada(self):
+        from apps.forum.models import Thread, ThreadComment
+
+        thread = Thread.objects.create(title="Hilo de prueba", body="Cuerpo", author=self.user)
+        ThreadComment.objects.create(thread=thread, author=self.user, body="Totalmente de acuerdo.")
+
+        response = self.client.get(reverse("core:home"))
+        self.assertContains(response, "Totalmente de acuerdo.")
+
+    def test_comentario_de_articulo_privado_no_sale_para_quien_no_puede_verlo(self):
+        from apps.articles.models import Article, ArticleComment
+
+        article = Article.objects.create(title="Solo para el equipo", body="Cuerpo", is_private=True)
+        ArticleComment.objects.create(article=article, author=self.user, body="Comentario privado.")
+
+        response = self.client.get(reverse("core:home"))
+        self.assertNotContains(response, "Comentario privado.")
+
+    def test_comentario_borrado_del_foro_no_sale(self):
+        from apps.forum.models import Thread, ThreadComment
+
+        thread = Thread.objects.create(title="Hilo con borrado", body="Cuerpo", author=self.user)
+        ThreadComment.objects.create(thread=thread, author=self.user, body="Esto se borra", is_deleted=True)
+
+        response = self.client.get(reverse("core:home"))
+        self.assertNotContains(response, "Esto se borra")
+
+    def test_desactivada_desde_admin_no_sale_nada(self):
+        from apps.forum.models import Thread, ThreadComment
+
+        thread = Thread.objects.create(title="Hilo visible", body="Cuerpo", author=self.user)
+        ThreadComment.objects.create(thread=thread, author=self.user, body="Comentario visible")
+
+        config = SiteConfig.load()
+        config.recent_activity_enabled = False
+        config.save()
+
+        response = self.client.get(reverse("core:home"))
+        self.assertNotContains(response, "Comentario visible")
+        self.assertNotContains(response, "Actividad reciente")
+
+
 class ContactFormTests(TestCase):
     """"Escríbenos" ya no manda un email (el SMTP no era de fiar) — en su
     lugar, cada Admin recibe el mensaje como un aviso de Social."""
@@ -439,6 +498,55 @@ class ThemeAdminFormTests(TestCase):
         self.assertNotContains(response, "theme-preview-frame")
 
 
+class SortableAdminTests(TestCase):
+    """SortableAdminMixin (apps/core/admin.py): arrastrar filas en el
+    listado del admin en vez de editar el número de `order` a mano. Se
+    prueba sobre ContactLink por ser el modelo más simple de los que lo
+    usan (Theme, Product, OscarCategory, PersonalityCharacter/Question)."""
+
+    def setUp(self):
+        self.admin = User.objects.create(email="drag_admin@test.local", role=User.Role.ADMIN, is_staff=True, is_superuser=True)
+        self.admin.set_password("Testpass123!")
+        self.admin.save()
+        self.client.login(username=self.admin.email, password="Testpass123!")
+        self.a = ContactLink.objects.create(platform=ContactLink.Platform.INSTAGRAM, label="a", url="https://a.example.com", order=0)
+        self.b = ContactLink.objects.create(platform=ContactLink.Platform.WHATSAPP, label="b", url="https://b.example.com", order=1)
+        self.c = ContactLink.objects.create(platform=ContactLink.Platform.TWITTER, label="c", url="https://c.example.com", order=2)
+
+    def test_arrastrar_actualiza_el_orden_de_todos(self):
+        url = reverse("admin:core_contactlink_reorder")
+        response = self.client.post(
+            url, data='{"order": [%d, %d, %d]}' % (self.c.pk, self.a.pk, self.b.pk),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.a.refresh_from_db()
+        self.b.refresh_from_db()
+        self.c.refresh_from_db()
+        self.assertEqual(self.c.order, 0)
+        self.assertEqual(self.a.order, 1)
+        self.assertEqual(self.b.order, 2)
+
+    def test_el_numero_ya_no_sale_en_el_formulario(self):
+        response = self.client.get(reverse("admin:core_contactlink_change", args=[self.a.pk]))
+        self.assertNotContains(response, 'name="order"')
+
+    def test_el_listado_tiene_el_tirador_de_arrastre(self):
+        response = self.client.get(reverse("admin:core_contactlink_changelist"))
+        self.assertContains(response, "drag-handle")
+
+    def test_requiere_estar_conectado_como_admin(self):
+        self.client.logout()
+        url = reverse("admin:core_contactlink_reorder")
+        response = self.client.post(url, data="{}", content_type="application/json")
+        self.assertNotEqual(response.status_code, 200)
+
+    def test_no_admite_get(self):
+        url = reverse("admin:core_contactlink_reorder")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 405)
+
+
 class IntroLightThemeTests(TestCase):
     def test_theme_css_incluye_los_colores_de_la_animacion_de_inicio(self):
         theme = Theme.objects.get(slug="cinephile")
@@ -684,3 +792,66 @@ class NotificationsBellTests(TestCase):
         })
         announcement = Announcement.objects.get(title="Aviso de prueba")
         self.assertEqual(announcement.created_by, admin)
+
+
+class ExportExcelTests(TestCase):
+    """Copia de seguridad en Excel desde el admin (enlace en el topmenu de
+    Jazzmin): calendario, Top Secret y guardadas por lista, cada uno en su
+    propia hoja."""
+
+    def setUp(self):
+        self.admin = _make_user("export_admin@test.local", role=User.Role.ADMIN)
+        self.admin.is_staff = True
+        self.admin.is_superuser = True
+        self.admin.save(update_fields=["is_staff", "is_superuser"])
+        self.client.login(username=self.admin.email, password="Testpass123!")
+
+    def test_requiere_ser_staff(self):
+        self.client.logout()
+        lector = _make_user("export_lector@test.local")
+        self.client.login(username=lector.email, password="Testpass123!")
+        response = self.client.get(reverse("core:admin-export-excel"))
+        self.assertNotEqual(response.status_code, 200)
+
+    def test_devuelve_un_excel_descargable(self):
+        response = self.client.get(reverse("core:admin-export-excel"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.assertIn("attachment", response["Content-Disposition"])
+
+    def test_incluye_las_tres_hojas_con_sus_datos(self):
+        import io
+
+        from openpyxl import load_workbook
+
+        from apps.movies.models import Movie, SavedMovie, SavedMovieList
+        from apps.secret.models import CalendarDayNote, Genre, SecretMovie
+
+        user = _make_user("export_datos@test.local")
+        CalendarDayNote.objects.create(user=user, date=date(2026, 1, 5), note="Maratón de Navidad")
+
+        terror = Genre.objects.create(name="Terror")
+        movie_secret = SecretMovie.objects.create(title="El Exorcista", personal_rating="9.5", comment="Un clásico.")
+        movie_secret.genres.add(terror)
+
+        movie = Movie.objects.create(tmdb_id=1, title="Drive", year="2011")
+        sublist = SavedMovieList.objects.create(user=user, name="Favoritas")
+        saved = SavedMovie.objects.create(user=user, movie=movie)
+        saved.sublists.add(sublist)
+
+        response = self.client.get(reverse("core:admin-export-excel"))
+        wb = load_workbook(io.BytesIO(response.content))
+
+        self.assertEqual(wb.sheetnames, ["Calendario", "Top Secret", "Guardadas"])
+
+        calendar_rows = list(wb["Calendario"].iter_rows(values_only=True))
+        self.assertIn((str(user), "05/01/2026", "Maratón de Navidad"), calendar_rows)
+
+        secret_rows = list(wb["Top Secret"].iter_rows(values_only=True))
+        self.assertIn(("El Exorcista", 9.5, "Terror", "Un clásico."), secret_rows)
+
+        saved_rows = list(wb["Guardadas"].iter_rows(values_only=True))
+        self.assertIn((str(user), "Favoritas", "Drive"), saved_rows)

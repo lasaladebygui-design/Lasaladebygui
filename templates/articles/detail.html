@@ -56,7 +56,7 @@
 
         <ul class="comment-list">
             {% for comment in article.comments.all %}
-            <li class="comment">
+            <li class="comment" id="comment-{{ comment.pk }}">
                 <p class="comment__meta">{% username_badge comment.author "usuario eliminado" %} · <span class="muted">{{ comment.created_at|date:"d/m/Y H:i" }}</span></p>
                 <p class="comment__body">{{ comment.body|linebreaksbr }}</p>
             </li>

@@ -1,8 +1,68 @@
+import json
+
 from django import forms
 from django.contrib import admin
+from django.http import JsonResponse
 from django.shortcuts import redirect
+from django.urls import path
+from django.utils.safestring import mark_safe
 
 from .models import Announcement, ContactLink, SiteConfig, Theme
+
+
+class SortableAdminMixin:
+    """Arrastra las filas del listado para cambiar su orden, en vez de
+    editar el número de `order` a mano — para modelos con ordering global
+    (no repartido por usuario, eso ya se arrastra desde su propia página).
+    Añade una columna con un tirador (⠿) al principio del listado; al
+    soltar una fila se manda el nuevo orden completo por fetch."""
+
+    class Media:
+        js = (
+            "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js",
+            "admin/js/sortable_admin.js",
+        )
+
+    def get_list_display(self, request):
+        list_display = list(super().get_list_display(request))
+        if "drag_handle" not in list_display:
+            list_display.insert(0, "drag_handle")
+        return list_display
+
+    @admin.display(description="")
+    def drag_handle(self, obj):
+        return mark_safe('<span class="drag-handle" title="Arrastra para reordenar">⠿</span>')
+
+    def get_urls(self):
+        info = self.model._meta.app_label, self.model._meta.model_name
+        custom = [
+            path(
+                "reordenar/",
+                self.admin_site.admin_view(self.reorder_view),
+                name="%s_%s_reorder" % info,
+            ),
+        ]
+        return custom + super().get_urls()
+
+    def reorder_view(self, request):
+        if request.method != "POST":
+            return JsonResponse({"error": "Solo POST"}, status=405)
+        try:
+            ids = json.loads(request.body).get("order", [])
+        except (TypeError, ValueError):
+            return JsonResponse({"error": "JSON inválido"}, status=400)
+
+        objects = {obj.pk: obj for obj in self.model.objects.filter(pk__in=ids)}
+        updated = []
+        for position, pk in enumerate(ids):
+            obj = objects.get(pk)
+            if obj is not None:
+                obj.order = position
+                updated.append(obj)
+        if updated:
+            self.model.objects.bulk_update(updated, ["order"])
+        return JsonResponse({"ok": True})
+
 
 COLOR_FIELDS = (
     "color_bg", "color_surface", "color_border",
@@ -46,7 +106,7 @@ class ColorWidgetMixin:
 
 
 @admin.register(Theme)
-class ThemeAdmin(ColorWidgetMixin, admin.ModelAdmin):
+class ThemeAdmin(SortableAdminMixin, ColorWidgetMixin, admin.ModelAdmin):
     """Gestión de temas: crear/editar temas nuevos sin tocar código. El tema
     que se aplica a la web se elige en Sitio → Configuración del sitio.
 
@@ -57,13 +117,18 @@ class ThemeAdmin(ColorWidgetMixin, admin.ModelAdmin):
 
     class Media:
         css = {"all": ("css/admin_theme_form.css",)}
+        js = (
+            "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js",
+            "admin/js/sortable_admin.js",
+        )
 
-    list_display = ("name", "order", "is_published", "is_dark", "color_accent", "color_accent_secondary")
-    list_editable = ("order", "is_published")
+    list_display = ("name", "is_published", "is_dark", "color_accent", "color_accent_secondary")
+    list_display_links = ("name",)
+    list_editable = ("is_published",)
     ordering = ("order", "name")
     actions = ["publish_themes", "unpublish_themes"]
     fieldsets = (
-        (None, {"fields": ("name", "description", "order", "is_dark", "is_published")}),
+        (None, {"fields": ("name", "description", "is_dark", "is_published")}),
         ("Colores", {
             "fields": (
                 "color_bg", "color_surface", "color_border",
@@ -111,6 +176,7 @@ class SiteConfigAdmin(SingletonAdmin):
             "fields": ("notifications_bell_enabled",),
             "description": "Cubre mensajes, solicitudes de amistad, artículos nuevos, avisos del equipo y novedades de la tienda.",
         }),
+        ("Actividad reciente", {"fields": ("recent_activity_enabled",)}),
         ("Animación de entrada", {"fields": ("show_intro_animation", "intro_sound")}),
         ("Tema visual", {
             "fields": ("active_theme",),
@@ -120,10 +186,11 @@ class SiteConfigAdmin(SingletonAdmin):
 
 
 @admin.register(ContactLink)
-class ContactLinkAdmin(admin.ModelAdmin):
-    list_display = ("platform", "label", "url", "order")
-    list_editable = ("order",)
+class ContactLinkAdmin(SortableAdminMixin, admin.ModelAdmin):
+    list_display = ("platform", "label", "url")
+    list_display_links = ("platform",)
     list_filter = ("platform",)
+    exclude = ("order",)
 
 
 @admin.register(Announcement)

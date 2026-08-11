@@ -65,6 +65,34 @@
     </div>
 </section>
 
+{% if recent_activity %}
+<section class="section">
+    <div class="wrap">
+        <div class="section-header">
+            <div>
+                <span class="card__tag">En directo</span>
+                <h2>Actividad reciente</h2>
+            </div>
+        </div>
+        <ul class="activity-feed">
+            {% for item in recent_activity %}
+            <li class="activity-feed__item">
+                <span class="activity-feed__icon" aria-hidden="true">{{ item.icon }}</span>
+                <div class="activity-feed__body">
+                    <p class="activity-feed__meta">
+                        {% username_badge item.author "usuario eliminado" %} comentó en
+                        <a href="{{ item.url }}">{{ item.context }}</a>
+                        · <span class="muted">{{ item.created_at|date:"d/m/Y H:i" }}</span>
+                    </p>
+                    <p class="activity-feed__text">{{ item.body|truncatechars:140 }}</p>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</section>
+{% endif %}
+
 <section class="section">
     <div class="wrap">
         <h2>Explora la sala</h2>

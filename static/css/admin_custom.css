@@ -11,3 +11,14 @@
     white-space: normal;
     max-width: 100%;
 }
+
+/* Listados con orden arrastrable (SortableAdminMixin, apps/core/admin.py):
+   el tirador es lo único agarrable, para no interferir con el resto de la
+   fila (enlaces, checkboxes de acciones en bloque). */
+.drag-handle {
+    cursor: grab;
+    font-size: 1.1rem;
+    color: #6c757d;
+    user-select: none;
+}
+.drag-handle:active { cursor: grabbing; }
