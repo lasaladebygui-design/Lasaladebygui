@@ -391,6 +391,47 @@ class UserAdminBroadcastEmailTests(TestCase):
         self.assertNotEqual(response.status_code, 200)
 
 
+class UserAdminResetDuelsTests(TestCase):
+    """Solo desde el admin (no hay nada equivalente en la web pública):
+    borra el marcador histórico de duelos de la cuenta seleccionada contra
+    todos sus rivales."""
+
+    def setUp(self):
+        self.admin = User.objects.create(email="admin_duelos@test.local", role=User.Role.ADMIN)
+        self.admin.set_password("Testpass123!")
+        self.admin.save()
+        self.a = User.objects.create(email="jugador_a@test.local", role=User.Role.LECTOR)
+        self.b = User.objects.create(email="jugador_b@test.local", role=User.Role.LECTOR)
+        self.c = User.objects.create(email="jugador_c@test.local", role=User.Role.LECTOR)
+        self.client.login(username=self.admin.email, password="Testpass123!")
+
+    def test_borra_el_marcador_con_todos_sus_rivales(self):
+        from apps.games.models import DuelRecord
+
+        DuelRecord.record_result(self.a, self.b, winner=self.a)
+        DuelRecord.record_result(self.a, self.c, winner=self.c)
+
+        self.client.post(reverse("admin:accounts_user_changelist"), {
+            "action": "resetear_duelos",
+            "_selected_action": [self.a.pk],
+        })
+
+        self.assertIsNone(DuelRecord.get_for(self.a, self.b))
+        self.assertIsNone(DuelRecord.get_for(self.a, self.c))
+
+    def test_no_toca_el_marcador_de_otros_usuarios(self):
+        from apps.games.models import DuelRecord
+
+        DuelRecord.record_result(self.b, self.c, winner=self.b)
+
+        self.client.post(reverse("admin:accounts_user_changelist"), {
+            "action": "resetear_duelos",
+            "_selected_action": [self.a.pk],
+        })
+
+        self.assertIsNotNone(DuelRecord.get_for(self.b, self.c))
+
+
 class AchievementsTests(TestCase):
     def setUp(self):
         self.user = User.objects.create(

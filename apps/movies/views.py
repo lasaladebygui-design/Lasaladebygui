@@ -16,6 +16,7 @@ from .services import MovieAPIError, tmdb_search
 
 SPIN_DECOYS = 5
 SPIN_REELS = 3
+DECOY_SAMPLE_SIZE = 30
 MEDIA_TYPES = ("movie", "tv", "all")
 
 
@@ -28,11 +29,16 @@ def _media_type_from_request(request):
     return value if value in MEDIA_TYPES else "movie"
 
 
-def _build_reel(final_movie, decoy_pool):
+def _build_reel(final_movie, decoy_queryset):
     """Tres tiras (tipo tragaperras) que giran por separado y acaban todas
     en el mismo cartel — cada una baraja sus propios señuelos, así no se ven
-    tres tiras idénticas girando a la vez."""
-    others = [m for m in decoy_pool if m.pk != final_movie.pk]
+    tres tiras idénticas girando a la vez.
+
+    `decoy_queryset` puede ser un catálogo entero (miles de filas): solo se
+    trae una muestra aleatoria acotada de la base de datos en vez de volcarlo
+    todo a Python, que es justo lo que hacía tardar tanto en cargar la
+    ruleta por nota (se traía el catálogo completo dos veces por cada giro)."""
+    others = list(decoy_queryset.exclude(pk=final_movie.pk).order_by("?")[:DECOY_SAMPLE_SIZE])
     reels = []
     for _ in range(SPIN_REELS):
         decoys = list(others)
@@ -334,14 +340,19 @@ def roulette_rating(request):
         seen_ids = RouletteRatingSeen.objects.filter(user=request.user).values_list("movie_id", flat=True)
         unseen = candidates.exclude(pk__in=seen_ids)
 
+        # random.choice(list(unseen)) traía el catálogo entero a Python solo
+        # para elegir una fila — con miles de películas eso es justo lo que
+        # hacía tardar la ruleta en cargar. order_by("?").first() deja que
+        # la propia base de datos elija la fila y solo transfiere esa una.
+        result = unseen.order_by("?").first()
+
         if not candidates.exists():
             messages.warning(request, "Todavía no hay películas del catálogo en ese rango de nota.")
-        elif not unseen.exists():
+        elif result is None:
             messages.info(request, "Has agotado las películas de ese rango. Dale a «reiniciar» para verlas de nuevo.")
         else:
-            result = random.choice(list(unseen))
             RouletteRatingSeen.objects.get_or_create(user=request.user, movie=result)
-            reel = _build_reel(result, list(candidates))
+            reel = _build_reel(result, candidates)
 
     return render(request, "movies/roulette_rating.html", {
         "form": form, "result": result, "reel_json": reel,
@@ -400,7 +411,7 @@ def roulette_list_draw(request):
             chosen = random.choice(unseen).movie
             RouletteSavedSeen.objects.get_or_create(user=request.user, movie=chosen)
             result = chosen
-            reel = _build_reel(result, [s.movie for s in saved])
+            reel = _build_reel(result, Movie.objects.filter(pk__in=[s.movie_id for s in saved]))
 
     return render(request, "movies/roulette_list_result.html", {
         **_roulette_saved_context(request.user, list_param), "result": result, "reel_json": reel,

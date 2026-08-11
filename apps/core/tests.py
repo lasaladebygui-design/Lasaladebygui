@@ -128,6 +128,19 @@ class IntroAnimationTests(TestCase):
         response = self.client.get(reverse("core:home"))
         self.assertNotContains(response, 'id="intro"')
 
+    def test_sin_sonido_personalizado_el_dato_va_vacio(self):
+        response = self.client.get(reverse("core:home"))
+        self.assertContains(response, "introOverlay('')")
+
+    def test_con_sonido_personalizado_se_pasa_su_url(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        config = SiteConfig.load()
+        config.intro_sound = SimpleUploadedFile("carrete.mp3", b"fake-audio-data", content_type="audio/mpeg")
+        config.save()
+        response = self.client.get(reverse("core:home"))
+        self.assertContains(response, config.intro_sound.url)
+
 
 class BootstrapProductionTests(TestCase):
     def test_sin_variables_no_hace_nada(self):

@@ -3,7 +3,7 @@
 <div
     id="intro"
     class="intro"
-    x-data="introOverlay()"
+    x-data="introOverlay('{% if site_config.intro_sound %}{{ site_config.intro_sound.url }}{% endif %}')"
     x-init="init()"
     x-show="visible"
     x-cloak

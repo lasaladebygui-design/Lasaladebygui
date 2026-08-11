@@ -159,6 +159,15 @@ class SiteConfig(SingletonModel):
         default=True,
         help_text="Se muestra una vez por sesión de navegador. Desactívala para quitarla de toda la web.",
     )
+    intro_sound = models.FileField(
+        "sonido de la intro",
+        upload_to="intro_sound/",
+        blank=True,
+        help_text=(
+            "Opcional — un mp3/ogg/wav corto. Si lo subes, sustituye al sonido de carrete "
+            "generado por defecto. Déjalo vacío para volver al de siempre."
+        ),
+    )
     active_theme = models.ForeignKey(
         Theme,
         verbose_name="tema activo",

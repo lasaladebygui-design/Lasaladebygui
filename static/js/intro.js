@@ -1,7 +1,8 @@
-function introOverlay() {
+function introOverlay(customSoundUrl) {
     return {
         visible: true,
         _timer: null,
+        customSoundUrl: customSoundUrl || "",
 
         init() {
             if (sessionStorage.getItem("bygui_intro_seen")) {
@@ -26,6 +27,23 @@ function introOverlay() {
             if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
                 return;
             }
+
+            // Sonido subido desde el admin (Sitio → Configuración del sitio →
+            // Animación de entrada): sustituye al carrete generado por Web
+            // Audio de aquí abajo. Si el navegador bloquea el autoplay sin
+            // interacción previa, simplemente no suena — la animación visual
+            // funciona igual.
+            if (this.customSoundUrl) {
+                try {
+                    const audio = new Audio(this.customSoundUrl);
+                    audio.volume = 0.6;
+                    audio.play().catch(() => {});
+                } catch (err) {
+                    // Sin problema: sin sonido, la animación sigue igual.
+                }
+                return;
+            }
+
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
                 const now = ctx.currentTime;

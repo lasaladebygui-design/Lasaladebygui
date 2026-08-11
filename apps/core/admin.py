@@ -107,7 +107,7 @@ class SiteConfigAdmin(SingletonAdmin):
     fieldsets = (
         (None, {"fields": ("tagline",)}),
         ("Donaciones", {"fields": ("bizum_number",)}),
-        ("Animación de entrada", {"fields": ("show_intro_animation",)}),
+        ("Animación de entrada", {"fields": ("show_intro_animation", "intro_sound")}),
         ("Tema visual", {
             "fields": ("active_theme",),
             "description": "El tema elegido aquí se aplica a toda la web, salvo que un usuario elija otro distinto en su perfil.",

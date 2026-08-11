@@ -41,7 +41,7 @@ class UserAdmin(DjangoUserAdmin):
         }),
     )
 
-    actions = ["banear_usuarios", "desbanear_usuarios", "enviar_email"]
+    actions = ["banear_usuarios", "desbanear_usuarios", "enviar_email", "resetear_duelos"]
 
     @admin.action(description="🚫 Banear a los seleccionados")
     def banear_usuarios(self, request, queryset):
@@ -56,6 +56,17 @@ class UserAdmin(DjangoUserAdmin):
             user.role = User.Role.LECTOR
             user.save()
         self.message_user(request, "Usuarios desbaneados.")
+
+    @admin.action(description="🎲 Resetear su puntuación de duelos (borra el marcador con todos sus rivales)")
+    def resetear_duelos(self, request, queryset):
+        from django.db.models import Q
+
+        from apps.games.models import DuelRecord
+
+        borrados, _ = DuelRecord.objects.filter(
+            Q(player_low__in=queryset) | Q(player_high__in=queryset)
+        ).delete()
+        self.message_user(request, f"Marcador de duelos borrado para {queryset.count()} usuario(s) ({borrados} registro(s) eliminados).")
 
     @admin.action(description="📧 Enviar un email a los seleccionados")
     def enviar_email(self, request, queryset):
