@@ -19,7 +19,7 @@
     <ul class="candidate-list">
         {% for item in saved %}
         <li class="candidate-row{% if item.is_seen %} candidate-row--seen{% endif %}">
-            {% if item.movie.poster_url %}<img src="{{ item.movie.poster_url }}" alt="" class="candidate-row__poster">{% endif %}
+            {% if item.movie.poster_url %}<img src="{{ item.movie.poster_url }}" alt="" class="candidate-row__poster" loading="lazy" decoding="async">{% endif %}
             <span class="candidate-row__title">{{ item.movie.title }} <span class="muted">{{ item.movie.year }}</span></span>
             {% if item.is_seen %}<span class="tag-pill">ya vista</span>{% endif %}
         </li>

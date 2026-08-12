@@ -58,7 +58,7 @@
             <div>
                 <span class="card__tag">Ruleta</span>
                 <h2>¿Qué vemos hoy?</h2>
-                <p class="muted">Se acabaron los 20 minutos scrolleando el catálogo sin decidirte — elige un rango de nota o tu lista de guardadas y que gire la tragaperras.</p>
+                <p class="muted">Se acabaron los 20 minutos scrolleando el catálogo sin decidirte. Elige un rango de nota o tu lista de guardadas, tira de la palanca y que el destino elija por ti.</p>
             </div>
             <span class="btn btn--accent btn--sm">Girar &rarr;</span>
         </a>
@@ -100,24 +100,24 @@
             <a href="{% url 'articles:list' %}" class="card card--link">
                 <span class="card__tag">Tablón</span>
                 <h3>Artículos</h3>
-                <p>Reseñas, opiniones y cotilleos de cine — escritos por el equipo.</p>
+                <p>Reseñas con mala leche, teorías random y el cotilleo de cine que no sabías que necesitabas.</p>
             </a>
             <a href="{% url 'forum:list' %}" class="card card--link">
                 <span class="card__tag">Debate</span>
                 <h3>Foro</h3>
-                <p>Suelta tu teoría, defiende tu peli favorita — aquí se opina de todo.</p>
+                <p>Suelta tu teoría, defiende tu peli favorita a muerte — aquí se opina de todo y nadie se calla.</p>
             </a>
             {% if user.is_authenticated %}
             <a href="{% url 'social:home' %}" class="card card--link">
                 <span class="card__tag">Comunidad</span>
                 <h3>Social</h3>
-                <p>Encuentra a tu gente, manda mensajes y presume de perfil.</p>
+                <p>Encuentra a tu gente, cotillea perfiles y presume del tuyo — aquí todo el mundo acaba conociéndose.</p>
             </a>
             {% endif %}
             <a href="{% url 'movies:list' %}" class="card card--link">
                 <span class="card__tag">Catálogo</span>
                 <h3>Películas</h3>
-                <p>Miles de títulos, notas y sinopsis — tú decides qué es lo mejor.</p>
+                <p>Miles de títulos, notas y sinopsis para perderte una hora eligiendo y acabar viendo la misma de siempre.</p>
             </a>
             <a href="{% url 'games:hub' %}" class="card card--link">
                 <span class="card__tag">Jugar</span>
@@ -127,7 +127,7 @@
             <a href="{% url 'shop:list' %}" class="card card--link">
                 <span class="card__tag">Tienda</span>
                 <h3>Tienda</h3>
-                <p>Camisetas, tazas y demás cachivaches con el sello de la Sala.</p>
+                <p>Camisetas, tazas y cachivaches con el sello de la Sala — para presumir hasta fuera de aquí.</p>
             </a>
             <a href="{% url 'secret:gate' %}" class="card card--link">
                 <span class="card__tag">Top Secret</span>

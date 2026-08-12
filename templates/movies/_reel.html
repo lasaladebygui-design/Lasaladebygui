@@ -18,7 +18,7 @@
     <div x-show="allStopped" x-cloak x-transition class="roulette-result">
         <div class="movie-card movie-card--result">
             {% if result.poster_url %}
-                <img src="{{ result.poster_url }}" alt="" class="movie-card__poster">
+                <img src="{{ result.poster_url }}" alt="" class="movie-card__poster" loading="lazy" decoding="async">
             {% endif %}
             <div class="movie-card__body">
                 <h3><a href="{% url 'movies:detail' result.pk %}">{{ result.title }}</a></h3>
