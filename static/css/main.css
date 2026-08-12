@@ -407,12 +407,11 @@ main { flex: 1; }
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: calc(var(--space-unit) * 5);
 }
-/* Top Secret (home): "Lista completa" primero y a todo el ancho, con los
-   otros tres debajo — solo en escritorio, vía `order` (el HTML mantiene
-   a, b, c, d, así que en móvil —que ya colapsa a una columna— se ve en
-   ese mismo orden, sin cambios). */
+/* Top Secret (home): "Lista completa" ya va primero en el DOM (así sale
+   arriba también en móvil, que solo apila); aquí solo se le da el ancho
+   completo cuando el grid pasa a tener más de una columna. */
 @media (min-width: 641px) {
-    .card-grid--topsecret__list { order: -1; grid-column: 1 / -1; }
+    .card-grid--topsecret__list { grid-column: 1 / -1; }
 }
 
 /* Candidatos al Oscar: es habitual tener bastantes por categoría, así que
@@ -713,6 +712,158 @@ main { flex: 1; }
 .activity-feed__body { flex: 1; min-width: 0; }
 .activity-feed__meta { margin: 0 0 0.3rem; font-size: 0.9rem; }
 .activity-feed__text { margin: 0; color: var(--color-text-muted); }
+.activity-feed__avatar {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+.activity-feed__avatar--placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg);
+    font-size: 1rem;
+}
+.activity-feed__time { font-size: 0.75rem; margin: 0.25rem 0 0; }
+
+/* --- Portada: carrusel destacado, layout de dos columnas y "explora" --- */
+
+.home-hero-section { padding-block: calc(var(--space-unit) * 10) calc(var(--space-unit) * 4); }
+
+.home-hero {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    overflow: hidden;
+}
+.home-hero__slide { display: grid; grid-template-columns: 1fr; }
+.home-hero__text {
+    padding: calc(var(--space-unit) * 8) calc(var(--space-unit) * 6) calc(var(--space-unit) * 6);
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--space-unit) * 3);
+}
+.home-hero__eyebrow {
+    display: inline-block;
+    align-self: flex-start;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--color-on-accent);
+    background: var(--color-accent);
+    padding: 0.3rem 0.8rem;
+    border-radius: 999px;
+}
+.home-hero__text h1 { font-size: clamp(1.5rem, 3vw, 2.2rem); margin: 0; }
+.home-hero__text h1 a { color: var(--color-text); }
+.home-hero__text h1 a:hover { color: var(--color-accent); }
+.home-hero__text p { color: var(--color-text-muted); margin: 0; max-width: 60ch; }
+.home-hero__text .btn { align-self: flex-start; }
+
+.home-hero__image-link { display: block; background: var(--color-bg); }
+.home-hero__image { width: 100%; height: 100%; min-height: 220px; object-fit: cover; display: block; }
+.home-hero__image--placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    aspect-ratio: 16/10;
+}
+
+.home-hero__controls { display: flex; align-items: center; gap: calc(var(--space-unit) * 3); margin-top: auto; padding-top: calc(var(--space-unit) * 2); }
+.home-hero__arrow {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background: transparent;
+    color: var(--color-text);
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.home-hero__arrow:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.home-hero__dots { display: flex; gap: 0.4rem; }
+.home-hero__dot { width: 0.5rem; height: 0.5rem; border-radius: 999px; border: none; background: var(--color-border); cursor: pointer; padding: 0; transition: width .15s ease, background-color .15s ease; }
+.home-hero__dot--active { background: var(--color-accent); width: 1.3rem; }
+
+.home-guest-banner {
+    margin-top: calc(var(--space-unit) * 4);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: calc(var(--space-unit) * 3);
+    padding: calc(var(--space-unit) * 3) calc(var(--space-unit) * 4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+}
+.home-guest-banner p { margin: 0; color: var(--color-text-muted); }
+.home-guest-banner__actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+
+.home-layout { display: grid; grid-template-columns: 1fr; gap: calc(var(--space-unit) * 8); align-items: start; }
+.home-main { display: flex; flex-direction: column; gap: calc(var(--space-unit) * 8); min-width: 0; }
+.article-grid--home { grid-template-columns: repeat(4, 1fr); }
+.home-roulette-strip { padding: calc(var(--space-unit) * 5); }
+
+.home-aside { min-width: 0; }
+.activity-panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    padding: calc(var(--space-unit) * 5);
+    display: flex;
+    flex-direction: column;
+}
+.activity-panel h2 { font-size: 1.15rem; margin: 0.2rem 0 0; }
+.activity-panel .activity-feed { max-height: 560px; overflow-y: auto; }
+.home-aside__cta { margin-top: calc(var(--space-unit) * 4); text-align: center; }
+
+.home-explore__title { font-size: 1.3rem; margin-bottom: calc(var(--space-unit) * 5); }
+.explore-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: calc(var(--space-unit) * 3); }
+.explore-row__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.3rem;
+    padding: calc(var(--space-unit) * 4) calc(var(--space-unit) * 2);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    color: var(--color-text);
+    transition: border-color .15s ease, transform .15s ease;
+}
+.explore-row__item:hover { border-color: var(--color-accent); color: var(--color-text); transform: translateY(-2px); }
+.explore-row__icon { font-size: 1.6rem; }
+.explore-row__label { font-family: var(--font-heading); font-weight: 700; }
+.explore-row__sub { font-size: 0.78rem; }
+.explore-row__item--accent { background: var(--color-accent-secondary); border-color: var(--color-accent-secondary); color: var(--color-on-accent-secondary); }
+.explore-row__item--accent:hover { background: var(--color-accent-secondary-hover); border-color: var(--color-accent-secondary-hover); color: var(--color-on-accent-secondary); }
+.explore-row__item--accent .explore-row__sub { color: var(--color-on-accent-secondary); opacity: 0.85; }
+
+@media (min-width: 900px) {
+    .home-hero__slide { grid-template-columns: 1fr 1fr; }
+    .home-layout { grid-template-columns: 2.2fr 1fr; }
+    .home-layout--no-aside { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 900px) {
+    .article-grid--home { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 640px) {
+    .article-grid--home { grid-template-columns: 1fr; }
+    .home-hero__text { padding: calc(var(--space-unit) * 6) calc(var(--space-unit) * 4) calc(var(--space-unit) * 4); }
+}
 
 .article-search {
     display: flex;
@@ -2698,6 +2849,16 @@ main { flex: 1; }
 @media (max-width: 1024px) {
     .hero { padding-block: calc(var(--space-unit) * 12) calc(var(--space-unit) * 10); }
     .movie-detail { grid-template-columns: 200px 1fr; }
+}
+
+@media (min-width: 1025px) {
+    /* En portátil/escritorio los mensajes del foro y de los chats de
+       social se veían un poco pequeños comparados con el resto de la
+       web; un poco más de letra y de aire, sin pasarse. Móvil/tablet
+       se quedan exactamente igual. */
+    .thread-body, .comment__body { font-size: 1.05rem; }
+    .conversation-message { font-size: 1.02rem; padding: calc(var(--space-unit) * 3.5); max-width: 72%; }
+    .conversation-thread { max-height: 60vh; }
 }
 
 @media (max-width: 640px) {

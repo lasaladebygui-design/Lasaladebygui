@@ -411,6 +411,24 @@ class TierListTests(TestCase):
         response = anon_client.get(reverse("secret:tier-list"))
         self.assertIn("/cuenta/login/", response.url)
 
+    def test_compartir_devuelve_una_imagen_png(self):
+        TierListEntry.objects.create(user=self.user, tier=self.s, title="Pulp Fiction", order=1)
+        TierListEntry.objects.create(user=self.user, tier=None, title="Sin clasificar todavía", order=1)
+        response = self.client.get(reverse("secret:tier-list-share-image"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "image/png")
+        self.assertTrue(response.content.startswith(b"\x89PNG\r\n\x1a\n"))
+
+    def test_compartir_con_tier_list_vacia_no_rompe(self):
+        response = self.client.get(reverse("secret:tier-list-share-image"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.content.startswith(b"\x89PNG\r\n\x1a\n"))
+
+    def test_compartir_requiere_haber_entrado_al_maletin(self):
+        self.client.post(reverse("secret:lock"))
+        response = self.client.get(reverse("secret:tier-list-share-image"))
+        self.assertRedirects(response, reverse("secret:gate"))
+
     @patch("apps.secret.views.tmdb_search")
     def test_buscar_usa_el_servicio_tmdb(self, mock_search):
         mock_search.return_value = []
@@ -749,6 +767,17 @@ class CalendarTests(TestCase):
     def test_compartir_con_mes_invalido_da_404(self):
         response = self.client.get(reverse("secret:calendar-share-image"), {"year": 2026, "month": 13})
         self.assertEqual(response.status_code, 404)
+
+    def test_compartir_con_titulo_en_caracteres_no_latinos_no_rompe(self):
+        # Regresión: la fuente que usa la imagen no tiene glifos para
+        # japonés/coreano/etc. y antes de este fix salían como cuadros
+        # ilegibles; ahora se descartan y, si no queda nada legible, se
+        # usa un texto de repuesto.
+        anime = Movie.objects.create(tmdb_id=2, title="君の名は。", media_type="movie")
+        ReleaseEvent.objects.create(user=self.user, movie=anime, date=date(2026, 3, 15))
+        response = self.client.get(reverse("secret:calendar-share-image"), {"year": 2026, "month": 3})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.content.startswith(b"\x89PNG\r\n\x1a\n"))
 
     def test_muestra_eventos_del_mes_pedido(self):
         event = ReleaseEvent.objects.create(user=self.user, movie=self.movie, date=date(2026, 3, 15), note="Estreno")

@@ -24,8 +24,13 @@ def home(request):
     articles = Article.objects.select_related("author").prefetch_related("tags")
     if not can_manage_private_articles(request.user):
         articles = articles.filter(is_private=False)
+    articles = list(articles[:7])
     return TemplateResponse(request, "core/home.html", {
-        "featured_articles": articles[:5],
+        # Los 3 más recientes rotan en el carrusel destacado; los 4
+        # siguientes son la cuadrícula de "Últimos artículos" — así no
+        # se repite ningún artículo entre las dos secciones.
+        "hero_articles": articles[:3],
+        "grid_articles": articles[3:7],
         "recent_activity": recent_activity(request.user),
     })
 

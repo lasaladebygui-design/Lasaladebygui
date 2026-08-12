@@ -20,17 +20,71 @@ from .notifications import notifications_feed, unread_notifications_count
 
 
 class HomeTests(TestCase):
-    def test_muestra_como_mucho_los_cinco_ultimos_articulos(self):
-        for i in range(7):
+    def test_reparte_los_articulos_mas_recientes_entre_destacados_y_ultimos(self):
+        for i in range(10):
             Article.objects.create(title=f"Artículo {i}", body="Cuerpo")
         response = self.client.get(reverse("core:home"))
-        self.assertEqual(len(response.context["featured_articles"]), 5)
+        self.assertEqual(len(response.context["hero_articles"]), 3)
+        self.assertEqual(len(response.context["grid_articles"]), 4)
+        # Sin solapamiento: ninguno de los "últimos artículos" repite uno
+        # que ya salga en el carrusel destacado.
+        hero_pks = {a.pk for a in response.context["hero_articles"]}
+        grid_pks = {a.pk for a in response.context["grid_articles"]}
+        self.assertEqual(hero_pks & grid_pks, set())
 
     def test_el_titulo_enlaza_al_articulo(self):
         article = Article.objects.create(title="Mi artículo de prueba", body="Cuerpo")
         response = self.client.get(reverse("core:home"))
         self.assertContains(response, article.get_absolute_url())
         self.assertContains(response, "Mi artículo de prueba")
+
+    def test_sin_articulos_muestra_el_hero_generico(self):
+        response = self.client.get(reverse("core:home"))
+        self.assertEqual(list(response.context["hero_articles"]), [])
+        self.assertContains(response, "Bienvenido a")
+
+    def test_invitado_ve_el_banner_de_registro_junto_al_carrusel(self):
+        Article.objects.create(title="Artículo con carrusel", body="Cuerpo")
+        response = self.client.get(reverse("core:home"))
+        self.assertContains(response, "home-guest-banner")
+        self.assertContains(response, reverse("accounts:register"))
+
+    def test_usuario_logueado_no_ve_el_banner_de_registro(self):
+        Article.objects.create(title="Artículo con carrusel", body="Cuerpo")
+        user = User.objects.create(email="home_user@test.local", role=User.Role.LECTOR)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+        response = self.client.get(reverse("core:home"))
+        self.assertNotContains(response, "home-guest-banner")
+
+    def test_la_fila_explora_enlaza_a_las_secciones_principales(self):
+        response = self.client.get(reverse("core:home"))
+        for url_name in ["articles:list", "forum:list", "movies:list", "games:hub", "shop:list", "secret:gate"]:
+            self.assertContains(response, reverse(url_name))
+
+
+class WrapAfterPeriodFilterTests(TestCase):
+    def test_solo_deja_partible_el_espacio_tras_el_primer_punto(self):
+        from apps.core.templatetags.core_extras import wrap_after_period
+
+        result = wrap_after_period("Cine, pelis, series y debates. Todo en una misma sala.")
+        head, sep, tail = result.partition(". ")
+        self.assertEqual(sep, ". ")
+        self.assertNotIn(" ", head)
+        self.assertNotIn(" ", tail)
+
+    def test_sin_punto_no_deja_ningun_espacio_partible(self):
+        from apps.core.templatetags.core_extras import wrap_after_period
+
+        result = wrap_after_period("Sin punto en la frase")
+        self.assertNotIn(" ", result)
+
+    def test_escapa_html(self):
+        from apps.core.templatetags.core_extras import wrap_after_period
+
+        result = wrap_after_period("<script>alert(1)</script>")
+        self.assertNotIn("<script>", result)
 
 
 class RecentActivityTests(TestCase):

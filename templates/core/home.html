@@ -1,11 +1,68 @@
 {% extends "base.html" %}
-{% load accounts_extras %}
+{% load accounts_extras core_extras %}
 
 {% block content %}
+
+{% if hero_articles %}
+<section class="home-hero-section">
+    <div class="wrap">
+        <div class="home-hero"
+             x-data="{
+                active: 0,
+                count: {{ hero_articles|length }},
+                next() { this.active = (this.active + 1) % this.count },
+                prev() { this.active = (this.active - 1 + this.count) % this.count },
+             }"
+             {% if hero_articles|length > 1 %}x-init="setInterval(() => next(), 9000)"{% endif %}>
+            <div class="home-hero__stage">
+                {% for article in hero_articles %}
+                <div class="home-hero__slide" x-show="active === {{ forloop.counter0 }}" {% if not forloop.first %}x-cloak{% endif %} x-transition.opacity.duration.500ms>
+                    <div class="home-hero__text">
+                        <span class="home-hero__eyebrow">{% if forloop.first %}Artículo destacado{% else %}Destacado{% endif %}</span>
+                        <h1><a href="{{ article.get_absolute_url }}">{{ article.title }}</a></h1>
+                        <p>{{ article.body|striptags|truncatewords:24 }}</p>
+                        <a href="{{ article.get_absolute_url }}" class="btn btn--accent">Leer artículo</a>
+
+                        {% if hero_articles|length > 1 %}
+                        <div class="home-hero__controls">
+                            <button type="button" class="home-hero__arrow" @click="prev()" aria-label="Artículo anterior">‹</button>
+                            <div class="home-hero__dots">
+                                {% for other in hero_articles %}
+                                <button type="button" class="home-hero__dot" :class="{ 'home-hero__dot--active': active === {{ forloop.counter0 }} }" @click="active = {{ forloop.counter0 }}" aria-label="Ir al artículo {{ forloop.counter }}"></button>
+                                {% endfor %}
+                            </div>
+                            <button type="button" class="home-hero__arrow" @click="next()" aria-label="Artículo siguiente">›</button>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <a href="{{ article.get_absolute_url }}" class="home-hero__image-link">
+                        {% if article.cover %}
+                            <img src="{{ article.cover.url }}" alt="" class="home-hero__image">
+                        {% else %}
+                            <div class="home-hero__image home-hero__image--placeholder"><span>🎬</span></div>
+                        {% endif %}
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if not user.is_authenticated %}
+        <div class="home-guest-banner">
+            <p>Únete a La Sala de Bygui para comentar, guardar películas y mucho más.</p>
+            <div class="home-guest-banner__actions">
+                <a href="{% url 'accounts:register' %}" class="btn btn--accent btn--sm">Crear cuenta</a>
+                <a href="{% url 'accounts:login' %}" class="btn btn--ghost btn--sm">Ya tengo cuenta</a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% else %}
 <section class="hero">
     <div class="wrap">
         <h1>Bienvenido a <em>La Sala de Bygui</em></h1>
-        <p>{{ site_config.tagline }}</p>
+        <p>{{ site_config.tagline|wrap_after_period }}</p>
         {% if not user.is_authenticated %}
         <div class="hero__actions">
             <a href="{% url 'accounts:register' %}" class="btn btn--accent">Crear cuenta</a>
@@ -14,125 +71,126 @@
         {% endif %}
     </div>
 </section>
-
-<section class="section">
-    <div class="wrap">
-        <div class="section-header">
-            <div>
-                <span class="card__tag">Tablón</span>
-                <h2>Últimos artículos</h2>
-            </div>
-            <a href="{% url 'articles:list' %}" class="btn btn--ghost btn--sm">Ver todos &rarr;</a>
-        </div>
-
-        {% if featured_articles %}
-        <div class="article-grid article-grid--five">
-            {% for article in featured_articles %}
-            <article class="article-card">
-                <a href="{{ article.get_absolute_url }}" class="article-card__cover-link">
-                    {% if article.cover %}
-                        <img src="{{ article.cover.url }}" alt="" class="article-card__cover">
-                    {% else %}
-                        <div class="article-card__cover article-card__cover--placeholder"><span>🎬</span></div>
-                    {% endif %}
-                </a>
-                <div class="article-card__body">
-                    {% if article.tags.all %}
-                        <span class="card__tag">{{ article.tags.all.0.name }}</span>
-                    {% endif %}
-                    <h3><a href="{{ article.get_absolute_url }}">{{ article.title }}</a></h3>
-                    <p class="muted article-card__meta">{% username_badge article.author "autor eliminado" %} · {{ article.created_at|date:"d/m/Y" }}</p>
-                </div>
-            </article>
-            {% endfor %}
-        </div>
-        {% else %}
-        <p class="muted">Todavía no hay artículos publicados. ¡Sé el primero en escribir uno!</p>
-        {% endif %}
-    </div>
-</section>
-
-<section class="section section--tight section--strip">
-    <div class="wrap">
-        <a href="{% url 'movies:roulette-home' %}" class="strip-card strip-card--link">
-            <div>
-                <span class="card__tag">Ruleta</span>
-                <h2>¿Qué vemos hoy?</h2>
-                <p class="muted">Se acabaron los 20 minutos scrolleando el catálogo sin decidirte. Elige un rango de nota o tu lista de guardadas, tira de la palanca y que el destino elija por ti.</p>
-            </div>
-            <span class="btn btn--accent btn--sm">Girar &rarr;</span>
-        </a>
-    </div>
-</section>
-
-{% if recent_activity %}
-<section class="section">
-    <div class="wrap">
-        <div class="section-header">
-            <div>
-                <span class="card__tag">En directo</span>
-                <h2>Actividad reciente</h2>
-            </div>
-        </div>
-        <ul class="activity-feed">
-            {% for item in recent_activity %}
-            <li class="activity-feed__item">
-                <span class="activity-feed__icon" aria-hidden="true">{{ item.icon }}</span>
-                <div class="activity-feed__body">
-                    <p class="activity-feed__meta">
-                        {% username_badge item.author "usuario eliminado" %} comentó en
-                        <a href="{{ item.url }}">{{ item.context }}</a>
-                        · <span class="muted">{{ item.created_at|date:"d/m/Y H:i" }}</span>
-                    </p>
-                    <p class="activity-feed__text">{{ item.body|truncatechars:140 }}</p>
-                </div>
-            </li>
-            {% endfor %}
-        </ul>
-    </div>
-</section>
 {% endif %}
 
 <section class="section">
     <div class="wrap">
-        <h2>Explora la sala</h2>
-        <div class="card-grid">
-            <a href="{% url 'articles:list' %}" class="card card--link">
-                <span class="card__tag">Tablón</span>
-                <h3>Artículos</h3>
-                <p>Reseñas con mala leche, teorías random y el cotilleo de cine que no sabías que necesitabas.</p>
+        <div class="home-layout{% if not recent_activity %} home-layout--no-aside{% endif %}">
+            <div class="home-main">
+                {% if grid_articles %}
+                <div class="section-header">
+                    <div>
+                        <span class="card__tag">Tablón</span>
+                        <h2>Últimos artículos</h2>
+                    </div>
+                    <a href="{% url 'articles:list' %}" class="btn btn--ghost btn--sm">Ver todos &rarr;</a>
+                </div>
+                <div class="article-grid article-grid--home">
+                    {% for article in grid_articles %}
+                    <article class="article-card">
+                        <a href="{{ article.get_absolute_url }}" class="article-card__cover-link">
+                            {% if article.cover %}
+                                <img src="{{ article.cover.url }}" alt="" class="article-card__cover">
+                            {% else %}
+                                <div class="article-card__cover article-card__cover--placeholder"><span>🎬</span></div>
+                            {% endif %}
+                        </a>
+                        <div class="article-card__body">
+                            {% if article.tags.all %}
+                                <span class="card__tag">{{ article.tags.all.0.name }}</span>
+                            {% endif %}
+                            <h3><a href="{{ article.get_absolute_url }}">{{ article.title }}</a></h3>
+                            <p class="muted article-card__meta">{% username_badge article.author "autor eliminado" %} · {{ article.created_at|date:"d/m/Y" }}</p>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% elif not hero_articles %}
+                <p class="muted">Todavía no hay artículos publicados. ¡Sé el primero en escribir uno!</p>
+                {% endif %}
+
+                <a href="{% url 'movies:roulette-home' %}" class="strip-card strip-card--link home-roulette-strip">
+                    <div>
+                        <span class="card__tag">Ruleta</span>
+                        <h2>¿Qué vemos hoy?</h2>
+                        <p class="muted">Se acabaron los 20 minutos scrolleando el catálogo sin decidirte. Elige un rango de nota o tu lista de guardadas, tira de la palanca y que el destino elija por ti.</p>
+                    </div>
+                    <span class="btn btn--accent btn--sm">Girar &rarr;</span>
+                </a>
+            </div>
+
+            {% if recent_activity %}
+            <aside class="home-aside">
+                <div class="activity-panel">
+                    <span class="card__tag">En directo</span>
+                    <h2>Actividad reciente</h2>
+                    <ul class="activity-feed">
+                        {% for item in recent_activity %}
+                        <li class="activity-feed__item">
+                            {% if item.author.avatar %}
+                                <img src="{{ item.author.avatar.url }}" alt="" class="activity-feed__avatar">
+                            {% else %}
+                                <span class="activity-feed__avatar activity-feed__avatar--placeholder" aria-hidden="true">{{ item.icon }}</span>
+                            {% endif %}
+                            <div class="activity-feed__body">
+                                <p class="activity-feed__meta">
+                                    {% username_badge item.author "usuario eliminado" %} comentó en
+                                    <a href="{{ item.url }}">{{ item.context }}</a>
+                                </p>
+                                <p class="activity-feed__text">{{ item.body|truncatechars:90 }}</p>
+                                <p class="activity-feed__time muted">{{ item.created_at|date:"d/m/Y H:i" }}</p>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    <a href="{% url 'forum:list' %}" class="btn btn--ghost home-aside__cta">Ir al foro</a>
+                </div>
+            </aside>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<section class="section section--tight">
+    <div class="wrap">
+        <h2 class="home-explore__title">Explora la Sala de Bygui</h2>
+        <div class="explore-row">
+            <a href="{% url 'articles:list' %}" class="explore-row__item">
+                <span class="explore-row__icon" aria-hidden="true">📰</span>
+                <span class="explore-row__label">Artículos</span>
+                <span class="explore-row__sub muted">Críticas y opinión</span>
             </a>
-            <a href="{% url 'forum:list' %}" class="card card--link">
-                <span class="card__tag">Debate</span>
-                <h3>Foro</h3>
-                <p>Suelta tu teoría, defiende tu peli favorita a muerte — aquí se opina de todo y nadie se calla.</p>
+            <a href="{% url 'forum:list' %}" class="explore-row__item">
+                <span class="explore-row__icon" aria-hidden="true">💬</span>
+                <span class="explore-row__label">Foro</span>
+                <span class="explore-row__sub muted">Debate y comparte</span>
             </a>
             {% if user.is_authenticated %}
-            <a href="{% url 'social:home' %}" class="card card--link">
-                <span class="card__tag">Comunidad</span>
-                <h3>Social</h3>
-                <p>Encuentra a tu gente, cotillea perfiles y presume del tuyo — aquí todo el mundo acaba conociéndose.</p>
+            <a href="{% url 'social:home' %}" class="explore-row__item">
+                <span class="explore-row__icon" aria-hidden="true">👥</span>
+                <span class="explore-row__label">Social</span>
+                <span class="explore-row__sub muted">Conecta y descubre</span>
             </a>
             {% endif %}
-            <a href="{% url 'movies:list' %}" class="card card--link">
-                <span class="card__tag">Catálogo</span>
-                <h3>Películas</h3>
-                <p>Miles de títulos, notas y sinopsis para perderte una hora eligiendo y acabar viendo la misma de siempre.</p>
+            <a href="{% url 'movies:list' %}" class="explore-row__item">
+                <span class="explore-row__icon" aria-hidden="true">🎬</span>
+                <span class="explore-row__label">Películas</span>
+                <span class="explore-row__sub muted">Catálogo y reseñas</span>
             </a>
-            <a href="{% url 'games:hub' %}" class="card card--link">
-                <span class="card__tag">Jugar</span>
-                <h3>Juegos</h3>
-                <p>Duelos de trivia, ruletas, frases célebres y más — entra con la ceja en alto, sal picado.</p>
+            <a href="{% url 'games:hub' %}" class="explore-row__item">
+                <span class="explore-row__icon" aria-hidden="true">🎮</span>
+                <span class="explore-row__label">Juegos</span>
+                <span class="explore-row__sub muted">Juega y diviértete</span>
             </a>
-            <a href="{% url 'shop:list' %}" class="card card--link">
-                <span class="card__tag">Tienda</span>
-                <h3>Tienda</h3>
-                <p>Camisetas, tazas y cachivaches con el sello de la Sala — para presumir hasta fuera de aquí.</p>
+            <a href="{% url 'shop:list' %}" class="explore-row__item explore-row__item--accent">
+                <span class="explore-row__icon" aria-hidden="true">🛍️</span>
+                <span class="explore-row__label">Tienda</span>
+                <span class="explore-row__sub">Merchandising y más</span>
             </a>
-            <a href="{% url 'secret:gate' %}" class="card card--link">
-                <span class="card__tag">Top Secret</span>
-                <h3>Maletín Tarantino</h3>
-                <p>Solo para quien tenga el código. ¿Te atreves?</p>
+            <a href="{% url 'secret:gate' %}" class="explore-row__item explore-row__item--accent">
+                <span class="explore-row__icon" aria-hidden="true">🔒</span>
+                <span class="explore-row__label">Top Secret</span>
+                <span class="explore-row__sub">Solo para miembros</span>
             </a>
         </div>
     </div>

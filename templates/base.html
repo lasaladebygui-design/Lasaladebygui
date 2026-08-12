@@ -1,4 +1,4 @@
-{% load static accounts_extras %}<!DOCTYPE html>
+{% load static accounts_extras core_extras %}<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -150,7 +150,7 @@
         <div class="wrap site-footer__inner">
             <div>
                 <span class="brand__text brand__text--sm">La sala de <em>Bygui</em></span>
-                <p class="muted">{{ site_config.tagline }}</p>
+                <p class="muted">{{ site_config.tagline|wrap_after_period }}</p>
             </div>
             <nav class="site-footer__links" aria-label="Enlaces">
                 <a href="{% url 'secret:gate' %}">Top Secret</a>

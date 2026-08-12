@@ -202,19 +202,114 @@ def other(request):
     return render(request, "secret/other.html")
 
 
+def _tier_list_buckets(user):
+    levels = list(TierLevel.objects.filter(user=user))
+    buckets = {None: []}
+    buckets.update({level.pk: [] for level in levels})
+    for entry in TierListEntry.objects.filter(user=user).select_related("movie"):
+        buckets[entry.tier_id].append(entry)
+    level_rows = [(level, buckets[level.pk]) for level in levels]
+    return level_rows, buckets[None]
+
+
 @secret_required
 @login_required
 def tier_list(request):
-    levels = list(TierLevel.objects.filter(user=request.user))
-    buckets = {None: []}
-    buckets.update({level.pk: [] for level in levels})
-    for entry in TierListEntry.objects.filter(user=request.user).select_related("movie"):
-        buckets[entry.tier_id].append(entry)
-
-    level_rows = [(level, buckets[level.pk]) for level in levels]
+    level_rows, unsorted_entries = _tier_list_buckets(request.user)
     return render(request, "secret/tier_list.html", {
-        "level_rows": level_rows, "unsorted_entries": buckets[None],
+        "level_rows": level_rows, "unsorted_entries": unsorted_entries,
     })
+
+
+def _contrast_text_color(hex_color):
+    """Negro o blanco según el brillo del color de fondo, para que la
+    etiqueta del nivel se lea bien sea cual sea el color que haya
+    elegido cada usuario para ese nivel."""
+    hex_color = hex_color.lstrip("#")
+    r, g, b = (int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+    luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+    return "#111111" if luminance > 0.6 else "#f5f5f5"
+
+
+def _wrap_text(draw, text, font, max_width):
+    words = text.split(" ")
+    lines = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if not current or draw.textlength(candidate, font=font) <= max_width:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines
+
+
+def _render_tier_list_image(theme, level_rows, unsorted_entries):
+    """PNG de solo lectura de la tier list — igual idea que la imagen del
+    calendario: para enseñarla, no para editarla."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    width, pad, label_w, row_gap, line_h = 900, 24, 110, 10, 20
+    header_h = 76
+
+    font_title = ImageFont.load_default(size=26)
+    font_subtitle = ImageFont.load_default(size=13)
+    font_level = ImageFont.load_default(size=16)
+    font_item = ImageFont.load_default(size=14)
+
+    rows = list(level_rows)
+    if unsorted_entries:
+        rows.append((None, unsorted_entries))
+
+    dummy_draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    text_max_width = width - pad * 2 - label_w - 24
+
+    row_lines = []
+    for _level, entries in rows:
+        if entries:
+            joined = "  ·  ".join(_ascii_safe(entry.title) for entry in entries)
+            row_lines.append(_wrap_text(dummy_draw, joined, font_item, text_max_width))
+        else:
+            row_lines.append(["(vacío)"])
+    row_heights = [len(lines) * line_h + 16 for lines in row_lines]
+
+    height = pad * 2 + header_h + sum(row_heights) + row_gap * max(0, len(rows) - 1)
+
+    img = Image.new("RGB", (width, height), theme.color_bg)
+    draw = ImageDraw.Draw(img)
+    draw.text((pad, pad), "Mi tier list", font=font_title, fill=theme.color_accent)
+    draw.text((pad, pad + 34), _ascii_safe("La Sala de Bygui - tier list personal"), font=font_subtitle, fill=theme.color_text_muted)
+
+    y = pad + header_h
+    for (level, _entries), lines, row_h in zip(rows, row_lines, row_heights):
+        color = level.color if level else theme.color_border
+        label = _ascii_safe(level.name) if level else "Sin clasificar"
+        draw.rectangle([pad, y, pad + label_w, y + row_h], fill=color)
+        draw.rectangle([pad + label_w, y, width - pad, y + row_h], outline=theme.color_border)
+        draw.text((pad + 10, y + row_h / 2 - 8), label, font=font_level, fill=_contrast_text_color(color) if level else theme.color_text_muted)
+        ty = y + 8
+        for line in lines:
+            draw.text((pad + label_w + 12, ty), line, font=font_item, fill=theme.color_text)
+            ty += line_h
+        y += row_h + row_gap
+
+    return img
+
+
+@secret_required
+@login_required
+def tier_list_share_image(request):
+    level_rows, unsorted_entries = _tier_list_buckets(request.user)
+    theme = get_effective_theme(request.user, request.session)
+    image = _render_tier_list_image(theme, level_rows, unsorted_entries)
+
+    response = HttpResponse(content_type="image/png")
+    image.save(response, "PNG")
+    response["Content-Disposition"] = 'inline; filename="tier_list.png"'
+    return response
 
 
 @secret_required
@@ -487,13 +582,19 @@ def calendar_view(request):
     })
 
 
-def _ascii_safe(text):
-    """La fuente por defecto de Pillow no tiene glifos para acentos, ñ
-    ni rayas largas — se usa solo para dibujar esta imagen (el resto
-    del sitio sigue mostrando el texto con tildes con normalidad)."""
+def _ascii_safe(text, fallback="(titulo no compatible)"):
+    """La fuente por defecto de Pillow solo tiene glifos latinos/ASCII —
+    se usa solo para dibujar esta imagen (el resto del sitio sigue
+    mostrando el texto tal cual, con tildes, japonés, etc.). Primero
+    quita acentos/ñ; lo que siga sin ser ASCII (japonés, coreano,
+    árabe...) directamente se descarta en vez de salir como un cuadro
+    ilegible, y si no queda nada legible se usa un texto de repuesto."""
     normalized = unicodedata.normalize("NFKD", text)
     stripped = "".join(ch for ch in normalized if not unicodedata.combining(ch))
-    return stripped.replace("—", "-").replace("–", "-").replace("…", "...")
+    stripped = stripped.replace("—", "-").replace("–", "-").replace("…", "...")
+    renderable = "".join(ch for ch in stripped if 32 <= ord(ch) < 127)
+    renderable = " ".join(renderable.split())
+    return renderable or fallback
 
 
 def _render_calendar_image(theme, month_label, weeks):

@@ -14,6 +14,7 @@ urlpatterns = [
     path("dentro/lista/<int:pk>/", views.movie_detail, name="movie-detail"),
     path("dentro/otros/", views.other, name="other"),
     path("dentro/tierlist/", views.tier_list, name="tier-list"),
+    path("dentro/tierlist/compartir/", views.tier_list_share_image, name="tier-list-share-image"),
     path("dentro/tierlist/buscar/", views.tier_list_search, name="tier-list-search"),
     path("dentro/tierlist/anadir/<int:tmdb_id>/", views.tier_list_add, name="tier-list-add"),
     path("dentro/tierlist/<int:pk>/mover/", views.tier_list_move, name="tier-list-move"),
