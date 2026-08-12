@@ -2650,6 +2650,12 @@ main { flex: 1; }
     .calendar-day { aspect-ratio: auto; min-height: 40px; padding: calc(var(--space-unit) * 0.5); }
     .calendar-day__number { font-size: 0.75rem; }
     .calendar-day__badge { font-size: 0.55rem; }
+
+    /* "← Anterior" + la etiqueta del mes + "Siguiente →" con su ancho de
+       escritorio (160px + huecos de 16px) no cabían en una fila estrecha
+       y los botones se salían un poco por los lados. */
+    .calendar-nav { gap: calc(var(--space-unit) * 2); }
+    .calendar-nav__label { min-width: 0; font-size: 1.05rem; }
 }
 
 /* --- Responsive ----------------------------------------------------------

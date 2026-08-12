@@ -30,8 +30,10 @@
 a[href*="admin-exportar"] {
     display: inline-flex;
     align-items: center;
-    margin: 0.4rem 0.6rem 0.4rem 0;
-    padding: 0.35rem 0.8rem !important;
+    box-sizing: border-box;
+    height: 40px;
+    margin: 0 0.6rem 0 0;
+    padding: 0 0.8rem !important;
     background: #28a745;
     color: #fff !important;
     border-radius: 0.35rem;
