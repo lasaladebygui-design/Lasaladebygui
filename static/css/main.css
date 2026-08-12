@@ -1251,6 +1251,7 @@ main { flex: 1; }
 }
 
 .roulette-result { margin-top: calc(var(--space-unit) * 6); }
+.roulette-saved-heading { margin-top: calc(var(--space-unit) * 10); }
 .movie-card--result {
     display: flex;
     flex-direction: row;
@@ -1429,7 +1430,7 @@ main { flex: 1; }
 .secret-movie__poster-link { flex-shrink: 0; display: block; border-radius: 4px; }
 .secret-movie__poster-link:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .secret-movie__poster {
-    width: 68px;
+    width: 88px;
     aspect-ratio: 2/3;
     object-fit: cover;
     border-radius: 4px;
@@ -1455,13 +1456,13 @@ main { flex: 1; }
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    width: 76px;
-    height: 76px;
+    width: 84px;
+    height: 84px;
     border-radius: var(--radius-base);
     color: #0B1416;
     font-family: var(--font-heading);
 }
-.secret-movie__rating-number { font-size: 1.7rem; line-height: 1; font-weight: 700; }
+.secret-movie__rating-number { font-size: 1.85rem; line-height: 1; font-weight: 700; }
 .secret-movie__rating-suffix { font-size: 0.7rem; opacity: 0.75; }
 
 .secret-movie__detail {
@@ -1476,23 +1477,9 @@ main { flex: 1; }
     .secret-movie__title { font-size: 0.95rem; }
 }
 
-/* --- Top Secret: lista completa — panel lateral de listas, orden y
-   alternar entre fila/cuadrícula (ver templates/secret/list.html) ------- */
-
-.secret-full-list__filter-toggle { display: none; margin-bottom: calc(var(--space-unit) * 4); }
-
-.secret-full-list__layout {
-    display: flex;
-    align-items: flex-start;
-    gap: calc(var(--space-unit) * 7);
-}
-
-.secret-sidebar { flex: 0 0 200px; position: sticky; top: calc(var(--space-unit) * 6); }
-.secret-sidebar__header { display: none; }
-.secret-sidebar__form { display: flex; flex-direction: column; align-items: flex-start; gap: calc(var(--space-unit) * 3); }
-.checkbox-grid--vertical { flex-direction: column; gap: calc(var(--space-unit) * 2); }
-
-.secret-full-list__main { flex: 1; min-width: 0; }
+/* --- Top Secret: lista completa — desplegables de orden/filtro y
+   alternar entre fila/cuadrícula (ver templates/secret/list.html). Sin
+   panel lateral: todo el ancho de .wrap es para la lista. ---------------- */
 
 .secret-toolbar {
     display: flex;
@@ -1503,12 +1490,24 @@ main { flex: 1; }
     margin-bottom: calc(var(--space-unit) * 5);
 }
 .secret-toolbar__group { display: flex; align-items: center; gap: calc(var(--space-unit) * 2); flex-wrap: wrap; }
+.secret-toolbar__field { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
+.secret-toolbar__field select {
+    width: auto;
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--radius-base);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font: inherit;
+    font-size: 0.82rem;
+}
+.secret-toolbar__field select:focus { outline: none; border-color: var(--color-accent); }
 
 .secret-list__sentinel { list-style: none; text-align: center; padding: calc(var(--space-unit) * 5) 0; }
 
 .secret-list--grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
     gap: calc(var(--space-unit) * 5) calc(var(--space-unit) * 4);
 }
 .secret-list--grid .secret-movie { border-bottom: none; }
@@ -1525,44 +1524,12 @@ main { flex: 1; }
     position: absolute;
     top: 0.5rem;
     right: 0.5rem;
-    width: 46px;
-    height: 46px;
+    width: 50px;
+    height: 50px;
     box-shadow: 0 2px 8px rgba(0,0,0,.4);
 }
-.secret-list--grid .secret-movie__rating-number { font-size: 1rem; }
+.secret-list--grid .secret-movie__rating-number { font-size: 1.05rem; }
 .secret-list--grid .secret-movie__rating-suffix { display: none; }
-
-.secret-sidebar-backdrop { display: none; }
-
-@media (max-width: 860px) {
-    .secret-full-list__filter-toggle { display: inline-flex; }
-    .secret-full-list__layout { flex-direction: column; }
-
-    .secret-sidebar-backdrop {
-        display: block;
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: 39;
-    }
-
-    .secret-sidebar {
-        position: fixed;
-        top: 0;
-        left: 0;
-        bottom: 0;
-        width: min(280px, 85vw);
-        background: var(--color-surface);
-        border-right: 1px solid var(--color-border);
-        padding: calc(var(--space-unit) * 5);
-        transform: translateX(-100%);
-        transition: transform 0.2s ease;
-        z-index: 40;
-        overflow-y: auto;
-    }
-    .secret-sidebar--open { transform: translateX(0); box-shadow: 0 0 40px rgba(0,0,0,.5); }
-    .secret-sidebar__header { display: flex; justify-content: space-between; align-items: center; margin-bottom: calc(var(--space-unit) * 4); }
-}
 
 /* --- Top Secret: ficha de una película (pantalla completa, mismo layout
    que la ficha de películas del catálogo — portada a un lado, cuerpo al
@@ -2509,11 +2476,10 @@ main { flex: 1; }
     min-width: 160px;
     text-align: center;
 }
-.calendar-grid-scroll { overflow-x: auto; }
-.calendar-scroll-hint { display: none; font-size: 0.75rem; margin: -0.5rem 0 0.5rem; }
-@media (max-width: 640px) {
-    .calendar-scroll-hint { display: block; }
-}
+/* Calendario: rejilla compacta (solo número + indicadores, cabe en una
+   fila incluso en un móvil pequeño, sin desplazamiento horizontal) y un
+   panel de detalle debajo que se abre al tocar un día — ahí es donde vive
+   todo lo demás (comentario, película/serie del día). */
 .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -2525,72 +2491,80 @@ main { flex: 1; }
 }
 .calendar-grid__weekday {
     background: var(--color-surface);
-    padding: calc(var(--space-unit) * 2);
+    padding: calc(var(--space-unit) * 2) calc(var(--space-unit) * 1);
     text-align: center;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--color-text-muted);
     font-weight: 600;
 }
 .calendar-day {
     background: var(--color-bg);
-    min-height: 90px;
-    padding: calc(var(--space-unit) * 1.5);
+    aspect-ratio: 1;
+    min-height: 44px;
+    padding: calc(var(--space-unit) * 1);
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    border: none;
+    font: inherit;
+    cursor: pointer;
+    color: var(--color-text);
 }
+.calendar-day:hover { background: var(--color-surface); }
 .calendar-day--outside { opacity: 0.35; }
 .calendar-day--today { outline: 2px solid var(--color-accent); outline-offset: -2px; }
-.calendar-day__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+.calendar-day--selected { background: var(--color-accent); color: var(--color-on-accent); }
+.calendar-day--selected:hover { background: var(--color-accent-hover); }
+.calendar-day__number { font-size: 0.85rem; font-weight: 600; }
+.calendar-day__badges { display: flex; align-items: center; gap: 0.2rem; min-height: 1em; }
+.calendar-day__badge { font-size: 0.6rem; line-height: 1; }
+.calendar-day__badge--count {
+    background: var(--color-accent-secondary);
+    color: var(--color-on-accent-secondary);
+    border-radius: 999px;
+    padding: 0.05rem 0.35rem;
+    font-weight: 700;
 }
-.calendar-day__number {
-    font-size: 0.8rem;
-    color: var(--color-text-muted);
-    background: none;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-    text-align: left;
-    font-family: inherit;
-}
-.calendar-day__number:hover { color: var(--color-accent); }
-.calendar-day__comment-toggle {
-    background: none;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-    font-size: 0.7rem;
-    opacity: 0.5;
-}
-.calendar-day__comment-toggle:hover { opacity: 1; }
-.calendar-day__comment-text {
-    font-size: 0.65rem;
-    color: var(--color-text-muted);
+.calendar-day--selected .calendar-day__badge--count { background: var(--color-on-accent); color: var(--color-accent); }
+
+.calendar-detail {
+    margin-top: calc(var(--space-unit) * 5);
+    padding: calc(var(--space-unit) * 5);
     background: var(--color-surface);
-    border-radius: 4px;
-    padding: 0.2rem 0.35rem;
-    margin: 0.2rem 0 0;
-    cursor: pointer;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+}
+.calendar-detail__header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: calc(var(--space-unit) * 3); }
+.calendar-detail__header h3 { margin: 0; font-size: 1.1rem; }
+.calendar-detail__actions { display: flex; flex-wrap: wrap; gap: calc(var(--space-unit) * 2); margin-bottom: calc(var(--space-unit) * 3); }
+
+.calendar-day__comment-text {
+    font-size: 0.85rem;
+    color: var(--color-text);
+    background: var(--color-bg);
+    border-radius: var(--radius-base);
+    padding: 0.5rem 0.7rem;
+    margin: 0 0 calc(var(--space-unit) * 3);
 }
 .calendar-day__comment-more {
     background: none;
     border: none;
     padding: 0;
-    margin: 0.1rem 0 0;
-    font-size: 0.6rem;
+    margin: -0.6rem 0 calc(var(--space-unit) * 3);
+    font-size: 0.75rem;
     color: var(--color-accent);
     cursor: pointer;
     text-decoration: underline;
+    display: block;
 }
-.calendar-day__comment-edit { margin-top: 0.2rem; }
+.calendar-day__comment-edit { margin-bottom: calc(var(--space-unit) * 3); }
 .calendar-day__comment-edit textarea {
     width: 100%;
-    min-height: 2.5rem;
-    font-size: 0.7rem;
-    padding: 0.25rem 0.4rem;
+    min-height: 4rem;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.7rem;
     border-radius: var(--radius-base);
     border: 1px solid var(--color-border);
     background: var(--color-bg);
@@ -2598,30 +2572,25 @@ main { flex: 1; }
     resize: vertical;
     font: inherit;
     display: block;
-    margin-bottom: 0.2rem;
+    margin-bottom: 0.4rem;
 }
 .calendar-event {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    font-size: 0.75rem;
-    background: var(--color-surface);
-    border-radius: 4px;
-    padding: 0.25rem;
+    gap: 0.6rem;
+    font-size: 0.85rem;
+    background: var(--color-bg);
+    border-radius: var(--radius-base);
+    padding: 0.5rem;
+    margin-bottom: calc(var(--space-unit) * 2);
 }
-.calendar-event__poster {
-    width: 24px;
-    height: 36px;
-    object-fit: cover;
-    border-radius: 3px;
-    flex-shrink: 0;
-}
+.calendar-event__poster { width: 36px; height: 54px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
 .calendar-event__poster--placeholder {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--color-bg);
-    font-size: 0.9rem;
+    background: var(--color-surface);
+    font-size: 1.1rem;
 }
 .calendar-event__body { display: flex; flex-direction: column; min-width: 0; }
 .calendar-event__title {
@@ -2630,8 +2599,8 @@ main { flex: 1; }
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.calendar-event__note { font-size: 0.65rem; }
-.calendar-event__tools { margin-left: auto; display: flex; gap: 0.2rem; flex-shrink: 0; position: relative; }
+.calendar-event__note { font-size: 0.75rem; }
+.calendar-event__tools { margin-left: auto; display: flex; gap: 0.3rem; flex-shrink: 0; position: relative; }
 .calendar-event__move { position: relative; }
 .calendar-event__move summary { list-style: none; cursor: pointer; }
 .calendar-event__move summary::-webkit-details-marker { display: none; }
@@ -2649,51 +2618,38 @@ main { flex: 1; }
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 .calendar-event__move-form input[type="date"] {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     padding: 0.3rem;
     border-radius: var(--radius-base);
     border: 1px solid var(--color-border);
     background: var(--color-bg);
     color: var(--color-text);
 }
-.calendar-day__add { margin-top: 0.2rem; }
+.calendar-day__add { margin-top: calc(var(--space-unit) * 2); }
 .calendar-day__add input {
     width: 100%;
-    font-size: 0.7rem;
-    padding: 0.25rem 0.4rem;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.7rem;
     border-radius: var(--radius-base);
     border: 1px solid var(--color-border);
     background: var(--color-bg);
     color: var(--color-text);
 }
-.calendar-search-results { list-style: none; margin: 0.2rem 0 0; padding: 0; }
+.calendar-search-results { list-style: none; margin: 0.4rem 0 0; padding: 0; }
 .calendar-search-result {
     display: flex;
     align-items: center;
-    gap: 0.3rem;
-    padding: 0.2rem 0;
-    font-size: 0.7rem;
+    gap: 0.5rem;
+    padding: 0.3rem 0;
+    font-size: 0.82rem;
 }
-.calendar-search-result__poster { width: 20px; aspect-ratio: 2/3; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
+.calendar-search-result__poster { width: 28px; aspect-ratio: 2/3; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
 .calendar-search-result__title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 
-/* En pantallas estrechas, comprimir las 7 columnas para que quepan sin
-   desplazamiento dejaba el texto ilegible (letras de 8px). En vez de eso,
-   el calendario mantiene un tamaño de celda cómodo y se desplaza en
-   horizontal — el contenedor .calendar-grid-scroll ya tiene overflow-x:
-   auto, así que solo hace falta darle a las columnas un ancho mínimo. */
 @media (max-width: 640px) {
-    /* Sin un ancho explícito, un grid se encoge para caber en su
-       contenedor aunque eso incumpla el mínimo de minmax() — el
-       resultado es que "no hay nada que desplazar" y las columnas de
-       más allá simplemente desaparecen. width: max-content fuerza al
-       grid a medirse por su contenido real (7 × 100px), así sí que
-       desborda el contenedor con scroll (.calendar-grid-scroll). */
-    .calendar-grid { grid-template-columns: repeat(7, minmax(100px, 1fr)); width: max-content; }
-    .calendar-day { min-height: 80px; }
-    .calendar-event { flex-direction: column; align-items: stretch; gap: 2px; }
-    .calendar-event__poster, .calendar-event__poster--placeholder { width: 100%; height: 32px; }
-    .calendar-event__title { white-space: normal; }
+    .calendar-day { aspect-ratio: auto; min-height: 40px; padding: calc(var(--space-unit) * 0.5); }
+    .calendar-day__number { font-size: 0.75rem; }
+    .calendar-day__badge { font-size: 0.55rem; }
 }
 
 /* --- Responsive ----------------------------------------------------------
@@ -2752,8 +2708,8 @@ main { flex: 1; }
     .rating-form__row { flex-direction: column; gap: calc(var(--space-unit) * 4); }
     .slot-reel { width: 96px; }
     .slot-machine__reels { gap: calc(var(--space-unit) * 2); padding: calc(var(--space-unit) * 3) calc(var(--space-unit) * 2); }
-    .movie-card--result { flex-direction: column; max-width: 280px; text-align: center; }
-    .movie-card--result .movie-card__poster { width: 100%; }
+    .movie-card--result { flex-direction: column; max-width: 260px; margin-inline: auto; text-align: center; }
+    .movie-card--result .movie-card__poster { width: 150px; margin-inline: auto; }
     .strip-card--link { flex-direction: column; align-items: flex-start; }
 
     .donation-poster { padding: calc(var(--space-unit) * 8) calc(var(--space-unit) * 4); }

@@ -14,7 +14,7 @@
 
     {% include "movies/_reel.html" %}
 
-    <h2>Tus guardadas ({{ saved|length }}) — {{ unseen_count }} sin ver</h2>
+    <h2 class="roulette-saved-heading">Tus guardadas ({{ saved|length }}) — {{ unseen_count }} sin ver</h2>
     {% if saved %}
     <ul class="candidate-list">
         {% for item in saved %}

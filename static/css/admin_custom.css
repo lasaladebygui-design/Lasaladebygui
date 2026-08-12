@@ -22,3 +22,22 @@
     user-select: none;
 }
 .drag-handle:active { cursor: grabbing; }
+
+/* Botón de exportar a Excel (movido junto al menú de usuario por
+   static/admin/js/topmenu_reposition.js): encuadrado en verde y con un
+   poco de aire respecto al icono de perfil, para que no parezca un enlace
+   de texto suelto más. */
+a[href*="admin-exportar"] {
+    display: inline-flex;
+    align-items: center;
+    margin: 0.4rem 0.6rem 0.4rem 0;
+    padding: 0.35rem 0.8rem !important;
+    background: #28a745;
+    color: #fff !important;
+    border-radius: 0.35rem;
+    font-weight: 600;
+}
+a[href*="admin-exportar"]:hover {
+    background: #218838;
+    color: #fff !important;
+}

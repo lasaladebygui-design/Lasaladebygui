@@ -161,17 +161,10 @@ def full_list(request):
     querystring = request.GET.copy()
     querystring.pop("page", None)
 
-    # Solo el filtro de listas, sin "sort" ni "page" — para que los enlaces
-    # de ordenar puedan fijar su propio sort sin perder el filtro activo.
-    genres_querystring = request.GET.copy()
-    genres_querystring.pop("page", None)
-    genres_querystring.pop("sort", None)
-
     page_obj = Paginator(movies, FULL_LIST_PAGE_SIZE).get_page(request.GET.get("page"))
     context = {
         "movies": page_obj, "form": form, "rating_config": TopSecretConfig.load(),
         "sort": sort, "querystring": querystring.urlencode(),
-        "genres_querystring": genres_querystring.urlencode(),
     }
     if _is_htmx(request):
         return render(request, "secret/_list_items.html", context)
