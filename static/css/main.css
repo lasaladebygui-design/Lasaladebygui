@@ -65,7 +65,11 @@ a:hover { color: var(--color-accent-secondary); }
     width: 100%;
     max-width: var(--max-content-width);
     margin-inline: auto;
-    padding-inline: calc(var(--space-unit) * 4);
+    /* Escala con el ancho real de pantalla en vez de saltar entre dos
+       valores fijos por breakpoint: en un móvil pequeño casi no hay
+       margen (como se espera), y en uno más grande no se ve tan
+       "encajonado" como con el mismo padding fijo que un tablet. */
+    padding-inline: clamp(calc(var(--space-unit) * 2), 4vw, calc(var(--space-unit) * 4));
 }
 
 /* --- Header --------------------------------------------------------- */
@@ -989,6 +993,19 @@ main { flex: 1; }
 }
 .reorder-buttons .link-btn { font-size: 0.9rem; }
 .reorder-buttons .link-btn:disabled { opacity: 0.3; cursor: default; }
+
+/* Tirador de arrastre para listas reordenables del front-end (ver
+   static/js/sortable_list.js) — mismo icono que el admin, para arrastrar
+   en vez de depender solo de los botones ▲▼. */
+.drag-handle {
+    cursor: grab;
+    font-size: 1.1rem;
+    color: var(--color-text-muted);
+    user-select: none;
+    line-height: 1;
+}
+.drag-handle:active { cursor: grabbing; }
+.sortable-ghost { opacity: 0.4; }
 /* Componentes reutilizables para "listas" (Guardadas, Artículos, género/
    subgénero de Top Secret): un filtro de selección única desplegable
    (.list-filter) y un selector múltiple por fila con pastillas de lo ya
@@ -2562,24 +2579,17 @@ main { flex: 1; }
 .calendar-search-result__poster { width: 20px; aspect-ratio: 2/3; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
 .calendar-search-result__title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 
-/* En pantallas estrechas, 7 columnas a partes iguales no dejan sitio para
-   una tarjeta de evento completa (portada + título + herramientas) — en
-   vez de desplazar el calendario en horizontal (obligaba a hacer scroll y
-   parecía que "faltaba medio calendario"), se comprime todo el contenido
-   de cada día para que el mes entero quepa sin desplazamiento. */
+/* En pantallas estrechas, comprimir las 7 columnas para que quepan sin
+   desplazamiento dejaba el texto ilegible (letras de 8px). En vez de eso,
+   el calendario mantiene un tamaño de celda cómodo y se desplaza en
+   horizontal — el contenedor .calendar-grid-scroll ya tiene overflow-x:
+   auto, así que solo hace falta darle a las columnas un ancho mínimo. */
 @media (max-width: 640px) {
-    .calendar-day { min-height: 52px; padding: 2px; font-size: 0.62rem; gap: 2px; }
-    .calendar-grid__weekday { padding: 2px 1px; font-size: 0.58rem; }
-    .calendar-day__number { font-size: 0.62rem; }
-    .calendar-day__comment-toggle { font-size: 0.55rem; }
-    .calendar-day__comment-text { font-size: 0.55rem; padding: 0.1rem 0.2rem; }
-    .calendar-event { flex-direction: column; align-items: stretch; gap: 1px; padding: 1px 2px; font-size: 0.52rem; }
-    .calendar-event__poster, .calendar-event__poster--placeholder { width: 100%; height: 14px; }
-    .calendar-event__title { white-space: normal; font-size: 0.52rem; line-height: 1.15; }
-    .calendar-event__note { display: none; }
-    .calendar-event__tools { margin-left: 0; }
-    .calendar-event__move summary, .calendar-event__tools .link-btn { font-size: 0.6rem; }
-    .calendar-day__add input { font-size: 0.6rem; padding: 0.15rem 0.3rem; }
+    .calendar-grid { grid-template-columns: repeat(7, minmax(100px, 1fr)); }
+    .calendar-day { min-height: 80px; }
+    .calendar-event { flex-direction: column; align-items: stretch; gap: 2px; }
+    .calendar-event__poster, .calendar-event__poster--placeholder { width: 100%; height: 32px; }
+    .calendar-event__title { white-space: normal; }
 }
 
 /* --- Responsive ----------------------------------------------------------
@@ -2588,7 +2598,6 @@ main { flex: 1; }
    concretos donde el diseño de escritorio no cabe o sobra espacio. */
 
 @media (max-width: 1024px) {
-    .wrap { padding-inline: calc(var(--space-unit) * 3); }
     .hero { padding-block: calc(var(--space-unit) * 12) calc(var(--space-unit) * 10); }
     .movie-detail { grid-template-columns: 200px 1fr; }
 }
@@ -2597,6 +2606,12 @@ main { flex: 1; }
     .site-header__right { gap: calc(var(--space-unit) * 2); }
     .header-profile__name { display: none; }
     .brand__text { display: none; }
+
+    /* "Volver al menú" es redundante en móvil: el propio botón ☰ Menú
+       ya lleva a "Sala principal", y dejar el texto aquí es lo que
+       hacía que la cabecera no cupiese en una fila y se partiese en
+       dos, apelotonando los iconos de la derecha debajo del ☰. */
+    .nav-home-link { display: none; }
 
     /* En desktop, .notif-bell__menu/.theme-switcher__menu se anclan con
        right:0 a su propio botón — funciona porque ese botón está pegado al

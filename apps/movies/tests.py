@@ -139,15 +139,12 @@ class SavedMovieTests(TestCase):
         self.assertContains(response, "Guardar serie")
         self.assertNotContains(response, "Guardar película")
 
-    def test_la_ficha_muestra_la_recaudacion_si_se_conoce(self):
+    def test_la_ficha_no_muestra_la_recaudacion_aunque_se_conozca(self):
         self.movie.revenue = 2_798_000_000
         self.movie.save(update_fields=["revenue"])
         response = self.client.get(reverse("movies:detail", args=[self.movie.pk]))
-        self.assertContains(response, "$2.798.000.000")
-
-    def test_la_ficha_no_muestra_recaudacion_si_no_se_conoce(self):
-        response = self.client.get(reverse("movies:detail", args=[self.movie.pk]))
         self.assertNotContains(response, "💰")
+        self.assertNotContains(response, "$2.798.000.000")
 
     def test_mis_peliculas_muestra_solo_lo_votado(self):
         other_movie = make_movie(2, "Movie B", "7.0")
@@ -196,6 +193,61 @@ class SavedMovieTests(TestCase):
         saved = SavedMovie.objects.create(user=other_user, movie=self.movie, order=0)
         response = self.client.post(reverse("movies:saved-movie-move", args=[saved.pk, "up"]))
         self.assertEqual(response.status_code, 404)
+
+    def test_reordenar_por_arrastre_aplica_el_orden_recibido(self):
+        import json
+
+        other = make_movie(2, "Movie B", "7.0")
+        third = make_movie(3, "Movie C", "6.0")
+        a = SavedMovie.objects.create(user=self.user, movie=self.movie, order=0)
+        b = SavedMovie.objects.create(user=self.user, movie=other, order=1)
+        c = SavedMovie.objects.create(user=self.user, movie=third, order=2)
+
+        response = self.client.post(
+            reverse("movies:saved-movie-reorder"),
+            data=json.dumps({"order": [c.pk, a.pk, b.pk]}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        a.refresh_from_db(); b.refresh_from_db(); c.refresh_from_db()
+        self.assertEqual((c.order, a.order, b.order), (0, 1, 2))
+
+    def test_reordenar_por_arrastre_no_mueve_las_guardadas_fuera_del_filtro(self):
+        """Arrastrar dentro de una lista filtrada solo debe permutar las que
+        se ven — una guardada de otra lista, no incluida en el POST, debe
+        conservar su posición relativa."""
+        import json
+
+        other = make_movie(2, "Movie B", "7.0")
+        hidden_movie = make_movie(3, "Hidden", "5.0")
+        a = SavedMovie.objects.create(user=self.user, movie=self.movie, order=0)
+        hidden = SavedMovie.objects.create(user=self.user, movie=hidden_movie, order=1)
+        b = SavedMovie.objects.create(user=self.user, movie=other, order=2)
+
+        response = self.client.post(
+            reverse("movies:saved-movie-reorder"),
+            data=json.dumps({"order": [b.pk, a.pk]}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        a.refresh_from_db(); hidden.refresh_from_db(); b.refresh_from_db()
+        # a y b se permutan entre sí (posiciones 0 y 2), hidden se queda en medio (1).
+        self.assertEqual((b.order, hidden.order, a.order), (0, 1, 2))
+
+    def test_reordenar_por_arrastre_no_afecta_guardadas_de_otro_usuario(self):
+        import json
+
+        other_user = make_user("otro_arrastre@test.local")
+        ajena = SavedMovie.objects.create(user=other_user, movie=self.movie, order=0)
+
+        response = self.client.post(
+            reverse("movies:saved-movie-reorder"),
+            data=json.dumps({"order": [ajena.pk]}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        ajena.refresh_from_db()
+        self.assertEqual(ajena.order, 0)
 
 
 class MovieSaveListsWidgetTests(TestCase):

@@ -275,6 +275,36 @@ def favorite_move(request, pk, direction):
 
 
 @login_required
+def favorite_reorder(request, category, media_type):
+    """Arrastrar y soltar en las tarjetas de favoritas (ver
+    static/js/sortable_list.js). A diferencia de las guardadas de
+    películas, aquí la plantilla siempre renderiza el grupo entero (sin
+    paginar ni filtrar de servidor), así que los pks recibidos son ya
+    todas las de ese (categoría, tipo) — basta con renumerarlas."""
+    if request.method != "POST":
+        return JsonResponse({"error": "Solo POST"}, status=405)
+    try:
+        ids = json.loads(request.body).get("order", [])
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "JSON inválido"}, status=400)
+
+    favorites_by_pk = {
+        f.pk: f for f in FavoriteMovie.objects.filter(
+            user=request.user, category=category, movie__media_type=media_type, pk__in=ids,
+        )
+    }
+    updated = []
+    for position, pk in enumerate(ids):
+        favorite = favorites_by_pk.get(pk)
+        if favorite is not None:
+            favorite.order = position
+            updated.append(favorite)
+    if updated:
+        FavoriteMovie.objects.bulk_update(updated, ["order"])
+    return JsonResponse({"ok": True})
+
+
+@login_required
 def favorite_category_note(request, category):
     if category not in FavoriteMovie.Category.values:
         raise Http404

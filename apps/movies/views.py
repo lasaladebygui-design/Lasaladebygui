@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Max, Q
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -302,6 +302,38 @@ def saved_movie_move(request, pk, direction):
         saved.order, other.order = swap_index, index
         SavedMovie.objects.bulk_update([saved, other], ["order"])
     return redirect("movies:saved-movies")
+
+
+@login_required
+def saved_movie_reorder(request):
+    """Arrastrar y soltar en la lista de guardadas (ver static/js/sortable_list.js).
+    La lista arrastrada puede estar filtrada (por lista o por tipo), así que
+    los pks que llegan son solo un subconjunto de todas las guardadas del
+    usuario: en vez de renumerarlas de 0 a N (eso desordenaría las que no se
+    ven ahora mismo), se recorre el orden global actual y, en cada hueco que
+    ocupaba una guardada visible, se coloca la siguiente según el nuevo
+    orden — las no visibles no se mueven de su sitio."""
+    if request.method != "POST":
+        return JsonResponse({"error": "Solo POST"}, status=405)
+    try:
+        ids = json.loads(request.body).get("order", [])
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "JSON inválido"}, status=400)
+
+    all_saved = list(SavedMovie.objects.filter(user=request.user).order_by("order", "-saved_at"))
+    by_pk = {s.pk: s for s in all_saved}
+    visible_ids = [pk for pk in ids if pk in by_pk]
+    visible_set = set(visible_ids)
+    ids_iter = iter(visible_ids)
+
+    final_sequence = [
+        by_pk[next(ids_iter)] if obj.pk in visible_set else obj
+        for obj in all_saved
+    ]
+    for position, saved in enumerate(final_sequence):
+        saved.order = position
+    SavedMovie.objects.bulk_update(final_sequence, ["order"])
+    return JsonResponse({"ok": True})
 
 
 @login_required

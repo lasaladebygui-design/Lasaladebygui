@@ -9,10 +9,11 @@
         <button type="button" class="btn btn--sm" :class="type === 'all' ? 'btn--accent' : 'btn--ghost'" @click="type = 'all'">Ambas</button>
     </div>
 
-    {% if movies or series %}
-    <div class="favorites-grid favorites-grid--3col">
+    {% if movies %}
+    <div class="favorites-grid favorites-grid--3col" x-show="type === 'movie' || type === 'all'"
+         {% if editable %}data-sortable-url="{% url 'accounts:favorite-reorder' category=category media_type='movie' %}" data-sortable-handle=".drag-handle"{% endif %}>
         {% for fav in movies %}
-        <div class="favorite-card" x-show="type === 'movie' || type === 'all'">
+        <div class="favorite-card" data-sortable-id="{{ fav.pk }}">
             {% if fav.movie.poster_url %}
                 <img src="{{ fav.movie.poster_url }}" alt="" class="favorite-card__poster">
             {% else %}
@@ -22,8 +23,13 @@
             {% include "accounts/_favorite_card_tools.html" %}
         </div>
         {% endfor %}
+    </div>
+    {% endif %}
+    {% if series %}
+    <div class="favorites-grid favorites-grid--3col" x-show="type === 'tv' || type === 'all'"
+         {% if editable %}data-sortable-url="{% url 'accounts:favorite-reorder' category=category media_type='tv' %}" data-sortable-handle=".drag-handle"{% endif %}>
         {% for fav in series %}
-        <div class="favorite-card" x-show="type === 'tv' || type === 'all'">
+        <div class="favorite-card" data-sortable-id="{{ fav.pk }}">
             {% if fav.movie.poster_url %}
                 <img src="{{ fav.movie.poster_url }}" alt="" class="favorite-card__poster">
             {% else %}
@@ -34,7 +40,8 @@
         </div>
         {% endfor %}
     </div>
-    {% else %}
+    {% endif %}
+    {% if not movies and not series %}
     <p class="muted">Todavía no hay ninguna aquí.</p>
     {% endif %}
 

@@ -131,34 +131,41 @@ def service_worker(request):
 def export_excel(request):
     """Copia de seguridad rápida en Excel de lo que no está en ningún otro
     sitio si la web "explota": el comentario de cada día del calendario
-    personal, la lista de Top Secret (nota, listas, comentario) y las
-    guardadas de cada usuario agrupadas por su lista. Un botón en el panel
-    (topmenu de Jazzmin), nada que requiera entrar a ningún modelo."""
+    personal, la lista de Top Secret (nota, listas, comentario), las
+    guardadas de cada usuario agrupadas por su lista y el catálogo de la
+    Tienda. Un botón en el panel (topmenu de Jazzmin), nada que requiera
+    entrar a ningún modelo."""
     from openpyxl import Workbook
     from openpyxl.utils import get_column_letter
 
     from apps.movies.models import SavedMovie
     from apps.secret.models import CalendarDayNote, SecretMovie
+    from apps.shop.models import Product
 
     wb = Workbook()
 
     ws_calendar = wb.active
     ws_calendar.title = "Calendario"
     ws_calendar.append(["Usuario", "Fecha", "Comentario"])
-    for note in CalendarDayNote.objects.select_related("user").order_by("user_id", "date"):
+    for note in CalendarDayNote.objects.select_related("user").order_by("user__username", "date"):
         ws_calendar.append([str(note.user), note.date.strftime("%d/%m/%Y"), note.note])
 
     ws_secret = wb.create_sheet("Top Secret")
     ws_secret.append(["Nombre", "Nota", "Listas", "Comentario"])
-    for movie in SecretMovie.objects.prefetch_related("genres").order_by("number"):
+    for movie in SecretMovie.objects.prefetch_related("genres").order_by("title"):
         listas = ", ".join(movie.genres.values_list("name", flat=True))
         ws_secret.append([movie.title, float(movie.personal_rating), listas, movie.comment])
 
     ws_saved = wb.create_sheet("Guardadas")
     ws_saved.append(["Usuario", "Lista", "Película"])
-    for saved in SavedMovie.objects.select_related("user", "movie").prefetch_related("sublists").order_by("user_id", "movie__title"):
+    for saved in SavedMovie.objects.select_related("user", "movie").prefetch_related("sublists").order_by("user__username", "movie__title"):
         listas = ", ".join(saved.sublists.values_list("name", flat=True)) or "Sin lista"
         ws_saved.append([str(saved.user), listas, saved.movie.title])
+
+    ws_shop = wb.create_sheet("Tienda")
+    ws_shop.append(["Nombre", "Descripción", "Precio", "Enlace"])
+    for product in Product.objects.order_by("order", "name"):
+        ws_shop.append([product.name, product.description, float(product.price) if product.price is not None else None, product.url])
 
     for ws in wb.worksheets:
         for col_idx, column_cells in enumerate(ws.columns, start=1):

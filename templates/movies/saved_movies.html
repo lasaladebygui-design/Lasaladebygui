@@ -50,10 +50,11 @@
         </details>
 
         {% if saved %}
-        <ul class="plain-list">
+        <ul class="plain-list" data-sortable-url="{% url 'movies:saved-movie-reorder' %}" data-sortable-handle=".drag-handle">
             {% for item in saved %}
-            <li id="saved-row-{{ item.pk }}">
+            <li id="saved-row-{{ item.pk }}" data-sortable-id="{{ item.pk }}">
                 <div class="reorder-buttons">
+                    <span class="drag-handle" title="Arrastra para reordenar">⠿</span>
                     <form method="post" action="{% url 'movies:saved-movie-move' pk=item.pk direction='up' %}">
                         {% csrf_token %}
                         <button type="submit" class="link-btn" title="Subir" {% if forloop.first %}disabled{% endif %}>▲</button>

@@ -796,8 +796,8 @@ class NotificationsBellTests(TestCase):
 
 class ExportExcelTests(TestCase):
     """Copia de seguridad en Excel desde el admin (enlace en el topmenu de
-    Jazzmin): calendario, Top Secret y guardadas por lista, cada uno en su
-    propia hoja."""
+    Jazzmin): calendario, Top Secret, guardadas por lista y tienda, cada uno
+    en su propia hoja."""
 
     def setUp(self):
         self.admin = _make_user("export_admin@test.local", role=User.Role.ADMIN)
@@ -822,13 +822,14 @@ class ExportExcelTests(TestCase):
         )
         self.assertIn("attachment", response["Content-Disposition"])
 
-    def test_incluye_las_tres_hojas_con_sus_datos(self):
+    def test_incluye_las_cuatro_hojas_con_sus_datos(self):
         import io
 
         from openpyxl import load_workbook
 
         from apps.movies.models import Movie, SavedMovie, SavedMovieList
         from apps.secret.models import CalendarDayNote, Genre, SecretMovie
+        from apps.shop.models import Product
 
         user = _make_user("export_datos@test.local")
         CalendarDayNote.objects.create(user=user, date=date(2026, 1, 5), note="Maratón de Navidad")
@@ -842,10 +843,12 @@ class ExportExcelTests(TestCase):
         saved = SavedMovie.objects.create(user=user, movie=movie)
         saved.sublists.add(sublist)
 
+        Product.objects.create(name="Taza Bygui", description="Con el logo.", price="12.50", url="https://example.com/taza")
+
         response = self.client.get(reverse("core:admin-export-excel"))
         wb = load_workbook(io.BytesIO(response.content))
 
-        self.assertEqual(wb.sheetnames, ["Calendario", "Top Secret", "Guardadas"])
+        self.assertEqual(wb.sheetnames, ["Calendario", "Top Secret", "Guardadas", "Tienda"])
 
         calendar_rows = list(wb["Calendario"].iter_rows(values_only=True))
         self.assertIn((str(user), "05/01/2026", "Maratón de Navidad"), calendar_rows)
@@ -855,3 +858,6 @@ class ExportExcelTests(TestCase):
 
         saved_rows = list(wb["Guardadas"].iter_rows(values_only=True))
         self.assertIn((str(user), "Favoritas", "Drive"), saved_rows)
+
+        shop_rows = list(wb["Tienda"].iter_rows(values_only=True))
+        self.assertIn(("Taza Bygui", "Con el logo.", 12.5, "https://example.com/taza"), shop_rows)

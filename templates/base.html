@@ -27,6 +27,9 @@
     <script src="{% static 'js/pwa_install.js' %}"></script>
     {% if user.is_authenticated %}<script src="{% static 'js/push_subscribe.js' %}"></script>{% endif %}
     {% if user.is_authenticated %}<script src="{% static 'js/notif_bell.js' %}"></script>{% endif %}
+    <script defer src="{% static 'js/roulette.js' %}"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+    <script defer src="{% static 'js/sortable_list.js' %}"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
     <script>

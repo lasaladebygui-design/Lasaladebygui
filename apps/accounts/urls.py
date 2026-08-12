@@ -21,6 +21,7 @@ urlpatterns = [
     path("perfil/favoritas/<str:category>/<str:media_type>/anadir/<int:tmdb_id>/", views.favorite_add, name="favorite-add"),
     path("perfil/favoritas/<int:pk>/quitar/", views.favorite_remove, name="favorite-remove"),
     path("perfil/favoritas/<int:pk>/mover/<str:direction>/", views.favorite_move, name="favorite-move"),
+    path("perfil/favoritas/<str:category>/<str:media_type>/reordenar/", views.favorite_reorder, name="favorite-reorder"),
     path("perfil/favoritas/<str:category>/nota/", views.favorite_category_note, name="favorite-category-note"),
     path("notificaciones/suscribir/", views.push_subscribe, name="push-subscribe"),
     path("notificaciones/desuscribir/", views.push_unsubscribe, name="push-unsubscribe"),

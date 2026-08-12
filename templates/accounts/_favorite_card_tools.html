@@ -1,5 +1,6 @@
 {% if editable %}
 <div class="favorite-card__tools">
+    <span class="drag-handle" title="Arrastra para reordenar">⠿</span>
     <form method="post" action="{% url 'accounts:favorite-move' pk=fav.pk direction='up' %}">
         {% csrf_token %}
         <button type="submit" class="link-btn" title="Mover antes" {% if forloop.first %}disabled{% endif %}>◀</button>

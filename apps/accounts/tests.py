@@ -673,6 +673,56 @@ class FavoriteMovieTests(TestCase):
         self.assertEqual(fav_b.order, 0)
         self.assertEqual(fav_a.order, 1)
 
+    def test_reordenar_por_arrastre_aplica_el_orden_recibido(self):
+        import json
+
+        movie_a = Movie.objects.create(tmdb_id=12, title="A", media_type="movie")
+        movie_b = Movie.objects.create(tmdb_id=13, title="B", media_type="movie")
+        fav_a = FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie_a, order=0)
+        fav_b = FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie_b, order=1)
+
+        response = self.client.post(
+            reverse("accounts:favorite-reorder", args=["essential", "movie"]),
+            data=json.dumps({"order": [fav_b.pk, fav_a.pk]}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        fav_a.refresh_from_db(); fav_b.refresh_from_db()
+        self.assertEqual((fav_b.order, fav_a.order), (0, 1))
+
+    def test_reordenar_por_arrastre_no_mezcla_peliculas_y_series(self):
+        import json
+
+        movie = Movie.objects.create(tmdb_id=14, title="Peli", media_type="movie")
+        series = Movie.objects.create(tmdb_id=15, title="Serie", media_type="tv")
+        fav_movie = FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie, order=0)
+        fav_series = FavoriteMovie.objects.create(user=self.user, category="essential", movie=series, order=0)
+
+        response = self.client.post(
+            reverse("accounts:favorite-reorder", args=["essential", "movie"]),
+            data=json.dumps({"order": [fav_series.pk]}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        fav_series.refresh_from_db()
+        self.assertEqual(fav_series.order, 0)
+
+    def test_reordenar_por_arrastre_no_afecta_favoritas_de_otro_usuario(self):
+        import json
+
+        other = User.objects.create(email="otro_reordenar@test.local", role=User.Role.LECTOR)
+        movie = Movie.objects.create(tmdb_id=16, title="Ajena", media_type="movie")
+        ajena = FavoriteMovie.objects.create(user=other, category="essential", movie=movie, order=0)
+
+        response = self.client.post(
+            reverse("accounts:favorite-reorder", args=["essential", "movie"]),
+            data=json.dumps({"order": [ajena.pk]}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        ajena.refresh_from_db()
+        self.assertEqual(ajena.order, 0)
+
     def test_el_perfil_enlaza_a_las_dos_paginas_de_favoritas_con_su_contador(self):
         movie = Movie.objects.create(tmdb_id=7, title="Mi favorita", poster_path="/x.jpg", media_type="movie")
         FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie)
