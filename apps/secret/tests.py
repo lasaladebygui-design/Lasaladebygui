@@ -136,22 +136,55 @@ class SecretMovieViewTests(TestCase):
         response = self.client.get(reverse("secret:list"), {"genres": [terror.slug, slasher.slug]})
         self.assertEqual(list(response.context["movies"]), [self.a])
 
-    def test_lista_completa_filtra_por_nota(self):
-        response = self.client.get(reverse("secret:list"), {"rating": "8.5"})
-        self.assertEqual(list(response.context["movies"]), [self.b])
-
-    def test_lista_completa_combina_genero_y_nota(self):
+    def test_lista_completa_combina_genero_y_orden(self):
         terror = Genre.objects.create(name="Terror")
         self.a.genres.add(terror)
         self.b.genres.add(terror)
+        peor_de_terror = SecretMovie.objects.create(title="Peor de Terror", personal_rating="4.0")
+        peor_de_terror.genres.add(terror)
 
-        response = self.client.get(reverse("secret:list"), {"genres": [terror.slug], "rating": "9.0"})
-        self.assertEqual(list(response.context["movies"]), [self.a])
+        response = self.client.get(reverse("secret:list"), {"genres": [terror.slug], "sort": "asc"})
+        self.assertEqual(list(response.context["movies"]), [peor_de_terror, self.b, self.a])
+
+    def test_orden_por_defecto_es_nota_descendente(self):
+        response = self.client.get(reverse("secret:list"))
+        self.assertEqual(list(response.context["movies"]), [self.a, self.b])
+        self.assertEqual(response.context["sort"], "desc")
+
+    def test_ordenar_ascendente_invierte_el_orden(self):
+        response = self.client.get(reverse("secret:list"), {"sort": "asc"})
+        self.assertEqual(list(response.context["movies"]), [self.b, self.a])
+        self.assertEqual(response.context["sort"], "asc")
 
     def test_no_se_muestra_el_numero_interno_en_la_lista(self):
         response = self.client.get(reverse("secret:list"))
         self.assertNotContains(response, "#1 —")
         self.assertNotContains(response, "#2 —")
+
+    def test_la_nota_personal_se_muestra_en_cada_fila(self):
+        """La corrección de una petición anterior: el número interno (#1)
+        se oculta, pero el badge con la nota personal debe seguir ahí."""
+        response = self.client.get(reverse("secret:list"))
+        # Django localiza el decimal a coma (es) al renderizarlo en la plantilla.
+        self.assertContains(response, "9,0")
+        self.assertContains(response, "8,5")
+
+    def test_no_hay_desplegable_de_filtro_por_nota(self):
+        response = self.client.get(reverse("secret:list"))
+        self.assertNotIn("rating", response.context["form"].fields)
+
+    def test_pagina_mas_de_24_reparte_en_paginas(self):
+        for i in range(25):
+            SecretMovie.objects.create(title=f"Extra {i}", personal_rating="5.0")
+
+        response = self.client.get(reverse("secret:list"))
+        self.assertEqual(len(response.context["movies"]), 24)
+        self.assertTrue(response.context["movies"].has_next())
+
+        response_pagina_2 = self.client.get(reverse("secret:list"), {"page": 2}, HTTP_HX_REQUEST="true")
+        self.assertEqual(response_pagina_2.status_code, 200)
+        self.assertTemplateUsed(response_pagina_2, "secret/_list_items.html")
+        self.assertTemplateNotUsed(response_pagina_2, "secret/list.html")
 
     def test_las_listas_no_salen_visibles_de_entrada_en_la_fila(self):
         terror = Genre.objects.create(name="Terror")

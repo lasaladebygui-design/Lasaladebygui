@@ -1,5 +1,5 @@
 {% if reel_json %}
-<div class="slot-machine" x-data='slotSpin({{ reel_json|safe }})' x-init="init()">
+<div class="slot-machine" x-data='slotSpin({{ reel_json|safe }})' x-init="init()" x-show="!hidden" x-transition>
     <div class="slot-machine__lights">
         <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
     </div>

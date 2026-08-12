@@ -8,6 +8,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
+from django.core.paginator import Paginator
 from django.db.models import Max
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -48,6 +49,12 @@ MONTH_NAMES_ES = [
 # cuanto acierta).
 GATE_MAX_ATTEMPTS = 8
 GATE_LOCKOUT_SECONDS = 300
+
+FULL_LIST_PAGE_SIZE = 24
+
+
+def _is_htmx(request):
+    return request.headers.get("HX-Request") == "true"
 
 
 def secret_required(view_func):
@@ -138,15 +145,37 @@ def full_list(request):
     movies = SecretMovie.objects.prefetch_related("genres").select_related("movie").all()
     if form.is_valid():
         genres = form.cleaned_data.get("genres")
-        rating = form.cleaned_data.get("rating")
         if genres:
             for genre in genres:
                 movies = movies.filter(genres=genre)
-        if rating:
-            movies = movies.filter(personal_rating=rating)
-    return render(request, "secret/list.html", {
-        "movies": movies, "form": form, "rating_config": TopSecretConfig.load(),
-    })
+
+    sort = request.GET.get("sort")
+    if sort == "asc":
+        movies = movies.order_by("personal_rating", "-tie_break", "-number")
+    else:
+        sort = "desc"
+        movies = movies.order_by("-personal_rating", "tie_break", "number")
+
+    # Parámetros a conservar al pedir la siguiente página (filtro de listas,
+    # orden) — sin "page", que lo pone el propio enlace de paginación.
+    querystring = request.GET.copy()
+    querystring.pop("page", None)
+
+    # Solo el filtro de listas, sin "sort" ni "page" — para que los enlaces
+    # de ordenar puedan fijar su propio sort sin perder el filtro activo.
+    genres_querystring = request.GET.copy()
+    genres_querystring.pop("page", None)
+    genres_querystring.pop("sort", None)
+
+    page_obj = Paginator(movies, FULL_LIST_PAGE_SIZE).get_page(request.GET.get("page"))
+    context = {
+        "movies": page_obj, "form": form, "rating_config": TopSecretConfig.load(),
+        "sort": sort, "querystring": querystring.urlencode(),
+        "genres_querystring": genres_querystring.urlencode(),
+    }
+    if _is_htmx(request):
+        return render(request, "secret/_list_items.html", context)
+    return render(request, "secret/list.html", context)
 
 
 @secret_required

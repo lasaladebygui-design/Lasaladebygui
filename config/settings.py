@@ -431,6 +431,11 @@ JAZZMIN_SETTINGS = {
         {"name": "⬇️ Exportar a Excel", "url": "core:admin-export-excel", "new_window": False},
     ],
     "custom_css": "css/admin_custom.css",
+    # Mueve el botón de exportar a Excel (registrado arriba como
+    # topmenu_link, que Jazzmin agrupa todos a la izquierda) junto al menú
+    # de usuario a la derecha — como botón propio, no dentro del
+    # desplegable de perfil. Ver static/admin/js/topmenu_reposition.js.
+    "custom_js": "admin/js/topmenu_reposition.js",
     # Bloques del menú lateral, en este orden: Artículos, Foro, Películas,
     # Amigos y mensajes, Juegos, Tienda, Top Secret, Usuarios, Sitio y por
     # último Autenticación (Django). Dentro de cada bloque, los propios

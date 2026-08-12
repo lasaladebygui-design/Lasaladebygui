@@ -1184,12 +1184,12 @@ main { flex: 1; }
    momentos distintos, todas acabando en el mismo cartel — marco con luces
    de marquesina persiguiéndose y una línea de pago cruzando el centro,
    como una máquina de verdad. Ver static/js/roulette.js. */
-.slot-machine { margin-top: calc(var(--space-unit) * 8); }
+.slot-machine { margin-top: calc(var(--space-unit) * 8); text-align: center; }
 
 .slot-machine__lights {
     display: flex;
     justify-content: space-between;
-    max-width: 420px;
+    max-width: 640px;
     margin: 0 auto 0.6rem;
     padding-inline: 0.6rem;
 }
@@ -1208,9 +1208,9 @@ main { flex: 1; }
     position: relative;
     display: flex;
     justify-content: center;
-    gap: calc(var(--space-unit) * 3);
-    padding: calc(var(--space-unit) * 4) calc(var(--space-unit) * 3);
-    max-width: 420px;
+    gap: calc(var(--space-unit) * 4);
+    padding: calc(var(--space-unit) * 6) calc(var(--space-unit) * 5);
+    max-width: 640px;
     margin-inline: auto;
     border-radius: var(--radius-base);
     background: linear-gradient(180deg, var(--color-surface), var(--color-bg));
@@ -1220,7 +1220,7 @@ main { flex: 1; }
 
 .slot-reel {
     position: relative;
-    width: 96px;
+    width: 140px;
     aspect-ratio: 2 / 3;
     border-radius: calc(var(--radius-base) - 2px);
     overflow: hidden;
@@ -1254,10 +1254,11 @@ main { flex: 1; }
 .movie-card--result {
     display: flex;
     flex-direction: row;
-    max-width: 480px;
+    max-width: 640px;
     margin-inline: auto;
+    text-align: left;
 }
-.movie-card--result .movie-card__poster { width: 120px; aspect-ratio: 2/3; flex-shrink: 0; }
+.movie-card--result .movie-card__poster { width: 170px; aspect-ratio: 2/3; flex-shrink: 0; }
 .movie-card--result .movie-card__body { padding: calc(var(--space-unit) * 5); }
 
 .roulette-controls {
@@ -1425,24 +1426,28 @@ main { flex: 1; }
 }
 .secret-movie__row:hover { background: var(--color-surface); }
 .secret-movie__row:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.secret-movie__poster-link { flex-shrink: 0; display: block; border-radius: 4px; }
+.secret-movie__poster-link:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .secret-movie__poster {
-    width: 52px;
+    width: 68px;
     aspect-ratio: 2/3;
     object-fit: cover;
     border-radius: 4px;
     flex-shrink: 0;
+    display: block;
 }
 .secret-movie__poster--placeholder {
     display: flex;
     align-items: center;
     justify-content: center;
     background: var(--color-surface);
-    font-size: 1.4rem;
+    font-size: 1.6rem;
 }
 .secret-movie__title { flex: 1; min-width: 0; font-size: 1.05rem; }
 .secret-movie__lists { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.6rem; }
 .secret-movie__lists-toggle { font-size: 0.85rem; }
 .secret-movie__hint { font-size: 0.8rem; margin: 0.6rem 0 0; }
+.secret-movie__comment { white-space: pre-line; }
 
 .secret-movie__rating {
     flex-shrink: 0;
@@ -1450,14 +1455,14 @@ main { flex: 1; }
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    width: 64px;
-    height: 64px;
+    width: 76px;
+    height: 76px;
     border-radius: var(--radius-base);
     color: #0B1416;
     font-family: var(--font-heading);
 }
-.secret-movie__rating-number { font-size: 1.4rem; line-height: 1; font-weight: 700; }
-.secret-movie__rating-suffix { font-size: 0.65rem; opacity: 0.75; }
+.secret-movie__rating-number { font-size: 1.7rem; line-height: 1; font-weight: 700; }
+.secret-movie__rating-suffix { font-size: 0.7rem; opacity: 0.75; }
 
 .secret-movie__detail {
     padding: 0.5rem calc(var(--space-unit) * 2) calc(var(--space-unit) * 4);
@@ -1465,9 +1470,98 @@ main { flex: 1; }
 
 @media (max-width: 560px) {
     .secret-movie__row { gap: calc(var(--space-unit) * 2); padding-inline: calc(var(--space-unit) * 1); }
-    .secret-movie__rating { width: 52px; height: 52px; }
-    .secret-movie__rating-number { font-size: 1.1rem; }
+    .secret-movie__poster { width: 56px; }
+    .secret-movie__rating { width: 60px; height: 60px; }
+    .secret-movie__rating-number { font-size: 1.3rem; }
     .secret-movie__title { font-size: 0.95rem; }
+}
+
+/* --- Top Secret: lista completa — panel lateral de listas, orden y
+   alternar entre fila/cuadrícula (ver templates/secret/list.html) ------- */
+
+.secret-full-list__filter-toggle { display: none; margin-bottom: calc(var(--space-unit) * 4); }
+
+.secret-full-list__layout {
+    display: flex;
+    align-items: flex-start;
+    gap: calc(var(--space-unit) * 7);
+}
+
+.secret-sidebar { flex: 0 0 200px; position: sticky; top: calc(var(--space-unit) * 6); }
+.secret-sidebar__header { display: none; }
+.secret-sidebar__form { display: flex; flex-direction: column; align-items: flex-start; gap: calc(var(--space-unit) * 3); }
+.checkbox-grid--vertical { flex-direction: column; gap: calc(var(--space-unit) * 2); }
+
+.secret-full-list__main { flex: 1; min-width: 0; }
+
+.secret-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: calc(var(--space-unit) * 3);
+    margin-bottom: calc(var(--space-unit) * 5);
+}
+.secret-toolbar__group { display: flex; align-items: center; gap: calc(var(--space-unit) * 2); flex-wrap: wrap; }
+
+.secret-list__sentinel { list-style: none; text-align: center; padding: calc(var(--space-unit) * 5) 0; }
+
+.secret-list--grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: calc(var(--space-unit) * 5) calc(var(--space-unit) * 4);
+}
+.secret-list--grid .secret-movie { border-bottom: none; }
+.secret-list--grid .secret-movie__row {
+    position: relative;
+    flex-direction: column;
+    align-items: stretch;
+    gap: calc(var(--space-unit) * 2);
+    padding: 0;
+}
+.secret-list--grid .secret-movie__poster { width: 100%; border-radius: var(--radius-base); }
+.secret-list--grid .secret-movie__title { font-size: 0.95rem; }
+.secret-list--grid .secret-movie__rating {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 46px;
+    height: 46px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.4);
+}
+.secret-list--grid .secret-movie__rating-number { font-size: 1rem; }
+.secret-list--grid .secret-movie__rating-suffix { display: none; }
+
+.secret-sidebar-backdrop { display: none; }
+
+@media (max-width: 860px) {
+    .secret-full-list__filter-toggle { display: inline-flex; }
+    .secret-full-list__layout { flex-direction: column; }
+
+    .secret-sidebar-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 39;
+    }
+
+    .secret-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: min(280px, 85vw);
+        background: var(--color-surface);
+        border-right: 1px solid var(--color-border);
+        padding: calc(var(--space-unit) * 5);
+        transform: translateX(-100%);
+        transition: transform 0.2s ease;
+        z-index: 40;
+        overflow-y: auto;
+    }
+    .secret-sidebar--open { transform: translateX(0); box-shadow: 0 0 40px rgba(0,0,0,.5); }
+    .secret-sidebar__header { display: flex; justify-content: space-between; align-items: center; margin-bottom: calc(var(--space-unit) * 4); }
 }
 
 /* --- Top Secret: ficha de una película (pantalla completa, mismo layout
@@ -2416,6 +2510,10 @@ main { flex: 1; }
     text-align: center;
 }
 .calendar-grid-scroll { overflow-x: auto; }
+.calendar-scroll-hint { display: none; font-size: 0.75rem; margin: -0.5rem 0 0.5rem; }
+@media (max-width: 640px) {
+    .calendar-scroll-hint { display: block; }
+}
 .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -2585,7 +2683,13 @@ main { flex: 1; }
    horizontal — el contenedor .calendar-grid-scroll ya tiene overflow-x:
    auto, así que solo hace falta darle a las columnas un ancho mínimo. */
 @media (max-width: 640px) {
-    .calendar-grid { grid-template-columns: repeat(7, minmax(100px, 1fr)); }
+    /* Sin un ancho explícito, un grid se encoge para caber en su
+       contenedor aunque eso incumpla el mínimo de minmax() — el
+       resultado es que "no hay nada que desplazar" y las columnas de
+       más allá simplemente desaparecen. width: max-content fuerza al
+       grid a medirse por su contenido real (7 × 100px), así sí que
+       desborda el contenedor con scroll (.calendar-grid-scroll). */
+    .calendar-grid { grid-template-columns: repeat(7, minmax(100px, 1fr)); width: max-content; }
     .calendar-day { min-height: 80px; }
     .calendar-event { flex-direction: column; align-items: stretch; gap: 2px; }
     .calendar-event__poster, .calendar-event__poster--placeholder { width: 100%; height: 32px; }
@@ -2646,9 +2750,9 @@ main { flex: 1; }
     .movie-detail { grid-template-columns: 1fr; }
     .movie-detail__poster { max-width: 220px; margin-inline: auto; }
     .rating-form__row { flex-direction: column; gap: calc(var(--space-unit) * 4); }
-    .slot-reel { width: 76px; }
+    .slot-reel { width: 96px; }
     .slot-machine__reels { gap: calc(var(--space-unit) * 2); padding: calc(var(--space-unit) * 3) calc(var(--space-unit) * 2); }
-    .movie-card--result { flex-direction: column; max-width: 260px; }
+    .movie-card--result { flex-direction: column; max-width: 280px; text-align: center; }
     .movie-card--result .movie-card__poster { width: 100%; }
     .strip-card--link { flex-direction: column; align-items: flex-start; }
 

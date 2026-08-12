@@ -73,14 +73,6 @@ class FullListFilterForm(forms.Form):
         widget=forms.CheckboxSelectMultiple,
         help_text="Marca varias para cruzarlas: solo aparecen las películas que estén en todas las marcadas.",
     )
-    rating = forms.ChoiceField(label="Nota", required=False)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        ratings = SecretMovie.objects.order_by("-personal_rating").values_list(
-            "personal_rating", flat=True
-        ).distinct()
-        self.fields["rating"].choices = [("", "Todas")] + [(str(r), str(r)) for r in ratings]
 
 
 class TierLevelForm(forms.ModelForm):
