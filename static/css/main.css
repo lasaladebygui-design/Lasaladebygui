@@ -72,6 +72,14 @@ a:hover { color: var(--color-accent-secondary); }
     padding-inline: clamp(calc(var(--space-unit) * 2), 4vw, calc(var(--space-unit) * 4));
 }
 
+@media (min-width: 1025px) {
+    /* En escritorio sobra sitio a los lados y las cabeceras/toolbars
+       se sienten encajonadas; el móvil y la tablet se quedan igual
+       que estaban (solo aplica a partir del corte de "escritorio"
+       que ya usa el resto de la hoja de estilos). */
+    .wrap { max-width: calc(var(--max-content-width) + 200px); }
+}
+
 /* --- Header --------------------------------------------------------- */
 
 .site-header {
@@ -399,6 +407,14 @@ main { flex: 1; }
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: calc(var(--space-unit) * 5);
 }
+/* Top Secret (home): "Lista completa" primero y a todo el ancho, con los
+   otros tres debajo — solo en escritorio, vía `order` (el HTML mantiene
+   a, b, c, d, así que en móvil —que ya colapsa a una columna— se ve en
+   ese mismo orden, sin cambios). */
+@media (min-width: 641px) {
+    .card-grid--topsecret__list { order: -1; grid-column: 1 / -1; }
+}
+
 /* Candidatos al Oscar: es habitual tener bastantes por categoría, así que
    caben 4 por fila en vez del tamaño grande genérico de .card-grid. */
 .card-grid--oscars { grid-template-columns: repeat(4, 1fr); }
@@ -1492,16 +1508,32 @@ main { flex: 1; }
 .secret-toolbar__group { display: flex; align-items: center; gap: calc(var(--space-unit) * 2); flex-wrap: wrap; }
 .secret-toolbar__field { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
 .secret-toolbar__field select {
+    /* Mismo padding/tamaño de letra que .btn--sm, para que su altura
+       renderizada coincida exactamente con los botones de al lado — un
+       <select> nativo con otro font-size, aunque el padding sea "igual",
+       no sale igual de alto. */
     width: auto;
-    padding: 0.4rem 0.6rem;
+    box-sizing: border-box;
+    height: 37px;
+    padding: 0 0.6rem;
     border-radius: var(--radius-base);
     border: 1px solid var(--color-border);
     background: var(--color-bg);
     color: var(--color-text);
     font: inherit;
-    font-size: 0.82rem;
+    font-size: 0.9rem;
 }
 .secret-toolbar__field select:focus { outline: none; border-color: var(--color-accent); }
+
+@media (min-width: 1025px) {
+    /* En escritorio hay hueco de sobra: separa más el desplegable de
+       orden (queda a la izquierda) de los botones de vista (quedan a
+       la derecha) y agranda un poco los controles. En móvil/tablet
+       se queda todo exactamente igual que antes. */
+    .secret-toolbar { gap: calc(var(--space-unit) * 6); }
+    .secret-toolbar__field select { height: 43px; padding: 0 0.8rem; font-size: 0.95rem; }
+    .secret-toolbar .btn--sm { padding: 0.55rem 1.1rem; font-size: 0.95rem; }
+}
 
 .secret-list__sentinel { list-style: none; text-align: center; padding: calc(var(--space-unit) * 5) 0; }
 

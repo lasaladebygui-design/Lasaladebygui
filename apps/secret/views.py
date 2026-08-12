@@ -1,5 +1,6 @@
 import calendar as calendar_module
 import random
+import unicodedata
 from datetime import date, timedelta
 from functools import wraps
 
@@ -9,8 +10,8 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.core.paginator import Paginator
-from django.db.models import Max
-from django.http import FileResponse, Http404, JsonResponse
+from django.db.models import Case, IntegerField, Max, Value, When
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -19,6 +20,7 @@ from apps.accounts.models import User
 from apps.core.google_calendar import create_event as google_create_event
 from apps.core.google_calendar import delete_event as google_delete_event
 from apps.core.google_calendar import google_calendar_enabled
+from apps.core.models import get_effective_theme
 from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError, tmdb_search
 from apps.social.models import are_friends, friends_of
@@ -152,6 +154,20 @@ def full_list(request):
     sort = request.GET.get("sort")
     if sort == "asc":
         movies = movies.order_by("personal_rating", "-tie_break", "-number")
+    elif sort in ("movies_first", "series_first"):
+        # Dentro de cada grupo (películas / series), se ordena igual que el
+        # modo por defecto (nota de mayor a menor). Las que no tienen
+        # película enlazada del catálogo (así que no se sabe si son
+        # película o serie) van al final, en su propio grupo.
+        first_type, second_type = ("movie", "tv") if sort == "movies_first" else ("tv", "movie")
+        movies = movies.annotate(
+            _type_order=Case(
+                When(movie__media_type=first_type, then=Value(0)),
+                When(movie__media_type=second_type, then=Value(1)),
+                default=Value(2),
+                output_field=IntegerField(),
+            )
+        ).order_by("_type_order", "-personal_rating", "tie_break", "number")
     else:
         sort = "desc"
         movies = movies.order_by("-personal_rating", "tie_break", "number")
@@ -403,24 +419,37 @@ def photo_board_kick(request, pk):
 # Calendar, se crea solo ahí también (`ReleaseEvent.google_event_id`); si
 # no, cada evento tiene un botón para descargar su .ics a mano.
 
-@secret_required
-@login_required
-def calendar_view(request):
-    today = timezone.localdate()
+def _parse_calendar_month(request, today):
+    """(year, month, primer_dia) a partir de ?year=&month=, o el mes
+    actual si no vienen — usado tanto por la vista del calendario como
+    por la imagen para compartir, para no repetir el parseo/validación."""
     try:
         year = int(request.GET.get("year", today.year))
         month = int(request.GET.get("month", today.month))
         first_of_month = date(year, month, 1)
     except (TypeError, ValueError):
         raise Http404
+    return year, month, first_of_month
 
-    raw_weeks = calendar_module.Calendar(firstweekday=0).monthdatescalendar(year, month)
+
+def _events_by_date(user, year, month):
     events = ReleaseEvent.objects.filter(
-        user=request.user, date__year=year, date__month=month,
+        user=user, date__year=year, date__month=month,
     ).select_related("movie")
     events_by_date = {}
     for event in events:
         events_by_date.setdefault(event.date, []).append(event)
+    return events_by_date
+
+
+@secret_required
+@login_required
+def calendar_view(request):
+    today = timezone.localdate()
+    year, month, first_of_month = _parse_calendar_month(request, today)
+
+    raw_weeks = calendar_module.Calendar(firstweekday=0).monthdatescalendar(year, month)
+    events_by_date = _events_by_date(request.user, year, month)
 
     notes_by_date = {
         note.date: note.note
@@ -456,6 +485,91 @@ def calendar_view(request):
         "google_calendar_enabled": google_calendar_enabled(),
         "google_calendar_connected": hasattr(request.user, "google_calendar_connection"),
     })
+
+
+def _ascii_safe(text):
+    """La fuente por defecto de Pillow no tiene glifos para acentos, ñ
+    ni rayas largas — se usa solo para dibujar esta imagen (el resto
+    del sitio sigue mostrando el texto con tildes con normalidad)."""
+    normalized = unicodedata.normalize("NFKD", text)
+    stripped = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+    return stripped.replace("—", "-").replace("–", "-").replace("…", "...")
+
+
+def _render_calendar_image(theme, month_label, weeks):
+    """PNG de solo lectura del mes (número de cada día + títulos de ese
+    día) para poder mandarlo a alguien — no lleva comentarios personales
+    ni nada editable, y usa los mismos colores del tema activo del
+    usuario para que no desentone con el resto del sitio."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    cols, pad = 7, 24
+    cell_w, cell_h = 150, 108
+    header_h = 76
+    weekday_h = 32
+    width = pad * 2 + cols * cell_w
+    height = pad * 2 + header_h + weekday_h + len(weeks) * cell_h
+
+    font_title = ImageFont.load_default(size=30)
+    font_subtitle = ImageFont.load_default(size=13)
+    font_weekday = ImageFont.load_default(size=13)
+    font_day = ImageFont.load_default(size=15)
+    font_event = ImageFont.load_default(size=12)
+
+    img = Image.new("RGB", (width, height), theme.color_bg)
+    draw = ImageDraw.Draw(img)
+
+    draw.text((pad, pad), _ascii_safe(month_label.capitalize()), font=font_title, fill=theme.color_accent)
+    draw.text((pad, pad + 38), _ascii_safe("La Sala de Bygui - calendario personal"), font=font_subtitle, fill=theme.color_text_muted)
+
+    top = pad + header_h
+    for i, name in enumerate(["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"]):
+        x = pad + i * cell_w
+        draw.rectangle([x, top, x + cell_w, top + weekday_h], fill=theme.color_surface, outline=theme.color_border)
+        draw.text((x + 10, top + 8), name, font=font_weekday, fill=theme.color_text_muted)
+
+    grid_top = top + weekday_h
+    for r, week in enumerate(weeks):
+        for c, day in enumerate(week):
+            x, y = pad + c * cell_w, grid_top + r * cell_h
+            draw.rectangle([x, y, x + cell_w, y + cell_h], fill=theme.color_bg, outline=theme.color_border)
+            draw.text(
+                (x + 10, y + 8), str(day["date"].day), font=font_day,
+                fill=theme.color_text if day["in_month"] else theme.color_text_muted,
+            )
+            titles = [_ascii_safe(event.movie.title) for event in day["events"]]
+            ey = y + 32
+            for title in titles[:3]:
+                snippet = title if len(title) <= 20 else title[:19] + "..."
+                draw.text((x + 10, ey), snippet, font=font_event, fill=theme.color_accent_secondary)
+                ey += 16
+            if len(titles) > 3:
+                draw.text((x + 10, ey), f"+{len(titles) - 3} mas", font=font_event, fill=theme.color_text_muted)
+
+    return img
+
+
+@secret_required
+@login_required
+def calendar_share_image(request):
+    today = timezone.localdate()
+    year, month, _ = _parse_calendar_month(request, today)
+
+    raw_weeks = calendar_module.Calendar(firstweekday=0).monthdatescalendar(year, month)
+    events_by_date = _events_by_date(request.user, year, month)
+
+    weeks = [
+        [{"date": day, "in_month": day.month == month, "events": events_by_date.get(day, [])} for day in week]
+        for week in raw_weeks
+    ]
+
+    theme = get_effective_theme(request.user, request.session)
+    image = _render_calendar_image(theme, f"{MONTH_NAMES_ES[month]} {year}", weeks)
+
+    response = HttpResponse(content_type="image/png")
+    image.save(response, "PNG")
+    response["Content-Disposition"] = f'inline; filename="calendario_{year}_{month:02d}.png"'
+    return response
 
 
 @secret_required

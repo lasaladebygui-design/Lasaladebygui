@@ -156,6 +156,32 @@ class SecretMovieViewTests(TestCase):
         self.assertEqual(list(response.context["movies"]), [self.b, self.a])
         self.assertEqual(response.context["sort"], "asc")
 
+    def test_ordenar_peliculas_primero_agrupa_por_tipo(self):
+        pelicula = Movie.objects.create(tmdb_id=101, title="Una peli", media_type="movie")
+        serie = Movie.objects.create(tmdb_id=102, title="Una serie", media_type="tv")
+        peli_baja = SecretMovie.objects.create(title="Peli floja", personal_rating="5.0", movie=pelicula)
+        serie_alta = SecretMovie.objects.create(title="Serie top", personal_rating="9.8", movie=serie)
+        sin_enlace = SecretMovie.objects.create(title="Sin enlazar", personal_rating="7.0")
+
+        response = self.client.get(reverse("secret:list"), {"sort": "movies_first"})
+        # self.a y self.b (sin movie enlazado) del setUp también caen en
+        # "sin enlazar" — solo importa que las películas vayan primero,
+        # pese a tener menos nota que la serie, y que la serie no se cuele
+        # antes que las películas.
+        result = list(response.context["movies"])
+        self.assertEqual(result[0], peli_baja)
+        self.assertLess(result.index(peli_baja), result.index(serie_alta))
+
+    def test_ordenar_series_primero_agrupa_por_tipo(self):
+        pelicula = Movie.objects.create(tmdb_id=201, title="Una peli", media_type="movie")
+        serie = Movie.objects.create(tmdb_id=202, title="Una serie", media_type="tv")
+        peli_alta = SecretMovie.objects.create(title="Peli top", personal_rating="9.8", movie=pelicula)
+        serie_baja = SecretMovie.objects.create(title="Serie floja", personal_rating="5.0", movie=serie)
+
+        response = self.client.get(reverse("secret:list"), {"sort": "series_first"})
+        result = list(response.context["movies"])
+        self.assertLess(result.index(serie_baja), result.index(peli_alta))
+
     def test_no_se_muestra_el_numero_interno_en_la_lista(self):
         response = self.client.get(reverse("secret:list"))
         self.assertNotContains(response, "#1 —")
@@ -705,6 +731,24 @@ class CalendarTests(TestCase):
         # la búsqueda "funcione" (con query siempre vacía).
         response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
         self.assertContains(response, 'name="query"')
+
+    def test_compartir_devuelve_una_imagen_png(self):
+        ReleaseEvent.objects.create(user=self.user, movie=self.movie, date=date(2026, 3, 15))
+        response = self.client.get(reverse("secret:calendar-share-image"), {"year": 2026, "month": 3})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "image/png")
+        self.assertIn("calendario_2026_03.png", response["Content-Disposition"])
+        # Cabecera PNG real, no basta con el content-type de la respuesta.
+        self.assertTrue(response.content.startswith(b"\x89PNG\r\n\x1a\n"))
+
+    def test_compartir_requiere_haber_entrado_al_maletin(self):
+        self.client.post(reverse("secret:lock"))
+        response = self.client.get(reverse("secret:calendar-share-image"))
+        self.assertRedirects(response, reverse("secret:gate"))
+
+    def test_compartir_con_mes_invalido_da_404(self):
+        response = self.client.get(reverse("secret:calendar-share-image"), {"year": 2026, "month": 13})
+        self.assertEqual(response.status_code, 404)
 
     def test_muestra_eventos_del_mes_pedido(self):
         event = ReleaseEvent.objects.create(user=self.user, movie=self.movie, date=date(2026, 3, 15), note="Estreno")

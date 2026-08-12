@@ -27,6 +27,7 @@ urlpatterns = [
     path("dentro/tablon/expulsar/<int:pk>/", views.photo_board_kick, name="photo-board-kick"),
     path("dentro/tablon/<str:username>/", views.photo_board, name="photo-board-shared"),
     path("dentro/calendario/", views.calendar_view, name="calendar"),
+    path("dentro/calendario/compartir/", views.calendar_share_image, name="calendar-share-image"),
     path("dentro/calendario/buscar/", views.calendar_search, name="calendar-search"),
     path("dentro/calendario/anadir/<str:media_type>/<int:tmdb_id>/", views.calendar_add, name="calendar-add"),
     path("dentro/calendario/<int:pk>/quitar/", views.calendar_remove, name="calendar-remove"),
