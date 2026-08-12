@@ -35,8 +35,8 @@ class TopSecretConfig(SingletonModel):
     color_rating_bad = models.CharField("color de nota baja", max_length=7, default="#EF4444")
 
     class Meta:
-        verbose_name = "Top Secret: código de acceso y colores"
-        verbose_name_plural = "Top Secret: código de acceso y colores"
+        verbose_name = "código de acceso y colores"
+        verbose_name_plural = "código de acceso y colores"
 
     def __str__(self):
         return "Código de acceso al maletín Tarantino"
@@ -192,8 +192,8 @@ class TierLevel(models.Model):
     order = models.PositiveIntegerField("orden", default=0)
 
     class Meta:
-        verbose_name = "nivel de tier list"
-        verbose_name_plural = "Top Secret: niveles de tier list"
+        verbose_name = "tier list: nivel"
+        verbose_name_plural = "tier list: niveles"
         ordering = ["user_id", "order", "pk"]
 
     def __str__(self):
@@ -225,8 +225,8 @@ class TierListEntry(models.Model):
     )
 
     class Meta:
-        verbose_name = "entrada de tier list"
-        verbose_name_plural = "Top Secret: tier list"
+        verbose_name = "tier list: entrada"
+        verbose_name_plural = "tier list: entradas"
         ordering = ["user_id", "tier__order", "order", "title"]
 
     def __str__(self):
@@ -258,7 +258,7 @@ class PhotoBoardMember(models.Model):
 
     class Meta:
         verbose_name = "permiso al tablón de fotos"
-        verbose_name_plural = "Top Secret: permisos al tablón de fotos"
+        verbose_name_plural = "permisos al tablón de fotos"
         constraints = [
             models.UniqueConstraint(fields=["owner", "member"], name="un_acceso_por_dueno_y_miembro"),
         ]
@@ -292,7 +292,7 @@ class SecretPhoto(models.Model):
 
     class Meta:
         verbose_name = "foto del tablón"
-        verbose_name_plural = "Top Secret: tablón de fotos"
+        verbose_name_plural = "tablón de fotos"
         ordering = ["-created_at"]
 
     def __str__(self):
@@ -319,7 +319,7 @@ class ReleaseEvent(models.Model):
 
     class Meta:
         verbose_name = "estreno en el calendario"
-        verbose_name_plural = "Top Secret: calendario, estrenos"
+        verbose_name_plural = "estrenos en el calendario"
         ordering = ["date"]
         db_table = "movies_releaseevent"
 
@@ -339,7 +339,7 @@ class CalendarDayNote(models.Model):
 
     class Meta:
         verbose_name = "comentario del calendario"
-        verbose_name_plural = "Top Secret: calendario, comentarios de días"
+        verbose_name_plural = "comentarios del calendario"
         ordering = ["date"]
         db_table = "movies_calendardaynote"
         constraints = [

@@ -1,0 +1,112 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static jazzmin %}
+{% get_jazzmin_ui_tweaks as jazzmin_ui %}
+
+{% comment %}
+Solo cambia el panel de "Acciones recientes" del dashboard de Jazzmin (el
+resto — la lista de apps a la izquierda — se copia tal cual de
+jazzmin/templates/admin/index.html porque no está partido en su propio
+{% verbatim %}{% block %}{% endverbatim %}, así que no hay forma de
+sobreescribir solo esa parte). El widget original de Django (icono +
+título + una segunda línea repitiendo "Añadido "X".") era ruidoso para
+poco contenido útil — aquí es una línea por entrada: icono, objeto,
+modelo y cuándo.
+{% endcomment %}
+
+{% block bodyclass %}{{ block.super }} dashboard{% endblock %}
+
+{% block content_title %} {% trans 'Dashboard' %} {% endblock %}
+
+{% block breadcrumbs %}
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'admin:index' %}">{% trans 'Home' %}</a></li>
+        <li class="breadcrumb-item">{% trans 'Dashboard' %}</li>
+    </ol>
+{% endblock %}
+
+
+{% block content %}
+    {% get_side_menu using="app_list" as dashboard_list %}
+    {% if dashboard_list %}
+        {% widthratio dashboard_list|length 2 1 as middle %}
+    {% endif %}
+
+    <div class="col-lg-9 col-12">
+        <div class="row">
+            <div class="col-md-6 col-sm-12">
+                {% for app in dashboard_list %}
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h5 class="m-0">{{ app.name }}</h5>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm">
+                                <tbody>
+                                {% for model in app.models %}
+                                    <tr>
+                                        <td>
+                                            {% if model.url %}<a href="{{ model.url }}">{{ model.name }}</a>{% else %}{{ model.name }}{% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group float-end">
+                                                {% if model.add_url %}
+                                                    <a href="{{ model.add_url }}" class="btn btn-sm {{ jazzmin_ui.button_classes.success }} addlink">{% trans 'Add' %}</a>
+                                                {% endif %}
+                                                {% if model.url %}
+                                                    {% if model.view_only %}
+                                                        <a href="{{ model.url }}" class="btn btn-sm {{ jazzmin_ui.button_classes.info }} viewlink">{% trans 'View' %}</a>
+                                                    {% else %}
+                                                        <a href="{{ model.url }}" class="btn btn-sm {{ jazzmin_ui.button_classes.info }} changelink">{% if model.custom %}{% trans 'Go' %}{% else %}{% trans 'Change' %}{% endif %}</a>
+                                                    {% endif %}
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {% if forloop.counter == middle|add:"0" %}
+                    </div>
+                    <div class="col-md-6 col-sm-12">
+                    {% endif %}
+
+                {% endfor %}
+                </div>
+        </div>
+
+    </div>
+    <div class="col-lg-3 col-12">
+        <div id="content-related">
+            <div class="module" id="recent-actions-module">
+                <h4 class="mb-3">{% trans 'Actividad reciente' %}</h4>
+                {% load log %}
+                {% get_admin_log 8 as admin_log for_user user %}
+                {% if not admin_log %}
+                    <p class="text-muted">{% trans 'Nada por aquí todavía.' %}</p>
+                {% else %}
+                    <ul class="recent-activity-list">
+                        {% for entry in admin_log %}
+                            <li class="recent-activity-list__item">
+                                <span class="recent-activity-list__icon">
+                                    {% if entry.is_addition %}🟢{% elif entry.is_change %}✏️{% elif entry.is_deletion %}🗑️{% endif %}
+                                </span>
+                                <span class="recent-activity-list__body">
+                                    {% if entry.is_deletion or not entry.get_admin_url %}
+                                        <strong>{{ entry.object_repr }}</strong>
+                                    {% else %}
+                                        <a href="{{ entry.get_admin_url }}"><strong>{{ entry.object_repr }}</strong></a>
+                                    {% endif %}
+                                    <span class="recent-activity-list__meta">{{ entry.content_type|capfirst }} · {% blocktrans with timesince=entry.action_time|timesince %}hace {{ timesince }}{% endblocktrans %}</span>
+                                </span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+{% endblock %}

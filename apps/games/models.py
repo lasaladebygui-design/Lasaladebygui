@@ -74,7 +74,7 @@ class TriviaQuestion(models.Model):
 
     class Meta:
         verbose_name = "pregunta de trivia"
-        verbose_name_plural = "Juegos: preguntas de trivia"
+        verbose_name_plural = "preguntas de trivia"
 
     def __str__(self):
         return f"[{self.get_category_display()}] {self.prompt[:40]}"
@@ -89,7 +89,7 @@ class TrueFalseStatement(models.Model):
 
     class Meta:
         verbose_name = "afirmación de verdadero o falso"
-        verbose_name_plural = "Juegos: verdadero o falso"
+        verbose_name_plural = "verdadero o falso"
 
     def __str__(self):
         return f"[{'V' if self.is_true else 'F'}] {self.statement[:50]}"
@@ -110,7 +110,7 @@ class PersonalityCharacter(models.Model):
     class Meta:
         ordering = ["order", "pk"]
         verbose_name = "Qué personaje eres: personaje"
-        verbose_name_plural = "Juegos: Qué personaje eres — personajes"
+        verbose_name_plural = "Qué personaje eres — personajes"
 
     def __str__(self):
         return self.name
@@ -126,7 +126,7 @@ class PersonalityQuestion(models.Model):
     class Meta:
         ordering = ["order", "pk"]
         verbose_name = "Qué personaje eres: pregunta"
-        verbose_name_plural = "Juegos: Qué personaje eres — preguntas"
+        verbose_name_plural = "Qué personaje eres — preguntas"
 
     def __str__(self):
         return self.text[:60]
@@ -144,7 +144,7 @@ class PersonalityAnswer(models.Model):
     class Meta:
         ordering = ["order", "pk"]
         verbose_name = "Qué personaje eres: respuesta"
-        verbose_name_plural = "Juegos: Qué personaje eres — respuestas"
+        verbose_name_plural = "Qué personaje eres — respuestas"
 
     def __str__(self):
         return f"{self.text} → {self.character}"
@@ -267,7 +267,7 @@ class DuelRecord(models.Model):
 
     class Meta:
         verbose_name = "marcador de duelos"
-        verbose_name_plural = "Juegos: marcadores de duelos"
+        verbose_name_plural = "marcadores de duelos"
         constraints = [
             models.UniqueConstraint(fields=["player_low", "player_high"], name="un_marcador_por_pareja"),
         ]
@@ -329,7 +329,7 @@ class OscarCategory(models.Model):
     class Meta:
         ordering = ["order", "pk"]
         verbose_name = "Candidatos al Oscar: categoría"
-        verbose_name_plural = "Juegos: Candidatos al Oscar — categorías"
+        verbose_name_plural = "Candidatos al Oscar — categorías"
 
     def __str__(self):
         return self.name
@@ -355,7 +355,7 @@ class OscarCandidate(models.Model):
     class Meta:
         ordering = ["-created_at"]
         verbose_name = "Candidatos al Oscar: candidata"
-        verbose_name_plural = "Juegos: Candidatos al Oscar — candidatas"
+        verbose_name_plural = "Candidatos al Oscar — candidatas"
         constraints = [
             models.UniqueConstraint(fields=["category", "movie"], name="una_pelicula_candidata_por_categoria"),
             models.UniqueConstraint(fields=["category", "person_tmdb_id"], name="una_persona_candidata_por_categoria"),
@@ -383,7 +383,7 @@ class OscarVote(models.Model):
 
     class Meta:
         verbose_name = "Candidatos al Oscar: voto"
-        verbose_name_plural = "Juegos: Candidatos al Oscar — votos"
+        verbose_name_plural = "Candidatos al Oscar — votos"
         constraints = [
             models.UniqueConstraint(fields=["category", "user"], name="un_voto_por_categoria_y_usuario"),
         ]
@@ -407,8 +407,8 @@ class GameTierLevel(models.Model):
     order = models.PositiveIntegerField("orden", default=0)
 
     class Meta:
-        verbose_name = "tier list de Juegos: nivel"
-        verbose_name_plural = "tier list de Juegos: niveles"
+        verbose_name = "tier list: nivel"
+        verbose_name_plural = "tier list: niveles"
         ordering = ["user_id", "order", "pk"]
 
     def __str__(self):
@@ -436,8 +436,8 @@ class GameTierEntry(models.Model):
     order = models.PositiveIntegerField("orden dentro del nivel", default=0)
 
     class Meta:
-        verbose_name = "tier list de Juegos: entrada"
-        verbose_name_plural = "tier list de Juegos: entradas"
+        verbose_name = "tier list: entrada"
+        verbose_name_plural = "tier list: entradas"
         ordering = ["tier__order", "order", "movie__title"]
         constraints = [
             models.UniqueConstraint(fields=["user", "movie"], name="una_vez_por_usuario_en_tier_de_juegos"),

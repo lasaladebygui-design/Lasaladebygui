@@ -203,7 +203,7 @@ class FavoriteMovie(models.Model):
 
     class Meta:
         verbose_name = "película destacada del perfil"
-        verbose_name_plural = "perfiles: películas destacadas"
+        verbose_name_plural = "películas destacadas del perfil"
         ordering = ["category", "order", "created_at"]
         constraints = [
             models.UniqueConstraint(fields=["user", "category", "movie"], name="una_vez_por_usuario_y_categoria"),
@@ -227,7 +227,7 @@ class PushSubscription(models.Model):
 
     class Meta:
         verbose_name = "dispositivo con notificaciones activadas"
-        verbose_name_plural = "cuentas: dispositivos con notificaciones activadas"
+        verbose_name_plural = "dispositivos con notificaciones activadas"
 
     def __str__(self):
         return f"Notificaciones activadas para {self.user}"

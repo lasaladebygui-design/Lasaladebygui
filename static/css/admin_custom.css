@@ -1,16 +1,23 @@
 /* Ajustes finos sobre el tema de django-jazzmin/AdminLTE. */
 
-/* El widget "Recent actions" del dashboard no envuelve el texto largo
-   (emails/usernames largos en object_repr) y se salía de su tarjeta. */
-#recent-actions-module .timeline-item,
-#recent-actions-module .timeline-header,
-#recent-actions-module .timeline-header a,
-#recent-actions-module .timeline-body {
+/* Panel "Actividad reciente" del dashboard (templates/admin/index.html):
+   una línea por entrada en vez del timeline de iconos/tarjetas por
+   defecto de Django, que para poco contenido (un título + "Añadido X.")
+   se veía muy ruidoso. */
+.recent-activity-list { list-style: none; margin: 0; padding: 0; }
+.recent-activity-list__item {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    border-top: 1px solid #e9ecef;
+    font-size: 0.85rem;
     overflow-wrap: break-word;
-    word-break: break-word;
-    white-space: normal;
-    max-width: 100%;
 }
+.recent-activity-list__item:first-child { border-top: none; padding-top: 0; }
+.recent-activity-list__icon { flex-shrink: 0; font-size: 0.75rem; }
+.recent-activity-list__body { min-width: 0; }
+.recent-activity-list__meta { display: block; color: #6c757d; font-size: 0.78rem; }
 
 /* Listados con orden arrastrable (SortableAdminMixin, apps/core/admin.py):
    el tirador es lo único agarrable, para no interferir con el resto de la

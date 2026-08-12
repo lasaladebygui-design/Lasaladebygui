@@ -19,7 +19,9 @@ function slotSpin(reels) {
 
         init() {
             this.playTick();
-            const stopTimes = [1750, 2500, 3300];
+            // La última tira deja un hueco de ~2s tras la penúltima antes de
+            // parar — esa pausa es la que le da emoción al desenlace.
+            const stopTimes = [2600, 4000, 6000];
             this.reels.forEach((_, r) => this.spinReel(r, stopTimes[r]));
         },
 
@@ -62,7 +64,7 @@ function slotSpin(reels) {
             const ctx = this._audio();
             if (!ctx) return;
             let elapsed = 0;
-            const totalSpin = 3300;
+            const totalSpin = 6000;
             const beep = () => {
                 if (elapsed >= totalSpin) return;
                 const now = ctx.currentTime;
@@ -76,7 +78,7 @@ function slotSpin(reels) {
                 osc.connect(gain).connect(ctx.destination);
                 osc.start(now);
                 osc.stop(now + 0.05);
-                const step = elapsed < 1900 ? 70 : elapsed < 2700 ? 110 : 170;
+                const step = elapsed < 3450 ? 70 : elapsed < 4900 ? 110 : 170;
                 elapsed += step;
                 setTimeout(beep, step);
             };

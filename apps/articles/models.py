@@ -122,7 +122,7 @@ class ArticleIdea(models.Model):
 
     class Meta:
         verbose_name = "idea de artículo"
-        verbose_name_plural = "Artículos: ideas"
+        verbose_name_plural = "ideas de artículo"
         ordering = ["is_done", "-created_at"]
 
     def __str__(self):

@@ -234,7 +234,7 @@ class ContactLink(models.Model):
 
     class Meta:
         verbose_name = "enlace de contacto"
-        verbose_name_plural = "Sitio: enlaces de contacto"
+        verbose_name_plural = "enlaces de contacto"
         ordering = ["order", "id"]
 
     def __str__(self):
@@ -268,7 +268,7 @@ class Announcement(models.Model):
 
     class Meta:
         verbose_name = "aviso"
-        verbose_name_plural = "Sitio: avisos"
+        verbose_name_plural = "avisos"
         ordering = ["-created_at"]
 
     def __str__(self):
