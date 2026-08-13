@@ -887,13 +887,17 @@ class ExportExcelTests(TestCase):
         )
         self.assertIn("attachment", response["Content-Disposition"])
 
-    def test_incluye_las_cuatro_hojas_con_sus_datos(self):
+    def test_el_nombre_del_archivo_empieza_por_lasaladebyguibackup(self):
+        response = self.client.get(reverse("core:admin-export-excel"))
+        self.assertIn('filename="Lasaladebyguibackup_', response["Content-Disposition"])
+
+    def test_incluye_las_cinco_hojas_con_sus_datos(self):
         import io
 
         from openpyxl import load_workbook
 
         from apps.movies.models import Movie, SavedMovie, SavedMovieList
-        from apps.secret.models import CalendarDayNote, Genre, SecretMovie
+        from apps.secret.models import CalendarDayNote, Genre, ReleaseEvent, SecretMovie
         from apps.shop.models import Product
 
         user = _make_user("export_datos@test.local")
@@ -908,15 +912,23 @@ class ExportExcelTests(TestCase):
         saved = SavedMovie.objects.create(user=user, movie=movie)
         saved.sublists.add(sublist)
 
+        ReleaseEvent.objects.create(user=user, movie=movie, date=date(2026, 1, 5), note="Estreno")
+
         Product.objects.create(name="Taza Bygui", description="Con el logo.", price="12.50", url="https://example.com/taza")
 
         response = self.client.get(reverse("core:admin-export-excel"))
         wb = load_workbook(io.BytesIO(response.content))
 
-        self.assertEqual(wb.sheetnames, ["Calendario", "Top Secret", "Guardadas", "Tienda"])
+        self.assertEqual(
+            wb.sheetnames,
+            ["Calendario", "Calendario - películas", "Top Secret", "Guardadas", "Tienda"],
+        )
 
         calendar_rows = list(wb["Calendario"].iter_rows(values_only=True))
         self.assertIn((str(user), "05/01/2026", "Maratón de Navidad"), calendar_rows)
+
+        calendar_movies_rows = list(wb["Calendario - películas"].iter_rows(values_only=True))
+        self.assertIn((str(user), "05/01/2026", "Drive", "Estreno"), calendar_movies_rows)
 
         secret_rows = list(wb["Top Secret"].iter_rows(values_only=True))
         self.assertIn(("El Exorcista", 9.5, "Terror", "Un clásico."), secret_rows)

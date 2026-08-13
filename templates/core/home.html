@@ -20,7 +20,6 @@
                     <div class="home-hero__text">
                         <span class="home-hero__eyebrow">{% if forloop.first %}Artículo destacado{% else %}Destacado{% endif %}</span>
                         <h1><a href="{{ article.get_absolute_url }}">{{ article.title }}</a></h1>
-                        <p>{{ article.body|striptags|truncatewords:24 }}</p>
                         <a href="{{ article.get_absolute_url }}" class="btn btn--accent">Leer artículo</a>
 
                         {% if hero_articles|length > 1 %}

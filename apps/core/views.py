@@ -146,15 +146,16 @@ def service_worker(request):
 def export_excel(request):
     """Copia de seguridad rápida en Excel de lo que no está en ningún otro
     sitio si la web "explota": el comentario de cada día del calendario
-    personal, la lista de Top Secret (nota, listas, comentario), las
-    guardadas de cada usuario agrupadas por su lista y el catálogo de la
-    Tienda. Un botón en el panel (topmenu de Jazzmin), nada que requiera
-    entrar a ningún modelo."""
+    personal y las películas/series que tenga puestas ese día, la lista
+    de Top Secret (nota, listas, comentario), las guardadas de cada
+    usuario agrupadas por su lista y el catálogo de la Tienda. Un botón
+    en el panel (topmenu de Jazzmin), nada que requiera entrar a ningún
+    modelo."""
     from openpyxl import Workbook
     from openpyxl.utils import get_column_letter
 
     from apps.movies.models import SavedMovie
-    from apps.secret.models import CalendarDayNote, SecretMovie
+    from apps.secret.models import CalendarDayNote, ReleaseEvent, SecretMovie
     from apps.shop.models import Product
 
     wb = Workbook()
@@ -164,6 +165,11 @@ def export_excel(request):
     ws_calendar.append(["Usuario", "Fecha", "Comentario"])
     for note in CalendarDayNote.objects.select_related("user").order_by("user__username", "date"):
         ws_calendar.append([str(note.user), note.date.strftime("%d/%m/%Y"), note.note])
+
+    ws_calendar_movies = wb.create_sheet("Calendario - películas")
+    ws_calendar_movies.append(["Usuario", "Fecha", "Película/Serie", "Nota"])
+    for event in ReleaseEvent.objects.select_related("user", "movie").order_by("user__username", "date"):
+        ws_calendar_movies.append([str(event.user), event.date.strftime("%d/%m/%Y"), event.movie.title, event.note])
 
     ws_secret = wb.create_sheet("Top Secret")
     ws_secret.append(["Nombre", "Nota", "Listas", "Comentario"])
@@ -190,7 +196,7 @@ def export_excel(request):
     response = HttpResponse(
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
-    filename = f"bygui_backup_{timezone.now():%Y%m%d_%H%M}.xlsx"
+    filename = f"Lasaladebyguibackup_{timezone.now():%Y%m%d_%H%M}.xlsx"
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     wb.save(response)
     return response
