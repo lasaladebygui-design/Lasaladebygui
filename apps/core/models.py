@@ -314,6 +314,20 @@ class PersonalNote(models.Model):
         return self.title
 
 
+class AdminMenuOrder(SingletonModel):
+    """Orden a mano del menú lateral del admin (arrastrado desde Sitio →
+    Orden del menú), aplicado en tiempo real por
+    apps.core.middleware.AdminMenuOrderMiddleware sobre
+    JAZZMIN_SETTINGS["order_with_respect_to"]. Vacío = se usa el orden de
+    fábrica (config.settings.DEFAULT_ADMIN_MENU_ORDER)."""
+
+    order = models.JSONField("orden", default=list, blank=True)
+
+    class Meta:
+        verbose_name = "orden del menú del admin"
+        verbose_name_plural = "orden del menú del admin"
+
+
 SESSION_THEME_KEY = "theme_slug"
 
 

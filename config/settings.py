@@ -81,6 +81,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "apps.core.middleware.AdminMenuOrderMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -415,6 +416,41 @@ if not DEBUG:
 # ya está restringido a Admin (is_superuser) en apps/core/apps.py — Jazzmin
 # solo cambia el aspecto, no los permisos.
 
+# Orden por defecto del menú lateral — se usa tal cual mientras no haya
+# ningún orden guardado a mano desde el panel (arrastrando en Sitio → Orden
+# del menú). AdminMenuOrderMiddleware sobrescribe
+# JAZZMIN_SETTINGS["order_with_respect_to"] en tiempo real con lo guardado
+# en BD (ver apps/core/models.py:AdminMenuOrder), así que esta lista es solo
+# el punto de partida — se mantiene como constante aparte (en vez de en
+# línea dentro de JAZZMIN_SETTINGS) para que la vista de arrastrar pueda
+# usarla como "orden de fábrica" al que volver.
+DEFAULT_ADMIN_MENU_ORDER = [
+    "articles", "articles.Article", "articles.Tag", "articles.ArticleView", "articles.ArticleComment",
+    "forum", "forum.Thread", "forum.ThreadComment", "forum.ThreadRead",
+    "movies", "movies.Movie", "movies.SavedMovie", "movies.SavedMovieList",
+    "movies.Vote", "movies.RouletteRatingSeen", "movies.RouletteSavedSeen",
+    "social",
+    # Juegos, agrupados por tipo — igual que en el propio hub de
+    # Juegos (/juegos/): primero los de un jugador (racha), luego el
+    # test de personalidad, luego las herramientas compartidas
+    # (tier list, Candidatos al Oscar), y por último los duelos.
+    "games",
+    "games.MovieQuote", "games.TriviaQuestion", "games.TrueFalseStatement",
+    "games.PersonalityCharacter", "games.PersonalityQuestion",
+    "games.GameTierLevel", "games.GameTierEntry",
+    "games.OscarCategory", "games.OscarCandidate", "games.OscarVote",
+    "games.Duel", "games.DuelRecord",
+    "shop",
+    "secret", "secret.SecretMovie", "secret.Genre",
+    "secret.TierListEntry", "secret.TierLevel",
+    "secret.SecretPhoto", "secret.PhotoBoardMember",
+    "secret.ReleaseEvent", "secret.CalendarDayNote",
+    "secret.TopSecretConfig",
+    "accounts",
+    "core",
+    "auth",
+]
+
 JAZZMIN_SETTINGS = {
     "site_title": "Panel — La Sala de Bygui",
     "site_header": "La Sala de Bygui",
@@ -441,32 +477,7 @@ JAZZMIN_SETTINGS = {
     # último Autenticación (Django). Dentro de cada bloque, los propios
     # modelos se ordenan con las entradas "app_label.ModelName" más abajo
     # en esta misma lista.
-    "order_with_respect_to": [
-        "articles", "articles.Article", "articles.Tag", "articles.ArticleView", "articles.ArticleComment",
-        "forum", "forum.Thread", "forum.ThreadComment", "forum.ThreadRead",
-        "movies", "movies.Movie", "movies.SavedMovie", "movies.SavedMovieList",
-        "movies.Vote", "movies.RouletteRatingSeen", "movies.RouletteSavedSeen",
-        "social",
-        # Juegos, agrupados por tipo — igual que en el propio hub de
-        # Juegos (/juegos/): primero los de un jugador (racha), luego el
-        # test de personalidad, luego las herramientas compartidas
-        # (tier list, Candidatos al Oscar), y por último los duelos.
-        "games",
-        "games.MovieQuote", "games.TriviaQuestion", "games.TrueFalseStatement",
-        "games.PersonalityCharacter", "games.PersonalityQuestion",
-        "games.GameTierLevel", "games.GameTierEntry",
-        "games.OscarCategory", "games.OscarCandidate", "games.OscarVote",
-        "games.Duel", "games.DuelRecord",
-        "shop",
-        "secret", "secret.SecretMovie", "secret.Genre",
-        "secret.TierListEntry", "secret.TierLevel",
-        "secret.SecretPhoto", "secret.PhotoBoardMember",
-        "secret.ReleaseEvent", "secret.CalendarDayNote",
-        "secret.TopSecretConfig",
-        "accounts",
-        "core",
-        "auth",
-    ],
+    "order_with_respect_to": DEFAULT_ADMIN_MENU_ORDER,
     "icons": {
         "accounts.User": "fas fa-user",
         "auth.Group": "fas fa-users-cog",

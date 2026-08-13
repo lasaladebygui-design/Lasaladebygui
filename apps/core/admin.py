@@ -1,13 +1,16 @@
 import json
 
 from django import forms
+from django.apps import apps as django_apps
+from django.conf import settings as django_settings
 from django.contrib import admin
 from django.http import JsonResponse
 from django.shortcuts import redirect
+from django.template.response import TemplateResponse
 from django.urls import path
 from django.utils.safestring import mark_safe
 
-from .models import Announcement, ContactLink, FavoriteQuote, PersonalNote, SiteConfig, Theme
+from .models import AdminMenuOrder, Announcement, ContactLink, FavoriteQuote, PersonalNote, SiteConfig, Theme
 
 
 class SortableAdminMixin:
@@ -237,3 +240,97 @@ class PersonalNoteAdmin(admin.ModelAdmin):
     search_fields = ("title", "body")
     readonly_fields = ("created_at", "updated_at")
     fields = ("title", "body", "created_at", "updated_at")
+
+
+def _parse_menu_order(order):
+    """"articles", "articles.Article", "articles.Tag", "forum", ... → una
+    lista de grupos, cada uno con su app y los tokens "app.Modelo" que le
+    siguen hasta el próximo token sin punto (la siguiente app)."""
+    groups = []
+    current = None
+    for token in order:
+        if "." not in token:
+            current = {"app_label": token, "models": []}
+            groups.append(current)
+        elif current is not None:
+            current["models"].append(token)
+    return groups
+
+
+def _app_display_name(app_label):
+    try:
+        return django_apps.get_app_config(app_label).verbose_name
+    except LookupError:
+        return app_label
+
+
+def _model_display_name(token):
+    app_label, model_name = token.split(".", 1)
+    try:
+        return django_apps.get_model(app_label, model_name)._meta.verbose_name.title()
+    except LookupError:
+        return token
+
+
+@admin.register(AdminMenuOrder)
+class AdminMenuOrderAdmin(admin.ModelAdmin):
+    """Arrastrar para decidir qué apps salen primero en el menú lateral, y
+    qué modelos salen primero dentro de cada una. No deja arrastrar un
+    modelo a otra app: Django agrupa el sidebar por la app real de cada
+    modelo, así que "cambiarlo de cajón" no movería nada de verdad en el
+    menú — solo se puede reordenar dentro de la estructura existente."""
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        obj = self.model.load()
+        order = obj.order or django_settings.DEFAULT_ADMIN_MENU_ORDER
+        groups = [
+            {
+                "app_label": group["app_label"],
+                "app_name": _app_display_name(group["app_label"]),
+                "models": [
+                    {"token": token, "name": _model_display_name(token)}
+                    for token in group["models"]
+                ],
+            }
+            for group in _parse_menu_order(order)
+        ]
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Orden del menú del admin",
+            "groups": groups,
+            "opts": self.model._meta,
+        }
+        if extra_context:
+            context.update(extra_context)
+        return TemplateResponse(request, "admin/core/adminmenuorder/changelist.html", context)
+
+    def get_urls(self):
+        custom = [
+            path(
+                "guardar/",
+                self.admin_site.admin_view(self.save_order_view),
+                name="core_adminmenuorder_save",
+            ),
+        ]
+        return custom + super().get_urls()
+
+    def save_order_view(self, request):
+        if request.method != "POST":
+            return JsonResponse({"error": "Solo POST"}, status=405)
+        try:
+            order = json.loads(request.body).get("order", [])
+        except (TypeError, ValueError):
+            return JsonResponse({"error": "JSON inválido"}, status=400)
+        if not isinstance(order, list) or not all(isinstance(token, str) for token in order):
+            return JsonResponse({"error": "Formato inválido"}, status=400)
+
+        obj = self.model.load()
+        obj.order = order
+        obj.save()
+        return JsonResponse({"ok": True})

@@ -11,10 +11,14 @@ def ascii_safe(text, fallback="(titulo no compatible)"):
     mostrando el texto tal cual, con tildes, japonés, etc.). Primero
     quita acentos/ñ; lo que siga sin ser ASCII (japonés, coreano,
     árabe...) directamente se descarta en vez de salir como un cuadro
-    ilegible, y si no queda nada legible se usa un texto de repuesto."""
+    ilegible, y si no queda nada legible se usa un texto de repuesto.
+    Los saltos de línea sí se conservan (solo se colapsan los espacios
+    y tabulaciones dentro de cada línea), para no juntar párrafos que
+    el usuario haya separado a propósito."""
     normalized = unicodedata.normalize("NFKD", text)
     stripped = "".join(ch for ch in normalized if not unicodedata.combining(ch))
     stripped = stripped.replace("—", "-").replace("–", "-").replace("…", "...")
-    renderable = "".join(ch for ch in stripped if 32 <= ord(ch) < 127)
-    renderable = " ".join(renderable.split())
-    return renderable or fallback
+    renderable = "".join(ch for ch in stripped if ch == "\n" or 32 <= ord(ch) < 127)
+    lines = [" ".join(line.split()) for line in renderable.split("\n")]
+    result = "\n".join(lines).strip("\n")
+    return result or fallback

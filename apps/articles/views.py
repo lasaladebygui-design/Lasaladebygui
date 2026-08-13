@@ -13,7 +13,13 @@ from apps.core.push import send_push_to_users
 
 from .forms import ArticleCommentForm, ArticleForm
 from .models import Article, ArticleView, Tag
-from .permissions import can_create_articles, can_delete_article, can_edit_article, can_manage_private_articles
+from .permissions import (
+    can_create_articles,
+    can_delete_article,
+    can_edit_article,
+    can_feature_articles,
+    can_manage_private_articles,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +58,7 @@ def article_list(request):
         "tag_param": tag_slug or "",
         "query": query,
         "can_create": can_create_articles(request.user),
+        "can_feature": can_feature_articles(request.user),
     }
     if request.headers.get("HX-Request"):
         return render(request, "articles/_article_cards.html", context)
@@ -233,4 +240,23 @@ def article_bulk_delete(request):
         messages.success(request, f"{count} artículo(s) eliminado(s).")
     else:
         messages.info(request, "No se ha eliminado ningún artículo.")
+    return redirect("articles:list")
+
+
+@login_required
+def article_bulk_feature(request):
+    """Marcar en tanda cuáles salen en el carrusel destacado de la
+    portada — misma selección de checkboxes que borrar, pero mandando a
+    esta URL en vez de a bulk-delete (ver `formaction` en list.html)."""
+    if request.method != "POST":
+        raise Http404
+    if not can_feature_articles(request.user):
+        raise Http404
+
+    slugs = request.POST.getlist("slugs")
+    count = Article.objects.filter(slug__in=slugs).update(is_featured=True)
+    if count:
+        messages.success(request, f"{count} artículo(s) marcado(s) como destacados.")
+    else:
+        messages.info(request, "No se ha marcado ningún artículo.")
     return redirect("articles:list")

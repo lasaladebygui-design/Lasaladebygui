@@ -1629,7 +1629,7 @@ main { flex: 1; }
 .secret-gate-scene:hover .briefcase,
 .secret-gate-scene:focus-visible .briefcase { transform: translateY(-4px); }
 .secret-gate-scene:focus-visible {
-    outline: 2px solid var(--color-accent);
+    outline: 2px solid var(--color-text-muted);
     outline-offset: 4px;
     border-radius: var(--radius-base);
 }
@@ -1640,59 +1640,36 @@ main { flex: 1; }
     position: relative;
     width: 200px;
     transition: transform .2s ease;
-    perspective: 700px;
 }
 .briefcase__handle {
-    position: absolute;
-    top: -22px;
-    left: 50%;
-    transform: translateX(-50%);
     width: 56px;
     height: 22px;
+    margin: 0 auto -6px;
     border: 6px solid #2a1a0e;
     border-bottom: none;
     border-radius: 10px 10px 0 0;
     background: transparent;
-    transition: opacity .3s ease .1s;
 }
-.briefcase--open .briefcase__handle { opacity: 0; }
-.briefcase__lid {
+.briefcase__body {
     position: relative;
-    height: 52px;
+    height: 120px;
     background: linear-gradient(180deg, #4a2f18, #3a2415);
     border: 2px solid #2a1a0e;
-    border-bottom-color: rgba(0,0,0,.4);
-    border-radius: 10px 10px 0 0;
+    border-radius: 10px;
+    box-shadow: 0 10px 24px rgba(0,0,0,.35);
     display: flex;
     align-items: center;
     justify-content: center;
-    transform-origin: bottom center;
-    transform-style: preserve-3d;
-    transition: transform .55s cubic-bezier(.32,1.3,.55,1);
-    z-index: 2;
 }
-.briefcase--open .briefcase__lid { transform: rotateX(100deg); }
 .briefcase__label {
     font-family: var(--font-heading);
     color: #e8c77a;
     letter-spacing: 0.15em;
     font-size: 1.1rem;
-    transition: opacity .2s ease;
-}
-.briefcase--open .briefcase__label { opacity: 0; }
-.briefcase__base {
-    position: relative;
-    height: 68px;
-    background: linear-gradient(180deg, #3a2415, #2c1a0e);
-    border: 2px solid #2a1a0e;
-    border-top: none;
-    border-radius: 0 0 10px 10px;
-    box-shadow: 0 10px 24px rgba(0,0,0,.35);
-    overflow: hidden;
 }
 .briefcase__latch {
     position: absolute;
-    top: -12px;
+    bottom: 14px;
     left: 50%;
     transform: translateX(-50%);
     width: 34px;
@@ -1700,19 +1677,7 @@ main { flex: 1; }
     background: #d4af37;
     border-radius: 4px;
     box-shadow: inset 0 0 0 2px #8a6d1f;
-    z-index: 3;
-    transition: opacity .25s ease;
 }
-.briefcase--open .briefcase__latch { opacity: 0; }
-.briefcase__glow {
-    position: absolute;
-    inset: 0 0 auto 0;
-    height: 0;
-    background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--color-accent) 55%, transparent), transparent 75%);
-    opacity: 0;
-    transition: opacity .4s ease .2s, height .4s ease .2s;
-}
-.briefcase--open .briefcase__glow { opacity: 1; height: 100%; }
 .briefcase--shake { animation: briefcase-shake 0.4s ease; }
 @keyframes briefcase-shake {
     0%, 100% { transform: translateX(0); }

@@ -282,6 +282,52 @@ class ArticleBulkDeleteTests(TestCase):
         self.assertTrue(Article.objects.filter(pk=self.own_article.pk).exists())
 
 
+class ArticleBulkFeatureTests(TestCase):
+    """Marcar en tanda cuáles salen en el carrusel destacado — reutiliza
+    la misma selección de checkboxes que borrar, pero solo para Admin
+    (ni siquiera Gestor, es una decisión de portada)."""
+
+    def setUp(self):
+        self.admin = make_user("admin_bulk_feat@test.local", User.Role.ADMIN)
+        self.gestor = make_user("gestor_bulk_feat@test.local", User.Role.GESTOR)
+        self.a = Article.objects.create(title="Uno", body="<p>x</p>")
+        self.b = Article.objects.create(title="Dos", body="<p>y</p>")
+
+    def _login(self, user):
+        self.client.login(username=user.email, password="Testpass123!")
+
+    def test_el_admin_ve_el_boton_de_destacar(self):
+        self._login(self.admin)
+        response = self.client.get(reverse("articles:list"))
+        self.assertContains(response, "bulk-feature-button")
+
+    def test_el_gestor_no_ve_el_boton_de_destacar(self):
+        self._login(self.gestor)
+        response = self.client.get(reverse("articles:list"))
+        self.assertNotContains(response, "bulk-feature-button")
+
+    def test_el_admin_puede_marcar_varios_de_golpe(self):
+        self._login(self.admin)
+        self.client.post(reverse("articles:bulk-feature"), {"slugs": [self.a.slug, self.b.slug]})
+        self.a.refresh_from_db()
+        self.b.refresh_from_db()
+        self.assertTrue(self.a.is_featured)
+        self.assertTrue(self.b.is_featured)
+
+    def test_el_gestor_no_puede_marcar_aunque_lo_intente_a_mano(self):
+        self._login(self.gestor)
+        response = self.client.post(reverse("articles:bulk-feature"), {"slugs": [self.a.slug]})
+        self.assertEqual(response.status_code, 404)
+        self.a.refresh_from_db()
+        self.assertFalse(self.a.is_featured)
+
+    def test_anonimo_no_puede_marcar(self):
+        response = self.client.post(reverse("articles:bulk-feature"), {"slugs": [self.a.slug]})
+        self.assertNotEqual(response.status_code, 200)
+        self.a.refresh_from_db()
+        self.assertFalse(self.a.is_featured)
+
+
 class ArticleAdminTests(TestCase):
     """Formulario de artículo en el admin: el autor se rellena solo con
     quien ha iniciado sesión (se puede cambiar a mano), y tags/autor usan
@@ -311,6 +357,10 @@ class ArticleAdminTests(TestCase):
         response = self.client.get(reverse("admin:articles_article_change", args=[article.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Quitar imagen actual")
+
+    def test_el_formulario_de_alta_no_ofrece_quitar_una_portada_que_no_existe(self):
+        response = self.client.get(reverse("admin:articles_article_add"))
+        self.assertNotContains(response, "Quitar imagen actual")
 
     def test_destacado_es_editable_desde_la_lista(self):
         article = Article.objects.create(title="Editable en lista", body="x", author=self.admin)

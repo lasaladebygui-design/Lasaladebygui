@@ -752,6 +752,26 @@ class FavoriteMovieTests(TestCase):
         self.assertEqual(response["Content-Type"], "image/png")
         self.assertTrue(response.content.startswith(b"\x89PNG\r\n\x1a\n"))
 
+    def test_compartir_con_porque_en_varios_parrafos_no_rompe(self):
+        movie = Movie.objects.create(tmdb_id=22, title="Mi favorita 2", media_type="movie")
+        FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie)
+        self.user.essential_note = "Primer párrafo.\n\nSegundo párrafo, distinto del primero."
+        self.user.save(update_fields=["essential_note"])
+
+        response = self.client.get(reverse("accounts:favorites-share-image", args=["essential"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.content.startswith(b"\x89PNG\r\n\x1a\n"))
+
+    def test_wrap_text_respeta_los_saltos_de_linea(self):
+        from PIL import Image, ImageDraw, ImageFont
+
+        from apps.accounts.views import _wrap_text
+
+        draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+        font = ImageFont.load_default(size=13)
+        lines = _wrap_text(draw, "Primer parrafo.\n\nSegundo parrafo.", font, max_width=400)
+        self.assertEqual(lines, ["Primer parrafo.", "", "Segundo parrafo."])
+
     def test_compartir_sin_favoritas_no_rompe(self):
         response = self.client.get(reverse("accounts:favorites-share-image", args=["essential"]))
         self.assertEqual(response.status_code, 200)

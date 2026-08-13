@@ -1,3 +1,4 @@
+import json
 from datetime import date
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -15,7 +16,7 @@ from config.storage import supabase_public_domain
 
 from . import google_calendar as google_calendar_module
 from . import push as push_module
-from .models import SESSION_THEME_KEY, Announcement, ContactLink, SiteConfig, Theme, get_effective_theme
+from .models import SESSION_THEME_KEY, AdminMenuOrder, Announcement, ContactLink, SiteConfig, Theme, get_effective_theme
 from .notifications import notifications_feed, unread_notifications_count
 
 
@@ -96,6 +97,26 @@ class WrapAfterPeriodFilterTests(TestCase):
 
         result = wrap_after_period("<script>alert(1)</script>")
         self.assertNotIn("<script>", result)
+
+
+class AsciiSafeTests(TestCase):
+    def test_conserva_los_saltos_de_linea(self):
+        from apps.core.text import ascii_safe
+
+        result = ascii_safe("Primer párrafo.\n\nSegundo párrafo.")
+        self.assertEqual(result, "Primer parrafo.\n\nSegundo parrafo.")
+
+    def test_colapsa_espacios_dentro_de_una_linea_pero_no_entre_lineas(self):
+        from apps.core.text import ascii_safe
+
+        result = ascii_safe("Con   espacios de sobra\ny una segunda línea")
+        self.assertEqual(result, "Con espacios de sobra\ny una segunda linea")
+
+    def test_quita_acentos_y_caracteres_no_ascii(self):
+        from apps.core.text import ascii_safe
+
+        self.assertEqual(ascii_safe("Corazón"), "Corazon")
+        self.assertEqual(ascii_safe("君の名は"), "(titulo no compatible)")
 
 
 class RecentActivityTests(TestCase):
@@ -610,6 +631,64 @@ class SortableAdminTests(TestCase):
         url = reverse("admin:core_contactlink_reorder")
         response = self.client.get(url)
         self.assertEqual(response.status_code, 405)
+
+
+class AdminMenuOrderTests(TestCase):
+    """Arrastrar para reordenar las secciones/modelos del menú lateral del
+    admin (Sitio → Orden del menú) — guarda en BD y AdminMenuOrderMiddleware
+    lo aplica sobre JAZZMIN_SETTINGS en cada petición al admin."""
+
+    def setUp(self):
+        self.admin = User.objects.create(email="menu_admin@test.local", role=User.Role.ADMIN, is_staff=True, is_superuser=True)
+        self.admin.set_password("Testpass123!")
+        self.admin.save()
+        self.client.login(username=self.admin.email, password="Testpass123!")
+
+    def tearDown(self):
+        AdminMenuOrder.objects.all().delete()
+        settings.JAZZMIN_SETTINGS["order_with_respect_to"] = settings.DEFAULT_ADMIN_MENU_ORDER
+
+    def test_la_pagina_de_arrastre_muestra_las_secciones_y_modelos(self):
+        response = self.client.get(reverse("admin:core_adminmenuorder_changelist"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "menu-order-group")
+        self.assertContains(response, 'data-token="articles.Article"')
+
+    def test_guardar_persiste_el_nuevo_orden(self):
+        new_order = ["core", "articles", "articles.Article"]
+        url = reverse("admin:core_adminmenuorder_save")
+        response = self.client.post(url, data=json.dumps({"order": new_order}), content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(AdminMenuOrder.load().order, new_order)
+
+    def test_guardar_no_admite_get(self):
+        response = self.client.get(reverse("admin:core_adminmenuorder_save"))
+        self.assertEqual(response.status_code, 405)
+
+    def test_guardar_rechaza_un_formato_invalido(self):
+        url = reverse("admin:core_adminmenuorder_save")
+        response = self.client.post(url, data=json.dumps({"order": "no es una lista"}), content_type="application/json")
+        self.assertEqual(response.status_code, 400)
+
+    def test_requiere_estar_conectado_como_admin(self):
+        self.client.logout()
+        response = self.client.get(reverse("admin:core_adminmenuorder_changelist"))
+        self.assertNotEqual(response.status_code, 200)
+
+    def test_el_middleware_aplica_el_orden_guardado_a_jazzmin(self):
+        custom_order = ["core", "articles", "articles.Article"]
+        AdminMenuOrder.objects.create(pk=1, order=custom_order)
+        self.client.get(reverse("admin:index"))
+        self.assertEqual(settings.JAZZMIN_SETTINGS["order_with_respect_to"], custom_order)
+
+    def test_el_middleware_usa_el_orden_de_fabrica_si_no_hay_nada_guardado(self):
+        self.client.get(reverse("admin:index"))
+        self.assertEqual(settings.JAZZMIN_SETTINGS["order_with_respect_to"], settings.DEFAULT_ADMIN_MENU_ORDER)
+
+    def test_el_middleware_no_toca_nada_fuera_del_admin(self):
+        settings.JAZZMIN_SETTINGS["order_with_respect_to"] = ["marca-de-prueba"]
+        self.client.get(reverse("core:home"))
+        self.assertEqual(settings.JAZZMIN_SETTINGS["order_with_respect_to"], ["marca-de-prueba"])
 
 
 class IntroLightThemeTests(TestCase):

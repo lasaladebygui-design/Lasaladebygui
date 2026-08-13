@@ -1,0 +1,104 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+    &rsaquo; Orden del menú
+</div>
+{% endblock %}
+
+{% block content %}
+<p class="help">
+    Arrastra las secciones (⠿) para decidir qué sale primero en el menú lateral, y arrastra los modelos
+    dentro de cada sección para ordenarlos entre sí. Los cambios se guardan solos al soltar.
+    No se puede mover un modelo a otra sección: el menú siempre agrupa cada modelo bajo su propia app.
+</p>
+
+<div id="menu-order-apps">
+    {% for group in groups %}
+    <div class="menu-order-group" data-app="{{ group.app_label }}">
+        <div class="menu-order-group__header">
+            <span class="menu-order-drag-handle" title="Arrastra para reordenar la sección">⠿</span>
+            <strong>{{ group.app_name|capfirst }}</strong>
+        </div>
+        <ul class="menu-order-models" data-app="{{ group.app_label }}">
+            {% for model in group.models %}
+            <li class="menu-order-model" data-token="{{ model.token }}">
+                <span class="menu-order-drag-handle" title="Arrastra para reordenar el modelo">⠿</span>
+                {{ model.name|capfirst }}
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endfor %}
+</div>
+
+<p class="menu-order-status" id="menu-order-status"></p>
+
+<style>
+    #menu-order-apps { display: flex; flex-direction: column; gap: 0.75rem; max-width: 520px; }
+    .menu-order-group { border: 1px solid var(--border-color, #ccc); border-radius: 6px; background: var(--body-bg, #fff); }
+    .menu-order-group__header { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.9rem; cursor: grab; }
+    .menu-order-models { list-style: none; margin: 0; padding: 0 0.9rem 0.6rem; }
+    .menu-order-model { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; margin-left: 1.4rem; cursor: grab; border-radius: 4px; }
+    .menu-order-model:hover, .menu-order-group__header:hover { background: rgba(127, 127, 127, 0.12); }
+    .menu-order-drag-handle { opacity: 0.6; }
+    .menu-order-status { min-height: 1.4em; font-size: 0.9em; color: var(--body-quiet-color, #666); }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    var appsRoot = document.getElementById("menu-order-apps");
+    var status = document.getElementById("menu-order-status");
+    if (!appsRoot || typeof Sortable === "undefined") return;
+
+    var saveUrl = "{% url 'admin:core_adminmenuorder_save' %}";
+
+    function getCsrfToken() {
+        var match = document.cookie.match(/(?:^|; )csrftoken=([^;]*)/);
+        return match ? match[1] : "";
+    }
+
+    function currentOrder() {
+        var order = [];
+        appsRoot.querySelectorAll(".menu-order-group").forEach(function (group) {
+            order.push(group.dataset.app);
+            group.querySelectorAll(".menu-order-model").forEach(function (model) {
+                order.push(model.dataset.token);
+            });
+        });
+        return order;
+    }
+
+    function save() {
+        status.textContent = "Guardando…";
+        fetch(saveUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+            body: JSON.stringify({ order: currentOrder() }),
+        }).then(function (response) {
+            status.textContent = response.ok ? "Guardado." : "No se pudo guardar — recarga e inténtalo de nuevo.";
+        }).catch(function () {
+            status.textContent = "No se pudo guardar — recarga e inténtalo de nuevo.";
+        });
+    }
+
+    Sortable.create(appsRoot, {
+        handle: ".menu-order-drag-handle",
+        animation: 150,
+        onEnd: save,
+    });
+
+    appsRoot.querySelectorAll(".menu-order-models").forEach(function (list) {
+        Sortable.create(list, {
+            handle: ".menu-order-drag-handle",
+            animation: 150,
+            group: { name: "models-" + list.dataset.app, pull: false, put: false },
+            onEnd: save,
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -203,18 +203,25 @@ def favorites_page(request, category, username=None):
 
 
 def _wrap_text(draw, text, font, max_width):
-    words = text.split(" ")
+    """Envuelve por ancho dentro de cada línea, pero respeta los saltos
+    de línea que ya tuviera el texto — si no, un "porqué" escrito en
+    varios párrafos saldría todo junto, como si fuera uno solo."""
     lines = []
-    current = ""
-    for word in words:
-        candidate = f"{current} {word}".strip()
-        if not current or draw.textlength(candidate, font=font) <= max_width:
-            current = candidate
-        else:
+    for paragraph in text.split("\n"):
+        if not paragraph:
+            lines.append("")
+            continue
+        words = paragraph.split(" ")
+        current = ""
+        for word in words:
+            candidate = f"{current} {word}".strip()
+            if not current or draw.textlength(candidate, font=font) <= max_width:
+                current = candidate
+            else:
+                lines.append(current)
+                current = word
+        if current:
             lines.append(current)
-            current = word
-    if current:
-        lines.append(current)
     return lines
 
 

@@ -44,7 +44,12 @@
             {% csrf_token %}
             {% if user.is_authenticated %}
             <div class="bulk-delete-bar">
-                <button type="submit" class="btn btn--ghost btn--sm" id="bulk-delete-button" disabled
+                {% if can_feature %}
+                <button type="submit" formaction="{% url 'articles:bulk-feature' %}" class="btn btn--ghost btn--sm bulk-select-button" id="bulk-feature-button" disabled>
+                    ⭐ Marcar como destacados
+                </button>
+                {% endif %}
+                <button type="submit" class="btn btn--ghost btn--sm bulk-select-button" id="bulk-delete-button" disabled
                         onclick="return confirm('¿Eliminar los artículos seleccionados?');">
                     🗑️ Eliminar seleccionados
                 </button>
@@ -58,7 +63,7 @@
             document.getElementById("bulk-delete-form").addEventListener("change", function (event) {
                 if (event.target.matches(".article-card__select")) {
                     var any = this.querySelectorAll(".article-card__select:checked").length > 0;
-                    document.getElementById("bulk-delete-button").disabled = !any;
+                    document.querySelectorAll(".bulk-select-button").forEach(function (btn) { btn.disabled = !any; });
                 }
             });
         </script>

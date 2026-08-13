@@ -8,6 +8,7 @@ urlpatterns = [
     path("", views.article_list, name="list"),
     path("nuevo/", views.article_create, name="create"),
     path("borrar-varios/", views.article_bulk_delete, name="bulk-delete"),
+    path("destacar-varios/", views.article_bulk_feature, name="bulk-feature"),
     path("<slug:slug>/", views.article_detail, name="detail"),
     path("<slug:slug>/editar/", views.article_update, name="update"),
     path("<slug:slug>/eliminar/", views.article_delete, name="delete"),

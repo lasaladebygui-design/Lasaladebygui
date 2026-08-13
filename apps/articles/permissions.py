@@ -26,3 +26,9 @@ def can_manage_private_articles(user):
 
 def can_view_article(user, article):
     return not article.is_private or can_manage_private_articles(user)
+
+
+def can_feature_articles(user):
+    # Solo Admin (ni Gestor) — es una decisión editorial de portada, no
+    # de gestión del día a día del tablón.
+    return user.is_authenticated and user.role == User.Role.ADMIN
