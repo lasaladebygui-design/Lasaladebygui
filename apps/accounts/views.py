@@ -8,13 +8,15 @@ from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.db.models import Q
-from django.http import Http404, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from apps.core.google_calendar import exchange_code_for_tokens, get_authorization_url, google_calendar_enabled
+from apps.core.models import get_effective_theme
+from apps.core.text import ascii_safe
 from apps.games.models import DuelRecord
 from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError, tmdb_search
@@ -198,6 +200,95 @@ def favorites_page(request, category, username=None):
         **_favorites_context(favorites),
     }
     return render(request, "accounts/favorites_page.html", context)
+
+
+def _wrap_text(draw, text, font, max_width):
+    words = text.split(" ")
+    lines = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if not current or draw.textlength(candidate, font=font) <= max_width:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines
+
+
+def _render_favorites_image(theme, label, username, note, titles):
+    """PNG minimalista para compartir "Mis imprescindibles" o "Sugeridas":
+    el título de la lista, quién la firma, las películas/series y el
+    porqué — de solo lectura, pensado para enseñarlo, no para editarlo."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    width, pad = 640, 32
+    font_title = ImageFont.load_default(size=26)
+    font_meta = ImageFont.load_default(size=13)
+    font_item = ImageFont.load_default(size=15)
+    font_note = ImageFont.load_default(size=13)
+
+    dummy_draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    content_width = width - pad * 2
+
+    item_lines = [_wrap_text(dummy_draw, f"·  {ascii_safe(title)}", font_item, content_width) for title in titles] or [["(todavía no hay ninguna)"]]
+    note_lines = _wrap_text(dummy_draw, ascii_safe(note), font_note, content_width) if note else []
+
+    header_h = 92
+    items_h = sum(len(lines) * 22 for lines in item_lines) + 16
+    note_h = (len(note_lines) * 19 + 36) if note_lines else 0
+    footer_h = 40
+    height = pad * 2 + header_h + items_h + note_h + footer_h
+
+    img = Image.new("RGB", (width, height), theme.color_bg)
+    draw = ImageDraw.Draw(img)
+
+    draw.text((pad, pad), ascii_safe(label), font=font_title, fill=theme.color_accent)
+    draw.text((pad, pad + 36), ascii_safe(f"por {username} - La Sala de Bygui"), font=font_meta, fill=theme.color_text_muted)
+    draw.line([(pad, pad + 62), (width - pad, pad + 62)], fill=theme.color_border, width=1)
+
+    y = pad + header_h
+    for lines in item_lines:
+        for line in lines:
+            draw.text((pad, y), line, font=font_item, fill=theme.color_text)
+            y += 22
+    y += 16
+
+    if note_lines:
+        draw.line([(pad, y), (width - pad, y)], fill=theme.color_border, width=1)
+        y += 18
+        for line in note_lines:
+            draw.text((pad, y), line, font=font_note, fill=theme.color_text_muted)
+            y += 19
+
+    return img
+
+
+@login_required
+def favorites_share_image(request, category, username=None):
+    if category not in FavoriteMovie.Category.values:
+        raise Http404
+
+    profile_user = get_object_or_404(User, username=username) if username else request.user
+
+    favorites = list(
+        FavoriteMovie.objects.filter(user=profile_user, category=category).select_related("movie")
+    )
+    note_field = "essential_note" if category == FavoriteMovie.Category.ESSENTIAL else "suggested_note"
+    label = "Mis imprescindibles" if category == FavoriteMovie.Category.ESSENTIAL else "Sugeridas"
+
+    theme = get_effective_theme(profile_user, request.session)
+    image = _render_favorites_image(
+        theme, label, str(profile_user), getattr(profile_user, note_field),
+        [f.movie.title for f in favorites],
+    )
+
+    response = HttpResponse(content_type="image/png")
+    image.save(response, "PNG")
+    response["Content-Disposition"] = f'inline; filename="{category}_{profile_user.username}.png"'
+    return response
 
 
 @login_required

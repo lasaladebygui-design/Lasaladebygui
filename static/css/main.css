@@ -153,6 +153,26 @@ a:hover { color: var(--color-accent-secondary); }
     text-decoration: none;
 }
 .site-nav a:hover, .site-nav__logout button:hover { background: var(--color-bg); color: var(--color-accent); }
+@media (max-width: 640px) {
+    /* En escritorio el desplegable ancladito a la izquierda funciona
+       bien porque sobra sitio alrededor; en móvil, esa misma caja
+       estrecha flotando sobre el contenido se sentía suelta y
+       apretada. Al quitarle el "position" al contenedor del botón, el
+       desplegable pasa a anclarse a la cabecera entera (que sí lo es,
+       por el position:sticky) y se estira a todo su ancho en vez del
+       ancho del botón — las filas quedan también un poco más grandes,
+       más cómodas de tocar. */
+    .site-header__nav { position: static; }
+    .site-nav {
+        left: 0;
+        right: 0;
+        min-width: 0;
+        padding: 0.5rem;
+        border-inline: none;
+        border-radius: 0;
+    }
+    .site-nav a, .site-nav__logout button { padding: 0.75rem 0.9rem; font-size: 1rem; }
+}
 .site-nav__logout {
     margin-top: 0.3rem;
     border-top: 1px solid var(--color-border);
@@ -738,7 +758,20 @@ main { flex: 1; }
     border-radius: var(--radius-base);
     overflow: hidden;
 }
-.home-hero__slide { display: grid; grid-template-columns: 1fr; }
+.home-hero__stage { position: relative; min-height: 420px; }
+.home-hero__slide {
+    display: grid;
+    grid-template-columns: 1fr;
+    min-height: 420px;
+    /* Las diapositivas se superponen en vez de apilarse en el flujo
+       normal: así, durante el instante en que la que sale y la que
+       entra están las dos visibles a la vez (mientras hace fundido),
+       ninguna empuja a la otra ni cambia la altura de la tarjeta —
+       antes "crecía" un poco en cada cambio porque ambas ocupaban
+       espacio a la vez. */
+    position: absolute;
+    inset: 0;
+}
 .home-hero__text {
     padding: calc(var(--space-unit) * 4) calc(var(--space-unit) * 5);
     display: flex;
@@ -874,7 +907,8 @@ main { flex: 1; }
 .explore-row__item--accent .explore-row__cta { color: var(--color-on-accent-secondary); opacity: 0.9; }
 
 @media (min-width: 900px) {
-    .home-hero__slide { grid-template-columns: 1fr 1fr; }
+    .home-hero__stage { min-height: 220px; }
+    .home-hero__slide { grid-template-columns: 1fr 1fr; min-height: 220px; }
     .home-layout { grid-template-columns: 2.2fr 1fr; }
     .home-layout--no-aside { grid-template-columns: 1fr; }
 }
@@ -1555,11 +1589,12 @@ main { flex: 1; }
     justify-content: center;
     padding: 0;
     margin: 0 0 calc(var(--space-unit) * 3);
-    background: var(--color-bg);
-    border: 1px solid var(--color-border);
+    background: transparent;
+    border: none;
     border-radius: var(--radius-base);
     overflow: hidden;
     cursor: pointer;
+    outline: none;
 }
 .secret-gate-scene__glow {
     position: absolute;
@@ -1593,6 +1628,11 @@ main { flex: 1; }
 }
 .secret-gate-scene:hover .briefcase,
 .secret-gate-scene:focus-visible .briefcase { transform: translateY(-4px); }
+.secret-gate-scene:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 4px;
+    border-radius: var(--radius-base);
+}
 
 .secret-gate-panel { display: flex; flex-direction: column; align-items: center; }
 
@@ -1631,7 +1671,7 @@ main { flex: 1; }
     transition: transform .55s cubic-bezier(.32,1.3,.55,1);
     z-index: 2;
 }
-.briefcase--open .briefcase__lid { transform: rotateX(122deg); }
+.briefcase--open .briefcase__lid { transform: rotateX(100deg); }
 .briefcase__label {
     font-family: var(--font-heading);
     color: #e8c77a;

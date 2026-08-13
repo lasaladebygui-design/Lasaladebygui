@@ -148,15 +148,21 @@ def export_excel(request):
     sitio si la web "explota": el comentario de cada día del calendario
     personal y las películas/series que tenga puestas ese día, la lista
     de Top Secret (nota, listas, comentario), las guardadas de cada
-    usuario agrupadas por su lista y el catálogo de la Tienda. Un botón
-    en el panel (topmenu de Jazzmin), nada que requiera entrar a ningún
-    modelo."""
+    usuario agrupadas por su lista, el catálogo de la Tienda, los
+    imprescindibles/sugeridas de cada perfil con su porqué, las ideas de
+    artículos, las frases favoritas y los apuntes personales del admin —
+    en resumen, todo lo que alguien ha escrito a mano y no está en
+    ningún otro sitio. Un botón en el panel (topmenu de Jazzmin), nada
+    que requiera entrar a ningún modelo."""
     from openpyxl import Workbook
     from openpyxl.utils import get_column_letter
 
+    from apps.accounts.models import FavoriteMovie
+    from apps.articles.models import ArticleIdea
     from apps.movies.models import SavedMovie
     from apps.secret.models import CalendarDayNote, ReleaseEvent, SecretMovie
     from apps.shop.models import Product
+    from .models import FavoriteQuote, PersonalNote
 
     wb = Workbook()
 
@@ -187,6 +193,34 @@ def export_excel(request):
     ws_shop.append(["Nombre", "Descripción", "Precio", "Enlace"])
     for product in Product.objects.order_by("order", "name"):
         ws_shop.append([product.name, product.description, float(product.price) if product.price is not None else None, product.url])
+
+    ws_favorites = wb.create_sheet("Imprescindibles y sugeridas")
+    ws_favorites.append(["Usuario", "Categoría", "Película", "Por qué (de toda la categoría)"])
+    notes_by_user = {}
+    for fav in FavoriteMovie.objects.select_related("user", "movie").order_by("user__username", "category", "order"):
+        key = (fav.user_id, fav.category)
+        if key not in notes_by_user:
+            note_field = "essential_note" if fav.category == FavoriteMovie.Category.ESSENTIAL else "suggested_note"
+            notes_by_user[key] = getattr(fav.user, note_field)
+        ws_favorites.append([str(fav.user), fav.get_category_display(), fav.movie.title, notes_by_user[key]])
+
+    ws_ideas = wb.create_sheet("Ideas de artículos")
+    ws_ideas.append(["Idea", "Notas", "Ya escrito", "Apuntada por", "Fecha"])
+    for idea in ArticleIdea.objects.select_related("created_by").order_by("-created_at"):
+        ws_ideas.append([
+            idea.text, idea.notes, "Sí" if idea.is_done else "No",
+            str(idea.created_by) if idea.created_by else "", idea.created_at.strftime("%d/%m/%Y"),
+        ])
+
+    ws_quotes = wb.create_sheet("Frases favoritas")
+    ws_quotes.append(["Frase", "Película o serie", "Notas", "Fecha"])
+    for quote in FavoriteQuote.objects.order_by("-created_at"):
+        ws_quotes.append([quote.text, quote.source, quote.notes, quote.created_at.strftime("%d/%m/%Y")])
+
+    ws_notes = wb.create_sheet("Apuntes personales")
+    ws_notes.append(["Título", "Apunte", "Creado", "Última edición"])
+    for note in PersonalNote.objects.order_by("-updated_at"):
+        ws_notes.append([note.title, note.body, note.created_at.strftime("%d/%m/%Y"), note.updated_at.strftime("%d/%m/%Y")])
 
     for ws in wb.worksheets:
         for col_idx, column_cells in enumerate(ws.columns, start=1):

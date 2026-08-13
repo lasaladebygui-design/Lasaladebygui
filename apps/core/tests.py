@@ -891,14 +891,18 @@ class ExportExcelTests(TestCase):
         response = self.client.get(reverse("core:admin-export-excel"))
         self.assertIn('filename="Lasaladebyguibackup_', response["Content-Disposition"])
 
-    def test_incluye_las_cinco_hojas_con_sus_datos(self):
+    def test_incluye_todas_las_hojas_con_sus_datos(self):
         import io
 
         from openpyxl import load_workbook
 
+        from apps.accounts.models import FavoriteMovie
+        from apps.articles.models import ArticleIdea
         from apps.movies.models import Movie, SavedMovie, SavedMovieList
         from apps.secret.models import CalendarDayNote, Genre, ReleaseEvent, SecretMovie
         from apps.shop.models import Product
+
+        from .models import FavoriteQuote, PersonalNote
 
         user = _make_user("export_datos@test.local")
         CalendarDayNote.objects.create(user=user, date=date(2026, 1, 5), note="Maratón de Navidad")
@@ -916,12 +920,23 @@ class ExportExcelTests(TestCase):
 
         Product.objects.create(name="Taza Bygui", description="Con el logo.", price="12.50", url="https://example.com/taza")
 
+        user.essential_note = "Porque me marcaron"
+        user.save(update_fields=["essential_note"])
+        FavoriteMovie.objects.create(user=user, category="essential", movie=movie)
+
+        ArticleIdea.objects.create(text="Top 10 de neo-noir", notes="Empezar por Drive", created_by=user)
+        FavoriteQuote.objects.create(text="I am the danger.", source="Breaking Bad", notes="Escena de la cocina")
+        PersonalNote.objects.create(title="Recordatorio", body="Revisar el catálogo cada mes")
+
         response = self.client.get(reverse("core:admin-export-excel"))
         wb = load_workbook(io.BytesIO(response.content))
 
         self.assertEqual(
             wb.sheetnames,
-            ["Calendario", "Calendario - películas", "Top Secret", "Guardadas", "Tienda"],
+            [
+                "Calendario", "Calendario - películas", "Top Secret", "Guardadas", "Tienda",
+                "Imprescindibles y sugeridas", "Ideas de artículos", "Frases favoritas", "Apuntes personales",
+            ],
         )
 
         calendar_rows = list(wb["Calendario"].iter_rows(values_only=True))
@@ -938,3 +953,15 @@ class ExportExcelTests(TestCase):
 
         shop_rows = list(wb["Tienda"].iter_rows(values_only=True))
         self.assertIn(("Taza Bygui", "Con el logo.", 12.5, "https://example.com/taza"), shop_rows)
+
+        favorites_rows = list(wb["Imprescindibles y sugeridas"].iter_rows(values_only=True))
+        self.assertIn((str(user), "Imprescindible", "Drive", "Porque me marcaron"), favorites_rows)
+
+        ideas_rows = list(wb["Ideas de artículos"].iter_rows(values_only=True))
+        self.assertIn(("Top 10 de neo-noir", "Empezar por Drive", "No", str(user)), [r[:4] for r in ideas_rows])
+
+        quotes_rows = list(wb["Frases favoritas"].iter_rows(values_only=True))
+        self.assertIn(("I am the danger.", "Breaking Bad", "Escena de la cocina"), [r[:3] for r in quotes_rows])
+
+        notes_rows = list(wb["Apuntes personales"].iter_rows(values_only=True))
+        self.assertIn(("Recordatorio", "Revisar el catálogo cada mes"), [r[:2] for r in notes_rows])

@@ -7,7 +7,7 @@ from django.shortcuts import redirect
 from django.urls import path
 from django.utils.safestring import mark_safe
 
-from .models import Announcement, ContactLink, SiteConfig, Theme
+from .models import Announcement, ContactLink, FavoriteQuote, PersonalNote, SiteConfig, Theme
 
 
 class SortableAdminMixin:
@@ -217,3 +217,23 @@ class AnnouncementAdmin(admin.ModelAdmin):
         if not change:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
+
+
+@admin.register(FavoriteQuote)
+class FavoriteQuoteAdmin(admin.ModelAdmin):
+    list_display = ("short_text", "source", "created_at")
+    search_fields = ("text", "source", "notes")
+    fields = ("text", "source", "notes", "created_at")
+    readonly_fields = ("created_at",)
+
+    @admin.display(description="frase")
+    def short_text(self, obj):
+        return obj.text[:80]
+
+
+@admin.register(PersonalNote)
+class PersonalNoteAdmin(admin.ModelAdmin):
+    list_display = ("title", "updated_at")
+    search_fields = ("title", "body")
+    readonly_fields = ("created_at", "updated_at")
+    fields = ("title", "body", "created_at", "updated_at")

@@ -741,6 +741,43 @@ class FavoriteMovieTests(TestCase):
         response = self.client.get(reverse("accounts:favorites-page", args=["otra-cosa"]))
         self.assertEqual(response.status_code, 404)
 
+    def test_compartir_imprescindibles_devuelve_una_imagen_png(self):
+        movie = Movie.objects.create(tmdb_id=20, title="Mi favorita", media_type="movie")
+        FavoriteMovie.objects.create(user=self.user, category="essential", movie=movie)
+        self.user.essential_note = "Porque me marcaron"
+        self.user.save(update_fields=["essential_note"])
+
+        response = self.client.get(reverse("accounts:favorites-share-image", args=["essential"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "image/png")
+        self.assertTrue(response.content.startswith(b"\x89PNG\r\n\x1a\n"))
+
+    def test_compartir_sin_favoritas_no_rompe(self):
+        response = self.client.get(reverse("accounts:favorites-share-image", args=["essential"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.content.startswith(b"\x89PNG\r\n\x1a\n"))
+
+    def test_compartir_categoria_invalida_da_404(self):
+        response = self.client.get(reverse("accounts:favorites-share-image", args=["otra-cosa"]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_compartir_requiere_login(self):
+        self.client.logout()
+        response = self.client.get(reverse("accounts:favorites-share-image", args=["essential"]))
+        self.assertNotEqual(response.status_code, 200)
+
+    def test_el_boton_compartir_solo_sale_en_la_pagina_propia(self):
+        other = User.objects.create(email="visto_fav3@test.local", role=User.Role.LECTOR, username="vistofav3")
+        movie = Movie.objects.create(tmdb_id=21, title="Favorita ajena 3", media_type="movie")
+        FavoriteMovie.objects.create(user=other, category="essential", movie=movie)
+        share_url = reverse("accounts:favorites-share-image", args=["essential"])
+
+        own = self.client.get(reverse("accounts:favorites-page", args=["essential"]))
+        self.assertContains(own, share_url)
+
+        ajena = self.client.get(reverse("social:public-favorites-page", args=["vistofav3", "essential"]))
+        self.assertNotContains(ajena, share_url)
+
     def test_el_perfil_publico_enlaza_a_las_paginas_de_favoritas_de_otro(self):
         other = User.objects.create(email="visto_fav@test.local", role=User.Role.LECTOR, username="vistofav")
         movie = Movie.objects.create(tmdb_id=8, title="Favorita ajena", media_type="movie")

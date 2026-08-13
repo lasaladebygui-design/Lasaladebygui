@@ -275,6 +275,45 @@ class Announcement(models.Model):
         return self.title
 
 
+class FavoriteQuote(models.Model):
+    """Almacén personal de frases de películas o series — solo un sitio
+    donde apuntarlas desde el admin cuando una te encanta, no se muestra
+    en ninguna parte pública del sitio (para eso está el juego de Frases
+    célebres, que es otra cosa)."""
+
+    text = models.TextField("frase")
+    source = models.CharField("película o serie", max_length=200, blank=True)
+    notes = models.TextField("notas", blank=True, help_text="Contexto, por qué te gustó, quién la dice...")
+    created_at = models.DateTimeField("fecha", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "frase favorita"
+        verbose_name_plural = "frases favoritas"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.text[:60]
+
+
+class PersonalNote(models.Model):
+    """Apuntes personales sueltos desde el admin — un cuaderno rápido sin
+    más estructura que un título y texto libre, para ideas o cosas que
+    apuntar que no encajan en ningún otro sitio del admin."""
+
+    title = models.CharField("título", max_length=150)
+    body = models.TextField("apunte", blank=True)
+    created_at = models.DateTimeField("creado", auto_now_add=True)
+    updated_at = models.DateTimeField("última edición", auto_now=True)
+
+    class Meta:
+        verbose_name = "apunte personal"
+        verbose_name_plural = "apuntes personales"
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return self.title
+
+
 SESSION_THEME_KEY = "theme_slug"
 
 
