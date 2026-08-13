@@ -38,13 +38,15 @@
 
 <style>
     #menu-order-apps { display: flex; flex-direction: column; gap: 0.75rem; max-width: 520px; }
-    .menu-order-group { border: 1px solid var(--border-color, #ccc); border-radius: 6px; background: var(--body-bg, #fff); }
-    .menu-order-group__header { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.9rem; cursor: grab; }
+    .menu-order-group { border: 1px solid var(--border-color, #ccc); border-radius: 6px; background: var(--body-bg, #fff); touch-action: none; }
+    .menu-order-group__header { display: flex; align-items: center; gap: 0.5rem; padding: 0.9rem; cursor: grab; touch-action: none; }
     .menu-order-models { list-style: none; margin: 0; padding: 0 0.9rem 0.6rem; }
-    .menu-order-model { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; margin-left: 1.4rem; cursor: grab; border-radius: 4px; }
+    .menu-order-model { display: flex; align-items: center; gap: 0.5rem; padding: 0.7rem 0.5rem; margin-left: 1.4rem; cursor: grab; border-radius: 4px; touch-action: none; }
     .menu-order-model:hover, .menu-order-group__header:hover { background: rgba(127, 127, 127, 0.12); }
-    .menu-order-drag-handle { opacity: 0.6; }
+    .menu-order-model:active, .menu-order-group__header:active { cursor: grabbing; background: rgba(127, 127, 127, 0.2); }
+    .menu-order-drag-handle { opacity: 0.6; font-size: 1.1rem; }
     .menu-order-status { min-height: 1.4em; font-size: 0.9em; color: var(--body-quiet-color, #666); }
+    .sortable-chosen { background: rgba(127, 127, 127, 0.25) !important; }
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
@@ -85,16 +87,21 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    // Sin `handle`: se puede arrastrar tocando cualquier punto de la fila,
+    // no solo el icono ⠿ (que es un blanco muy pequeño para el dedo en
+    // móvil) — el icono se queda solo como pista visual. `touch-action:
+    // none` en el CSS de arriba es lo que de verdad hace falta para que el
+    // navegador no confunda el arrastre con un scroll de la página.
     Sortable.create(appsRoot, {
-        handle: ".menu-order-drag-handle",
         animation: 150,
+        chosenClass: "sortable-chosen",
         onEnd: save,
     });
 
     appsRoot.querySelectorAll(".menu-order-models").forEach(function (list) {
         Sortable.create(list, {
-            handle: ".menu-order-drag-handle",
             animation: 150,
+            chosenClass: "sortable-chosen",
             group: { name: "models-" + list.dataset.app, pull: false, put: false },
             onEnd: save,
         });

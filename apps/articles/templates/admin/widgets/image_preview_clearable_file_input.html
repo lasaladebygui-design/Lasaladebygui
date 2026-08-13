@@ -1,26 +1,40 @@
 <div id="cover-preview-wrap" style="margin-bottom:.6rem;{% if not widget.is_initial %}display:none;{% endif %}">
-    <div style="width:320px;max-width:100%;aspect-ratio:2.4/1;border-radius:8px;overflow:hidden;border:1px solid #ccc;">
-        <img id="cover-preview-img" src="{% if widget.is_initial %}{{ widget.value.url }}{% endif %}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+        <div>
+            <div style="width:280px;max-width:100%;aspect-ratio:2.4/1;border-radius:8px;overflow:hidden;border:1px solid #ccc;">
+                <img id="cover-preview-img-hero" src="{% if widget.is_initial %}{{ widget.value.url }}{% endif %}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">
+            </div>
+            <p style="font-size:.75rem;color:#666;margin:.3rem 0 0;">En el carrusel de portada</p>
+        </div>
+        <div>
+            <div style="width:180px;max-width:100%;aspect-ratio:16/10;border-radius:8px;overflow:hidden;border:1px solid #ccc;">
+                <img id="cover-preview-img-card" src="{% if widget.is_initial %}{{ widget.value.url }}{% endif %}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">
+            </div>
+            <p style="font-size:.75rem;color:#666;margin:.3rem 0 0;">En la lista de artículos</p>
+        </div>
     </div>
     {% if widget.is_initial and not widget.required %}
-    <label style="font-weight:normal;margin:.4rem 0 0;display:block;">
+    <label style="font-weight:normal;margin:.6rem 0 0;display:block;">
         <input type="checkbox" name="{{ widget.checkbox_name }}" id="{{ widget.checkbox_id }}">
         Quitar imagen actual
     </label>
     {% endif %}
 </div>
 <input type="{{ widget.type }}" name="{{ widget.name }}"{% include "django/forms/widgets/attrs.html" %}>
-<p style="font-size:.8rem;color:#666;margin:.4rem 0 0;max-width:320px;">Así se recorta si el artículo sale en el carrusel destacado de la portada — mejor una foto alargada (horizontal) que cuadrada, para que no se pierda lo importante al recortarla.</p>
+<p style="font-size:.8rem;color:#666;margin:.4rem 0 0;max-width:460px;">Cada sitio recorta distinto — mejor una foto alargada (horizontal) que cuadrada, para que no se pierda lo importante al recortarla en ninguno de los dos.</p>
 <script>
 (function () {
     var fileInput = document.getElementsByName("{{ widget.name }}")[0];
     var wrap = document.getElementById("cover-preview-wrap");
-    var img = document.getElementById("cover-preview-img");
-    if (!fileInput || !wrap || !img) return;
+    var imgHero = document.getElementById("cover-preview-img-hero");
+    var imgCard = document.getElementById("cover-preview-img-card");
+    if (!fileInput || !wrap || !imgHero || !imgCard) return;
     fileInput.addEventListener("change", function () {
         var file = fileInput.files && fileInput.files[0];
         if (!file) return;
-        img.src = URL.createObjectURL(file);
+        var url = URL.createObjectURL(file);
+        imgHero.src = url;
+        imgCard.src = url;
         wrap.style.display = "";
     });
 })();

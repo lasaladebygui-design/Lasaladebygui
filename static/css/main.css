@@ -1227,6 +1227,11 @@ main { flex: 1; }
     color: var(--color-text-muted);
     user-select: none;
     line-height: 1;
+    /* Sin esto, un dedo que empieza a arrastrar justo sobre el tirador
+       puede interpretarse como un scroll de la página en vez de un
+       arrastre — el gesto se lo queda el navegador antes de que
+       SortableJS llegue a verlo. */
+    touch-action: none;
 }
 .drag-handle:active { cursor: grabbing; }
 .sortable-ghost { opacity: 0.4; }
@@ -1581,17 +1586,27 @@ main { flex: 1; }
 .secret-gate__form { max-width: 320px; width: 100%; margin-top: calc(var(--space-unit) * 6); text-align: left; }
 
 .secret-gate-scene {
+    /* Se sale de `.wrap--narrow` (y de `.wrap`) para ocupar todo el ancho
+       de la pantalla, no solo la columna de texto — así el maletín se
+       siente parte del escenario en vez de una tarjeta metida en la
+       cuadrícula de contenido. `.secret-gate__inner` es flex con
+       align-items:center, así que un hijo más ancho que el contenedor ya
+       queda centrado sobre el centro de la página automáticamente —
+       basta con darle 100vw, sin margin/transform manuales (que aquí
+       DUPLICABAN el centrado y lo descuadraban). html/body ya tienen
+       overflow-x:hidden, así que el 100vw nunca provoca scroll horizontal. */
     position: relative;
-    width: 100%;
-    min-height: 220px;
+    width: 100vw;
+    min-height: clamp(260px, 40vh, 420px);
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
-    margin: 0 0 calc(var(--space-unit) * 3);
+    margin-top: 0;
+    margin-bottom: calc(var(--space-unit) * 3);
     background: transparent;
     border: none;
-    border-radius: var(--radius-base);
+    border-radius: 0;
     overflow: hidden;
     cursor: pointer;
     outline: none;
@@ -1630,8 +1645,7 @@ main { flex: 1; }
 .secret-gate-scene:focus-visible .briefcase { transform: translateY(-4px); }
 .secret-gate-scene:focus-visible {
     outline: 2px solid var(--color-text-muted);
-    outline-offset: 4px;
-    border-radius: var(--radius-base);
+    outline-offset: -4px;
 }
 
 .secret-gate-panel { display: flex; flex-direction: column; align-items: center; }
@@ -2993,15 +3007,18 @@ main { flex: 1; }
        borde derecho. En móvil la campanita se movió junto al selector de
        tema (más a la izquierda del grupo), así que anclarse a su propio
        botón sacaba el desplegable ancho fuera de la pantalla por la
-       izquierda. Aquí se ancla al viewport en vez de al botón. */
+       izquierda. Aquí se ancla al borde derecho del viewport en vez de al
+       botón — pero solo por el lado derecho: el ancho sigue siendo el
+       que pida el contenido (no left+right, que lo estiraba de punta a
+       punta de la pantalla aunque solo tuviera un par de líneas). */
     .notif-bell__menu,
     .theme-switcher__menu {
         position: fixed;
         top: 60px;
-        left: calc(var(--space-unit) * 3);
+        left: auto;
         right: calc(var(--space-unit) * 3);
-        width: auto;
-        max-width: none;
+        width: max-content;
+        max-width: calc(100vw - var(--space-unit) * 6);
     }
 
     .hero__actions { flex-direction: column; align-items: stretch; }
