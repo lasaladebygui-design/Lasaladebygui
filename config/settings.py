@@ -292,17 +292,27 @@ CKEDITOR_5_CONFIGS = {
         # imagen (subida o por URL, se puede insertar entre dos frases
         # cualesquiera, no solo al final), vídeo embebido (pegar un enlace
         # de YouTube/Vimeo lo convierte en reproductor) y línea horizontal.
-        "toolbar": [
-            "undo", "redo", "|",
-            "heading", "|",
-            "bold", "italic", "underline", "strikethrough", "|",
-            "fontColor", "fontBackgroundColor", "highlight", "removeFormat", "|",
-            "alignment", "|",
-            "bulletedList", "numberedList", "todoList", "|",
-            "outdent", "indent", "|",
-            "link", "blockQuote", "insertImage", "insertTable", "mediaEmbed", "horizontalLine", "|",
-            "specialCharacters", "findAndReplace",
-        ],
+        "toolbar": {
+            "items": [
+                "undo", "redo", "|",
+                "heading", "|",
+                "bold", "italic", "underline", "strikethrough", "|",
+                "fontColor", "fontBackgroundColor", "highlight", "removeFormat", "|",
+                "alignment", "|",
+                "bulletedList", "numberedList", "todoList", "|",
+                "outdent", "indent", "|",
+                "link", "blockQuote", "insertImage", "insertTable", "mediaEmbed", "horizontalLine", "|",
+                "specialCharacters", "findAndReplace",
+            ],
+            # Sin esto, con tantos botones la barra no cabe en el ancho
+            # normal del editor y CKEditor5 esconde el resto (incluido
+            # "Insertar imagen") detrás de un "Show more items" que casi
+            # nadie encuentra — daba la sensación de que no se podían meter
+            # fotos en medio del artículo cuando en realidad sí se podía,
+            # solo que el botón estaba escondido. Con esto la barra pasa a
+            # varias líneas en vez de recortarse.
+            "shouldNotGroupWhenFull": True,
+        },
         "image": {
             "toolbar": [
                 "imageTextAlternative", "|",

@@ -154,22 +154,21 @@ a:hover { color: var(--color-accent-secondary); }
 }
 .site-nav a:hover, .site-nav__logout button:hover { background: var(--color-bg); color: var(--color-accent); }
 @media (max-width: 640px) {
-    /* En escritorio el desplegable ancladito a la izquierda funciona
-       bien porque sobra sitio alrededor; en móvil, esa misma caja
-       estrecha flotando sobre el contenido se sentía suelta y
-       apretada. Al quitarle el "position" al contenedor del botón, el
-       desplegable pasa a anclarse a la cabecera entera (que sí lo es,
-       por el position:sticky) y se estira a todo su ancho en vez del
-       ancho del botón — las filas quedan también un poco más grandes,
-       más cómodas de tocar. */
+    /* Antes se estiraba left:0;right:0 a todo el ancho de la cabecera
+       — se sentía como una barra entera en vez de un menú, así que
+       ahora se ancla solo por la izquierda (donde está el botón ☰) y
+       el ancho lo pone el contenido, igual que el resto de
+       desplegables de la cabecera (tema, campanita). Las filas se
+       quedan igual de grandes para que sigan siendo cómodas de tocar. */
     .site-header__nav { position: static; }
     .site-nav {
-        left: 0;
-        right: 0;
+        left: calc(var(--space-unit) * 3);
+        right: auto;
+        width: max-content;
+        max-width: calc(100vw - var(--space-unit) * 6);
         min-width: 0;
         padding: 0.5rem;
-        border-inline: none;
-        border-radius: 0;
+        border-radius: var(--radius-base);
     }
     .site-nav a, .site-nav__logout button { padding: 0.75rem 0.9rem; font-size: 1rem; }
 }
@@ -907,8 +906,10 @@ main { flex: 1; }
 .explore-row__item--accent .explore-row__cta { color: var(--color-on-accent-secondary); opacity: 0.9; }
 
 @media (min-width: 900px) {
-    .home-hero__stage { min-height: 220px; }
-    .home-hero__slide { grid-template-columns: 1fr 1fr; min-height: 220px; }
+    /* La imagen del carrusel ya no se parte a la mitad en escritorio —
+       se queda a una sola columna (texto arriba, imagen a todo el
+       ancho debajo) igual que en móvil, en vez de un diseño distinto
+       por tamaño de pantalla. */
     .home-layout { grid-template-columns: 2.2fr 1fr; }
     .home-layout--no-aside { grid-template-columns: 1fr; }
 }
@@ -1612,23 +1613,29 @@ main { flex: 1; }
     outline: none;
 }
 .secret-gate-scene__glow {
+    /* El maletín no se apoya en nada — flota bajo un solo foco de luz
+       venido de arriba (glow + beam), sin suelo ni mesa. */
     position: absolute;
-    top: -10%;
+    top: -25%;
     left: 50%;
     transform: translateX(-50%);
-    width: 60%;
+    width: 85%;
     aspect-ratio: 1;
-    background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 26%, transparent), transparent 70%);
+    background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 40%, transparent), transparent 68%);
     pointer-events: none;
 }
-.secret-gate-scene__desk {
+.secret-gate-scene__beam {
+    /* Cono de luz de foco de teatro: ancho arriba, estrecho sobre el
+       maletín, como si colgara una lámpara justo encima. */
     position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 34%;
-    background: linear-gradient(180deg, var(--color-surface), var(--color-border));
-    border-top: 1px solid var(--color-border);
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50%;
+    height: 100%;
+    clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 24%, transparent), transparent 85%);
+    pointer-events: none;
 }
 .secret-gate-scene__hint {
     position: absolute;
