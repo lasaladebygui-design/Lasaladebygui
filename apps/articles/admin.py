@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 
 from .models import Article, ArticleComment, ArticleIdea, ArticleView, Tag
@@ -16,19 +17,43 @@ class ArticleCommentInline(admin.TabularInline):
     readonly_fields = ("author", "created_at")
 
 
+class ImagePreviewWidget(forms.ClearableFileInput):
+    """Como el ClearableFileInput de siempre, pero con una miniatura en
+    vez de la ruta completa del archivo en texto — la ruta de Supabase
+    es larga y no aporta nada al ver el formulario."""
+
+    template_name = "admin/widgets/image_preview_clearable_file_input.html"
+
+
+class ArticleAdminForm(forms.ModelForm):
+    class Meta:
+        model = Article
+        fields = "__all__"
+        widgets = {"cover": ImagePreviewWidget}
+
+
 @admin.register(Article)
 class ArticleAdmin(admin.ModelAdmin):
-    list_display = ("title", "author", "is_private", "created_at", "updated_at")
-    list_filter = ("is_private", "tags", "author")
+    form = ArticleAdminForm
+    list_display = ("title", "author", "is_featured", "is_private", "created_at")
+    list_editable = ("is_featured",)
+    list_filter = ("is_featured", "is_private", "tags", "author")
     search_fields = ("title", "body")
     # Autocomplete en vez del widget de "listas disponibles / elegidas" de
     # filter_horizontal (dos columnas con flechas) — un buscador con
     # resultados en vivo es mucho más cómodo, para autor y para listas.
     autocomplete_fields = ("author", "tags")
     readonly_fields = ("created_at", "updated_at")
-    exclude = ("slug",)
     inlines = [ArticleCommentInline]
     actions = ["make_private", "make_public"]
+    # Agrupados por lo que se toca a menudo (contenido, publicación) y lo
+    # que casi nunca (fechas) — antes era una lista plana de campos, así
+    # de un vistazo es más fácil ver qué es cada cosa.
+    fieldsets = (
+        (None, {"fields": ("title", "cover", "body")}),
+        ("Publicación", {"fields": ("author", "tags", "is_featured", "is_private")}),
+        ("Info", {"fields": ("created_at", "updated_at"), "classes": ("collapse",)}),
+    )
 
     def get_changeform_initial_data(self, request):
         # Al crear un artículo nuevo desde el admin, el autor eres tú por

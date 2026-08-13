@@ -730,9 +730,11 @@ main { flex: 1; }
 
 /* --- Portada: carrusel destacado, layout de dos columnas y "explora" --- */
 
-.home-hero-section { padding-block: calc(var(--space-unit) * 10) calc(var(--space-unit) * 4); }
+.home-hero-section { padding-block: calc(var(--space-unit) * 8) calc(var(--space-unit) * 3); }
 
 .home-hero {
+    max-width: 880px;
+    margin-inline: auto;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-base);
@@ -740,10 +742,10 @@ main { flex: 1; }
 }
 .home-hero__slide { display: grid; grid-template-columns: 1fr; }
 .home-hero__text {
-    padding: calc(var(--space-unit) * 8) calc(var(--space-unit) * 6) calc(var(--space-unit) * 6);
+    padding: calc(var(--space-unit) * 5) calc(var(--space-unit) * 5) calc(var(--space-unit) * 4);
     display: flex;
     flex-direction: column;
-    gap: calc(var(--space-unit) * 3);
+    gap: calc(var(--space-unit) * 2);
 }
 .home-hero__eyebrow {
     display: inline-block;
@@ -757,14 +759,14 @@ main { flex: 1; }
     padding: 0.3rem 0.8rem;
     border-radius: 999px;
 }
-.home-hero__text h1 { font-size: clamp(1.5rem, 3vw, 2.2rem); margin: 0; }
+.home-hero__text h1 { font-size: clamp(1.3rem, 2.4vw, 1.8rem); margin: 0; }
 .home-hero__text h1 a { color: var(--color-text); }
 .home-hero__text h1 a:hover { color: var(--color-accent); }
-.home-hero__text p { color: var(--color-text-muted); margin: 0; max-width: 60ch; }
+.home-hero__text p { color: var(--color-text-muted); margin: 0; max-width: 60ch; font-size: 0.92rem; }
 .home-hero__text .btn { align-self: flex-start; }
 
 .home-hero__image-link { display: block; background: var(--color-bg); }
-.home-hero__image { width: 100%; height: 100%; min-height: 220px; object-fit: cover; display: block; }
+.home-hero__image { width: 100%; height: 100%; min-height: 170px; max-height: 320px; object-fit: cover; display: block; }
 .home-hero__image--placeholder {
     display: flex;
     align-items: center;
@@ -1540,19 +1542,21 @@ main { flex: 1; }
 
 /* --- Top Secret --------------------------------------------------------------- */
 
-.secret-gate { text-align: center; }
+.secret-gate { text-align: center; padding-block: calc(var(--space-unit) * 6); }
 .secret-gate__inner { display: flex; flex-direction: column; align-items: center; }
+.secret-gate__inner h1 { margin-bottom: 0.4rem; }
+.secret-gate__inner > p.muted { margin-bottom: calc(var(--space-unit) * 5); }
 .secret-gate__form { max-width: 320px; width: 100%; margin-top: calc(var(--space-unit) * 6); text-align: left; }
 
 .secret-gate-scene {
     position: relative;
     width: 100%;
-    min-height: 280px;
+    min-height: 220px;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
-    margin: 0 0 calc(var(--space-unit) * 6);
+    margin: 0 0 calc(var(--space-unit) * 3);
     background: var(--color-bg);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-base);

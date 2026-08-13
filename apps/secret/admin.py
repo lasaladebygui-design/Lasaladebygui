@@ -67,7 +67,9 @@ class TopSecretConfigAdmin(SingletonAdmin):
 
 @admin.register(Genre)
 class GenreAdmin(admin.ModelAdmin):
-    list_display = ("name",)
+    list_display = ("name", "admin_only")
+    list_editable = ("admin_only",)
+    list_filter = ("admin_only",)
     exclude = ("slug",)
     search_fields = ("name",)
 

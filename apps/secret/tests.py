@@ -265,6 +265,60 @@ class SecretMovieViewTests(TestCase):
         self.assertIsNone(response.context["result"])
 
 
+class AdminOnlyGenreTests(TestCase):
+    """Una lista marcada `admin_only` (y las películas que tenga) no la ve
+    nadie que no sea Admin, aunque tenga el código del maletín."""
+
+    def setUp(self):
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.secreta = Genre.objects.create(name="Solo Bygui", admin_only=True)
+        self.publica = Genre.objects.create(name="Terror")
+        self.oculta = SecretMovie.objects.create(title="Solo para mí", personal_rating="9.0")
+        self.oculta.genres.add(self.secreta)
+        self.visible = SecretMovie.objects.create(title="Para todos", personal_rating="8.0")
+        self.visible.genres.add(self.publica)
+
+        self.admin = User.objects.create(email="admin_top_secret@test.local", role=User.Role.ADMIN)
+        self.admin.set_password("Testpass123!")
+        self.admin.save()
+
+    def test_no_admin_no_ve_la_pelicula_oculta_en_la_lista_completa(self):
+        response = self.client.get(reverse("secret:list"))
+        self.assertEqual(list(response.context["movies"]), [self.visible])
+
+    def test_admin_si_ve_la_pelicula_oculta_en_la_lista_completa(self):
+        self.client.login(username=self.admin.email, password="Testpass123!")
+        response = self.client.get(reverse("secret:list"))
+        self.assertIn(self.oculta, list(response.context["movies"]))
+
+    def test_no_admin_no_ve_la_lista_privada_en_el_filtro(self):
+        response = self.client.get(reverse("secret:list"))
+        self.assertNotIn(self.secreta, list(response.context["form"].fields["genres"].queryset))
+
+    def test_admin_si_ve_la_lista_privada_en_el_filtro(self):
+        self.client.login(username=self.admin.email, password="Testpass123!")
+        response = self.client.get(reverse("secret:list"))
+        self.assertIn(self.secreta, list(response.context["form"].fields["genres"].queryset))
+
+    def test_no_admin_no_puede_acceder_a_la_pelicula_oculta_por_numero(self):
+        response = self.client.get(reverse("secret:by-number"), {"number": self.oculta.number})
+        self.assertEqual(response.status_code, 404)
+
+    def test_no_admin_no_puede_acceder_a_la_ficha_de_la_pelicula_oculta(self):
+        response = self.client.get(reverse("secret:movie-detail", args=[self.oculta.pk]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_no_admin_no_ve_la_lista_privada_en_el_buscador_por_nota(self):
+        response = self.client.get(reverse("secret:by-rating"))
+        self.assertNotIn(self.secreta, list(response.context["genres"]))
+
+    def test_no_admin_buscando_por_la_lista_privada_no_encuentra_nada(self):
+        response = self.client.get(reverse("secret:by-rating"), {
+            "min_rating": 1, "max_rating": 10, "genre": self.secreta.slug,
+        })
+        self.assertIsNone(response.context["result"])
+
+
 class SecretMovieAutoNumberingTests(TestCase):
     """El número ya no se elige a mano: es la posición al ordenar por nota
     (de mayor a menor), recalculada sola en cada guardado/borrado."""

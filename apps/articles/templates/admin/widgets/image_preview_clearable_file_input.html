@@ -1,0 +1,12 @@
+{% if widget.is_initial %}
+<div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.5rem;">
+    <img src="{{ widget.value.url }}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid #ccc;">
+    {% if not widget.required %}
+    <label style="font-weight:normal;margin:0;">
+        <input type="checkbox" name="{{ widget.checkbox_name }}" id="{{ widget.checkbox_id }}">
+        Quitar imagen actual
+    </label>
+    {% endif %}
+</div>
+{% endif %}
+<input type="{{ widget.type }}" name="{{ widget.name }}"{% include "django/forms/widgets/attrs.html" %}>

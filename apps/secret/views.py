@@ -59,6 +59,20 @@ def _is_htmx(request):
     return request.headers.get("HX-Request") == "true"
 
 
+def _is_admin(user):
+    return user.is_authenticated and user.role == User.Role.ADMIN
+
+
+def _visible_movies(user):
+    """Base queryset de SecretMovie según quién mira: un Admin ve todo,
+    cualquier otra persona (aunque tenga el código) no ve ninguna
+    película marcada con una lista `admin_only`."""
+    movies = SecretMovie.objects.prefetch_related("genres").select_related("movie")
+    if _is_admin(user):
+        return movies
+    return movies.exclude(genres__admin_only=True)
+
+
 def secret_required(view_func):
     @wraps(view_func)
     def wrapped(request, *args, **kwargs):
@@ -112,7 +126,7 @@ def by_number(request):
     form = NumberSelectForm(request.GET or None)
     result = None
     if request.GET and form.is_valid():
-        result = get_object_or_404(SecretMovie, number=form.cleaned_data["number"])
+        result = get_object_or_404(_visible_movies(request.user), number=form.cleaned_data["number"])
     return render(request, "secret/by_number.html", {"form": form, "result": result})
 
 
@@ -122,13 +136,13 @@ def by_rating(request):
     result = None
     searched = False
     genre_slug = request.GET.get("genre", "").strip()
-    genres = Genre.objects.all()
+    genres = Genre.objects.all() if _is_admin(request.user) else Genre.objects.filter(admin_only=False)
     selected_genre_name = next((g.name for g in genres if g.slug == genre_slug), "")
 
     if request.GET and form.is_valid():
         searched = True
         min_r, max_r = int(form.cleaned_data["min_rating"]), int(form.cleaned_data["max_rating"])
-        matches = SecretMovie.objects.filter(personal_rating__gte=min_r, personal_rating__lte=max_r)
+        matches = _visible_movies(request.user).filter(personal_rating__gte=min_r, personal_rating__lte=max_r)
         if genre_slug:
             matches = matches.filter(genres__slug=genre_slug)
         matches = list(matches)
@@ -143,8 +157,8 @@ def by_rating(request):
 
 @secret_required
 def full_list(request):
-    form = FullListFilterForm(request.GET or None)
-    movies = SecretMovie.objects.prefetch_related("genres").select_related("movie").all()
+    form = FullListFilterForm(request.GET or None, admin_user=_is_admin(request.user))
+    movies = _visible_movies(request.user)
     if form.is_valid():
         genres = form.cleaned_data.get("genres")
         if genres:
@@ -189,9 +203,7 @@ def full_list(request):
 
 @secret_required
 def movie_detail(request, pk):
-    movie = get_object_or_404(
-        SecretMovie.objects.prefetch_related("genres").select_related("movie"), pk=pk,
-    )
+    movie = get_object_or_404(_visible_movies(request.user), pk=pk)
     return render(request, "secret/movie_detail.html", {
         "movie": movie, "rating_config": TopSecretConfig.load(),
     })

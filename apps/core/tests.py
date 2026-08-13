@@ -63,6 +63,17 @@ class HomeTests(TestCase):
         for url_name in ["articles:list", "forum:list", "movies:list", "games:hub", "shop:list", "secret:gate"]:
             self.assertContains(response, reverse(url_name))
 
+    def test_los_marcados_como_destacados_tienen_prioridad_en_el_carrusel(self):
+        # Si hay artículos marcados a mano, esos son los del carrusel —
+        # aunque no sean los más recientes — y no se repiten abajo.
+        for i in range(5):
+            Article.objects.create(title=f"Reciente {i}", body="x")
+        elegido = Article.objects.create(title="Elegido a mano", body="x", is_featured=True)
+
+        response = self.client.get(reverse("core:home"))
+        self.assertEqual(list(response.context["hero_articles"]), [elegido])
+        self.assertNotIn(elegido, response.context["grid_articles"])
+
 
 class WrapAfterPeriodFilterTests(TestCase):
     def test_solo_deja_partible_el_espacio_tras_el_primer_punto(self):

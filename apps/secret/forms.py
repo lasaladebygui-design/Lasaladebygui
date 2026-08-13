@@ -74,6 +74,11 @@ class FullListFilterForm(forms.Form):
         help_text="Marca varias para cruzarlas: solo aparecen las películas que estén en todas las marcadas.",
     )
 
+    def __init__(self, *args, admin_user=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not admin_user:
+            self.fields["genres"].queryset = Genre.objects.filter(admin_only=False)
+
 
 class TierLevelForm(forms.ModelForm):
     class Meta:

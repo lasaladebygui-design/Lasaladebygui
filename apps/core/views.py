@@ -24,13 +24,23 @@ def home(request):
     articles = Article.objects.select_related("author").prefetch_related("tags")
     if not can_manage_private_articles(request.user):
         articles = articles.filter(is_private=False)
-    articles = list(articles[:8])
+
+    # Si hay artículos marcados a mano como destacados, esos son los que
+    # rotan en el carrusel; si no se ha marcado ninguno, se usan los más
+    # recientes (comportamiento de siempre). En ambos casos, "Últimos
+    # artículos" no repite ninguno de los que ya salen en el carrusel.
+    featured = list(articles.filter(is_featured=True)[:5])
+    if featured:
+        hero_articles = featured[:3]
+        grid_articles = list(articles.exclude(pk__in=[a.pk for a in featured])[:5])
+    else:
+        recent = list(articles[:8])
+        hero_articles = recent[:3]
+        grid_articles = recent[3:8]
+
     return TemplateResponse(request, "core/home.html", {
-        # Los 3 más recientes rotan en el carrusel destacado; los 5
-        # siguientes son la fila de "Últimos artículos" — así no se
-        # repite ningún artículo entre las dos secciones.
-        "hero_articles": articles[:3],
-        "grid_articles": articles[3:8],
+        "hero_articles": hero_articles,
+        "grid_articles": grid_articles,
         "recent_activity": recent_activity(request.user),
     })
 

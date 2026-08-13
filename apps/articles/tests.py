@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from django.core import mail
+from django.core.files.base import ContentFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -298,6 +299,31 @@ class ArticleAdminTests(TestCase):
         response = self.client.get(reverse("admin:articles_article_add"))
         self.assertNotContains(response, "selector-available")
         self.assertContains(response, 'data-field-name="tags"')
+
+    def test_el_formulario_de_edicion_carga_bien_con_portada(self):
+        # Regresión: el widget de miniatura de la portada vive en un
+        # template propio (apps/articles/templates/...) porque el motor
+        # de formularios de Django no mira los DIRS del proyecto, solo
+        # las carpetas templates/ de cada app — si el template no está en
+        # el sitio correcto, esto da TemplateDoesNotExist.
+        article = Article.objects.create(title="Con portada", body="x", author=self.admin)
+        article.cover.save("portada.jpg", ContentFile(b"contenido-falso"), save=True)
+        response = self.client.get(reverse("admin:articles_article_change", args=[article.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Quitar imagen actual")
+
+    def test_destacado_es_editable_desde_la_lista(self):
+        article = Article.objects.create(title="Editable en lista", body="x", author=self.admin)
+        response = self.client.post(reverse("admin:articles_article_changelist"), {
+            "_selected_action": [article.pk],
+            "action": "",
+            "form-TOTAL_FORMS": "1", "form-INITIAL_FORMS": "1",
+            "form-0-id": article.pk, "form-0-is_featured": "on",
+            "_save": "Save",
+        })
+        self.assertEqual(response.status_code, 302)
+        article.refresh_from_db()
+        self.assertTrue(article.is_featured)
 
 
 class LatestArticlesLinkTests(TestCase):

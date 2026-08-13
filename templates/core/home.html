@@ -108,15 +108,6 @@
                 {% elif not hero_articles %}
                 <p class="muted">Todavía no hay artículos publicados. ¡Sé el primero en escribir uno!</p>
                 {% endif %}
-
-                <a href="{% url 'movies:roulette-home' %}" class="strip-card strip-card--link home-roulette-strip">
-                    <div>
-                        <span class="card__tag">Ruleta</span>
-                        <h2>¿Qué vemos hoy?</h2>
-                        <p class="muted">Se acabaron los 20 minutos scrolleando el catálogo sin decidirte. Elige un rango de nota o tu lista de guardadas, tira de la palanca y que el destino elija por ti.</p>
-                    </div>
-                    <span class="btn btn--accent btn--sm">Girar &rarr;</span>
-                </a>
             </div>
 
             {% if recent_activity %}
@@ -200,6 +191,19 @@
                 <span class="explore-row__cta">Entrar →</span>
             </a>
         </div>
+    </div>
+</section>
+
+<section class="section section--tight">
+    <div class="wrap">
+        <a href="{% url 'movies:roulette-home' %}" class="strip-card strip-card--link home-roulette-strip">
+            <div>
+                <span class="card__tag">Ruleta</span>
+                <h2>¿Qué vemos hoy?</h2>
+                <p class="muted">Se acabaron los 20 minutos scrolleando el catálogo sin decidirte. Elige un rango de nota o tu lista de guardadas, tira de la palanca y que el destino elija por ti.</p>
+            </div>
+            <span class="btn btn--accent btn--sm">Girar &rarr;</span>
+        </a>
     </div>
 </section>
 {% endblock %}

@@ -46,6 +46,10 @@ class Article(models.Model):
         "privado", default=False,
         help_text="Solo lo ven Gestores y Admin — el resto ni siquiera sabe que existe.",
     )
+    is_featured = models.BooleanField(
+        "destacado", default=False,
+        help_text="Aparece en el carrusel de la portada. Si no marcas ninguno, se usan los más recientes.",
+    )
     created_at = models.DateTimeField("fecha de publicación", auto_now_add=True)
     updated_at = models.DateTimeField("última edición", auto_now=True)
 

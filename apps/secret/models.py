@@ -63,6 +63,10 @@ class Genre(models.Model):
 
     name = models.CharField("nombre", max_length=50, unique=True)
     slug = models.SlugField("slug", max_length=60, unique=True, blank=True)
+    admin_only = models.BooleanField(
+        "solo para admins", default=False,
+        help_text="Ni esta lista ni ninguna película marcada con ella las ve nadie más, aunque tenga el código.",
+    )
 
     class Meta:
         verbose_name = "lista"
