@@ -25,7 +25,7 @@ class HomeTests(TestCase):
             Article.objects.create(title=f"Artículo {i}", body="Cuerpo")
         response = self.client.get(reverse("core:home"))
         self.assertEqual(len(response.context["hero_articles"]), 3)
-        self.assertEqual(len(response.context["grid_articles"]), 4)
+        self.assertEqual(len(response.context["grid_articles"]), 5)
         # Sin solapamiento: ninguno de los "últimos artículos" repite uno
         # que ya salga en el carrusel destacado.
         hero_pks = {a.pk for a in response.context["hero_articles"]}

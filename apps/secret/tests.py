@@ -97,6 +97,18 @@ class GateTests(TestCase):
         response = self.client.post(reverse("secret:gate"), {"code": "8888"})
         self.assertRedirects(response, reverse("secret:home"))
 
+    def test_la_escena_del_maletin_empieza_cerrada(self):
+        response = self.client.get(reverse("secret:gate"))
+        self.assertContains(response, "open: false")
+
+    def test_tras_un_codigo_incorrecto_la_escena_se_abre_ya(self):
+        # Si el formulario vuelve con error, el panel del código debe
+        # aparecer ya abierto en vez de obligar a tocar el maletín otra
+        # vez para ver por qué falló.
+        response = self.client.post(reverse("secret:gate"), {"code": "0000"})
+        self.assertContains(response, "open: true")
+        self.assertContains(response, "briefcase--shake")
+
 
 class SecretMovieViewTests(TestCase):
     def setUp(self):

@@ -158,39 +158,46 @@
             <a href="{% url 'articles:list' %}" class="explore-row__item">
                 <span class="explore-row__icon" aria-hidden="true">📰</span>
                 <span class="explore-row__label">Artículos</span>
-                <span class="explore-row__sub muted">Críticas y opinión</span>
+                <span class="explore-row__sub">Críticas y opinión</span>
+                <span class="explore-row__cta">Entrar →</span>
             </a>
             <a href="{% url 'forum:list' %}" class="explore-row__item">
                 <span class="explore-row__icon" aria-hidden="true">💬</span>
                 <span class="explore-row__label">Foro</span>
-                <span class="explore-row__sub muted">Debate y comparte</span>
+                <span class="explore-row__sub">Debate y comparte</span>
+                <span class="explore-row__cta">Entrar →</span>
             </a>
             {% if user.is_authenticated %}
             <a href="{% url 'social:home' %}" class="explore-row__item">
                 <span class="explore-row__icon" aria-hidden="true">👥</span>
                 <span class="explore-row__label">Social</span>
-                <span class="explore-row__sub muted">Conecta y descubre</span>
+                <span class="explore-row__sub">Conecta y descubre</span>
+                <span class="explore-row__cta">Entrar →</span>
             </a>
             {% endif %}
             <a href="{% url 'movies:list' %}" class="explore-row__item">
                 <span class="explore-row__icon" aria-hidden="true">🎬</span>
                 <span class="explore-row__label">Películas</span>
-                <span class="explore-row__sub muted">Catálogo y reseñas</span>
+                <span class="explore-row__sub">Catálogo y reseñas</span>
+                <span class="explore-row__cta">Entrar →</span>
             </a>
             <a href="{% url 'games:hub' %}" class="explore-row__item">
                 <span class="explore-row__icon" aria-hidden="true">🎮</span>
                 <span class="explore-row__label">Juegos</span>
-                <span class="explore-row__sub muted">Juega y diviértete</span>
+                <span class="explore-row__sub">Juega y diviértete</span>
+                <span class="explore-row__cta">Entrar →</span>
             </a>
             <a href="{% url 'shop:list' %}" class="explore-row__item explore-row__item--accent">
                 <span class="explore-row__icon" aria-hidden="true">🛍️</span>
                 <span class="explore-row__label">Tienda</span>
                 <span class="explore-row__sub">Merchandising y más</span>
+                <span class="explore-row__cta">Entrar →</span>
             </a>
             <a href="{% url 'secret:gate' %}" class="explore-row__item explore-row__item--accent">
                 <span class="explore-row__icon" aria-hidden="true">🔒</span>
                 <span class="explore-row__label">Top Secret</span>
                 <span class="explore-row__sub">Solo para miembros</span>
+                <span class="explore-row__cta">Entrar →</span>
             </a>
         </div>
     </div>
