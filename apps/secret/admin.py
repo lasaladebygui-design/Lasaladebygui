@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib import admin
 
-from apps.core.admin import SingletonAdmin
+from apps.core.admin import SingletonAdmin, SortableAdminMixin
 
 from .forms import SecretMovieForm
 from .models import (
@@ -66,11 +66,12 @@ class TopSecretConfigAdmin(SingletonAdmin):
 
 
 @admin.register(Genre)
-class GenreAdmin(admin.ModelAdmin):
+class GenreAdmin(SortableAdminMixin, admin.ModelAdmin):
     list_display = ("name", "admin_only")
+    list_display_links = ("name",)
     list_editable = ("admin_only",)
     list_filter = ("admin_only",)
-    exclude = ("slug",)
+    exclude = ("slug", "order")
     search_fields = ("name",)
 
 

@@ -36,6 +36,20 @@ def article_list(request):
     if not can_manage_private_articles(request.user):
         articles = articles.filter(is_private=False)
 
+    if request.user.is_authenticated and not request.headers.get("HX-Request"):
+        # Entrar en el tablón marca todo lo visible como visto, igual que
+        # abrir cada artículo suelto — si no, la campanita se quedaba
+        # "atascada" en un número aunque ya hubieras pasado por aquí,
+        # porque solo contaba como visto lo que abrías uno a uno. Solo en
+        # la carga completa de la página (no en cada tanda del scroll
+        # infinito, que ya iría siendo redundante tras la primera).
+        seen_ids = ArticleView.objects.filter(user=request.user).values_list("article_id", flat=True)
+        unseen_ids = articles.exclude(pk__in=seen_ids).exclude(author=request.user).values_list("pk", flat=True)
+        ArticleView.objects.bulk_create(
+            [ArticleView(article_id=pk, user=request.user) for pk in unseen_ids],
+            ignore_conflicts=True,
+        )
+
     tag_slug = request.GET.get("tag")
     active_tag = None
     if tag_slug == "none":

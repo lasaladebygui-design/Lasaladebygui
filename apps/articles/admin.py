@@ -1,13 +1,16 @@
 from django import forms
 from django.contrib import admin
 
+from apps.core.admin import SortableAdminMixin
+
 from .models import Article, ArticleComment, ArticleIdea, ArticleView, Tag
 
 
 @admin.register(Tag)
-class TagAdmin(admin.ModelAdmin):
+class TagAdmin(SortableAdminMixin, admin.ModelAdmin):
     list_display = ("name",)
-    exclude = ("slug",)
+    list_display_links = ("name",)
+    exclude = ("slug", "order")
     search_fields = ("name",)
 
 

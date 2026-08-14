@@ -265,6 +265,38 @@ class SecretMovieViewTests(TestCase):
         self.assertIsNone(response.context["result"])
 
 
+class GenreSortableAdminTests(TestCase):
+    """Arrastrar para reordenar las listas de Top Secret (Genre), igual que
+    Temas o Enlaces de contacto — ver SortableAdminMixin en apps/core/admin.py."""
+
+    def setUp(self):
+        self.admin = User.objects.create(email="drag_genre_admin@test.local", role=User.Role.ADMIN, is_staff=True, is_superuser=True)
+        self.admin.set_password("Testpass123!")
+        self.admin.save()
+        self.client.login(username=self.admin.email, password="Testpass123!")
+        self.a = Genre.objects.create(name="Terror", order=0)
+        self.b = Genre.objects.create(name="Comedia", order=1)
+        self.c = Genre.objects.create(name="Drama", order=2)
+
+    def test_arrastrar_actualiza_el_orden_de_todas(self):
+        url = reverse("admin:secret_genre_reorder")
+        response = self.client.post(
+            url, data='{"order": [%d, %d, %d]}' % (self.c.pk, self.a.pk, self.b.pk),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.a.refresh_from_db()
+        self.b.refresh_from_db()
+        self.c.refresh_from_db()
+        self.assertEqual(self.c.order, 0)
+        self.assertEqual(self.a.order, 1)
+        self.assertEqual(self.b.order, 2)
+
+    def test_el_listado_tiene_el_tirador_de_arrastre(self):
+        response = self.client.get(reverse("admin:secret_genre_changelist"))
+        self.assertContains(response, "drag-handle")
+
+
 class AdminOnlyGenreTests(TestCase):
     """Una lista marcada `admin_only` (y las películas que tenga) no la ve
     nadie que no sea Admin, aunque tenga el código del maletín."""

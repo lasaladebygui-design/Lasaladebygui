@@ -456,6 +456,18 @@ main { flex: 1; }
     border-radius: var(--radius-base);
     padding: calc(var(--space-unit) * 6);
 }
+/* La tienda (.card__img) no tenía NINGÚN estilo — la foto del producto
+   salía a su tamaño real sin recortar, gigantesca en la tarjeta. Mismo
+   criterio que .oscars-candidate__photo: pequeña, recortada y centrada. */
+.card__img {
+    width: 100%;
+    max-width: 140px;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: var(--radius-base);
+    display: block;
+    margin: 0 auto calc(var(--space-unit) * 3);
+}
 .card h3 { color: var(--color-accent); font-size: 1.1rem; }
 .card--accent { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); }
 .card p { color: var(--color-text-muted); margin-bottom: 0; }

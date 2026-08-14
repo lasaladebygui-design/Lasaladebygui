@@ -14,11 +14,12 @@ class Tag(models.Model):
 
     name = models.CharField("nombre", max_length=50, unique=True)
     slug = models.SlugField("slug", max_length=60, unique=True, blank=True)
+    order = models.PositiveIntegerField("orden", default=0)
 
     class Meta:
         verbose_name = "lista"
         verbose_name_plural = "listas"
-        ordering = ["name"]
+        ordering = ["order", "name"]
 
     def __str__(self):
         return self.name

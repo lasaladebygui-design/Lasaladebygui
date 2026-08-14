@@ -67,11 +67,12 @@ class Genre(models.Model):
         "solo para admins", default=False,
         help_text="Ni esta lista ni ninguna película marcada con ella las ve nadie más, aunque tenga el código.",
     )
+    order = models.PositiveIntegerField("orden", default=0)
 
     class Meta:
         verbose_name = "lista"
         verbose_name_plural = "listas"
-        ordering = ["name"]
+        ordering = ["order", "name"]
 
     def __str__(self):
         return self.name

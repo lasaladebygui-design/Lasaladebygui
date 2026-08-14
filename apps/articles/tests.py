@@ -7,7 +7,7 @@ from django.urls import reverse
 
 from apps.accounts.models import PushSubscription, User
 
-from .models import Article, ArticleIdea, Tag
+from .models import Article, ArticleIdea, ArticleView, Tag
 
 
 def make_user(email, role):
@@ -68,6 +68,78 @@ class ArticlePermissionTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertEqual(self.article.comments.count(), 1)
+
+
+class ArticleListMarksAsSeenTests(TestCase):
+    """Visitar el tablón marca todos los artículos visibles como vistos —
+    si no, la campanita de avisos se quedaba en un número aunque ya
+    hubieras pasado por la lista, porque solo contaba como "visto" lo que
+    abrías uno a uno."""
+
+    def setUp(self):
+        self.author = make_user("autor_visto@test.local", User.Role.EDITOR)
+        self.reader = make_user("lector_visto@test.local", User.Role.LECTOR)
+        self.article1 = Article.objects.create(title="Uno", body="<p>a</p>", author=self.author)
+        self.article2 = Article.objects.create(title="Dos", body="<p>b</p>", author=self.author)
+
+    def test_visitar_el_listado_marca_los_articulos_como_vistos(self):
+        self.client.login(username=self.reader.email, password="Testpass123!")
+        self.assertEqual(ArticleView.objects.filter(user=self.reader).count(), 0)
+        self.client.get(reverse("articles:list"))
+        seen_ids = set(ArticleView.objects.filter(user=self.reader).values_list("article_id", flat=True))
+        self.assertEqual(seen_ids, {self.article1.pk, self.article2.pk})
+
+    def test_no_marca_como_visto_el_propio_articulo(self):
+        self.client.login(username=self.author.email, password="Testpass123!")
+        self.client.get(reverse("articles:list"))
+        self.assertFalse(ArticleView.objects.filter(user=self.author, article=self.article1).exists())
+
+    def test_la_peticion_htmx_del_scroll_infinito_no_marca_nada(self):
+        self.client.login(username=self.reader.email, password="Testpass123!")
+        self.client.get(reverse("articles:list"), HTTP_HX_REQUEST="true")
+        self.assertEqual(ArticleView.objects.filter(user=self.reader).count(), 0)
+
+    def test_anonimo_no_da_error_al_visitar_el_listado(self):
+        response = self.client.get(reverse("articles:list"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_la_campanita_baja_a_cero_tras_visitar_el_listado(self):
+        from apps.core.notifications import unread_notifications_count
+
+        self.client.login(username=self.reader.email, password="Testpass123!")
+        self.assertEqual(unread_notifications_count(self.reader), 2)
+        self.client.get(reverse("articles:list"))
+        self.assertEqual(unread_notifications_count(self.reader), 0)
+
+
+class TagSortableAdminTests(TestCase):
+    """Arrastrar para reordenar las listas de Artículos (Tag), igual que
+    Temas o Enlaces de contacto — ver SortableAdminMixin en apps/core/admin.py."""
+
+    def setUp(self):
+        self.admin = make_user("drag_tag_admin@test.local", User.Role.ADMIN)
+        self.client.login(username=self.admin.email, password="Testpass123!")
+        self.a = Tag.objects.create(name="Drama", order=0)
+        self.b = Tag.objects.create(name="Comedia", order=1)
+        self.c = Tag.objects.create(name="Terror", order=2)
+
+    def test_arrastrar_actualiza_el_orden_de_todas(self):
+        url = reverse("admin:articles_tag_reorder")
+        response = self.client.post(
+            url, data='{"order": [%d, %d, %d]}' % (self.c.pk, self.a.pk, self.b.pk),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.a.refresh_from_db()
+        self.b.refresh_from_db()
+        self.c.refresh_from_db()
+        self.assertEqual(self.c.order, 0)
+        self.assertEqual(self.a.order, 1)
+        self.assertEqual(self.b.order, 2)
+
+    def test_el_listado_tiene_el_tirador_de_arrastre(self):
+        response = self.client.get(reverse("admin:articles_tag_changelist"))
+        self.assertContains(response, "drag-handle")
 
 
 class PrivateArticleTests(TestCase):
