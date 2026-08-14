@@ -1223,6 +1223,12 @@ main { flex: 1; }
     margin-bottom: calc(var(--space-unit) * 6);
     max-width: 420px;
 }
+@media (max-width: 480px) {
+    /* Con el input y el botón en fila, en pantallas estrechas el input se
+       queda tan corto que el placeholder ("Buscar usuarios por
+       nombre...") se corta a mitad de palabra. */
+    .search-form { flex-direction: column; max-width: 100%; }
+}
 .search-form input[type="text"],
 .search-form input[type="search"] {
     flex: 1;
