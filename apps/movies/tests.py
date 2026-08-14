@@ -401,6 +401,64 @@ class SavedMovieSublistTests(TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertTrue(SavedMovieList.objects.filter(pk=ajena.pk).exists())
 
+    def test_reordenar_sublistas_arrastrando(self):
+        terror = SavedMovieList.objects.create(user=self.user, name="Terror", order=0)
+        familia = SavedMovieList.objects.create(user=self.user, name="Familia", order=1)
+        response = self.client.post(
+            reverse("movies:saved-list-reorder"),
+            data=json.dumps({"order": [familia.pk, terror.pk]}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        terror.refresh_from_db()
+        familia.refresh_from_db()
+        self.assertEqual(familia.order, 0)
+        self.assertEqual(terror.order, 1)
+
+    def test_reordenar_sublistas_no_toca_las_de_otro_usuario(self):
+        other_user = make_user("otro_reorden@test.local")
+        ajena = SavedMovieList.objects.create(user=other_user, name="Ajena", order=0)
+        self.client.post(
+            reverse("movies:saved-list-reorder"),
+            data=json.dumps({"order": [ajena.pk]}),
+            content_type="application/json",
+        )
+        ajena.refresh_from_db()
+        self.assertEqual(ajena.order, 0)
+
+
+class SavedMoviesShareImageTests(TestCase):
+    def setUp(self):
+        self.user = make_user("compartir_guardadas@test.local")
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+    def test_compartir_guardadas_devuelve_una_imagen_png(self):
+        terror = SavedMovieList.objects.create(user=self.user, name="Terror")
+        movie = make_movie(1, "Kill Bill", None)
+        saved = SavedMovie.objects.create(user=self.user, movie=movie)
+        saved.sublists.add(terror)
+
+        response = self.client.get(reverse("movies:saved-movies-share-image"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "image/png")
+        self.assertTrue(response.content.startswith(b"\x89PNG\r\n\x1a\n"))
+
+    def test_compartir_guardadas_sin_nada_no_rompe(self):
+        response = self.client.get(reverse("movies:saved-movies-share-image"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.content.startswith(b"\x89PNG\r\n\x1a\n"))
+
+    def test_compartir_guardadas_requiere_login(self):
+        self.client.logout()
+        response = self.client.get(reverse("movies:saved-movies-share-image"))
+        self.assertNotEqual(response.status_code, 200)
+
+    def test_pagina_previa_de_compartir_tiene_boton_de_descargar(self):
+        response = self.client.get(reverse("movies:saved-movies-share-preview"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Descargar")
+        self.assertContains(response, reverse("movies:saved-movies-share-image"))
+
 
 class RouletteRatingTests(TestCase):
     def setUp(self):

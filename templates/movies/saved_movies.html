@@ -11,6 +11,7 @@
                 <h1>Guardadas</h1>
             </div>
             <div class="section-header__actions">
+                <a href="{% url 'movies:saved-movies-share-preview' %}" class="btn btn--ghost btn--sm" title="Genera una imagen de Guardadas agrupada por listas">📤 Compartir</a>
                 <a href="{% url 'movies:roulette-list' %}{% if list_param %}?list={{ list_param }}{% endif %}" class="btn btn--accent">Girar la ruleta</a>
                 <a href="{% url 'movies:list' %}" class="btn btn--ghost">Volver al catálogo</a>
             </div>
@@ -125,15 +126,18 @@
 
         {% if sublists %}
         <details class="tier-add-level">
-            <summary class="btn btn--ghost btn--sm">Borrar una lista</summary>
-            <div class="list-manage">
+            <summary class="btn btn--ghost btn--sm">Gestionar listas</summary>
+            <div class="list-manage" data-sortable-url="{% url 'movies:saved-list-reorder' %}" data-sortable-handle=".drag-handle">
                 {% for sublist in sublists %}
-                <form method="post" action="{% url 'movies:saved-list-delete' pk=sublist.pk %}" class="inline-form"
-                      onsubmit="return confirm('¿Borrar la lista {{ sublist.name }}? Sus películas seguirán guardadas.');">
-                    {% csrf_token %}
+                <div class="list-manage__row" data-sortable-id="{{ sublist.pk }}">
+                    <span class="drag-handle" title="Arrastra para reordenar">⠿</span>
                     <span class="muted">{{ sublist.name }}</span>
-                    <button type="submit" class="link-btn link-btn--danger" title="Borrar">🗑️</button>
-                </form>
+                    <form method="post" action="{% url 'movies:saved-list-delete' pk=sublist.pk %}" class="inline-form"
+                          onsubmit="return confirm('¿Borrar la lista {{ sublist.name }}? Sus películas seguirán guardadas.');">
+                        {% csrf_token %}
+                        <button type="submit" class="link-btn link-btn--danger" title="Borrar">🗑️</button>
+                    </form>
+                </div>
                 {% endfor %}
             </div>
         </details>

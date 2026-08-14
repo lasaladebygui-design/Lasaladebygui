@@ -299,6 +299,24 @@ def favorites_share_image(request, category, username=None):
 
 
 @login_required
+def favorites_share_preview(request, category):
+    """Antes "Compartir" abría la imagen sola en una pestaña nueva, sin
+    ningún botón para bajarla — había que fiarse del menú contextual del
+    navegador. Esta página intermedia enseña la imagen con un botón de
+    descarga debajo."""
+    if category not in FavoriteMovie.Category.values:
+        raise Http404
+
+    label = "Mis imprescindibles" if category == FavoriteMovie.Category.ESSENTIAL else "Sugeridas"
+    return render(request, "core/_share_image_preview.html", {
+        "title": label,
+        "image_url": reverse("accounts:favorites-share-image", kwargs={"category": category}),
+        "filename": f"{category}_{request.user.username}.png",
+        "back_url": reverse("accounts:favorites-page", kwargs={"category": category}),
+    })
+
+
+@login_required
 def favorite_search(request, category, media_type):
     if category not in FavoriteMovie.Category.values or media_type not in ("movie", "tv", "all"):
         raise Http404

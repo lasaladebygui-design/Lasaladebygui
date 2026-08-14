@@ -786,11 +786,21 @@ class FavoriteMovieTests(TestCase):
         response = self.client.get(reverse("accounts:favorites-share-image", args=["essential"]))
         self.assertNotEqual(response.status_code, 200)
 
+    def test_pagina_previa_de_compartir_tiene_boton_de_descargar(self):
+        response = self.client.get(reverse("accounts:favorites-share-preview", args=["essential"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Descargar")
+        self.assertContains(response, reverse("accounts:favorites-share-image", args=["essential"]))
+
+    def test_pagina_previa_categoria_invalida_da_404(self):
+        response = self.client.get(reverse("accounts:favorites-share-preview", args=["otra-cosa"]))
+        self.assertEqual(response.status_code, 404)
+
     def test_el_boton_compartir_solo_sale_en_la_pagina_propia(self):
         other = User.objects.create(email="visto_fav3@test.local", role=User.Role.LECTOR, username="vistofav3")
         movie = Movie.objects.create(tmdb_id=21, title="Favorita ajena 3", media_type="movie")
         FavoriteMovie.objects.create(user=other, category="essential", movie=movie)
-        share_url = reverse("accounts:favorites-share-image", args=["essential"])
+        share_url = reverse("accounts:favorites-share-preview", args=["essential"])
 
         own = self.client.get(reverse("accounts:favorites-page", args=["essential"]))
         self.assertContains(own, share_url)

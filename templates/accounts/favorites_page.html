@@ -15,7 +15,7 @@
             </div>
             <div class="section-header__actions">
                 {% if editable %}
-                    <a href="{% url 'accounts:favorites-share-image' category=category %}" target="_blank" class="btn btn--ghost btn--sm" title="Descarga una imagen para compartir esta lista">📤 Compartir</a>
+                    <a href="{% url 'accounts:favorites-share-preview' category=category %}" class="btn btn--ghost btn--sm" title="Genera una imagen para compartir esta lista">📤 Compartir</a>
                     <a href="{% url 'accounts:profile' %}" class="btn btn--ghost">← Volver al perfil</a>
                 {% else %}
                     <a href="{% url 'social:public-profile' profile_user.username %}" class="btn btn--ghost">← Volver al perfil</a>

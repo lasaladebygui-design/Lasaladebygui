@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap wrap--narrow" style="text-align:center;">
+        <h1>{{ title }}</h1>
+        <img src="{{ image_url }}" alt="{{ title }}" style="max-width:100%; border-radius:var(--radius-base); margin-bottom:calc(var(--space-unit) * 5);">
+        <div>
+            <a href="{{ image_url }}" download="{{ filename }}" class="btn btn--accent">⬇️ Descargar</a>
+            <a href="{{ back_url }}" class="btn btn--ghost">← Volver</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -18,6 +18,7 @@ urlpatterns = [
     path("perfil/ajustes/avisos-articulos/", views.toggle_email_new_articles, name="toggle-email-new-articles"),
     path("perfil/favoritas/<str:category>/", views.favorites_page, name="favorites-page"),
     path("perfil/favoritas/<str:category>/compartir/", views.favorites_share_image, name="favorites-share-image"),
+    path("perfil/favoritas/<str:category>/compartir/ver/", views.favorites_share_preview, name="favorites-share-preview"),
     path("perfil/favoritas/<str:category>/<str:media_type>/buscar/", views.favorite_search, name="favorite-search"),
     path("perfil/favoritas/<str:category>/<str:media_type>/anadir/<int:tmdb_id>/", views.favorite_add, name="favorite-add"),
     path("perfil/favoritas/<int:pk>/quitar/", views.favorite_remove, name="favorite-remove"),

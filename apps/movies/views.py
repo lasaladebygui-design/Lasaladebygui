@@ -10,6 +10,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
 
+from apps.core.models import get_effective_theme
+from apps.core.text import ascii_safe
+
 from .forms import MovieSearchForm, RatingRangeForm, VoteForm
 from .models import Movie, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, SavedMovieList, Vote
 from .services import MovieAPIError, tmdb_search
@@ -244,6 +247,107 @@ def saved_movies(request):
     })
 
 
+def _wrap_text(draw, text, font, max_width):
+    words = text.split(" ")
+    lines, current = [], ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if not current or draw.textlength(candidate, font=font) <= max_width:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines
+
+
+def _render_saved_movies_image(theme, username, groups):
+    """PNG minimalista para compartir Guardadas agrupadas por lista (ver
+    _render_favorites_image en apps/accounts/views.py, mismo patrón).
+    `groups` es una lista de (nombre_de_lista, [títulos]), en el mismo
+    orden en que el usuario las tiene colocadas."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    width, pad = 640, 32
+    font_title = ImageFont.load_default(size=26)
+    font_meta = ImageFont.load_default(size=13)
+    font_group = ImageFont.load_default(size=16)
+    font_item = ImageFont.load_default(size=15)
+
+    dummy_draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    content_width = width - pad * 2
+
+    group_lines = []
+    for name, titles in groups:
+        items = [_wrap_text(dummy_draw, f"·  {ascii_safe(title)}", font_item, content_width) for title in titles] or [["(vacía)"]]
+        group_lines.append((ascii_safe(name), items))
+
+    header_h = 78
+    groups_h = 0
+    for _, items in group_lines:
+        groups_h += 28 + sum(len(lines) * 22 for lines in items) + 14
+    footer_h = 30
+    height = pad * 2 + header_h + groups_h + footer_h
+
+    img = Image.new("RGB", (width, height), theme.color_bg)
+    draw = ImageDraw.Draw(img)
+
+    draw.text((pad, pad), "Guardadas", font=font_title, fill=theme.color_accent)
+    draw.text((pad, pad + 36), ascii_safe(f"por {username} - La Sala de Bygui"), font=font_meta, fill=theme.color_text_muted)
+    draw.line([(pad, pad + 58), (width - pad, pad + 58)], fill=theme.color_border, width=1)
+
+    y = pad + header_h
+    for name, items in group_lines:
+        draw.text((pad, y), name, font=font_group, fill=theme.color_accent_secondary)
+        y += 28
+        for lines in items:
+            for line in lines:
+                draw.text((pad, y), line, font=font_item, fill=theme.color_text)
+                y += 22
+        y += 14
+
+    return img
+
+
+@login_required
+def saved_movies_share_image(request):
+    saved = list(
+        SavedMovie.objects.filter(user=request.user)
+        .select_related("movie").prefetch_related("sublists").order_by("order", "-saved_at")
+    )
+    sublists = SavedMovieList.objects.filter(user=request.user)
+
+    groups = []
+    for sublist in sublists:
+        titles = [s.movie.title for s in saved if sublist in s.sublists.all()]
+        if titles:
+            groups.append((sublist.name, titles))
+    no_list_titles = [s.movie.title for s in saved if not s.sublists.all()]
+    if no_list_titles:
+        groups.append(("Sin lista", no_list_titles))
+    if not groups:
+        groups = [("Guardadas", [])]
+
+    theme = get_effective_theme(request.user, request.session)
+    image = _render_saved_movies_image(theme, str(request.user), groups)
+
+    response = HttpResponse(content_type="image/png")
+    image.save(response, "PNG")
+    response["Content-Disposition"] = f'inline; filename="guardadas_{request.user.username}.png"'
+    return response
+
+
+@login_required
+def saved_movies_share_preview(request):
+    return render(request, "core/_share_image_preview.html", {
+        "title": "Guardadas",
+        "image_url": reverse("movies:saved-movies-share-image"),
+        "filename": f"guardadas_{request.user.username}.png",
+        "back_url": reverse("movies:saved-movies"),
+    })
+
+
 @login_required
 def saved_list_create(request):
     if request.method == "POST":
@@ -256,6 +360,31 @@ def saved_list_create(request):
             if not created:
                 messages.info(request, "Ya tenías una lista con ese nombre.")
     return redirect("movies:saved-movies")
+
+
+@login_required
+def saved_list_reorder(request):
+    """Arrastrar y soltar las propias listas de guardadas (ver
+    static/js/sortable_list.js) — antes solo se podía cambiar su orden
+    entrando al admin y editando el número a mano. Solo toca las del
+    usuario que hace la petición, cada uno tiene su propio orden."""
+    if request.method != "POST":
+        return JsonResponse({"error": "Solo POST"}, status=405)
+    try:
+        ids = json.loads(request.body).get("order", [])
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "JSON inválido"}, status=400)
+
+    lists = {sl.pk: sl for sl in SavedMovieList.objects.filter(user=request.user)}
+    updated = []
+    for position, pk in enumerate(ids):
+        sublist = lists.get(pk)
+        if sublist is not None:
+            sublist.order = position
+            updated.append(sublist)
+    if updated:
+        SavedMovieList.objects.bulk_update(updated, ["order"])
+    return JsonResponse({"ok": True})
 
 
 @login_required

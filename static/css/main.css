@@ -433,18 +433,18 @@ main { flex: 1; }
     .card-grid--topsecret__list { grid-column: 1 / -1; }
 }
 
-/* Escaparate: con .card-grid normal (auto-fit + minmax(_, 1fr)) pocos
-   artículos se estiraban SIN TOPE hasta llenar la fila entera — con 1 o 2
-   se veían gigantes. Con un tope de ancho (220px) siguen creciendo para
-   aprovechar el hueco de la fila (auto-fit sí colapsa columnas vacías,
-   a diferencia de auto-fill) pero sin pasar de un tamaño de ficha
-   razonable — si aun así sobra hueco, se queda como margen a la derecha. */
-.card-grid--shop {
-    grid-template-columns: repeat(auto-fit, minmax(150px, 220px));
-    justify-content: flex-start;
+/* Escaparate: número fijo de columnas (como .card-grid--oscars) en vez de
+   auto-fit/auto-fill con tope de ancho — así las fichas siempre ocupan su
+   parte proporcional del ancho disponible, haya las que haya, en vez de
+   quedarse pequeñas con hueco suelto a la derecha cuando faltan para
+   completar la fila. */
+.card-grid--shop { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 860px) { .card-grid--shop { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px) { .card-grid--shop { grid-template-columns: 1fr; } }
+.card-grid--shop .card--product {
     /* Sin esto, al expandir una ficha (ver .card--product) todas las de
        su misma fila se estiraban a su altura aunque siguieran colapsadas. */
-    align-items: start;
+    align-self: start;
 }
 
 /* Candidatos al Oscar: es habitual tener bastantes por categoría, así que
@@ -1350,6 +1350,12 @@ main { flex: 1; }
     margin-top: 0.4rem;
     padding-right: 0.3rem;
 }
+.list-manage__row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.list-manage__row .inline-form { margin-left: auto; }
 .list-picker summary {
     list-style: none;
     cursor: pointer;
