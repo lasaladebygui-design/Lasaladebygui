@@ -327,12 +327,27 @@ CKEDITOR_5_CONFIGS = {
             # usar. Usando los 3 botones sueltos ("resizeImage:100" etc,
             # que SÍ funcionan por separado) en vez del desplegable se
             # evita el choque entero.
+            # 4 opciones de "formato" tipo Word (Diseño > Ajustar texto),
+            # simplificadas para un editor de artículos:
+            # - inline: en línea con el texto, pequeña, se mueve con él
+            #   (como "En línea con el texto" de Word).
+            # - alignLeft/alignRight: flota a un lado y el texto la rodea
+            #   (como "Cuadrado" de Word) — confirmado con contenido real
+            #   que el texto SÍ rodea (ver .richtext .image-style-align-*
+            #   en main.css).
+            # - alignCenter: ancho completo, en su propio párrafo (como
+            #   "Arriba y abajo" de Word).
+            # Se probaron también "side"/"block"/"wrapText"/"breakText"
+            # (existen como botones de CKEditor5) pero "wrapText"/
+            # "breakText" resultaron ser un grupo desplegable redundante
+            # con alignLeft/Right — solo añadían ruido sin más
+            # posibilidades reales.
             "toolbar": [
                 "imageTextAlternative", "|",
-                "imageStyle:alignLeft", "imageStyle:alignCenter", "imageStyle:alignRight", "|",
+                "imageStyle:inline", "imageStyle:alignLeft", "imageStyle:alignCenter", "imageStyle:alignRight", "|",
                 "resizeImage:50", "resizeImage:75", "resizeImage:100",
             ],
-            "styles": ["alignLeft", "alignCenter", "alignRight"],
+            "styles": ["inline", "alignLeft", "alignCenter", "alignRight"],
             "resizeOptions": [
                 {"name": "resizeImage:100", "value": "100", "icon": "original"},
                 {"name": "resizeImage:50", "value": "50", "icon": "medium"},

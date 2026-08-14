@@ -1026,10 +1026,18 @@ main { flex: 1; }
 /* El editor de Artículos reutiliza los mismos estilos que la página
    pública (arriba): así, mientras escribes y mueves imágenes, ya ves
    exactamente cómo va a quedar publicado, sin necesidad de una vista
-   previa aparte. */
+   previa aparte.
+
+   Los colores del texto son fijos (no var(--color-text)) a propósito:
+   el fondo de la zona de escritura lo pone el propio CKEditor5 con su
+   CSS (blanco, con más prioridad que la nuestra — no vale la pena
+   forzarlo), así que si el texto siguiera el color del tema, en
+   cualquier tema oscuro (letra clara) saldría letra clara sobre fondo
+   blanco — invisible. Igual que un procesador de texto normal: fondo
+   blanco, letra oscura, siempre, sea cual sea el tema activo de la web. */
 .ck.ck-content {
-    background: var(--color-bg);
-    color: var(--color-text);
+    background: #fff;
+    color: #1a1a1a;
     font-family: var(--font-body);
     font-size: 1.05rem;
     line-height: 1.7;
@@ -1037,7 +1045,7 @@ main { flex: 1; }
 .ck.ck-content h1, .ck.ck-content h2, .ck.ck-content h3,
 .ck.ck-content h4, .ck.ck-content h5, .ck.ck-content h6 {
     font-family: var(--font-heading);
-    color: var(--color-text);
+    color: #1a1a1a;
 }
 .ck.ck-content a { color: var(--color-accent); }
 
