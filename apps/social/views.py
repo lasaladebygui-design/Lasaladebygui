@@ -21,9 +21,14 @@ def public_profile(request, username):
 
     status = friendship_status(request.user, profile_user)
     incoming_request = None
+    outgoing_request = None
     if status == "pending_incoming":
         incoming_request = FriendRequest.objects.filter(
             from_user=profile_user, to_user=request.user, accepted=False
+        ).first()
+    elif status == "pending_outgoing":
+        outgoing_request = FriendRequest.objects.filter(
+            from_user=request.user, to_user=profile_user, accepted=False
         ).first()
 
     duel_record = DuelRecord.get_for(request.user, profile_user)
@@ -35,6 +40,7 @@ def public_profile(request, username):
 
     return render(request, "social/public_profile.html", {
         "profile_user": profile_user, "status": status, "incoming_request": incoming_request,
+        "outgoing_request": outgoing_request,
         "duel_wins": duel_wins, "duel_losses": duel_losses, "duel_draws": duel_draws,
         "essential_count": favorites.filter(category="essential").count(),
         "suggested_count": favorites.filter(category="suggested").count(),
@@ -70,6 +76,19 @@ def respond_friend_request(request, pk, action):
             messages.info(request, "Solicitud rechazada.")
         else:
             raise Http404
+    return redirect("social:friends")
+
+
+@login_required
+def withdraw_friend_request(request, pk):
+    """Retirar una solicitud que TÚ enviaste (antes solo se podía aceptar o
+    rechazar la que te llegaba a ti, no deshacer la tuya). Al borrarla deja
+    de contar para la campanita del destinatario — no queda ningún aviso
+    de una solicitud que ya no existe."""
+    friend_request = get_object_or_404(FriendRequest, pk=pk, from_user=request.user, accepted=False)
+    if request.method == "POST":
+        friend_request.delete()
+        messages.info(request, "Solicitud retirada.")
     return redirect("social:friends")
 
 

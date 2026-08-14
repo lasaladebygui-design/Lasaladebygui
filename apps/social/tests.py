@@ -77,6 +77,38 @@ class FriendRequestFlowTests(TestCase):
         response = self.client.post(reverse("social:friend-request-accept", kwargs={"pk": req.pk}))
         self.assertEqual(response.status_code, 404)
 
+    def test_retirar_solicitud_la_elimina(self):
+        req = FriendRequest.objects.create(from_user=self.ana, to_user=self.bea)
+        self.client.login(username="ana@test.local", password="Testpass123!")
+        self.client.post(reverse("social:friend-request-withdraw", kwargs={"pk": req.pk}))
+        self.assertFalse(FriendRequest.objects.filter(pk=req.pk).exists())
+
+    def test_retirar_solicitud_deja_de_avisar_al_destinatario(self):
+        from apps.core.notifications import unread_notifications_count
+
+        req = FriendRequest.objects.create(from_user=self.ana, to_user=self.bea)
+        self.assertEqual(unread_notifications_count(self.bea), 1)
+
+        self.client.login(username="ana@test.local", password="Testpass123!")
+        self.client.post(reverse("social:friend-request-withdraw", kwargs={"pk": req.pk}))
+        self.assertEqual(unread_notifications_count(self.bea), 0)
+
+    def test_no_se_puede_retirar_una_solicitud_ajena(self):
+        carla = make_user("carla@test.local")
+        req = FriendRequest.objects.create(from_user=self.ana, to_user=self.bea)
+        self.client.login(username="carla@test.local", password="Testpass123!")
+        response = self.client.post(reverse("social:friend-request-withdraw", kwargs={"pk": req.pk}))
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(FriendRequest.objects.filter(pk=req.pk).exists())
+
+    def test_no_se_puede_retirar_una_solicitud_recibida(self):
+        # "retirar" es solo para la que TÚ enviaste — la que te llegan se
+        # aceptan o rechazan, no se "retiran".
+        req = FriendRequest.objects.create(from_user=self.ana, to_user=self.bea)
+        self.client.login(username="bea@test.local", password="Testpass123!")
+        response = self.client.post(reverse("social:friend-request-withdraw", kwargs={"pk": req.pk}))
+        self.assertEqual(response.status_code, 404)
+
     def test_eliminar_amistad(self):
         FriendRequest.objects.create(from_user=self.ana, to_user=self.bea, accepted=True)
         self.client.login(username="ana@test.local", password="Testpass123!")

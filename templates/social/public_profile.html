@@ -36,6 +36,12 @@
                 <a href="{% url 'social:conversation' username=profile_user.username %}" class="btn btn--accent btn--sm">Enviar mensaje</a>
             {% elif status == "pending_outgoing" %}
                 <span class="muted">Solicitud enviada, esperando respuesta.</span>
+                {% if outgoing_request %}
+                <form method="post" action="{% url 'social:friend-request-withdraw' pk=outgoing_request.pk %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn--ghost btn--sm">Retirar solicitud</button>
+                </form>
+                {% endif %}
             {% elif status == "pending_incoming" %}
                 <form method="post" action="{% url 'social:friend-request-accept' pk=incoming_request.pk %}" style="display:inline;">
                     {% csrf_token %}

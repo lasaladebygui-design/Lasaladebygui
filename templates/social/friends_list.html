@@ -34,7 +34,13 @@
         <h2 class="movie-section-title">Solicitudes enviadas</h2>
         <ul class="plain-list">
             {% for req in outgoing %}
-            <li><a href="{% url 'social:public-profile' username=req.to_user.username %}">{% username_badge req.to_user %}</a> — pendiente</li>
+            <li>
+                <a href="{% url 'social:public-profile' username=req.to_user.username %}">{% username_badge req.to_user %}</a> — pendiente
+                <form method="post" action="{% url 'social:friend-request-withdraw' pk=req.pk %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn--ghost btn--sm">Retirar</button>
+                </form>
+            </li>
             {% endfor %}
         </ul>
         {% endif %}

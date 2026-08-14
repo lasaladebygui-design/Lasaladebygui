@@ -433,15 +433,14 @@ main { flex: 1; }
     .card-grid--topsecret__list { grid-column: 1 / -1; }
 }
 
-/* Escaparate: con pocos artículos, .card-grid (auto-fit + 1fr) los
-   estiraba a lo ancho hasta llenar la fila entera — parecían centrados/
-   repartidos en vez de fichas normales empezando por la izquierda.
-   auto-fill (no auto-fit) no colapsa las columnas vacías cuando faltan
-   artículos para completar la fila, así que 1fr no las estira; y con un
-   mínimo de 150px caben 4 por fila en el ancho de .wrap--narrow (760px)
-   en vez de las 2 que dejaba el tope fijo de 260px. */
+/* Escaparate: con .card-grid normal (auto-fit + minmax(_, 1fr)) pocos
+   artículos se estiraban SIN TOPE hasta llenar la fila entera — con 1 o 2
+   se veían gigantes. Con un tope de ancho (220px) siguen creciendo para
+   aprovechar el hueco de la fila (auto-fit sí colapsa columnas vacías,
+   a diferencia de auto-fill) pero sin pasar de un tamaño de ficha
+   razonable — si aun así sobra hueco, se queda como margen a la derecha. */
 .card-grid--shop {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 220px));
     justify-content: flex-start;
     /* Sin esto, al expandir una ficha (ver .card--product) todas las de
        su misma fila se estiraban a su altura aunque siguieran colapsadas. */
