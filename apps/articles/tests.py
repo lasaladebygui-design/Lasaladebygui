@@ -353,6 +353,17 @@ class ArticleBulkDeleteTests(TestCase):
         self.client.post(reverse("articles:bulk-delete"), {"slugs": [self.own_article.slug]})
         self.assertTrue(Article.objects.filter(pk=self.own_article.pk).exists())
 
+    def test_un_lector_no_ve_la_barra_de_borrado_en_bloque(self):
+        # No puede borrar nada (can_delete_article siempre da False para un
+        # Lector), así que mostrarle el botón era un "Eliminar
+        # seleccionados" que nunca iba a hacer nada — se quita del todo,
+        # no solo se deshabilita.
+        lector = make_user("lector_bulk@test.local", User.Role.LECTOR)
+        self._login(lector)
+        response = self.client.get(reverse("articles:list"))
+        self.assertNotContains(response, "bulk-delete-bar")
+        self.assertNotContains(response, "Eliminar seleccionados")
+
 
 class ArticleBulkFeatureTests(TestCase):
     """Marcar en tanda cuáles salen en el carrusel destacado — reutiliza

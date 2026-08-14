@@ -16,7 +16,6 @@
                 <a href="{% url 'movies:list' %}" class="btn btn--ghost">Volver al catálogo</a>
             </div>
         </div>
-        <p class="muted">Estas son las que puede ofrecerte la ruleta (Modo 2). Guarda o quita alguna desde su ficha, y usa ▲▼ para ordenarlas por importancia. Agrúpalas en listas (por ejemplo "Terror") para verlas o tirar la ruleta solo sobre esa lista.</p>
 
         <div class="media-type-toggle">
             <a href="?type=movie{% if list_param %}&list={{ list_param }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}" class="btn btn--sm {% if media_type == 'movie' %}btn--accent{% else %}btn--ghost{% endif %}">Películas</a>

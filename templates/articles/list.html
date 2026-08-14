@@ -42,7 +42,7 @@
         {% if page_obj.object_list %}
         <form method="post" action="{% url 'articles:bulk-delete' %}" id="bulk-delete-form">
             {% csrf_token %}
-            {% if user.is_authenticated %}
+            {% if can_create %}
             <div class="bulk-delete-bar">
                 {% if can_feature %}
                 <button type="submit" formaction="{% url 'articles:bulk-feature' %}" class="btn btn--ghost btn--sm bulk-select-button" id="bulk-feature-button" disabled>
