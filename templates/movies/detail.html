@@ -13,7 +13,10 @@
         {% endif %}
 
         <div class="movie-detail__body">
-            <h1>{{ movie.title }} {% if movie.year %}<span class="muted">({{ movie.year }})</span>{% endif %}</h1>
+            <div class="section-header">
+                <h1>{{ movie.title }} {% if movie.year %}<span class="muted">({{ movie.year }})</span>{% endif %}</h1>
+                <a href="{% url 'movies:list' %}?type={{ movie.media_type }}" class="btn btn--ghost btn--sm">← Volver al catálogo</a>
+            </div>
             {% if movie.imdb_rating %}<span class="tag-pill">IMDb {{ movie.imdb_rating }}</span>{% endif %}
             <p>{{ movie.overview|default:"Sin sinopsis disponible." }}</p>
 
