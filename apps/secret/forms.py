@@ -56,7 +56,10 @@ class NumberSelectForm(forms.Form):
     # Antes era un desplegable con todos los números existentes — con
     # varias decenas de películas, buscar el número a mano en una lista
     # larga es más lento que teclearlo directamente.
-    number = forms.IntegerField(label="Número", min_value=1, widget=forms.NumberInput(attrs={"inputmode": "numeric"}))
+    number = forms.IntegerField(
+        label="Número", min_value=1,
+        widget=forms.NumberInput(attrs={"inputmode": "numeric", "class": "input-number-plain"}),
+    )
 
 
 class RatingSearchForm(forms.Form):

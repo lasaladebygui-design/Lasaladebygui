@@ -433,12 +433,15 @@ main { flex: 1; }
     .card-grid--topsecret__list { grid-column: 1 / -1; }
 }
 
-/* Escaparate: con pocos artículos, .card-grid (1fr) los estiraba a lo
-   ancho hasta llenar la fila entera — parecían centrados/repartidos en
-   vez de fichas normales empezando por la izquierda. Ancho máximo fijo +
-   justify-content deja el hueco sobrante a la derecha en vez de repartirlo. */
+/* Escaparate: con pocos artículos, .card-grid (auto-fit + 1fr) los
+   estiraba a lo ancho hasta llenar la fila entera — parecían centrados/
+   repartidos en vez de fichas normales empezando por la izquierda.
+   auto-fill (no auto-fit) no colapsa las columnas vacías cuando faltan
+   artículos para completar la fila, así que 1fr no las estira; y con un
+   mínimo de 150px caben 4 por fila en el ancho de .wrap--narrow (760px)
+   en vez de las 2 que dejaba el tope fijo de 260px. */
 .card-grid--shop {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 260px));
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     justify-content: flex-start;
     /* Sin esto, al expandir una ficha (ver .card--product) todas las de
        su misma fila se estiraban a su altura aunque siguieran colapsadas. */
@@ -579,6 +582,16 @@ main { flex: 1; }
     color: var(--color-text);
     font: inherit;
 }
+/* Selector numérico de Top Secret: las flechitas nativas de subir/bajar
+   de <input type="number"> no aportan nada aquí (no tiene sentido ir
+   incrementando de uno en uno hasta dar con el número que se busca). */
+.input-number-plain::-webkit-inner-spin-button,
+.input-number-plain::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.input-number-plain { -moz-appearance: textfield; }
+
 .field--checkbox label {
     display: flex;
     align-items: center;
