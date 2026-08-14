@@ -53,13 +53,10 @@ class CodeForm(forms.Form):
 
 
 class NumberSelectForm(forms.Form):
-    number = forms.ChoiceField(label="Número")
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["number"].choices = [
-            (n, n) for n in SecretMovie.objects.order_by("number").values_list("number", flat=True)
-        ]
+    # Antes era un desplegable con todos los números existentes — con
+    # varias decenas de películas, buscar el número a mano en una lista
+    # larga es más lento que teclearlo directamente.
+    number = forms.IntegerField(label="Número", min_value=1, widget=forms.NumberInput(attrs={"inputmode": "numeric"}))
 
 
 class RatingSearchForm(forms.Form):

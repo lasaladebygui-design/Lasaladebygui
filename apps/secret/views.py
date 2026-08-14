@@ -125,9 +125,21 @@ def home(request):
 def by_number(request):
     form = NumberSelectForm(request.GET or None)
     result = None
+    searched = False
     if request.GET and form.is_valid():
-        result = get_object_or_404(_visible_movies(request.user), number=form.cleaned_data["number"])
-    return render(request, "secret/by_number.html", {"form": form, "result": result})
+        searched = True
+        number = form.cleaned_data["number"]
+        # Ya no es un desplegable limitado a números existentes: cualquier
+        # entero es válido para el formulario, así que puede no haber
+        # ninguna película con ese número — se enseña como "no encontrada"
+        # en vez de una página de error 404. Pero si el número SÍ existe y
+        # solo se ha filtrado por ser de una lista oculta para este
+        # usuario, se mantiene el 404 (igual que movie_detail): no se
+        # distingue "no existe" de "no puedes verla".
+        result = _visible_movies(request.user).filter(number=number).first()
+        if result is None and SecretMovie.objects.filter(number=number).exists():
+            raise Http404
+    return render(request, "secret/by_number.html", {"form": form, "result": result, "searched": searched})
 
 
 @secret_required
@@ -165,6 +177,10 @@ def full_list(request):
             for genre in genres:
                 movies = movies.filter(genres=genre)
 
+    query = request.GET.get("q", "").strip()
+    if query:
+        movies = movies.filter(title__icontains=query)
+
     sort = request.GET.get("sort")
     if sort == "asc":
         movies = movies.order_by("personal_rating", "-tie_break", "-number")
@@ -194,7 +210,7 @@ def full_list(request):
     page_obj = Paginator(movies, FULL_LIST_PAGE_SIZE).get_page(request.GET.get("page"))
     context = {
         "movies": page_obj, "form": form, "rating_config": TopSecretConfig.load(),
-        "sort": sort, "querystring": querystring.urlencode(),
+        "sort": sort, "querystring": querystring.urlencode(), "query": query,
     }
     if _is_htmx(request):
         return render(request, "secret/_list_items.html", context)

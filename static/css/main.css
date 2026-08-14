@@ -433,6 +433,18 @@ main { flex: 1; }
     .card-grid--topsecret__list { grid-column: 1 / -1; }
 }
 
+/* Escaparate: con pocos artículos, .card-grid (1fr) los estiraba a lo
+   ancho hasta llenar la fila entera — parecían centrados/repartidos en
+   vez de fichas normales empezando por la izquierda. Ancho máximo fijo +
+   justify-content deja el hueco sobrante a la derecha en vez de repartirlo. */
+.card-grid--shop {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 260px));
+    justify-content: flex-start;
+    /* Sin esto, al expandir una ficha (ver .card--product) todas las de
+       su misma fila se estiraban a su altura aunque siguieran colapsadas. */
+    align-items: start;
+}
+
 /* Candidatos al Oscar: es habitual tener bastantes por categoría, así que
    caben 4 por fila en vez del tamaño grande genérico de .card-grid. */
 .card-grid--oscars { grid-template-columns: repeat(4, 1fr); }
@@ -468,22 +480,25 @@ main { flex: 1; }
     display: block;
     margin: 0 0 calc(var(--space-unit) * 3);
 }
-.card__desc--collapsed {
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-.card__more {
+/* Escaparate: la ficha entera es el botón que expande/colapsa (comentario
+   + enlace solo aparecen al hacer click), en vez de enseñarlo todo de
+   golpe siempre. */
+.card--product { padding: 0; overflow: hidden; }
+.card--product__summary {
+    display: block;
+    width: 100%;
     background: none;
     border: none;
-    padding: 0;
-    margin-top: 0.3rem;
-    color: var(--color-accent);
-    font-size: 0.85rem;
+    padding: calc(var(--space-unit) * 6);
+    text-align: left;
     cursor: pointer;
+    color: inherit;
+    font: inherit;
 }
-.card__more:hover { text-decoration: underline; }
+.card--product__summary:hover h3 { text-decoration: underline; }
+.card--product__detail {
+    padding: 0 calc(var(--space-unit) * 6) calc(var(--space-unit) * 6);
+}
 .card h3 { color: var(--color-accent); font-size: 1.1rem; }
 .card--accent { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); }
 .card p { color: var(--color-text-muted); margin-bottom: 0; }
@@ -1881,6 +1896,19 @@ main { flex: 1; }
     font-size: 0.9rem;
 }
 .secret-toolbar__field select:focus { outline: none; border-color: var(--color-accent); }
+.secret-toolbar__search input[type="search"] {
+    box-sizing: border-box;
+    height: 37px;
+    padding: 0 0.6rem;
+    border-radius: var(--radius-base);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font: inherit;
+    font-size: 0.9rem;
+    width: 160px;
+}
+.secret-toolbar__search input[type="search"]:focus { outline: none; border-color: var(--color-accent); }
 
 @media (min-width: 1025px) {
     /* En escritorio hay hueco de sobra: separa más el desplegable de
@@ -1889,6 +1917,7 @@ main { flex: 1; }
        se queda todo exactamente igual que antes. */
     .secret-toolbar { gap: calc(var(--space-unit) * 6); }
     .secret-toolbar__field select { height: 43px; padding: 0 0.8rem; font-size: 0.95rem; }
+    .secret-toolbar__search input[type="search"] { height: 43px; padding: 0 0.8rem; font-size: 0.95rem; }
     .secret-toolbar .btn--sm { padding: 0.55rem 1.1rem; font-size: 0.95rem; }
 }
 

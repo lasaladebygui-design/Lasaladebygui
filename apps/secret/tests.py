@@ -154,6 +154,15 @@ class SecretMovieViewTests(TestCase):
         response = self.client.get(reverse("secret:by-number"), {"number": 1})
         self.assertEqual(response.context["result"], self.a)
 
+    def test_selector_numerico_con_numero_inexistente_no_da_404(self):
+        # Ahora es un campo de texto libre (antes un desplegable limitado a
+        # números existentes), así que cualquier entero es válido para el
+        # formulario aunque no exista ninguna película con ese número.
+        response = self.client.get(reverse("secret:by-number"), {"number": 999})
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context["result"])
+        self.assertContains(response, "No hay ninguna película con ese número.")
+
     def test_buscador_por_nota_devuelve_una_del_intervalo(self):
         response = self.client.get(reverse("secret:by-rating"), {"min_rating": 8, "max_rating": 9})
         self.assertIn(response.context["result"], [self.a, self.b])
@@ -165,6 +174,10 @@ class SecretMovieViewTests(TestCase):
     def test_lista_completa_incluye_todas(self):
         response = self.client.get(reverse("secret:list"))
         self.assertEqual(list(response.context["movies"]), [self.a, self.b])
+
+    def test_lista_completa_busca_por_titulo(self):
+        response = self.client.get(reverse("secret:list"), {"q": "kill"})
+        self.assertEqual(list(response.context["movies"]), [self.b])
 
     def test_lista_completa_filtra_por_lista(self):
         terror = Genre.objects.create(name="Terror")

@@ -990,6 +990,21 @@ class NotificationsBellTests(TestCase):
 
         self.assertEqual(unread_notifications_count(self.user), 0)
 
+    def test_el_panel_de_avisos_devuelve_lo_que_de_verdad_queda_pendiente(self):
+        # Abrir la campanita solo marca leídos los avisos del equipo — un
+        # artículo sin visitar sigue contando. Antes el JS quitaba el globo
+        # entero igualmente, así que en la siguiente recarga volvía a
+        # aparecer con el mismo número, como si abrir no hubiera servido de
+        # nada; la cabecera X-Notif-Remaining es lo que el JS usa para saber
+        # cuánto queda de verdad.
+        Announcement.objects.create(title="Mantenimiento", body="El sábado a las 10.")
+        Article.objects.create(title="Recién publicado", body="<p>x</p>", author=self.other)
+        self.assertEqual(unread_notifications_count(self.user), 2)
+
+        response = self.client.get(reverse("core:notifications-panel"))
+        self.assertEqual(response["X-Notif-Remaining"], "1")
+        self.assertEqual(unread_notifications_count(self.user), 1)
+
     def test_el_panel_de_avisos_requiere_login(self):
         self.client.logout()
         response = self.client.get(reverse("core:notifications-panel"))

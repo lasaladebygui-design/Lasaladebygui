@@ -30,6 +30,33 @@
 }
 .drag-handle:active { cursor: grabbing; }
 
+/* Barra de filtros + buscador de cualquier listado (#change-list-filters):
+   cada desplegable de list_filter se pinta con Select2 y el buscador con
+   un <input>+<button> normales de Bootstrap — sin forzar la misma altura
+   exacta en los tres, el botón "Buscar" y los <select> no quedan
+   alineados ni del mismo tamaño entre sí. Afecta a todos los listados con
+   filtros, no solo a uno. */
+#change-list-filters { align-items: center !important; }
+#change-list-filters .form-group { margin: 0; }
+#change-list-filters .select2-container,
+#change-list-filters .select2-selection--single,
+#changelist-search input[type="text"],
+#changelist-search .btn {
+    height: 38px !important;
+    box-sizing: border-box;
+}
+#change-list-filters .select2-selection--single {
+    display: flex;
+    align-items: center;
+}
+#change-list-filters .select2-selection__rendered {
+    line-height: normal !important;
+}
+#change-list-filters .select2-selection__arrow {
+    height: 36px !important;
+}
+#changelist-search input[type="text"] { padding: 0 0.75rem; }
+
 /* Botón de exportar a Excel (movido junto al menú de usuario por
    static/admin/js/topmenu_reposition.js): encuadrado en verde y con un
    poco de aire respecto al icono de perfil, para que no parezca un enlace
