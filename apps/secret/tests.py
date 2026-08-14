@@ -18,6 +18,7 @@ from .models import (
     CalendarDayNote,
     Genre,
     PhotoBoardMember,
+    RatingColorBand,
     ReleaseEvent,
     SecretMovie,
     SecretPhoto,
@@ -108,6 +109,39 @@ class GateTests(TestCase):
         response = self.client.post(reverse("secret:gate"), {"code": "0000"})
         self.assertContains(response, "open: true")
         self.assertContains(response, "briefcase--shake")
+
+
+class RatingColorBandTests(TestCase):
+    """Los tramos de color son de número arbitrario y los decide quien
+    administra (no un fijo "bueno/medio/malo") — ver rating_color en
+    apps/secret/models.py."""
+
+    def setUp(self):
+        self.config = TopSecretConfig.load()
+        RatingColorBand.objects.filter(config=self.config).delete()
+
+    def test_nota_dentro_de_un_tramo_usa_su_color(self):
+        RatingColorBand.objects.create(config=self.config, min_rating="1.0", max_rating="4.0", color="#FF0000", order=0)
+        self.assertEqual(self.config.rating_color(2.5), "#FF0000")
+
+    def test_nota_fuera_de_todo_tramo_usa_el_gris_por_defecto(self):
+        RatingColorBand.objects.create(config=self.config, min_rating="1.0", max_rating="4.0", color="#FF0000", order=0)
+        self.assertEqual(self.config.rating_color(9.0), "#9CA3AF")
+
+    def test_tramos_solapados_gana_el_de_menor_order(self):
+        RatingColorBand.objects.create(config=self.config, min_rating="5.0", max_rating="8.0", color="#00FF00", order=1)
+        RatingColorBand.objects.create(config=self.config, min_rating="6.0", max_rating="10.0", color="#0000FF", order=0)
+        self.assertEqual(self.config.rating_color(7.0), "#0000FF")
+
+    def test_se_pueden_definir_tantos_tramos_como_se_quiera(self):
+        RatingColorBand.objects.create(config=self.config, min_rating="0.0", max_rating="2.5", color="#111111", order=0)
+        RatingColorBand.objects.create(config=self.config, min_rating="2.6", max_rating="5.0", color="#222222", order=1)
+        RatingColorBand.objects.create(config=self.config, min_rating="5.1", max_rating="7.5", color="#333333", order=2)
+        RatingColorBand.objects.create(config=self.config, min_rating="7.6", max_rating="10.0", color="#444444", order=3)
+        self.assertEqual(self.config.rating_color(1.0), "#111111")
+        self.assertEqual(self.config.rating_color(4.0), "#222222")
+        self.assertEqual(self.config.rating_color(6.0), "#333333")
+        self.assertEqual(self.config.rating_color(9.9), "#444444")
 
 
 class SecretMovieViewTests(TestCase):
@@ -436,10 +470,14 @@ class SecretMovieAutoNumberingTests(TestCase):
 
 
 class SecretMovieFormTests(TestCase):
+    """Las listas ya no se escriben a mano de cero cada vez: las que
+    existen se marcan con casillas (genres), y solo hace falta escribir
+    algo en new_genres_input si la lista es de verdad nueva."""
+
     def test_crea_generos_sobre_la_marcha(self):
         form = SecretMovieForm(data={
             "number": 1, "title": "Kill Bill", "personal_rating": "9.0",
-            "comment": "", "genres_input": "acción, venganza, Tarantino",
+            "comment": "", "genres": [], "new_genres_input": "acción, venganza, Tarantino",
         })
         self.assertTrue(form.is_valid(), form.errors)
         movie = form.save()
@@ -448,11 +486,11 @@ class SecretMovieFormTests(TestCase):
             {"acción", "venganza", "Tarantino"},
         )
 
-    def test_reutiliza_generos_existentes(self):
-        Genre.objects.create(name="Terror")
+    def test_reutiliza_generos_existentes_marcando_la_casilla(self):
+        terror = Genre.objects.create(name="Terror")
         form = SecretMovieForm(data={
             "number": 1, "title": "El resplandor", "personal_rating": "9.5",
-            "comment": "", "genres_input": "Terror, Drama",
+            "comment": "", "genres": [terror.pk], "new_genres_input": "Drama",
         })
         self.assertTrue(form.is_valid(), form.errors)
         movie = form.save()
@@ -461,9 +499,10 @@ class SecretMovieFormTests(TestCase):
 
     def test_editar_precarga_los_generos_actuales(self):
         movie = SecretMovie.objects.create(title="X", personal_rating="8.0")
-        movie.genres.add(Genre.objects.create(name="Drama"))
+        drama = Genre.objects.create(name="Drama")
+        movie.genres.add(drama)
         form = SecretMovieForm(instance=movie)
-        self.assertEqual(form.fields["genres_input"].initial, "Drama")
+        self.assertEqual(list(form.fields["genres"].initial), [drama])
 
 
 class TierListTests(TestCase):

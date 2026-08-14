@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -21,3 +22,25 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ProductView(models.Model):
+    """Quién ha visto ya cada artículo del escaparate — antes la campanita
+    avisaba de "artículo nuevo en la tienda" a TODO el mundo durante 30
+    días sin ninguna forma de que un usuario concreto lo marcara como
+    visto (a diferencia de los artículos del tablón), así que el aviso
+    parecía no desaparecer nunca aunque ya lo hubieras visto."""
+
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="views")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="usuario", on_delete=models.CASCADE, related_name="+",
+    )
+    viewed_at = models.DateTimeField("visto por última vez", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "vista"
+        verbose_name_plural = "vistas"
+        constraints = [models.UniqueConstraint(fields=["product", "user"], name="una_vista_por_usuario_y_articulo_de_tienda")]
+
+    def __str__(self):
+        return f"{self.user} vio {self.product}"

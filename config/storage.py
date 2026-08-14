@@ -3,6 +3,23 @@ probarlos sin tener que recargar el módulo de settings."""
 
 from urllib.parse import urlparse
 
+from whitenoise.storage import CompressedManifestStaticFilesStorage
+
+
+class LenientManifestStaticFilesStorage(CompressedManifestStaticFilesStorage):
+    """Igual que el storage con manifiesto de whitenoise (nombre de archivo
+    con hash del contenido -> WhiteNoise le pone caché de un año, que es lo
+    que de verdad hace notar la recarga entre página y página) pero sin
+    reventar si una referencia dentro de un CSS/JS no se puede resolver.
+
+    django-jazzmin referencia "vendor/bootswatch" como prefijo de ruta (no
+    un archivo real), y el manifiesto estricto de Django lo trata como un
+    archivo que falta y lanza ValueError. `manifest_strict = False` hace que
+    esa referencia concreta se deje tal cual en vez de romper el collectstatic
+    entero — el resto de archivos sí se hashean y cachean a largo plazo."""
+
+    manifest_strict = False
+
 
 def supabase_public_domain(endpoint_url, bucket_name):
     """Dominio (+ ruta) para servir archivos públicos de un bucket de

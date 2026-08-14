@@ -18,14 +18,14 @@
         <p class="muted">Estas son las que puede ofrecerte la ruleta (Modo 2). Guarda o quita alguna desde su ficha, y usa ▲▼ para ordenarlas por importancia. Agrúpalas en listas (por ejemplo "Terror") para verlas o tirar la ruleta solo sobre esa lista.</p>
 
         <div class="media-type-toggle">
-            <a href="?type=movie{% if list_param %}&list={{ list_param }}{% endif %}" class="btn btn--sm {% if media_type == 'movie' %}btn--accent{% else %}btn--ghost{% endif %}">Películas</a>
-            <a href="?type=tv{% if list_param %}&list={{ list_param }}{% endif %}" class="btn btn--sm {% if media_type == 'tv' %}btn--accent{% else %}btn--ghost{% endif %}">Series</a>
-            <a href="?type=all{% if list_param %}&list={{ list_param }}{% endif %}" class="btn btn--sm {% if media_type == 'all' %}btn--accent{% else %}btn--ghost{% endif %}">Ambas</a>
+            <a href="?type=movie{% if list_param %}&list={{ list_param }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}" class="btn btn--sm {% if media_type == 'movie' %}btn--accent{% else %}btn--ghost{% endif %}">Películas</a>
+            <a href="?type=tv{% if list_param %}&list={{ list_param }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}" class="btn btn--sm {% if media_type == 'tv' %}btn--accent{% else %}btn--ghost{% endif %}">Series</a>
+            <a href="?type=all{% if list_param %}&list={{ list_param }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}" class="btn btn--sm {% if media_type == 'all' %}btn--accent{% else %}btn--ghost{% endif %}">Ambas</a>
         </div>
 
         <div class="media-type-toggle">
-            <a href="?type={{ media_type }}" class="btn btn--sm {% if not list_param %}btn--accent{% else %}btn--ghost{% endif %}">Todas</a>
-            <a href="?type={{ media_type }}&list=none" class="btn btn--sm {% if list_param == 'none' %}btn--accent{% else %}btn--ghost{% endif %}">Sin listas</a>
+            <a href="?type={{ media_type }}{% if query %}&q={{ query|urlencode }}{% endif %}" class="btn btn--sm {% if not list_param %}btn--accent{% else %}btn--ghost{% endif %}">Todas</a>
+            <a href="?type={{ media_type }}&list=none{% if query %}&q={{ query|urlencode }}{% endif %}" class="btn btn--sm {% if list_param == 'none' %}btn--accent{% else %}btn--ghost{% endif %}">Sin listas</a>
             {% if sublists %}
             <details class="list-filter">
                 <summary class="btn btn--sm {% if current_list %}btn--accent{% else %}btn--ghost{% endif %}">
@@ -33,12 +33,20 @@
                 </summary>
                 <div class="list-picker__menu">
                     {% for sublist in sublists %}
-                    <a href="?type={{ media_type }}&list={{ sublist.pk }}" class="list-picker__item{% if current_list.pk == sublist.pk %} list-picker__item--active{% endif %}">{{ sublist.name }}</a>
+                    <a href="?type={{ media_type }}&list={{ sublist.pk }}{% if query %}&q={{ query|urlencode }}{% endif %}" class="list-picker__item{% if current_list.pk == sublist.pk %} list-picker__item--active{% endif %}">{{ sublist.name }}</a>
                     {% endfor %}
                 </div>
             </details>
             {% endif %}
         </div>
+
+        <form method="get" class="tier-row__edit-form saved-search">
+            <input type="hidden" name="type" value="{{ media_type }}">
+            {% if list_param %}<input type="hidden" name="list" value="{{ list_param }}">{% endif %}
+            <input type="search" name="q" value="{{ query }}" placeholder="Buscar por título...">
+            <button type="submit" class="btn btn--ghost btn--sm">Buscar</button>
+            {% if query %}<a href="?type={{ media_type }}{% if list_param %}&list={{ list_param }}{% endif %}" class="btn btn--ghost btn--sm">Limpiar</a>{% endif %}
+        </form>
 
         <details class="tier-add-level">
             <summary class="btn btn--ghost btn--sm">+ Nueva lista</summary>
@@ -111,7 +119,7 @@
         </ul>
         {% else %}
         <p class="muted">
-            {% if list_param %}No hay guardadas en esta lista.{% else %}Todavía no has guardado ninguna. Hazlo desde su ficha.{% endif %}
+            {% if query %}No hay ninguna guardada que coincida con «{{ query }}».{% elif list_param %}No hay guardadas en esta lista.{% else %}Todavía no has guardado ninguna. Hazlo desde su ficha.{% endif %}
         </p>
         {% endif %}
 

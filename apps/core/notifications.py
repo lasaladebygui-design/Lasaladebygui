@@ -28,14 +28,14 @@ def _unseen_articles(user):
     return articles.filter(created_at__gte=cutoff)
 
 
-def _recent_products():
-    # La tienda no tiene "visto/no visto" por usuario como los artículos
-    # (no hay carrito ni cuenta de por medio para eso): se avisa de
-    # cualquier artículo añadido en los últimos RECENT_PRODUCTS_DAYS días.
-    from apps.shop.models import Product
+def _unseen_products(user):
+    from apps.shop.models import Product, ProductView
 
+    products = Product.objects.exclude(
+        pk__in=ProductView.objects.filter(user=user).values("product_id")
+    )
     cutoff = timezone.now() - timedelta(days=RECENT_PRODUCTS_DAYS)
-    return Product.objects.filter(created_at__gte=cutoff)
+    return products.filter(created_at__gte=cutoff)
 
 
 def unread_notifications_count(user):
@@ -51,7 +51,7 @@ def unread_notifications_count(user):
     count += FriendRequest.objects.filter(to_user=user, accepted=False).count()
     count += Announcement.objects.exclude(read_by=user).count()
     count += _unseen_articles(user).count()
-    count += _recent_products().count()
+    count += _unseen_products(user).count()
     return count
 
 
@@ -114,7 +114,7 @@ def notifications_feed(user, limit_per_category=5):
             "created_at": article.created_at,
         })
 
-    for product in _recent_products().order_by("-created_at")[:limit_per_category]:
+    for product in _unseen_products(user).order_by("-created_at")[:limit_per_category]:
         items.append({
             "kind": "product", "icon": "🛒",
             "text": f"Nuevo en la tienda: {product.name}",

@@ -6,29 +6,39 @@ RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
 
 
 class SecretMovieForm(forms.ModelForm):
-    genres_input = forms.CharField(
-        label="Listas",
+    # Antes era un único campo de texto ("sepáralas con comas") — había que
+    # recordar y volver a escribir el nombre exacto de cada lista existente
+    # cada vez, con riesgo de typos creando listas duplicadas casi iguales.
+    # Ahora las que ya existen se marcan con casillas (rápido, sin errores)
+    # y solo hace falta escribir algo si la lista es de verdad nueva.
+    genres = forms.ModelMultipleChoiceField(
+        label="Listas existentes",
+        queryset=Genre.objects.all(),
         required=False,
-        help_text="Sepáralas con comas, ej: terror, slasher, años 80",
+        widget=forms.CheckboxSelectMultiple,
+    )
+    new_genres_input = forms.CharField(
+        label="Listas nuevas",
+        required=False,
+        help_text="Solo para listas que todavía no existan — sepáralas con comas.",
     )
 
     class Meta:
         model = SecretMovie
-        fields = ["title", "personal_rating", "tie_break", "comment", "movie", "rating_verdict"]
+        fields = ["title", "personal_rating", "tie_break", "comment", "movie"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance.pk:
-            self.fields["genres_input"].initial = ", ".join(
-                self.instance.genres.values_list("name", flat=True)
-            )
+            self.fields["genres"].initial = self.instance.genres.all()
 
     def save(self, commit=True):
         movie = super().save(commit=commit)
 
         def sync_genres():
-            names = [n.strip() for n in self.cleaned_data["genres_input"].split(",") if n.strip()]
-            genres = [Genre.objects.get_or_create(name=name)[0] for name in names]
+            genres = list(self.cleaned_data["genres"])
+            new_names = [n.strip() for n in self.cleaned_data["new_genres_input"].split(",") if n.strip()]
+            genres += [Genre.objects.get_or_create(name=name)[0] for name in new_names]
             movie.genres.set(genres)
 
         if commit:

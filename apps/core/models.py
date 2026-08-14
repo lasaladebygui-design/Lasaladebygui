@@ -1,7 +1,10 @@
 from django.conf import settings
+from django.core.cache import cache
 from django.core.validators import RegexValidator
-from django.db import models
+from django.db import models, transaction
 from django.utils.text import slugify
+
+SINGLETON_CACHE_TTL = 60
 
 hex_color_validator = RegexValidator(
     regex=r"^#[0-9A-Fa-f]{6}$",
@@ -19,7 +22,20 @@ def hex_field(default, verbose_name):
 
 
 class SingletonModel(models.Model):
-    """Modelo con una única fila en BD, editable desde el admin."""
+    """Modelo con una única fila en BD, editable desde el admin.
+
+    `load()` se llama en cada request (p. ej. SiteConfig desde el
+    context processor de todas las páginas), así que se cachea unos
+    segundos en vez de ir a la base de datos siempre — sin esto, cada
+    carga de página pagaba una consulta extra solo para leer una fila
+    que casi nunca cambia.
+
+    La caché solo se rellena con `transaction.on_commit`, no en el momento
+    de leer: en los tests de Django (TestCase envuelve cada test en una
+    transacción que se deshace al final) ese commit nunca llega, así que
+    nada queda cacheado de un test al siguiente — sin esto, un valor
+    cacheado durante un test se colaría, ya con datos revertidos, en el
+    test que se ejecute después en el mismo proceso."""
 
     class Meta:
         abstract = True
@@ -27,13 +43,22 @@ class SingletonModel(models.Model):
     def save(self, *args, **kwargs):
         self.pk = 1
         super().save(*args, **kwargs)
+        cache.delete(self._singleton_cache_key())
 
     def delete(self, *args, **kwargs):
         pass
 
     @classmethod
+    def _singleton_cache_key(cls):
+        return f"singleton:{cls._meta.label_lower}"
+
+    @classmethod
     def load(cls):
-        obj, _ = cls.objects.get_or_create(pk=1)
+        cache_key = cls._singleton_cache_key()
+        obj = cache.get(cache_key)
+        if obj is None:
+            obj, _ = cls.objects.get_or_create(pk=1)
+            transaction.on_commit(lambda: cache.set(cache_key, obj, SINGLETON_CACHE_TTL))
         return obj
 
 

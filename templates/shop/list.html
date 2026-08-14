@@ -18,7 +18,16 @@
                 {% endif %}
                 <h3>{{ product.name }}</h3>
                 {% if product.price %}<p class="card__tag">{{ product.price }} €</p>{% endif %}
-                {% if product.description %}<p>{{ product.description }}</p>{% endif %}
+                {% if product.description %}
+                    {% if product.description|length > 160 %}
+                    <div x-data="{ expanded: false }">
+                        <p :class="expanded ? '' : 'card__desc--collapsed'">{{ product.description }}</p>
+                        <button type="button" class="card__more" @click="expanded = !expanded" x-text="expanded ? 'Leer menos' : 'Leer más'"></button>
+                    </div>
+                    {% else %}
+                    <p>{{ product.description }}</p>
+                    {% endif %}
+                {% endif %}
                 {% if product.url %}<a href="{{ product.url }}" class="btn btn--ghost btn--sm" target="_blank" rel="noopener">Web del artículo</a>{% endif %}
             </div>
             {% endfor %}

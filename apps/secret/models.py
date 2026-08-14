@@ -4,7 +4,7 @@ from django.core.files.storage import storages
 from django.db import models
 from django.utils.text import slugify
 
-from apps.core.models import SingletonModel
+from apps.core.models import SingletonModel, hex_field
 from apps.movies.models import Movie
 
 
@@ -14,25 +14,13 @@ def _default_code_hash():
 
 class TopSecretConfig(SingletonModel):
     """Código de acceso al maletín Tarantino (se guarda hasheado, nunca en
-    texto plano) y ajustes de color de la lista completa: a partir de qué
-    nota una película se pinta como bien valorada, regular o mal valorada,
-    y con qué color exacto — todo editable sin tocar código."""
+    texto plano) y punto de entrada a los tramos de color de la nota de la
+    lista completa (ver RatingColorBand) — cuántos tramos haya y de qué
+    nota a qué nota va cada uno se decide entero desde el admin."""
 
     access_code_hash = models.CharField(
         "código de acceso (hash)", max_length=128, default=_default_code_hash
     )
-
-    rating_good_threshold = models.DecimalField(
-        "nota a partir de la cual se considera alta", max_digits=3, decimal_places=1, default=8.0,
-    )
-    rating_mid_threshold = models.DecimalField(
-        "nota a partir de la cual se considera media",
-        max_digits=3, decimal_places=1, default=6.0,
-        help_text="Por debajo de esta nota se considera baja.",
-    )
-    color_rating_good = models.CharField("color de nota alta", max_length=7, default="#22C55E")
-    color_rating_mid = models.CharField("color de nota media", max_length=7, default="#FFB347")
-    color_rating_bad = models.CharField("color de nota baja", max_length=7, default="#EF4444")
 
     class Meta:
         verbose_name = "código de acceso y colores"
@@ -48,11 +36,32 @@ class TopSecretConfig(SingletonModel):
         self.access_code_hash = make_password(code)
 
     def rating_color(self, personal_rating):
-        if personal_rating >= self.rating_good_threshold:
-            return self.color_rating_good
-        if personal_rating >= self.rating_mid_threshold:
-            return self.color_rating_mid
-        return self.color_rating_bad
+        band = (
+            self.rating_bands.filter(min_rating__lte=personal_rating, max_rating__gte=personal_rating)
+            .order_by("order").first()
+        )
+        return band.color if band else "#9CA3AF"
+
+
+class RatingColorBand(models.Model):
+    """Un tramo de nota con su propio color (p. ej. "de 1 a 4: rojo") — se
+    pueden definir tantos como se quiera, no solo un "bueno/medio/malo"
+    fijo. El primer tramo cuyo rango incluya la nota es el que manda; si
+    dos se solapan, gana el de menor `order`."""
+
+    config = models.ForeignKey(TopSecretConfig, on_delete=models.CASCADE, related_name="rating_bands")
+    min_rating = models.DecimalField("nota mínima", max_digits=3, decimal_places=1)
+    max_rating = models.DecimalField("nota máxima", max_digits=3, decimal_places=1)
+    color = hex_field("#9CA3AF", "color")
+    order = models.PositiveIntegerField("orden", default=0)
+
+    class Meta:
+        verbose_name = "tramo de color"
+        verbose_name_plural = "tramos de color"
+        ordering = ["order", "min_rating"]
+
+    def __str__(self):
+        return f"{self.min_rating}–{self.max_rating}: {self.color}"
 
 
 class Genre(models.Model):
@@ -107,18 +116,12 @@ class SecretMovie(models.Model):
         on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
     )
 
-    class RatingVerdict(models.TextChoices):
-        OVERRATED = "sobrevalorada", "Sobrevalorada"
-        WELL_RATED = "bien_valorada", "Bien valorada"
-        UNDERRATED = "infravalorada", "Infravalorada"
-
-    rating_verdict = models.CharField(
-        "evaluación real", max_length=20, choices=RatingVerdict.choices, blank=True, default="",
-        help_text="¿Tu nota está por encima, por debajo o acorde con lo que de verdad merece? Opcional.",
-    )
-
     class Meta:
-        verbose_name = "película secreta"
+        # Solo el singular cambia (Django arma "Añadir {verbose_name}",
+        # "¿Eliminar la {verbose_name} X?", etc. con esto) — el plural se
+        # deja igual a propósito, así el menú lateral sigue diciendo
+        # "Películas secretas", que es donde sí tiene sentido ese nombre.
+        verbose_name = "entrada a la lista completa"
         verbose_name_plural = "películas secretas"
         ordering = ["number"]
 
@@ -173,12 +176,6 @@ class SecretMovie(models.Model):
     @property
     def poster_url(self):
         return self.movie.poster_url if self.movie else ""
-
-    RATING_VERDICT_ICONS = {"sobrevalorada": "↑", "bien_valorada": "=", "infravalorada": "↓"}
-
-    @property
-    def rating_verdict_icon(self):
-        return self.RATING_VERDICT_ICONS.get(self.rating_verdict, "")
 
 
 class TierLevel(models.Model):

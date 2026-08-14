@@ -1,6 +1,7 @@
 import json
 from unittest.mock import patch
 
+from django.contrib import admin
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -174,6 +175,26 @@ class SavedMovieTests(TestCase):
         self.assertEqual(list(response.context["saved"].values_list("movie", flat=True)), [serie.pk])
 
         response = self.client.get(reverse("movies:saved-movies"), {"type": "movie"})
+        self.assertEqual(list(response.context["saved"].values_list("movie", flat=True)), [self.movie.pk])
+
+    def test_guardadas_muestra_pelis_y_series_juntas_por_defecto(self):
+        serie = Movie.objects.create(tmdb_id=2, title="Serie A", media_type="tv")
+        SavedMovie.objects.create(user=self.user, movie=self.movie)
+        SavedMovie.objects.create(user=self.user, movie=serie)
+
+        response = self.client.get(reverse("movies:saved-movies"))
+        self.assertEqual(response.context["media_type"], "all")
+        self.assertEqual(
+            set(response.context["saved"].values_list("movie", flat=True)),
+            {self.movie.pk, serie.pk},
+        )
+
+    def test_guardadas_busca_por_titulo(self):
+        other_movie = make_movie(2, "Otra pelicula", "7.0")
+        SavedMovie.objects.create(user=self.user, movie=self.movie)
+        SavedMovie.objects.create(user=self.user, movie=other_movie)
+
+        response = self.client.get(reverse("movies:saved-movies"), {"q": self.movie.title})
         self.assertEqual(list(response.context["saved"].values_list("movie", flat=True)), [self.movie.pk])
 
     def test_mover_guardada_cambia_el_orden(self):
@@ -577,6 +598,42 @@ class MovieListLiveSearchTests(TestCase):
         mock_search.return_value = []
         self.client.get(reverse("movies:list"), {"query": "dark", "type": "tv"})
         mock_search.assert_called_once_with("dark", media_type="tv")
+
+
+class MovieAdminAutocompleteImportTests(TestCase):
+    """El selector de "portada" (autocompletar del campo `movie`, usado
+    desde Película secreta y Tier list) solo miraba el catálogo local — un
+    título nunca buscado antes en "Cine" no aparecía. Ahora, si la búsqueda
+    local no encuentra nada, se importa de TMDb antes de repetirla."""
+
+    def setUp(self):
+        from apps.movies.admin import MovieAdmin
+        self.admin = MovieAdmin(Movie, admin.site)
+
+    def _tmdb_result(self, tmdb_id, title, media_type="movie"):
+        from apps.movies.services import TMDbResult
+        return TMDbResult(tmdb_id=tmdb_id, title=title, year="2010", poster_path="/x.jpg", overview="...", media_type=media_type)
+
+    @patch("apps.movies.admin.tmdb_search")
+    def test_titulo_no_cacheado_se_importa_de_tmdb(self, mock_search):
+        mock_search.side_effect = lambda term, media_type: (
+            [self._tmdb_result(1, "El prestigio", media_type)] if media_type == "movie" else []
+        )
+        results, _ = self.admin.get_search_results(None, Movie.objects.all(), "El prestigio")
+        self.assertEqual(list(results.values_list("title", flat=True)), ["El prestigio"])
+        self.assertTrue(Movie.objects.filter(tmdb_id=1, media_type="movie").exists())
+
+    @patch("apps.movies.admin.tmdb_search")
+    def test_titulo_ya_en_catalogo_no_repite_llamada_a_tmdb(self, mock_search):
+        make_movie(1, "El prestigio", None)
+        results, _ = self.admin.get_search_results(None, Movie.objects.all(), "prestigio")
+        self.assertEqual(list(results.values_list("title", flat=True)), ["El prestigio"])
+        mock_search.assert_not_called()
+
+    @patch("apps.movies.admin.tmdb_search", side_effect=MovieAPIError("fallo de red"))
+    def test_fallo_de_tmdb_no_rompe_el_autocompletar(self, mock_search):
+        results, _ = self.admin.get_search_results(None, Movie.objects.all(), "loquesea")
+        self.assertEqual(list(results), [])
 
 
 class MovieListInfiniteScrollTests(TestCase):

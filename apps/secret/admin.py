@@ -8,6 +8,7 @@ from .models import (
     CalendarDayNote,
     Genre,
     PhotoBoardMember,
+    RatingColorBand,
     ReleaseEvent,
     SecretMovie,
     SecretPhoto,
@@ -29,15 +30,7 @@ class TopSecretConfigForm(forms.ModelForm):
 
     class Meta:
         model = TopSecretConfig
-        fields = [
-            "rating_good_threshold", "rating_mid_threshold",
-            "color_rating_good", "color_rating_mid", "color_rating_bad",
-        ]
-        widgets = {
-            "color_rating_good": forms.TextInput(attrs={"type": "color"}),
-            "color_rating_mid": forms.TextInput(attrs={"type": "color"}),
-            "color_rating_bad": forms.TextInput(attrs={"type": "color"}),
-        }
+        fields = []
 
     def save(self, commit=True):
         instance = super().save(commit=False)
@@ -49,19 +42,28 @@ class TopSecretConfigForm(forms.ModelForm):
         return instance
 
 
+class RatingColorBandInline(admin.TabularInline):
+    """Tantos tramos de nota→color como se quiera (no solo "bueno/medio/
+    malo" fijo) — p. ej. "1 a 4: rojo", "4.1 a 7: naranja", "7.1 a 10: verde",
+    o cualquier otro reparto. El primer tramo cuyo rango incluya la nota es
+    el que se usa (ver TopSecretConfig.rating_color)."""
+
+    model = RatingColorBand
+    extra = 1
+    fields = ("min_rating", "max_rating", "color", "order")
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        if db_field.name == "color":
+            kwargs["widget"] = forms.TextInput(attrs={"type": "color"})
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
+
+
 @admin.register(TopSecretConfig)
 class TopSecretConfigAdmin(SingletonAdmin):
     form = TopSecretConfigForm
+    inlines = [RatingColorBandInline]
     fieldsets = (
         (None, {"fields": ("new_code",)}),
-        ("Colores de la lista completa según nota", {
-            "fields": (
-                "rating_good_threshold", "color_rating_good",
-                "rating_mid_threshold", "color_rating_mid",
-                "color_rating_bad",
-            ),
-            "description": "Por debajo de la nota media, el color siempre es el de \"nota baja\".",
-        }),
     )
 
 
@@ -78,8 +80,7 @@ class GenreAdmin(SortableAdminMixin, admin.ModelAdmin):
 @admin.register(SecretMovie)
 class SecretMovieAdmin(admin.ModelAdmin):
     form = SecretMovieForm
-    list_display = ("number", "title", "personal_rating", "rating_verdict", "tie_break", "genre_list")
-    list_filter = ("rating_verdict",)
+    list_display = ("number", "title", "personal_rating", "tie_break", "genre_list")
     search_fields = ("title",)
     autocomplete_fields = ("movie",)
     ordering = ("number",)

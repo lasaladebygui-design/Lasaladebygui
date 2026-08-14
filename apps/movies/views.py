@@ -24,9 +24,9 @@ def _is_htmx(request):
     return request.headers.get("HX-Request") == "true"
 
 
-def _media_type_from_request(request):
-    value = request.GET.get("type", "movie")
-    return value if value in MEDIA_TYPES else "movie"
+def _media_type_from_request(request, default="movie"):
+    value = request.GET.get("type", default)
+    return value if value in MEDIA_TYPES else default
 
 
 def _random_row(queryset):
@@ -219,13 +219,16 @@ def _filter_by_sublist(queryset, list_param):
 
 @login_required
 def saved_movies(request):
-    media_type = _media_type_from_request(request)
+    media_type = _media_type_from_request(request, default="all")
     list_param = request.GET.get("list", "")
+    query = request.GET.get("q", "").strip()
 
     saved = SavedMovie.objects.filter(user=request.user).select_related("movie").prefetch_related("sublists").order_by("order", "-saved_at")
     if media_type != "all":
         saved = saved.filter(movie__media_type=media_type)
     saved = _filter_by_sublist(saved, list_param)
+    if query:
+        saved = saved.filter(movie__title__icontains=query)
 
     sublists = SavedMovieList.objects.filter(user=request.user)
     current_list = None
@@ -237,6 +240,7 @@ def saved_movies(request):
         "sublists": sublists,
         "list_param": list_param,
         "current_list": current_list,
+        "query": query,
     })
 
 

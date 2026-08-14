@@ -125,6 +125,16 @@ DATABASES = {"default": env.db_url_config(_database_url)}
 if DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql":
     DATABASES["default"]["OPTIONS"] = {"sslmode": env("DB_SSLMODE", default="require")}
 
+# --- Caché --------------------------------------------------------------
+# LocMemCache de toda la vida: un único proceso, no hace falta Redis. Se usa
+# para no ir a la base de datos en cada request a leer SiteConfig/
+# TopSecretConfig (ver SingletonModel.load en apps/core/models.py), que se
+# renderiza en la cabecera de cada página; también la usa el maletín de Top
+# Secret para el contador de intentos fallidos del código.
+CACHES = {
+    "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
+}
+
 # --- Usuarios / autenticación -----------------------------------------
 
 AUTH_USER_MODEL = "accounts.User"
@@ -263,15 +273,15 @@ STORAGES = {
         "BACKEND": (
             "django.contrib.staticfiles.storage.StaticFilesStorage"
             if DEBUG
+            # Con nombre de archivo hasheado por contenido, WhiteNoise sirve
+            # cada CSS/JS con caché de un año (en vez de revalidarlo en cada
+            # navegación) — se nota en cada carga de página, no solo en el
+            # primer visitado. "Lenient" (ver config/storage.py) es la misma
+            # variante con manifiesto de siempre, pero sin reventar cuando
             # django-jazzmin referencia "vendor/bootswatch" como prefijo de
-            # ruta (para componer <tema>/bootstrap.min.css), no como un
-            # archivo real — el storage "Manifest" de Django/whitenoise
-            # intenta resolverlo contra el manifiesto y revienta con
-            # ValueError: Missing staticfiles manifest entry. La variante
-            # sin manifiesto (solo comprime, no hashea nombres de archivo)
-            # evita el crash; el coste es no invalidar caché de navegador
-            # por nombre de archivo tras cada deploy.
-            else "whitenoise.storage.CompressedStaticFilesStorage"
+            # ruta (no un archivo real) y el manifiesto estricto de Django lo
+            # trataría como un archivo que falta.
+            else "config.storage.LenientManifestStaticFilesStorage"
         )
     },
 }
