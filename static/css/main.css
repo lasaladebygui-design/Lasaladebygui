@@ -757,11 +757,16 @@ main { flex: 1; }
     border-radius: var(--radius-base);
     overflow: hidden;
 }
-.home-hero__stage { position: relative; min-height: 420px; }
+/* La altura escala con el ancho (clamp con vw) en vez de ser un número
+   fijo: ahora que la imagen ocupa todo el ancho (ver .home-hero__image
+   más abajo), en pantallas anchas necesita más alto para no recortarse
+   a una tira finísima — con un número fijo pensado para móvil, una foto
+   normal en escritorio salía cortada a una franja irreconocible. */
+.home-hero__stage { position: relative; min-height: clamp(420px, 58vw, 780px); }
 .home-hero__slide {
     display: grid;
     grid-template-columns: 1fr;
-    min-height: 420px;
+    min-height: clamp(420px, 58vw, 780px);
     /* Las diapositivas se superponen en vez de apilarse en el flujo
        normal: así, durante el instante en que la que sale y la que
        entra están las dos visibles a la vez (mientras hace fundido),
@@ -796,7 +801,13 @@ main { flex: 1; }
 .home-hero__text .btn { align-self: flex-start; }
 
 .home-hero__image-link { display: block; background: var(--color-bg); }
-.home-hero__image { width: 100%; height: 100%; min-height: 160px; max-height: 220px; object-fit: cover; display: block; }
+/* aspect-ratio en vez de height:100% — con la imagen a ancho completo
+   dentro de una fila "auto" de grid, height:100% no tenía una altura
+   real de la que partir (se resolvía como si fuera auto) y el
+   min/max-height fijo (pensado para la mitad del ancho) recortaba
+   fotos normales a una tira absurdamente fina. 21:9 es panorámico sin
+   llegar a eso. */
+.home-hero__image { width: 100%; aspect-ratio: 21 / 9; max-height: 60vh; object-fit: cover; display: block; }
 .home-hero__image--placeholder {
     display: flex;
     align-items: center;
@@ -1613,28 +1624,29 @@ main { flex: 1; }
     outline: none;
 }
 .secret-gate-scene__glow {
-    /* El maletín no se apoya en nada — flota bajo un solo foco de luz
-       venido de arriba (glow + beam), sin suelo ni mesa. */
+    /* El maletín no se apoya en nada — flota bajo una lamparita como la
+       del logo de la animación de inicio (misma idea: bombilla pequeña +
+       halo alrededor), pero circular en vez de un cono de foco de
+       teatro — ilumina alrededor, no "hacia abajo". */
     position: absolute;
-    top: -25%;
+    top: -18%;
     left: 50%;
     transform: translateX(-50%);
-    width: 85%;
+    width: 78%;
     aspect-ratio: 1;
     background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 40%, transparent), transparent 68%);
     pointer-events: none;
 }
-.secret-gate-scene__beam {
-    /* Cono de luz de foco de teatro: ancho arriba, estrecho sobre el
-       maletín, como si colgara una lámpara justo encima. */
+.secret-gate-scene__bulb {
+    /* La bombilla en sí — mismo truco que .intro__bulb (un punto brillante
+       muy pequeño con su propio halo, radial y sin dirección). */
     position: absolute;
-    top: 0;
+    top: 6%;
     left: 50%;
     transform: translateX(-50%);
-    width: 50%;
-    height: 100%;
-    clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%);
-    background: linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 24%, transparent), transparent 85%);
+    width: 40%;
+    aspect-ratio: 1;
+    background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 75%, white), color-mix(in srgb, var(--color-accent) 30%, transparent) 45%, transparent 72%);
     pointer-events: none;
 }
 .secret-gate-scene__hint {

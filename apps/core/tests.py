@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 from django.conf import settings
 from django.core import mail
 from django.core.management import call_command
-from django.test import TestCase, override_settings
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -634,32 +634,40 @@ class SortableAdminTests(TestCase):
 
 
 class AdminMenuOrderTests(TestCase):
-    """Arrastrar para reordenar las secciones/modelos del menú lateral del
-    admin (Sitio → Orden del menú) — guarda en BD y AdminMenuOrderMiddleware
-    lo aplica sobre JAZZMIN_SETTINGS en cada petición al admin."""
+    """Arrastrar para reagrupar/reordenar el menú lateral del admin (Sitio
+    → Orden del menú) — guarda secciones en BD y admin.site.get_app_list
+    (parcheado en apps/core/admin.py) las aplica en cada petición,
+    sustituyendo el agrupado nativo de Django (por app real) por las
+    secciones guardadas. Eso es lo que permite mover un modelo a otra
+    sección de verdad, no solo reordenar dentro de la suya."""
 
     def setUp(self):
         self.admin = User.objects.create(email="menu_admin@test.local", role=User.Role.ADMIN, is_staff=True, is_superuser=True)
         self.admin.set_password("Testpass123!")
         self.admin.save()
         self.client.login(username=self.admin.email, password="Testpass123!")
+        self.factory = RequestFactory()
 
     def tearDown(self):
         AdminMenuOrder.objects.all().delete()
-        settings.JAZZMIN_SETTINGS["order_with_respect_to"] = settings.DEFAULT_ADMIN_MENU_ORDER
+
+    def _request(self, user=None):
+        request = self.factory.get("/admin/")
+        request.user = user or self.admin
+        return request
 
     def test_la_pagina_de_arrastre_muestra_las_secciones_y_modelos(self):
         response = self.client.get(reverse("admin:core_adminmenuorder_changelist"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "menu-order-group")
+        self.assertContains(response, "menu-order-section")
         self.assertContains(response, 'data-token="articles.Article"')
 
-    def test_guardar_persiste_el_nuevo_orden(self):
-        new_order = ["core", "articles", "articles.Article"]
+    def test_guardar_persiste_las_nuevas_secciones(self):
+        new_sections = [{"name": "Todo junto", "items": ["articles.Article", "forum.Thread"]}]
         url = reverse("admin:core_adminmenuorder_save")
-        response = self.client.post(url, data=json.dumps({"order": new_order}), content_type="application/json")
+        response = self.client.post(url, data=json.dumps({"sections": new_sections}), content_type="application/json")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(AdminMenuOrder.load().order, new_order)
+        self.assertEqual(AdminMenuOrder.load().sections, new_sections)
 
     def test_guardar_no_admite_get(self):
         response = self.client.get(reverse("admin:core_adminmenuorder_save"))
@@ -667,7 +675,13 @@ class AdminMenuOrderTests(TestCase):
 
     def test_guardar_rechaza_un_formato_invalido(self):
         url = reverse("admin:core_adminmenuorder_save")
-        response = self.client.post(url, data=json.dumps({"order": "no es una lista"}), content_type="application/json")
+        response = self.client.post(url, data=json.dumps({"sections": "no es una lista"}), content_type="application/json")
+        self.assertEqual(response.status_code, 400)
+
+    def test_guardar_rechaza_una_seccion_sin_nombre(self):
+        url = reverse("admin:core_adminmenuorder_save")
+        bad = [{"name": "", "items": []}]
+        response = self.client.post(url, data=json.dumps({"sections": bad}), content_type="application/json")
         self.assertEqual(response.status_code, 400)
 
     def test_requiere_estar_conectado_como_admin(self):
@@ -675,20 +689,68 @@ class AdminMenuOrderTests(TestCase):
         response = self.client.get(reverse("admin:core_adminmenuorder_changelist"))
         self.assertNotEqual(response.status_code, 200)
 
-    def test_el_middleware_aplica_el_orden_guardado_a_jazzmin(self):
-        custom_order = ["core", "articles", "articles.Article"]
-        AdminMenuOrder.objects.create(pk=1, order=custom_order)
-        self.client.get(reverse("admin:index"))
-        self.assertEqual(settings.JAZZMIN_SETTINGS["order_with_respect_to"], custom_order)
+    def test_get_app_list_agrupa_modelos_de_distintas_apps_en_una_seccion(self):
+        # Esto es justo lo que el agrupado nativo de Django NO permite:
+        # un modelo de "articles" y otro de "forum" bajo la misma sección.
+        AdminMenuOrder.objects.create(pk=1, sections=[
+            {"name": "Todo junto", "items": ["articles.Article", "forum.Thread"]},
+        ])
+        from .admin import get_app_list
+        app_list = get_app_list(self._request())
+        self.assertEqual(app_list[0]["name"], "Todo junto")
+        object_names = {m["object_name"] for m in app_list[0]["models"]}
+        self.assertEqual(object_names, {"Article", "Thread"})
 
-    def test_el_middleware_usa_el_orden_de_fabrica_si_no_hay_nada_guardado(self):
-        self.client.get(reverse("admin:index"))
-        self.assertEqual(settings.JAZZMIN_SETTINGS["order_with_respect_to"], settings.DEFAULT_ADMIN_MENU_ORDER)
+    def test_get_app_list_respeta_el_orden_guardado(self):
+        AdminMenuOrder.objects.create(pk=1, sections=[
+            {"name": "Segunda", "items": ["forum.Thread"]},
+            {"name": "Primera", "items": ["articles.Article"]},
+        ])
+        from .admin import get_app_list
+        app_list = get_app_list(self._request())
+        # Las dos secciones guardadas van primero, en su orden; el resto
+        # de modelos con permiso (leftovers) se añaden después.
+        self.assertEqual([section["name"] for section in app_list[:2]], ["Segunda", "Primera"])
 
-    def test_el_middleware_no_toca_nada_fuera_del_admin(self):
-        settings.JAZZMIN_SETTINGS["order_with_respect_to"] = ["marca-de-prueba"]
-        self.client.get(reverse("core:home"))
-        self.assertEqual(settings.JAZZMIN_SETTINGS["order_with_respect_to"], ["marca-de-prueba"])
+    def test_get_app_list_ignora_tokens_que_no_existen_o_sin_permiso(self):
+        AdminMenuOrder.objects.create(pk=1, sections=[
+            {"name": "Con basura", "items": ["articles.Article", "app.fantasma.Modelo", "no-tiene-punto-ni-existe"]},
+        ])
+        from .admin import get_app_list
+        app_list = get_app_list(self._request())
+        self.assertEqual(app_list[0]["name"], "Con basura")
+        self.assertEqual([m["object_name"] for m in app_list[0]["models"]], ["Article"])
+
+    def test_get_app_list_anade_al_final_los_modelos_no_organizados(self):
+        # Solo "articles.Article" está en una sección guardada — el resto
+        # de modelos con permiso (todos, para un superusuario) no debe
+        # desaparecer del menú: se añaden agrupados por su app real.
+        AdminMenuOrder.objects.create(pk=1, sections=[
+            {"name": "Solo articulo", "items": ["articles.Article"]},
+        ])
+        from .admin import get_app_list
+        app_list = get_app_list(self._request())
+        self.assertEqual(app_list[0]["name"], "Solo articulo")
+        remaining_names = {section["name"] for section in app_list[1:]}
+        self.assertIn("Foro", remaining_names)
+        all_object_names = {m["object_name"] for section in app_list for m in section["models"]}
+        self.assertIn("Tag", all_object_names)
+
+    def test_get_app_list_sin_secciones_guardadas_usa_el_agrupado_nativo(self):
+        from .admin import get_app_list
+        app_list = get_app_list(self._request())
+        app_labels = {section["app_label"] for section in app_list}
+        self.assertIn("articles", app_labels)
+        self.assertIn("forum", app_labels)
+
+    def test_get_app_list_con_app_label_no_toca_las_secciones(self):
+        AdminMenuOrder.objects.create(pk=1, sections=[
+            {"name": "Todo junto", "items": ["articles.Article", "forum.Thread"]},
+        ])
+        from .admin import get_app_list
+        app_list = get_app_list(self._request(), app_label="articles")
+        self.assertEqual(len(app_list), 1)
+        self.assertEqual(app_list[0]["app_label"], "articles")
 
 
 class IntroLightThemeTests(TestCase):

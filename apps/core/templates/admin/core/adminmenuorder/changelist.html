@@ -10,74 +10,88 @@
 
 {% block content %}
 <p class="help">
-    Arrastra las secciones (⠿) para decidir qué sale primero en el menú lateral, y arrastra los modelos
-    dentro de cada sección para ordenarlos entre sí. Los cambios se guardan solos al soltar.
-    No se puede mover un modelo a otra sección: el menú siempre agrupa cada modelo bajo su propia app.
+    Arrastra las secciones (⠿) para decidir qué sale primero en el menú lateral. Arrastra los modelos —
+    tocando cualquier punto de la fila— para ordenarlos dentro de su sección o para moverlos a otra
+    sección distinta. Cambia el nombre de una sección escribiendo directamente en su título. Los cambios
+    se guardan solos.
 </p>
 
-<div id="menu-order-apps">
-    {% for group in groups %}
-    <div class="menu-order-group" data-app="{{ group.app_label }}">
-        <div class="menu-order-group__header">
+<div id="menu-order-sections">
+    {% for section in sections %}
+    <div class="menu-order-section">
+        <div class="menu-order-section__header">
             <span class="menu-order-drag-handle" title="Arrastra para reordenar la sección">⠿</span>
-            <strong>{{ group.app_name|capfirst }}</strong>
+            <input type="text" class="menu-order-section__name" value="{{ section.name }}" placeholder="Nombre de la sección">
+            <button type="button" class="menu-order-section__delete" title="Quitar esta sección (solo si está vacía)">🗑</button>
         </div>
-        <ul class="menu-order-models" data-app="{{ group.app_label }}">
-            {% for model in group.models %}
-            <li class="menu-order-model" data-token="{{ model.token }}">
-                <span class="menu-order-drag-handle" title="Arrastra para reordenar el modelo">⠿</span>
-                {{ model.name|capfirst }}
-            </li>
+        <ul class="menu-order-models">
+            {% for model in section.models %}
+            <li class="menu-order-model" data-token="{{ model.token }}">{{ model.name|capfirst }}</li>
             {% endfor %}
         </ul>
     </div>
     {% endfor %}
 </div>
 
+<button type="button" class="btn btn-sm btn-outline-secondary" id="menu-order-add-section" style="margin-top:.75rem;">+ Añadir sección</button>
+
 <p class="menu-order-status" id="menu-order-status"></p>
 
 <style>
     /* Jazzmin/AdminLTE se pintan con las variables reales de Bootstrap 5
        (--bs-*), que cambian solo según el tema claro/oscuro del panel
-       (JAZZMIN_UI_TWEAKS.default_theme_mode = "auto"). Los nombres que
-       había antes (--body-bg, --border-color) no existen en este admin,
-       así que siempre caían en el fallback fijo (blanco) — con el panel
-       en oscuro, texto claro sobre fondo blanco a la fuerza, ilegible. */
-    #menu-order-apps { display: flex; flex-direction: column; gap: 0.75rem; max-width: 520px; color: var(--bs-body-color); }
-    .menu-order-group { border: 1px solid var(--bs-border-color); border-radius: 6px; background: var(--bs-card-bg, var(--bs-body-bg)); touch-action: none; }
-    .menu-order-group__header { display: flex; align-items: center; gap: 0.5rem; padding: 0.9rem; cursor: grab; touch-action: none; }
-    .menu-order-models { list-style: none; margin: 0; padding: 0 0.9rem 0.6rem; }
-    .menu-order-model { display: flex; align-items: center; gap: 0.5rem; padding: 0.7rem 0.5rem; margin-left: 1.4rem; cursor: grab; border-radius: 4px; touch-action: none; }
-    .menu-order-model:hover, .menu-order-group__header:hover { background: var(--bs-secondary-bg); }
-    .menu-order-model:active, .menu-order-group__header:active { cursor: grabbing; background: var(--bs-secondary-bg); }
-    .menu-order-drag-handle { opacity: 0.6; font-size: 1.1rem; }
+       (JAZZMIN_UI_TWEAKS.default_theme_mode = "auto") — de ahí que todo
+       este bloque las use en vez de colores fijos, para seguir siendo
+       legible en ambos modos. */
+    #menu-order-sections { display: flex; flex-direction: column; gap: 0.75rem; max-width: 520px; color: var(--bs-body-color); }
+    .menu-order-section { border: 1px solid var(--bs-border-color); border-radius: 6px; background: var(--bs-card-bg, var(--bs-body-bg)); }
+    .menu-order-section__header { display: flex; align-items: center; gap: 0.5rem; padding: 0.7rem 0.9rem; touch-action: none; }
+    .menu-order-drag-handle { opacity: 0.6; font-size: 1.1rem; cursor: grab; }
+    .menu-order-drag-handle:active { cursor: grabbing; }
+    .menu-order-section__name {
+        flex: 1;
+        font-weight: 600;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        padding: 0.3rem 0.5rem;
+        background: transparent;
+        color: inherit;
+    }
+    .menu-order-section__name:hover, .menu-order-section__name:focus { border-color: var(--bs-border-color); background: var(--bs-body-bg); }
+    .menu-order-section__delete { background: transparent; border: none; cursor: pointer; opacity: 0.6; font-size: 1rem; }
+    .menu-order-section__delete:hover { opacity: 1; }
+    .menu-order-models { list-style: none; margin: 0; padding: 0 0.9rem 0.6rem; min-height: 2.2rem; }
+    .menu-order-model { padding: 0.7rem 0.6rem; margin-left: 1.4rem; cursor: grab; border-radius: 4px; touch-action: none; }
+    .menu-order-model:hover { background: var(--bs-secondary-bg); }
+    .menu-order-model:active { cursor: grabbing; background: var(--bs-secondary-bg); }
     .menu-order-status { min-height: 1.4em; font-size: 0.9em; color: var(--bs-secondary-color, var(--bs-body-color)); }
     .sortable-chosen { background: var(--bs-tertiary-bg) !important; }
+    .menu-order-models.sortable-drag-over { background: var(--bs-tertiary-bg); }
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-    var appsRoot = document.getElementById("menu-order-apps");
+    var sectionsRoot = document.getElementById("menu-order-sections");
     var status = document.getElementById("menu-order-status");
-    if (!appsRoot || typeof Sortable === "undefined") return;
+    if (!sectionsRoot || typeof Sortable === "undefined") return;
 
     var saveUrl = "{% url 'admin:core_adminmenuorder_save' %}";
+    var SHARED_GROUP = "menu-order-models";
 
     function getCsrfToken() {
         var match = document.cookie.match(/(?:^|; )csrftoken=([^;]*)/);
         return match ? match[1] : "";
     }
 
-    function currentOrder() {
-        var order = [];
-        appsRoot.querySelectorAll(".menu-order-group").forEach(function (group) {
-            order.push(group.dataset.app);
-            group.querySelectorAll(".menu-order-model").forEach(function (model) {
-                order.push(model.dataset.token);
+    function currentSections() {
+        return Array.from(sectionsRoot.querySelectorAll(".menu-order-section")).map(function (section) {
+            var nameInput = section.querySelector(".menu-order-section__name");
+            var items = Array.from(section.querySelectorAll(".menu-order-model")).map(function (model) {
+                return model.dataset.token;
             });
+            return { name: (nameInput.value || "").trim() || "Sin nombre", items: items };
         });
-        return order;
     }
 
     function save() {
@@ -85,7 +99,7 @@ document.addEventListener("DOMContentLoaded", function () {
         fetch(saveUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
-            body: JSON.stringify({ order: currentOrder() }),
+            body: JSON.stringify({ sections: currentSections() }),
         }).then(function (response) {
             status.textContent = response.ok ? "Guardado." : "No se pudo guardar — recarga e inténtalo de nuevo.";
         }).catch(function () {
@@ -93,24 +107,62 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Sin `handle`: se puede arrastrar tocando cualquier punto de la fila,
-    // no solo el icono ⠿ (que es un blanco muy pequeño para el dedo en
-    // móvil) — el icono se queda solo como pista visual. `touch-action:
-    // none` en el CSS de arriba es lo que de verdad hace falta para que el
-    // navegador no confunda el arrastre con un scroll de la página.
-    Sortable.create(appsRoot, {
+    function initModelList(ul) {
+        // Mismo `group` en todas las listas de modelos: eso es lo que
+        // permite soltar en una sección distinta de la que se empezó a
+        // arrastrar. Sin `handle`: se agarra desde cualquier punto de la
+        // fila (más fácil con el dedo que un icono diminuto).
+        Sortable.create(ul, {
+            group: SHARED_GROUP,
+            animation: 150,
+            chosenClass: "sortable-chosen",
+            onEnd: save,
+        });
+    }
+
+    sectionsRoot.querySelectorAll(".menu-order-models").forEach(initModelList);
+
+    // Las secciones sí llevan `handle`: el título ahora es un campo de
+    // texto editable, y sin restringir el arrastre a su tirador (⠿)
+    // cualquier intento de hacer clic para escribir el nombre empezaría
+    // un arrastre en vez de poner el cursor en el input.
+    Sortable.create(sectionsRoot, {
+        handle: ".menu-order-drag-handle",
         animation: 150,
         chosenClass: "sortable-chosen",
         onEnd: save,
     });
 
-    appsRoot.querySelectorAll(".menu-order-models").forEach(function (list) {
-        Sortable.create(list, {
-            animation: 150,
-            chosenClass: "sortable-chosen",
-            group: { name: "models-" + list.dataset.app, pull: false, put: false },
-            onEnd: save,
-        });
+    sectionsRoot.addEventListener("change", function (event) {
+        if (event.target.matches(".menu-order-section__name")) save();
+    });
+
+    sectionsRoot.addEventListener("click", function (event) {
+        var deleteBtn = event.target.closest(".menu-order-section__delete");
+        if (!deleteBtn) return;
+        var section = deleteBtn.closest(".menu-order-section");
+        var hasModels = section.querySelector(".menu-order-model") !== null;
+        if (hasModels) {
+            status.textContent = "Esta sección tiene modelos dentro — muévelos a otra sección antes de quitarla.";
+            return;
+        }
+        section.remove();
+        save();
+    });
+
+    document.getElementById("menu-order-add-section").addEventListener("click", function () {
+        var section = document.createElement("div");
+        section.className = "menu-order-section";
+        section.innerHTML =
+            '<div class="menu-order-section__header">' +
+                '<span class="menu-order-drag-handle" title="Arrastra para reordenar la sección">⠿</span>' +
+                '<input type="text" class="menu-order-section__name" value="" placeholder="Nombre de la sección">' +
+                '<button type="button" class="menu-order-section__delete" title="Quitar esta sección (solo si está vacía)">🗑</button>' +
+            '</div>' +
+            '<ul class="menu-order-models"></ul>';
+        sectionsRoot.appendChild(section);
+        initModelList(section.querySelector(".menu-order-models"));
+        section.querySelector(".menu-order-section__name").focus();
     });
 });
 </script>

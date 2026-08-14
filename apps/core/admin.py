@@ -9,6 +9,7 @@ from django.shortcuts import redirect
 from django.template.response import TemplateResponse
 from django.urls import path
 from django.utils.safestring import mark_safe
+from django.utils.text import slugify
 
 from .models import AdminMenuOrder, Announcement, ContactLink, FavoriteQuote, PersonalNote, SiteConfig, Theme
 
@@ -242,24 +243,9 @@ class PersonalNoteAdmin(admin.ModelAdmin):
     fields = ("title", "body", "created_at", "updated_at")
 
 
-def _parse_menu_order(order):
-    """"articles", "articles.Article", "articles.Tag", "forum", ... → una
-    lista de grupos, cada uno con su app y los tokens "app.Modelo" que le
-    siguen hasta el próximo token sin punto (la siguiente app)."""
-    groups = []
-    current = None
-    for token in order:
-        if "." not in token:
-            current = {"app_label": token, "models": []}
-            groups.append(current)
-        elif current is not None:
-            current["models"].append(token)
-    return groups
-
-
 def _app_display_name(app_label):
     try:
-        return django_apps.get_app_config(app_label).verbose_name
+        return str(django_apps.get_app_config(app_label).verbose_name)
     except LookupError:
         return app_label
 
@@ -272,13 +258,42 @@ def _model_display_name(token):
         return token
 
 
+def _default_sections():
+    """Punto de partida al abrir la página de arrastre por primera vez
+    (nada guardado aún): una sección por app, tal como las agrupa Django
+    de fábrica, usando DEFAULT_ADMIN_MENU_ORDER para el orden inicial."""
+    sections = []
+    current = None
+    for token in django_settings.DEFAULT_ADMIN_MENU_ORDER:
+        if "." not in token:
+            current = {"name": _app_display_name(token), "items": []}
+            sections.append(current)
+        elif current is not None:
+            current["items"].append(token)
+    return sections
+
+
+def _valid_sections_payload(sections):
+    if not isinstance(sections, list):
+        return False
+    for section in sections:
+        if not isinstance(section, dict):
+            return False
+        if not isinstance(section.get("name"), str) or not section["name"].strip():
+            return False
+        items = section.get("items")
+        if not isinstance(items, list) or not all(isinstance(item, str) for item in items):
+            return False
+    return True
+
+
 @admin.register(AdminMenuOrder)
 class AdminMenuOrderAdmin(admin.ModelAdmin):
-    """Arrastrar para decidir qué apps salen primero en el menú lateral, y
-    qué modelos salen primero dentro de cada una. No deja arrastrar un
-    modelo a otra app: Django agrupa el sidebar por la app real de cada
-    modelo, así que "cambiarlo de cajón" no movería nada de verdad en el
-    menú — solo se puede reordenar dentro de la estructura existente."""
+    """Arrastrar para decidir el orden Y el agrupado del menú lateral —a
+    diferencia del agrupado nativo de Django (por app real), aquí un
+    modelo se puede mover a la sección que se quiera con solo arrastrarlo,
+    gracias a que get_app_list() (parcheado más abajo) reconstruye el
+    menú a partir de estas secciones en vez de por app_label."""
 
     def has_add_permission(self, request):
         return False
@@ -288,22 +303,21 @@ class AdminMenuOrderAdmin(admin.ModelAdmin):
 
     def changelist_view(self, request, extra_context=None):
         obj = self.model.load()
-        order = obj.order or django_settings.DEFAULT_ADMIN_MENU_ORDER
-        groups = [
+        sections = obj.sections or _default_sections()
+        view_sections = [
             {
-                "app_label": group["app_label"],
-                "app_name": _app_display_name(group["app_label"]),
+                "name": section["name"],
                 "models": [
                     {"token": token, "name": _model_display_name(token)}
-                    for token in group["models"]
+                    for token in section["items"]
                 ],
             }
-            for group in _parse_menu_order(order)
+            for section in sections
         ]
         context = {
             **self.admin_site.each_context(request),
             "title": "Orden del menú del admin",
-            "groups": groups,
+            "sections": view_sections,
             "opts": self.model._meta,
         }
         if extra_context:
@@ -314,23 +328,107 @@ class AdminMenuOrderAdmin(admin.ModelAdmin):
         custom = [
             path(
                 "guardar/",
-                self.admin_site.admin_view(self.save_order_view),
+                self.admin_site.admin_view(self.save_sections_view),
                 name="core_adminmenuorder_save",
             ),
         ]
         return custom + super().get_urls()
 
-    def save_order_view(self, request):
+    def save_sections_view(self, request):
         if request.method != "POST":
             return JsonResponse({"error": "Solo POST"}, status=405)
         try:
-            order = json.loads(request.body).get("order", [])
+            sections = json.loads(request.body).get("sections", [])
         except (TypeError, ValueError):
             return JsonResponse({"error": "JSON inválido"}, status=400)
-        if not isinstance(order, list) or not all(isinstance(token, str) for token in order):
+        if not _valid_sections_payload(sections):
             return JsonResponse({"error": "Formato inválido"}, status=400)
 
         obj = self.model.load()
-        obj.order = order
+        obj.sections = sections
         obj.save()
         return JsonResponse({"ok": True})
+
+
+_original_get_app_list = admin.site.__class__.get_app_list
+
+
+def get_app_list(request, app_label=None):
+    """Sustituye el agrupado nativo de Django (por app real) por las
+    secciones guardadas en AdminMenuOrder — así un modelo se puede mover
+    de verdad a otra sección, no solo reordenar dentro de la suya.
+    Jazzmin arma el menú lateral leyendo esto de `available_apps` en el
+    contexto (ver AdminSite.each_context → get_app_list), así que
+    cambiarlo aquí basta para que el menú real cambie, sin tocar nada de
+    Jazzmin. Con `app_label` (la página de listado de una sola app) se
+    deja el comportamiento nativo intacto: esa vista no depende de esto.
+    Los permisos los sigue calculando Django tal cual (_build_app_dict),
+    esto solo decide en qué "cajón" visual cae cada modelo ya permitido."""
+    if app_label:
+        return _original_get_app_list(admin.site, request, app_label)
+
+    app_dict = admin.site._build_app_dict(request)
+    sections = AdminMenuOrder.load().sections
+    if not sections:
+        app_list = sorted(app_dict.values(), key=lambda x: x["name"].lower())
+        for app in app_list:
+            app["models"].sort(key=lambda x: x["name"])
+        return app_list
+
+    flat_models = {}
+    for label, app in app_dict.items():
+        for model_dict in app["models"]:
+            flat_models[f"{label}.{model_dict['object_name']}".lower()] = (label, model_dict)
+
+    used = set()
+    result = []
+    for index, section in enumerate(sections):
+        models = []
+        for token in section.get("items", []):
+            key = token.lower()
+            if "." in key:
+                if key in flat_models and key not in used:
+                    _, model_dict = flat_models[key]
+                    models.append(model_dict)
+                    used.add(key)
+            else:
+                app = app_dict.get(key)
+                if app:
+                    for model_dict in app["models"]:
+                        model_key = f"{key}.{model_dict['object_name']}".lower()
+                        if model_key not in used:
+                            models.append(model_dict)
+                            used.add(model_key)
+        if models:
+            name = section.get("name") or "Sin nombre"
+            result.append({
+                "name": name,
+                "app_label": f"section-{slugify(name) or 'sin-nombre'}-{index}",
+                "app_url": "#",
+                "has_module_perms": True,
+                "models": models,
+            })
+
+    # Modelos con permiso que no estén en ninguna sección guardada (apps
+    # nuevas desde la última vez que se organizó el menú, típicamente) —
+    # se añaden al final agrupados por su app real, para que nunca
+    # desaparezcan del menú sin más.
+    leftovers = {}
+    for label, app in app_dict.items():
+        for model_dict in app["models"]:
+            key = f"{label}.{model_dict['object_name']}".lower()
+            if key not in used:
+                leftovers.setdefault(label, {"name": app["name"], "models": []})["models"].append(model_dict)
+    for label, info in leftovers.items():
+        result.append({
+            "name": info["name"],
+            "app_label": label,
+            "app_url": "#",
+            "has_module_perms": True,
+            "models": info["models"],
+        })
+
+    return result
+
+
+admin.site.get_app_list = get_app_list

@@ -315,13 +315,21 @@ class PersonalNote(models.Model):
 
 
 class AdminMenuOrder(SingletonModel):
-    """Orden a mano del menú lateral del admin (arrastrado desde Sitio →
-    Orden del menú), aplicado en tiempo real por
-    apps.core.middleware.AdminMenuOrderMiddleware sobre
-    JAZZMIN_SETTINGS["order_with_respect_to"]. Vacío = se usa el orden de
-    fábrica (config.settings.DEFAULT_ADMIN_MENU_ORDER)."""
+    """Secciones a mano del menú lateral del admin (arrastrado desde Sitio →
+    Orden del menú) — reemplaza el agrupado nativo de Django por app, así
+    que un modelo se puede mover a la sección que se quiera, no solo
+    reordenar dentro de la suya. Aplicado por
+    apps.core.admin.get_app_list (parchea admin.site.get_app_list en
+    apps/core/apps.py). Vacío = se usa el agrupado nativo de Django (por
+    app real), sin tocar nada.
 
-    order = models.JSONField("orden", default=list, blank=True)
+    Estructura de `sections`:
+        [{"name": "Artículos", "items": ["articles.Article", "articles.Tag", ...]}, ...]
+    Cada item es "app_label.NombreDelModelo" (mismo formato que usaba el
+    "orden" plano anterior) o, si no lleva punto, el label de una app
+    entera (se expande a todos sus modelos permitidos)."""
+
+    sections = models.JSONField("secciones", default=list, blank=True)
 
     class Meta:
         verbose_name = "orden del menú del admin"

@@ -81,7 +81,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "apps.core.middleware.AdminMenuOrderMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -314,25 +313,26 @@ CKEDITOR_5_CONFIGS = {
             "shouldNotGroupWhenFull": True,
         },
         "image": {
+            # "resizeImage" (el desplegable combinado con las 3 opciones
+            # dentro) rompía TODA esta barra de herramientas de la imagen
+            # — no solo el tamaño, también alinear izq/centro/der, que
+            # vive en la misma barra: ese desplegable busca en
+            # resizeOptions una entrada llamada exactamente
+            # "resizeImage:original" para saber qué mostrar por defecto,
+            # y como no existe (más abajo solo hay 100/50/75), petaba con
+            # "Cannot read properties of undefined (reading 'value')" en
+            # cuanto se seleccionaba una imagen — al fallar a media
+            # construcción, ningún botón de la barra llegaba a
+            # aparecer, así que ni alinear ni cambiar tamaño se podía
+            # usar. Usando los 3 botones sueltos ("resizeImage:100" etc,
+            # que SÍ funcionan por separado) en vez del desplegable se
+            # evita el choque entero.
             "toolbar": [
                 "imageTextAlternative", "|",
                 "imageStyle:alignLeft", "imageStyle:alignCenter", "imageStyle:alignRight", "|",
-                "resizeImage",
+                "resizeImage:50", "resizeImage:75", "resizeImage:100",
             ],
             "styles": ["alignLeft", "alignCenter", "alignRight"],
-            # Permite arrastrar/elegir un tamaño de la imagen (50/75/100%)
-            # además de colocarla a la izquierda/centro/derecha — el estilo
-            # alineado a un lado es lo que hace que el texto la rodee (ver
-            # `.richtext .image-style-align-left/right` en main.css).
-            #
-            # OJO: la opción "original" de CKEditor5 se representa oficialmente
-            # con `value: None` (JSON null) — pero el script de arranque de
-            # django-ckeditor-5 parsea esta config con un reviver que hace
-            # `valor.toString()` sin comprobar null, así que ese único `None`
-            # tira abajo TODO el editor nada más cargar la página (crash en
-            # `createEditors`, "Cannot read properties of null (reading
-            # 'toString')") — nunca lo pongas en esta config. Por eso aquí se
-            # usa "100" (texto) en vez de None para la opción "original".
             "resizeOptions": [
                 {"name": "resizeImage:100", "value": "100", "icon": "original"},
                 {"name": "resizeImage:50", "value": "50", "icon": "medium"},
@@ -426,14 +426,13 @@ if not DEBUG:
 # ya está restringido a Admin (is_superuser) en apps/core/apps.py — Jazzmin
 # solo cambia el aspecto, no los permisos.
 
-# Orden por defecto del menú lateral — se usa tal cual mientras no haya
-# ningún orden guardado a mano desde el panel (arrastrando en Sitio → Orden
-# del menú). AdminMenuOrderMiddleware sobrescribe
-# JAZZMIN_SETTINGS["order_with_respect_to"] en tiempo real con lo guardado
-# en BD (ver apps/core/models.py:AdminMenuOrder), así que esta lista es solo
-# el punto de partida — se mantiene como constante aparte (en vez de en
+# Orden/agrupado de fábrica del menú lateral — se usa tal cual mientras no
+# haya nada guardado a mano desde el panel (arrastrando en Sitio → Orden
+# del menú, que reagrupa el menú entero vía admin.site.get_app_list
+# parcheado en apps/core/admin.py — ver AdminMenuOrder en
+# apps/core/models.py). Se mantiene como constante aparte (en vez de en
 # línea dentro de JAZZMIN_SETTINGS) para que la vista de arrastrar pueda
-# usarla como "orden de fábrica" al que volver.
+# usarla como punto de partida al abrirla por primera vez.
 DEFAULT_ADMIN_MENU_ORDER = [
     "articles", "articles.Article", "articles.Tag", "articles.ArticleView", "articles.ArticleComment",
     "forum", "forum.Thread", "forum.ThreadComment", "forum.ThreadRead",
