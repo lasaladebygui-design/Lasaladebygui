@@ -34,6 +34,7 @@
 </div>
 
 <button type="button" class="btn btn-sm btn-outline-secondary" id="menu-order-add-section" style="margin-top:.75rem;">+ Añadir sección</button>
+<button type="button" class="btn btn-sm btn-outline-secondary" id="menu-order-reset" style="margin-top:.75rem;margin-left:.5rem;">Restablecer al orden de fábrica</button>
 
 <p class="menu-order-status" id="menu-order-status"></p>
 
@@ -163,6 +164,21 @@ document.addEventListener("DOMContentLoaded", function () {
         sectionsRoot.appendChild(section);
         initModelList(section.querySelector(".menu-order-models"));
         section.querySelector(".menu-order-section__name").focus();
+    });
+
+    document.getElementById("menu-order-reset").addEventListener("click", function () {
+        if (!confirm("¿Borrar las secciones guardadas y volver a como estaba antes de personalizarlo?")) return;
+        status.textContent = "Restableciendo…";
+        fetch(saveUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+            body: JSON.stringify({ sections: [] }),
+        }).then(function (response) {
+            if (response.ok) window.location.reload();
+            else status.textContent = "No se pudo restablecer — inténtalo de nuevo.";
+        }).catch(function () {
+            status.textContent = "No se pudo restablecer — inténtalo de nuevo.";
+        });
     });
 });
 </script>

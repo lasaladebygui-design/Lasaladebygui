@@ -669,6 +669,16 @@ class AdminMenuOrderTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(AdminMenuOrder.load().sections, new_sections)
 
+    def test_guardar_con_secciones_vacias_restablece_el_orden_de_fabrica(self):
+        AdminMenuOrder.objects.create(pk=1, sections=[{"name": "Personalizada", "items": ["articles.Article"]}])
+        url = reverse("admin:core_adminmenuorder_save")
+        response = self.client.post(url, data=json.dumps({"sections": []}), content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(AdminMenuOrder.load().sections, [])
+        from .admin import get_app_list
+        app_labels = {section["app_label"] for section in get_app_list(self._request())}
+        self.assertIn("articles", app_labels)
+
     def test_guardar_no_admite_get(self):
         response = self.client.get(reverse("admin:core_adminmenuorder_save"))
         self.assertEqual(response.status_code, 405)
