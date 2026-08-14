@@ -1,5 +1,7 @@
 from django.contrib import admin
 
+from apps.core.admin import SortableAdminMixin
+
 from .models import (
     Movie,
     RouletteRatingSeen,
@@ -77,6 +79,10 @@ class SavedMovieAdmin(admin.ModelAdmin):
 
 
 @admin.register(SavedMovieList)
-class SavedMovieListAdmin(admin.ModelAdmin):
-    list_display = ("user", "name", "order")
+class SavedMovieListAdmin(SortableAdminMixin, admin.ModelAdmin):
+    list_display = ("user", "name")
+    list_display_links = ("name",)
+    list_filter = ("user",)
+    exclude = ("order",)
     search_fields = ("user__username", "name")
+    ordering = ("user_id", "order")

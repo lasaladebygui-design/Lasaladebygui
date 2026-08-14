@@ -9,7 +9,6 @@ urlpatterns = [
     path("mias/", views.my_movies, name="my-movies"),
     path("guardadas/", views.saved_movies, name="saved-movies"),
     path("guardadas/compartir/", views.saved_movies_share_image, name="saved-movies-share-image"),
-    path("guardadas/compartir/ver/", views.saved_movies_share_preview, name="saved-movies-share-preview"),
     path("guardadas/<int:pk>/mover/<str:direction>/", views.saved_movie_move, name="saved-movie-move"),
     path("guardadas/reordenar/", views.saved_movie_reorder, name="saved-movie-reorder"),
     path("guardadas/<int:pk>/quitar/", views.saved_movie_remove, name="saved-movie-remove"),

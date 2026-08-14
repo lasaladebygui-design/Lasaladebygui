@@ -453,11 +453,10 @@ class SavedMoviesShareImageTests(TestCase):
         response = self.client.get(reverse("movies:saved-movies-share-image"))
         self.assertNotEqual(response.status_code, 200)
 
-    def test_pagina_previa_de_compartir_tiene_boton_de_descargar(self):
-        response = self.client.get(reverse("movies:saved-movies-share-preview"))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Descargar")
+    def test_el_boton_compartir_apunta_directo_a_la_imagen_para_descargar(self):
+        response = self.client.get(reverse("movies:saved-movies"))
         self.assertContains(response, reverse("movies:saved-movies-share-image"))
+        self.assertContains(response, "download=")
 
 
 class RouletteRatingTests(TestCase):
@@ -781,3 +780,41 @@ class SeedMoviesCommandTests(TestCase):
 
         call_command("seed_movies")
         self.assertEqual(Movie.objects.count(), 0)
+
+
+class SavedMovieListSortableAdminTests(TestCase):
+    """SortableAdminMixin (apps/core/admin.py) también en Listas de
+    guardadas — arrastrar en el admin en vez de editar el número de
+    `order` a mano, igual que Temas/Enlaces de contacto/etc."""
+
+    def setUp(self):
+        self.admin = User.objects.create(email="drag_savedlist@test.local", role=User.Role.ADMIN, is_staff=True, is_superuser=True)
+        self.admin.set_password("Testpass123!")
+        self.admin.save()
+        self.client.login(username=self.admin.email, password="Testpass123!")
+        self.user = make_user("dueno_listas@test.local")
+        self.a = SavedMovieList.objects.create(user=self.user, name="Terror", order=0)
+        self.b = SavedMovieList.objects.create(user=self.user, name="Familia", order=1)
+        self.c = SavedMovieList.objects.create(user=self.user, name="Comedia", order=2)
+
+    def test_arrastrar_actualiza_el_orden_de_todos(self):
+        url = reverse("admin:movies_savedmovielist_reorder")
+        response = self.client.post(
+            url, data='{"order": [%d, %d, %d]}' % (self.c.pk, self.a.pk, self.b.pk),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.a.refresh_from_db()
+        self.b.refresh_from_db()
+        self.c.refresh_from_db()
+        self.assertEqual(self.c.order, 0)
+        self.assertEqual(self.a.order, 1)
+        self.assertEqual(self.b.order, 2)
+
+    def test_el_numero_ya_no_sale_en_el_formulario(self):
+        response = self.client.get(reverse("admin:movies_savedmovielist_change", args=[self.a.pk]))
+        self.assertNotContains(response, 'name="order"')
+
+    def test_el_listado_tiene_el_tirador_de_arrastre(self):
+        response = self.client.get(reverse("admin:movies_savedmovielist_changelist"))
+        self.assertContains(response, "drag-handle")

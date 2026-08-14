@@ -339,18 +339,8 @@ def saved_movies_share_image(request):
 
     response = HttpResponse(content_type="image/png")
     image.save(response, "PNG")
-    response["Content-Disposition"] = f'inline; filename="guardadas_{request.user.username}.png"'
+    response["Content-Disposition"] = f'attachment; filename="guardadas_{request.user.username}.png"'
     return response
-
-
-@login_required
-def saved_movies_share_preview(request):
-    return render(request, "core/_share_image_preview.html", {
-        "title": "Guardadas",
-        "image_url": reverse("movies:saved-movies-share-image"),
-        "filename": f"guardadas_{request.user.username}.png",
-        "back_url": reverse("movies:saved-movies"),
-    })
 
 
 @login_required
