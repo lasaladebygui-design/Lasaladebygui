@@ -16,7 +16,7 @@ from django.views.decorators.http import require_POST
 
 from apps.core.google_calendar import exchange_code_for_tokens, get_authorization_url, google_calendar_enabled
 from apps.core.models import get_effective_theme
-from apps.core.text import ascii_safe
+from apps.core.text import ascii_safe, flow_into_columns
 from apps.games.models import DuelRecord
 from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError, tmdb_search
@@ -228,26 +228,35 @@ def _wrap_text(draw, text, font, max_width):
 def _render_favorites_image(theme, label, username, note, titles):
     """PNG minimalista para compartir "Mis imprescindibles" o "Sugeridas":
     el título de la lista, quién la firma, las películas/series y el
-    porqué — de solo lectura, pensado para enseñarlo, no para editarlo."""
+    porqué — de solo lectura, pensado para enseñarlo, no para editarlo.
+    Con muchas favoritas, los títulos se reparten en varias columnas
+    (flow_into_columns) en vez de una tira vertical cada vez más alta y
+    estrecha; el "porqué" se queda a todo el ancho, debajo de todas."""
     from PIL import Image, ImageDraw, ImageFont
 
-    width, pad = 640, 32
+    col_width, pad, gap = 320, 32, 28
     font_title = ImageFont.load_default(size=26)
     font_meta = ImageFont.load_default(size=13)
     font_item = ImageFont.load_default(size=15)
     font_note = ImageFont.load_default(size=13)
 
     dummy_draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
-    content_width = width - pad * 2
 
-    item_lines = [_wrap_text(dummy_draw, f"·  {ascii_safe(title)}", font_item, content_width) for title in titles] or [["(todavía no hay ninguna)"]]
-    note_lines = _wrap_text(dummy_draw, ascii_safe(note), font_note, content_width) if note else []
+    flat_lines = []
+    wrapped_titles = [_wrap_text(dummy_draw, f"·  {ascii_safe(title)}", font_item, col_width) for title in titles] or [["(todavía no hay ninguna)"]]
+    for wrapped in wrapped_titles:
+        for line in wrapped:
+            flat_lines.append((22, True, line))
+
+    columns, num_columns = flow_into_columns(flat_lines)
+    col_heights = [sum(h for h, _ in col) for col in columns]
 
     header_h = 92
-    items_h = sum(len(lines) * 22 for lines in item_lines) + 16
+    width = pad * 2 + col_width * num_columns + gap * (num_columns - 1)
+    note_lines = _wrap_text(dummy_draw, ascii_safe(note), font_note, width - pad * 2) if note else []
     note_h = (len(note_lines) * 19 + 36) if note_lines else 0
     footer_h = 40
-    height = pad * 2 + header_h + items_h + note_h + footer_h
+    height = pad * 2 + header_h + (max(col_heights) if col_heights else 0) + 16 + note_h + footer_h
 
     img = Image.new("RGB", (width, height), theme.color_bg)
     draw = ImageDraw.Draw(img)
@@ -256,13 +265,14 @@ def _render_favorites_image(theme, label, username, note, titles):
     draw.text((pad, pad + 36), ascii_safe(f"por {username} - La Sala de Bygui"), font=font_meta, fill=theme.color_text_muted)
     draw.line([(pad, pad + 62), (width - pad, pad + 62)], fill=theme.color_border, width=1)
 
-    y = pad + header_h
-    for lines in item_lines:
-        for line in lines:
-            draw.text((pad, y), line, font=font_item, fill=theme.color_text)
-            y += 22
-    y += 16
+    for col_index, col in enumerate(columns):
+        x = pad + col_index * (col_width + gap)
+        y = pad + header_h
+        for h, line in col:
+            draw.text((x, y), line, font=font_item, fill=theme.color_text)
+            y += h
 
+    y = pad + header_h + max(col_heights) + 16
     if note_lines:
         draw.line([(pad, y), (width - pad, y)], fill=theme.color_border, width=1)
         y += 18

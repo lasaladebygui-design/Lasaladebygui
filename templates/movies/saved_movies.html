@@ -125,22 +125,21 @@
         {% endif %}
 
         {% if sublists %}
-        <details class="tier-add-level">
-            <summary class="btn btn--ghost btn--sm">Gestionar listas</summary>
-            <div class="list-manage" data-sortable-url="{% url 'movies:saved-list-reorder' %}" data-sortable-handle=".drag-handle">
-                {% for sublist in sublists %}
-                <div class="list-manage__row" data-sortable-id="{{ sublist.pk }}">
-                    <span class="drag-handle" title="Arrastra para reordenar">⠿</span>
-                    <span class="muted">{{ sublist.name }}</span>
-                    <form method="post" action="{% url 'movies:saved-list-delete' pk=sublist.pk %}" class="inline-form"
-                          onsubmit="return confirm('¿Borrar la lista {{ sublist.name }}? Sus películas seguirán guardadas.');">
-                        {% csrf_token %}
-                        <button type="submit" class="link-btn link-btn--danger" title="Borrar">🗑️</button>
-                    </form>
-                </div>
-                {% endfor %}
+        <h2 class="movie-section-title">Tus listas</h2>
+        <p class="muted">Arrastra del tirador ⠿ para cambiar el orden en que aparecen en los filtros de arriba.</p>
+        <div class="list-manage" data-sortable-url="{% url 'movies:saved-list-reorder' %}" data-sortable-handle=".drag-handle">
+            {% for sublist in sublists %}
+            <div class="list-manage__row" data-sortable-id="{{ sublist.pk }}">
+                <span class="drag-handle" title="Arrastra para reordenar">⠿</span>
+                <span class="muted">{{ sublist.name }}</span>
+                <form method="post" action="{% url 'movies:saved-list-delete' pk=sublist.pk %}" class="inline-form"
+                      onsubmit="return confirm('¿Borrar la lista {{ sublist.name }}? Sus películas seguirán guardadas.');">
+                    {% csrf_token %}
+                    <button type="submit" class="link-btn link-btn--danger" title="Borrar">🗑️</button>
+                </form>
             </div>
-        </details>
+            {% endfor %}
+        </div>
         {% endif %}
     </div>
 </section>

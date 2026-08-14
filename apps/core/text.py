@@ -22,3 +22,37 @@ def ascii_safe(text, fallback="(titulo no compatible)"):
     lines = [" ".join(line.split()) for line in renderable.split("\n")]
     result = "\n".join(lines).strip("\n")
     return result or fallback
+
+
+def flow_into_columns(lines, max_columns=4, thresholds=(900, 1800, 2700)):
+    """Reparte una lista larga en varias columnas de alto parecido en vez
+    de una única tira vertical (que con muchas guardadas/favoritas podía
+    salir desproporcionadamente alta) — usado al generar las imágenes de
+    "compartir" con Pillow.
+
+    `lines` es una lista de (alto_en_px, se_puede_cortar_justo_antes,
+    dato) — a esta función no le importa qué hay en `dato`, cada llamador
+    decide qué guardar ahí (texto + qué fuente/color usar al dibujarlo).
+    `se_puede_cortar_justo_antes` evita partir un grupo de títulos por la
+    mitad: solo se corta columna en un punto marcado como cortable (p.
+    ej. el encabezado de cada lista), nunca en mitad de sus títulos.
+
+    Devuelve (columnas, número_de_columnas), donde cada columna es una
+    lista de (alto, dato)."""
+    total_h = sum(h for h, _, _ in lines)
+    num_columns = 1
+    for threshold in thresholds:
+        if total_h > threshold:
+            num_columns += 1
+    num_columns = min(num_columns, max_columns) or 1
+
+    target_per_column = -(-total_h // num_columns)  # división hacia arriba
+    columns = [[] for _ in range(num_columns)]
+    col_idx, col_h = 0, 0
+    for h, breakable, data in lines:
+        if breakable and col_h >= target_per_column and col_idx < num_columns - 1:
+            col_idx += 1
+            col_h = 0
+        columns[col_idx].append((h, data))
+        col_h += h
+    return columns, num_columns

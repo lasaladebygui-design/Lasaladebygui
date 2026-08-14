@@ -119,6 +119,61 @@ class AsciiSafeTests(TestCase):
         self.assertEqual(ascii_safe("君の名は"), "(titulo no compatible)")
 
 
+class FlowIntoColumnsTests(TestCase):
+    """Reparto en columnas para las imágenes de "compartir" (Guardadas,
+    Sugeridas, Imprescindibles) — con poco contenido se queda en una sola
+    columna; con mucho, se reparte hasta en 4 sin partir un grupo (p. ej.
+    una lista con sus títulos) por la mitad."""
+
+    def test_contenido_corto_se_queda_en_una_columna(self):
+        from apps.core.text import flow_into_columns
+
+        lines = [(20, True, f"linea {i}") for i in range(5)]
+        columns, num_columns = flow_into_columns(lines)
+        self.assertEqual(num_columns, 1)
+        self.assertEqual(len(columns[0]), 5)
+
+    def test_contenido_largo_se_reparte_en_varias_columnas(self):
+        from apps.core.text import flow_into_columns
+
+        lines = [(20, True, f"linea {i}") for i in range(200)]
+        columns, num_columns = flow_into_columns(lines)
+        self.assertGreater(num_columns, 1)
+        self.assertLessEqual(num_columns, 4)
+        total = sum(len(col) for col in columns)
+        self.assertEqual(total, 200)
+
+    def test_nunca_pasa_de_4_columnas(self):
+        from apps.core.text import flow_into_columns
+
+        lines = [(20, True, f"linea {i}") for i in range(2000)]
+        _, num_columns = flow_into_columns(lines)
+        self.assertEqual(num_columns, 4)
+
+    def test_no_corta_un_grupo_por_la_mitad(self):
+        from apps.core.text import flow_into_columns
+
+        # Un "grupo" cortable seguido de líneas NO cortables: el corte de
+        # columna nunca debe caer en mitad de esas líneas no cortables.
+        lines = [(30, True, "grupo A")] + [(30, False, f"item A{i}") for i in range(40)]
+        lines += [(30, True, "grupo B")] + [(30, False, f"item B{i}") for i in range(40)]
+        columns, num_columns = flow_into_columns(lines)
+        self.assertGreater(num_columns, 1)
+
+        # Cada "item" debe caer en la misma columna que el "grupo" que lo precede.
+        flat_with_column = []
+        for idx, col in enumerate(columns):
+            for _, data in col:
+                flat_with_column.append((idx, data))
+        group_a_col = next(idx for idx, data in flat_with_column if data == "grupo A")
+        group_b_col = next(idx for idx, data in flat_with_column if data == "grupo B")
+        for idx, data in flat_with_column:
+            if isinstance(data, str) and data.startswith("item A"):
+                self.assertEqual(idx, group_a_col)
+            if isinstance(data, str) and data.startswith("item B"):
+                self.assertEqual(idx, group_b_col)
+
+
 class RecentActivityTests(TestCase):
     """Actividad reciente de la portada: últimos comentarios de Artículos
     y del Foro, mezclados por fecha, desactivable desde admin."""

@@ -11,7 +11,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 
 from apps.core.models import get_effective_theme
-from apps.core.text import ascii_safe
+from apps.core.text import ascii_safe, flow_into_columns
 
 from .forms import MovieSearchForm, RatingRangeForm, VoteForm
 from .models import Movie, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, SavedMovieList, Vote
@@ -266,29 +266,34 @@ def _render_saved_movies_image(theme, username, groups):
     """PNG minimalista para compartir Guardadas agrupadas por lista (ver
     _render_favorites_image en apps/accounts/views.py, mismo patrón).
     `groups` es una lista de (nombre_de_lista, [títulos]), en el mismo
-    orden en que el usuario las tiene colocadas."""
+    orden en que el usuario las tiene colocadas. Con muchas guardadas se
+    reparte en varias columnas (flow_into_columns) en vez de una tira
+    vertical cada vez más alta."""
     from PIL import Image, ImageDraw, ImageFont
 
-    width, pad = 640, 32
+    col_width, pad, gap = 320, 32, 28
     font_title = ImageFont.load_default(size=26)
     font_meta = ImageFont.load_default(size=13)
     font_group = ImageFont.load_default(size=16)
     font_item = ImageFont.load_default(size=15)
 
     dummy_draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
-    content_width = width - pad * 2
 
-    group_lines = []
+    flat_lines = []
     for name, titles in groups:
-        items = [_wrap_text(dummy_draw, f"·  {ascii_safe(title)}", font_item, content_width) for title in titles] or [["(vacía)"]]
-        group_lines.append((ascii_safe(name), items))
+        flat_lines.append((28, True, ("group", ascii_safe(name))))
+        wrapped_titles = [_wrap_text(dummy_draw, f"·  {ascii_safe(title)}", font_item, col_width) for title in titles] or [["(vacía)"]]
+        for wrapped in wrapped_titles:
+            for line in wrapped:
+                flat_lines.append((22, False, ("item", line)))
+        flat_lines.append((14, False, ("gap", "")))
 
-    header_h = 78
-    groups_h = 0
-    for _, items in group_lines:
-        groups_h += 28 + sum(len(lines) * 22 for lines in items) + 14
-    footer_h = 30
-    height = pad * 2 + header_h + groups_h + footer_h
+    columns, num_columns = flow_into_columns(flat_lines)
+    col_heights = [sum(h for h, _ in col) for col in columns]
+
+    header_h, footer_h = 78, 30
+    width = pad * 2 + col_width * num_columns + gap * (num_columns - 1)
+    height = pad * 2 + header_h + (max(col_heights) if col_heights else 0) + footer_h
 
     img = Image.new("RGB", (width, height), theme.color_bg)
     draw = ImageDraw.Draw(img)
@@ -297,15 +302,15 @@ def _render_saved_movies_image(theme, username, groups):
     draw.text((pad, pad + 36), ascii_safe(f"por {username} - La Sala de Bygui"), font=font_meta, fill=theme.color_text_muted)
     draw.line([(pad, pad + 58), (width - pad, pad + 58)], fill=theme.color_border, width=1)
 
-    y = pad + header_h
-    for name, items in group_lines:
-        draw.text((pad, y), name, font=font_group, fill=theme.color_accent_secondary)
-        y += 28
-        for lines in items:
-            for line in lines:
-                draw.text((pad, y), line, font=font_item, fill=theme.color_text)
-                y += 22
-        y += 14
+    for col_index, col in enumerate(columns):
+        x = pad + col_index * (col_width + gap)
+        y = pad + header_h
+        for h, (kind, text) in col:
+            if kind == "group":
+                draw.text((x, y), text, font=font_group, fill=theme.color_accent_secondary)
+            elif kind == "item":
+                draw.text((x, y), text, font=font_item, fill=theme.color_text)
+            y += h
 
     return img
 
