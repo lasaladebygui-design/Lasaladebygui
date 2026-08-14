@@ -1640,35 +1640,26 @@ main { flex: 1; }
        dependiera del ancho, el halo se quedaba corto y dejaba un borde
        negro duro visible antes de llegar al pie de página. */
     position: absolute;
-    top: -20%;
+    /* Un único halo (antes había dos círculos superpuestos — brillo y
+       bombilla — que se notaban como un halo "duplicado"), centrado
+       sobre el propio maletín en vez de desplazado hacia arriba,
+       con muchas paradas de color cada vez más tenues para que el
+       apagado hacia el borde sea imperceptible, no un anillo ni un
+       "suelo" con corte. */
+    top: 50%;
     left: 50%;
-    transform: translateX(-50%);
-    height: 220%;
+    transform: translate(-50%, -50%);
+    height: 260%;
     aspect-ratio: 1;
-    /* Varias paradas en vez de una sola (color -> transparent) — con
-       solo dos, el ojo percibe un "anillo" donde el degradado se apaga
-       de golpe cerca del borde; con más pasos intermedios cada vez más
-       tenues, el apagado se nota gradual, sin borde visible. */
     background: radial-gradient(circle,
-        color-mix(in srgb, var(--color-accent) 38%, transparent) 0%,
-        color-mix(in srgb, var(--color-accent) 24%, transparent) 22%,
-        color-mix(in srgb, var(--color-accent) 12%, transparent) 40%,
-        color-mix(in srgb, var(--color-accent) 4%, transparent) 58%,
-        transparent 78%);
-    pointer-events: none;
-}
-.secret-gate-scene__bulb {
-    /* La bombilla en sí — mismo truco que .intro__bulb (un punto brillante
-       muy pequeño con su propio halo, radial y sin dirección). Igual que
-       arriba, el tamaño se basa en la altura para que no se quede
-       pequeño en escritorio. */
-    position: absolute;
-    top: 6%;
-    left: 50%;
-    transform: translateX(-50%);
-    height: 65%;
-    aspect-ratio: 1;
-    background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 75%, white), color-mix(in srgb, var(--color-accent) 30%, transparent) 45%, transparent 78%);
+        color-mix(in srgb, var(--color-accent) 55%, white) 0%,
+        color-mix(in srgb, var(--color-accent) 40%, transparent) 10%,
+        color-mix(in srgb, var(--color-accent) 26%, transparent) 22%,
+        color-mix(in srgb, var(--color-accent) 15%, transparent) 36%,
+        color-mix(in srgb, var(--color-accent) 8%, transparent) 50%,
+        color-mix(in srgb, var(--color-accent) 3%, transparent) 65%,
+        color-mix(in srgb, var(--color-accent) 1%, transparent) 78%,
+        transparent 92%);
     pointer-events: none;
 }
 .secret-gate-scene__hint {

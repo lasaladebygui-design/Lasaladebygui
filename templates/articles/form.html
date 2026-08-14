@@ -76,6 +76,12 @@
             </div>
             <div class="field">
                 <label for="{{ form.body.id_for_label }}">{{ form.body.label }}</label>
+                <p class="field-help">
+                    Truco para que el texto rodee una foto: insértala, alinéala a la izquierda o a la
+                    derecha con su barra de herramientas y, con la foto todavía seleccionada, pulsa
+                    <kbd>Enter</kbd> para escribir justo debajo — ese texto es el que rodeará a la foto
+                    por el lado.
+                </p>
                 {{ form.body }}
                 {% for error in form.body.errors %}<p class="field-errors">{{ error }}</p>{% endfor %}
             </div>
