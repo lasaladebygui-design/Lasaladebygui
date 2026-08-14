@@ -757,21 +757,14 @@ main { flex: 1; }
     border-radius: var(--radius-base);
     overflow: hidden;
 }
-/* La tarjeta tiene que caber SIEMPRE el texto + la imagen (28:9, ver
-   .home-hero__image) sin recortarse por abajo — como la caja tiene
-   altura fija (ver el comentario de .home-hero__slide) y el texto
-   varía de tamaño según el título, esta fórmula deja un margen de
-   sobra generoso (~70-90px) en vez de ajustar al milímetro: antes,
-   ajustada muy justa, un título de dos líneas hacía que la imagen se
-   recortase por abajo en algunos anchos (p. ej. tablet) — apenas se
-   notaba con una imagen de un solo color, pero con una foto real se
-   veía como si el carrusel estuviera roto. Mejor algo de aire de más
-   que contenido cortado. */
-.home-hero__stage { position: relative; min-height: clamp(430px, 260px + 29vw, 720px); }
+/* El título ya no va apilado encima de la imagen (eso hacía que la
+   tarjeta entera ocupara casi toda la pantalla) — ahora la imagen es el
+   fondo a toda la tarjeta y el título se superpone a la izquierda, con
+   un velo oscuro detrás para que se lea encima de cualquier foto. Con
+   el texto ya no repartiéndose su propia franja, la tarjeta puede ser
+   mucho más baja. */
+.home-hero__stage { position: relative; min-height: clamp(360px, 30vw, 460px); }
 .home-hero__slide {
-    display: grid;
-    grid-template-columns: 1fr;
-    min-height: clamp(430px, 260px + 29vw, 720px);
     /* Las diapositivas se superponen en vez de apilarse en el flujo
        normal: así, durante el instante en que la que sale y la que
        entra están las dos visibles a la vez (mientras hace fundido),
@@ -781,12 +774,26 @@ main { flex: 1; }
     position: absolute;
     inset: 0;
 }
+.home-hero__image-link { position: absolute; inset: 0; display: block; background: var(--color-bg); }
+.home-hero__image { width: 100%; height: 100%; object-fit: cover; display: block; }
+.home-hero__image--placeholder { display: flex; align-items: center; justify-content: center; font-size: 3rem; }
+
 .home-hero__text {
-    padding: calc(var(--space-unit) * 4) calc(var(--space-unit) * 5);
+    /* Colores fijos (no las variables del tema): el texto va encima de
+       una foto, no del fondo de la web, así que necesita contraste
+       consistente sea cual sea el tema activo — con --color-text en un
+       tema claro (oscuro sobre fondo claro) sería ilegible aquí. */
+    position: absolute;
+    inset: 0;
     display: flex;
     flex-direction: column;
     justify-content: center;
+    align-items: flex-start;
     gap: calc(var(--space-unit) * 2);
+    padding: calc(var(--space-unit) * 5);
+    max-width: min(520px, 82%);
+    color: #f5f1e6;
+    background: linear-gradient(90deg, rgba(10,10,12,.85) 0%, rgba(10,10,12,.6) 55%, rgba(10,10,12,0) 100%);
 }
 .home-hero__eyebrow {
     display: inline-block;
@@ -801,37 +808,20 @@ main { flex: 1; }
     border-radius: 999px;
 }
 .home-hero__text h1 { font-size: clamp(1.2rem, 2.1vw, 1.7rem); margin: 0; text-wrap: balance; }
-.home-hero__text h1 a { color: var(--color-text); }
-.home-hero__text h1 a:hover { color: var(--color-accent); }
+.home-hero__text h1 a { color: #f5f1e6; }
+.home-hero__text h1 a:hover { color: var(--color-accent-hover); }
 .home-hero__text .btn { align-self: flex-start; }
-
-.home-hero__image-link { display: block; background: var(--color-bg); }
-/* aspect-ratio en vez de height:100% — con la imagen a ancho completo
-   dentro de una fila "auto" de grid, height:100% no tenía una altura
-   real de la que partir (se resolvía como si fuera auto) y el
-   min/max-height fijo (pensado para la mitad del ancho) recortaba
-   fotos normales a una tira absurdamente fina. 28:9 es ancha y fina,
-   más parecida a como era antes de que la imagen ocupara todo el
-   ancho, sin llegar al recorte extremo de antes (max-height quitado:
-   ahora es el min-height de arriba, calculado para dejar sitio de
-   sobra, el que manda). */
-.home-hero__image { width: 100%; aspect-ratio: 28 / 9; object-fit: cover; display: block; }
-.home-hero__image--placeholder {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 3rem;
-    aspect-ratio: 16/10;
-}
 
 .home-hero__controls { display: flex; align-items: center; gap: calc(var(--space-unit) * 3); margin-top: auto; padding-top: calc(var(--space-unit) * 2); }
 .home-hero__arrow {
     width: 2rem;
     height: 2rem;
     border-radius: 999px;
-    border: 1px solid var(--color-border);
+    /* Colores fijos otra vez, como en .home-hero__text — estos botones
+       viven sobre la foto, no sobre el fondo de la web. */
+    border: 1px solid rgba(245, 241, 230, .4);
     background: transparent;
-    color: var(--color-text);
+    color: #f5f1e6;
     font-size: 1.2rem;
     line-height: 1;
     cursor: pointer;
@@ -842,7 +832,7 @@ main { flex: 1; }
 }
 .home-hero__arrow:hover { border-color: var(--color-accent); color: var(--color-accent); }
 .home-hero__dots { display: flex; gap: 0.4rem; }
-.home-hero__dot { width: 0.5rem; height: 0.5rem; border-radius: 999px; border: none; background: var(--color-border); cursor: pointer; padding: 0; transition: width .15s ease, background-color .15s ease; }
+.home-hero__dot { width: 0.5rem; height: 0.5rem; border-radius: 999px; border: none; background: rgba(245, 241, 230, .4); cursor: pointer; padding: 0; transition: width .15s ease, background-color .15s ease; }
 .home-hero__dot--active { background: var(--color-accent); width: 1.3rem; }
 
 .home-guest-banner {
@@ -1644,26 +1634,41 @@ main { flex: 1; }
     /* El maletín no se apoya en nada — flota bajo una lamparita como la
        del logo de la animación de inicio (misma idea: bombilla pequeña +
        halo alrededor), pero circular en vez de un cono de foco de
-       teatro — ilumina alrededor, no "hacia abajo". */
+       teatro — ilumina alrededor, no "hacia abajo". El tamaño se calcula
+       sobre la ALTURA (no el ancho) de la escena: en escritorio la caja
+       es mucho más alta (ver el @media de arriba) y, si el tamaño
+       dependiera del ancho, el halo se quedaba corto y dejaba un borde
+       negro duro visible antes de llegar al pie de página. */
     position: absolute;
-    top: -18%;
+    top: -20%;
     left: 50%;
     transform: translateX(-50%);
-    width: 78%;
+    height: 220%;
     aspect-ratio: 1;
-    background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 40%, transparent), transparent 68%);
+    /* Varias paradas en vez de una sola (color -> transparent) — con
+       solo dos, el ojo percibe un "anillo" donde el degradado se apaga
+       de golpe cerca del borde; con más pasos intermedios cada vez más
+       tenues, el apagado se nota gradual, sin borde visible. */
+    background: radial-gradient(circle,
+        color-mix(in srgb, var(--color-accent) 38%, transparent) 0%,
+        color-mix(in srgb, var(--color-accent) 24%, transparent) 22%,
+        color-mix(in srgb, var(--color-accent) 12%, transparent) 40%,
+        color-mix(in srgb, var(--color-accent) 4%, transparent) 58%,
+        transparent 78%);
     pointer-events: none;
 }
 .secret-gate-scene__bulb {
     /* La bombilla en sí — mismo truco que .intro__bulb (un punto brillante
-       muy pequeño con su propio halo, radial y sin dirección). */
+       muy pequeño con su propio halo, radial y sin dirección). Igual que
+       arriba, el tamaño se basa en la altura para que no se quede
+       pequeño en escritorio. */
     position: absolute;
     top: 6%;
     left: 50%;
     transform: translateX(-50%);
-    width: 40%;
+    height: 65%;
     aspect-ratio: 1;
-    background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 75%, white), color-mix(in srgb, var(--color-accent) 30%, transparent) 45%, transparent 72%);
+    background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 75%, white), color-mix(in srgb, var(--color-accent) 30%, transparent) 45%, transparent 78%);
     pointer-events: none;
 }
 .secret-gate-scene__hint {

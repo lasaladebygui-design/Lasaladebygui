@@ -261,15 +261,42 @@ def _model_display_name(token):
 def _default_sections():
     """Punto de partida al abrir la página de arrastre por primera vez
     (nada guardado aún): una sección por app, tal como las agrupa Django
-    de fábrica, usando DEFAULT_ADMIN_MENU_ORDER para el orden inicial."""
+    de fábrica, usando DEFAULT_ADMIN_MENU_ORDER para el orden inicial.
+
+    DEFAULT_ADMIN_MENU_ORDER no enumera explícitamente los modelos de
+    TODAS las apps (p. ej. "shop" y "social" solo aparecen como la
+    propia app, sin listar "shop.Product" ni "social.FriendRequest") —
+    si esta función se quedara solo con lo listado ahí, esas apps
+    saldrían con una sección vacía, que get_app_list() directamente NO
+    muestra (una sección sin modelos no aparece), y sus modelos de
+    verdad acababan cayendo en el cajón de "no organizados" al final,
+    lejos de donde el usuario los esperaba — "en tienda y social no me
+    aparecen ciertas cosas". Por eso aquí se completa cada sección con
+    los modelos reales registrados en el admin que falten, en vez de
+    fiarse solo de la lista fija."""
     sections = []
     current = None
+    seen = set()
     for token in django_settings.DEFAULT_ADMIN_MENU_ORDER:
         if "." not in token:
-            current = {"name": _app_display_name(token), "items": []}
+            current = {"name": _app_display_name(token), "app_label": token, "items": []}
             sections.append(current)
         elif current is not None:
             current["items"].append(token)
+            seen.add(token.lower())
+
+    models_by_app = {}
+    for model in admin.site._registry:
+        models_by_app.setdefault(model._meta.app_label, []).append(model._meta.object_name)
+
+    for section in sections:
+        app_label = section.pop("app_label")
+        for object_name in sorted(models_by_app.get(app_label, [])):
+            token = f"{app_label}.{object_name}"
+            if token.lower() not in seen:
+                section["items"].append(token)
+                seen.add(token.lower())
+
     return sections
 
 

@@ -17,6 +17,13 @@
             <div class="home-hero__stage">
                 {% for article in hero_articles %}
                 <div class="home-hero__slide" x-show="active === {{ forloop.counter0 }}" {% if not forloop.first %}x-cloak{% endif %} x-transition.opacity.duration.500ms>
+                    <a href="{{ article.get_absolute_url }}" class="home-hero__image-link">
+                        {% if article.cover %}
+                            <img src="{{ article.cover.url }}" alt="" class="home-hero__image">
+                        {% else %}
+                            <div class="home-hero__image home-hero__image--placeholder"><span>🎬</span></div>
+                        {% endif %}
+                    </a>
                     <div class="home-hero__text">
                         <span class="home-hero__eyebrow">{% if forloop.first %}Artículo destacado{% else %}Destacado{% endif %}</span>
                         <h1><a href="{{ article.get_absolute_url }}">{{ article.title }}</a></h1>
@@ -34,13 +41,6 @@
                         </div>
                         {% endif %}
                     </div>
-                    <a href="{{ article.get_absolute_url }}" class="home-hero__image-link">
-                        {% if article.cover %}
-                            <img src="{{ article.cover.url }}" alt="" class="home-hero__image">
-                        {% else %}
-                            <div class="home-hero__image home-hero__image--placeholder"><span>🎬</span></div>
-                        {% endif %}
-                    </a>
                 </div>
                 {% endfor %}
             </div>

@@ -662,6 +662,30 @@ class AdminMenuOrderTests(TestCase):
         self.assertContains(response, "menu-order-section")
         self.assertContains(response, 'data-token="articles.Article"')
 
+    def test_las_secciones_por_defecto_incluyen_modelos_no_listados_en_el_orden_de_fabrica(self):
+        # "shop" y "social" aparecen en DEFAULT_ADMIN_MENU_ORDER como app
+        # sola, sin ningún "shop.Producto" listado detrás — si se guarda
+        # tal cual, esos modelos reales desaparecían del menú (caían al
+        # cajón de "no organizados"). Ver _default_sections en admin.py.
+        from .admin import _default_sections
+        sections = _default_sections()
+        all_items = {item.lower() for section in sections for item in section["items"]}
+        self.assertIn("shop.product", all_items)
+        self.assertIn("social.friendrequest", all_items)
+        self.assertIn("social.message", all_items)
+
+    def test_guardar_el_estado_por_defecto_no_pierde_modelos_de_tienda_ni_social(self):
+        # Reproduce el flujo real: abrir la página (que muestra las
+        # secciones por defecto) y arrastrar algo (que guarda TODO el
+        # estado mostrado, incluidas Tienda y Social) — después de eso,
+        # esos modelos deben seguir apareciendo en su propia sección.
+        from .admin import _default_sections, get_app_list
+        AdminMenuOrder.objects.create(pk=1, sections=_default_sections())
+        app_list = get_app_list(self._request())
+        tienda = next((s for s in app_list if s["name"] == "Tienda"), None)
+        self.assertIsNotNone(tienda)
+        self.assertIn("Product", [m["object_name"] for m in tienda["models"]])
+
     def test_guardar_persiste_las_nuevas_secciones(self):
         new_sections = [{"name": "Todo junto", "items": ["articles.Article", "forum.Thread"]}]
         url = reverse("admin:core_adminmenuorder_save")
