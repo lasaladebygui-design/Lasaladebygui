@@ -194,6 +194,78 @@ class SecretMovieViewTests(TestCase):
         response = self.client.get(reverse("secret:list"), {"q": "kill"})
         self.assertEqual(list(response.context["movies"]), [self.b])
 
+    def test_lista_completa_filtra_por_tipo_pelicula_o_serie(self):
+        # Se saca de la película/serie del catálogo enlazada como portada,
+        # no de una etiqueta a mano — self.a y self.b no tienen ninguna
+        # enlazada, así que no salen en ninguno de los dos filtros.
+        peli = Movie.objects.create(tmdb_id=1, title="Kill Bill", media_type="movie")
+        serie = Movie.objects.create(tmdb_id=2, title="Dark", media_type="tv")
+        self.b.movie = peli
+        self.b.save()
+        c = SecretMovie.objects.create(title="Dark", personal_rating="7.0", movie=serie)
+
+        response = self.client.get(reverse("secret:list"), {"type": "movie"})
+        self.assertEqual(list(response.context["movies"]), [self.b])
+
+        response = self.client.get(reverse("secret:list"), {"type": "tv"})
+        self.assertEqual(list(response.context["movies"]), [c])
+
+    def test_lista_completa_muestra_el_distintivo_de_tipo_solo_si_hay_portada_enlazada(self):
+        peli = Movie.objects.create(tmdb_id=3, title="Reservoir Dogs", media_type="movie")
+        self.a.movie = peli
+        self.a.save()
+
+        response = self.client.get(reverse("secret:list"))
+        self.assertContains(response, "secret-movie__type-badge")
+
+    def test_lista_completa_sin_ninguna_portada_enlazada_no_hay_distintivo(self):
+        response = self.client.get(reverse("secret:list"))
+        self.assertNotContains(response, "secret-movie__type-badge")
+
+    def test_ordenar_peliculas_primero_enseña_separador_entre_grupos(self):
+        peli = Movie.objects.create(tmdb_id=4, title="Reservoir Dogs", media_type="movie")
+        serie = Movie.objects.create(tmdb_id=5, title="Dark", media_type="tv")
+        self.a.movie = peli
+        self.a.save()
+        c = SecretMovie.objects.create(title="Dark", personal_rating="7.0", movie=serie)
+
+        response = self.client.get(reverse("secret:list"), {"sort": "movies_first"})
+        movies = list(response.context["movies"])
+        # self.a (película, con portada) primero, luego c (serie), luego
+        # self.b (sin portada enlazada, va al final sin clasificar).
+        self.assertEqual(movies, [self.a, c, self.b])
+        by_pk = {m.pk: m for m in movies}
+        self.assertEqual(getattr(by_pk[self.a.pk], "group_label", None), "🎬 Películas")
+        self.assertEqual(getattr(by_pk[c.pk], "group_label", None), "📺 Series")
+        self.assertEqual(getattr(by_pk[self.b.pk], "group_label", None), "❔ Sin clasificar")
+
+    def test_orden_normal_no_tiene_separadores(self):
+        response = self.client.get(reverse("secret:list"))
+        movies = list(response.context["movies"])
+        self.assertFalse(any(getattr(m, "group_label", None) for m in movies))
+
+    def test_separador_no_se_repite_al_continuar_scroll_infinito_en_el_mismo_grupo(self):
+        # Cada tanda del scroll infinito es una petición HTTP aparte (sin
+        # memoria de la anterior) — "prev_type" es lo que le dice a la
+        # siguiente tanda si sigue en el mismo grupo que la última fila de
+        # la tanda anterior, para no repetir el separador de "Películas".
+        peli = Movie.objects.create(tmdb_id=6, title="Reservoir Dogs", media_type="movie")
+        otra_peli = Movie.objects.create(tmdb_id=7, title="Kill Bill", media_type="movie")
+        self.a.movie = peli
+        self.a.save()
+        self.b.movie = otra_peli
+        self.b.save()
+
+        # "página 1" (solo self.a): el último tipo visto es 0 (película).
+        # "página 2" pide prev_type=0, simulando que sigue en el mismo grupo.
+        response = self.client.get(
+            reverse("secret:list"), {"sort": "movies_first", "prev_type": "0"}, HTTP_HX_REQUEST="true",
+        )
+        movies = list(response.context["movies"])
+        by_pk = {m.pk: m for m in movies}
+        self.assertIsNone(getattr(by_pk[self.a.pk], "group_label", None))
+        self.assertIsNone(getattr(by_pk[self.b.pk], "group_label", None))
+
     def test_lista_completa_filtra_por_lista(self):
         terror = Genre.objects.create(name="Terror")
         self.a.genres.add(terror)

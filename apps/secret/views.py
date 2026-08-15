@@ -181,7 +181,16 @@ def full_list(request):
     if query:
         movies = movies.filter(title__icontains=query)
 
+    media_type = request.GET.get("type", "")
+    if media_type in ("movie", "tv"):
+        # Se sabe automáticamente en función de la película/serie del
+        # catálogo enlazada como portada — no hay que etiquetar nada a
+        # mano. Las que no tienen portada enlazada no salen en ninguno de
+        # los dos filtros, solo en "Todas".
+        movies = movies.filter(movie__media_type=media_type)
+
     sort = request.GET.get("sort")
+    grouped_labels = None
     if sort == "asc":
         movies = movies.order_by("personal_rating", "-tie_break", "-number")
     elif sort in ("movies_first", "series_first"):
@@ -190,14 +199,19 @@ def full_list(request):
         # película enlazada del catálogo (así que no se sabe si son
         # película o serie) van al final, en su propio grupo.
         first_type, second_type = ("movie", "tv") if sort == "movies_first" else ("tv", "movie")
+        grouped_labels = {
+            0: "🎬 Películas" if first_type == "movie" else "📺 Series",
+            1: "🎬 Películas" if second_type == "movie" else "📺 Series",
+            2: "❔ Sin clasificar",
+        }
         movies = movies.annotate(
-            _type_order=Case(
+            type_order=Case(
                 When(movie__media_type=first_type, then=Value(0)),
                 When(movie__media_type=second_type, then=Value(1)),
                 default=Value(2),
                 output_field=IntegerField(),
             )
-        ).order_by("_type_order", "-personal_rating", "tie_break", "number")
+        ).order_by("type_order", "-personal_rating", "tie_break", "number")
     else:
         sort = "desc"
         movies = movies.order_by("-personal_rating", "tie_break", "number")
@@ -206,11 +220,30 @@ def full_list(request):
     # orden) — sin "page", que lo pone el propio enlace de paginación.
     querystring = request.GET.copy()
     querystring.pop("page", None)
+    querystring.pop("prev_type", None)
 
     page_obj = Paginator(movies, FULL_LIST_PAGE_SIZE).get_page(request.GET.get("page"))
+
+    if grouped_labels:
+        # El separador ("🎬 Películas" / "📺 Series") solo debe salir una vez,
+        # justo donde cambia el grupo — como el scroll infinito pide cada
+        # tanda en una petición HTTP aparte (sin memoria de la anterior),
+        # "prev_type" viaja de una tanda a la siguiente para saber si la
+        # primera fila de esta tanda sigue el mismo grupo que la última de
+        # la tanda anterior, o si toca abrir uno nuevo.
+        prev_type_param = request.GET.get("prev_type")
+        prev_type = int(prev_type_param) if prev_type_param and prev_type_param.isdigit() else None
+        for movie_item in page_obj.object_list:
+            if movie_item.type_order != prev_type:
+                movie_item.group_label = grouped_labels[movie_item.type_order]
+            prev_type = movie_item.type_order
+        if prev_type is not None:
+            querystring["prev_type"] = prev_type
+
     context = {
         "movies": page_obj, "form": form, "rating_config": TopSecretConfig.load(),
         "sort": sort, "querystring": querystring.urlencode(), "query": query,
+        "media_type": media_type,
     }
     if _is_htmx(request):
         return render(request, "secret/_list_items.html", context)

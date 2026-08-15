@@ -1813,6 +1813,16 @@ main { flex: 1; }
 .secret-result { margin-top: calc(var(--space-unit) * 8); }
 
 .secret-list { list-style: none; margin: calc(var(--space-unit) * 6) 0 0; padding: 0; }
+/* Separador entre grupos al ordenar "Películas primero"/"Series primero"
+   (ver full_list en apps/secret/views.py) — para que el orden no sea
+   invisible, deja claro dónde acaba un grupo y empieza el otro. */
+.secret-list__divider {
+    font-weight: 700;
+    color: var(--color-accent-secondary);
+    padding: calc(var(--space-unit) * 4) calc(var(--space-unit) * 2) calc(var(--space-unit) * 1);
+}
+.secret-list__divider:first-child { padding-top: 0; }
+.secret-list--grid .secret-list__divider { grid-column: 1 / -1; }
 .secret-movie { border-bottom: 1px solid var(--color-border); }
 
 .checkbox-grid { display: flex; flex-wrap: wrap; gap: calc(var(--space-unit) * 1) calc(var(--space-unit) * 4); }
@@ -1833,8 +1843,21 @@ main { flex: 1; }
 }
 .secret-movie__row:hover { background: var(--color-surface); }
 .secret-movie__row:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-.secret-movie__poster-link { flex-shrink: 0; display: block; border-radius: 4px; }
+.secret-movie__poster-link { position: relative; flex-shrink: 0; display: block; border-radius: 4px; }
 .secret-movie__poster-link:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+/* Distintivo de película/serie (🎬/📺): solo sale cuando la entrada tiene
+   enlazada su película del catálogo, que es de donde se saca el dato —
+   nada que etiquetar a mano. */
+.secret-movie__type-badge {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    font-size: 0.75rem;
+    line-height: 1;
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 4px;
+    padding: 0.15rem 0.25rem;
+}
 .secret-movie__poster {
     width: 88px;
     aspect-ratio: 2/3;
