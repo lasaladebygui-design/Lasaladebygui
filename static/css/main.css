@@ -1843,7 +1843,8 @@ main { flex: 1; }
 }
 .secret-movie__row:hover { background: var(--color-surface); }
 .secret-movie__row:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-.secret-movie__poster-link { position: relative; flex-shrink: 0; display: block; border-radius: 4px; }
+.secret-movie__poster-wrap { position: relative; flex-shrink: 0; display: block; }
+.secret-movie__poster-link { position: relative; display: block; border-radius: 4px; }
 .secret-movie__poster-link:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 /* Distintivo de película/serie (🎬/📺): solo sale cuando la entrada tiene
    enlazada su película del catálogo, que es de donde se saca el dato —
@@ -1858,6 +1859,25 @@ main { flex: 1; }
     border-radius: 4px;
     padding: 0.15rem 0.25rem;
 }
+
+/* Cuadradito de estado de visionado, solo en series: rojo/amarillo/verde,
+   en la esquina opuesta al distintivo 🎬/📺. Clicable para ir pasando de un
+   estado al siguiente (ver movie_watch_cycle) sin entrar al admin. */
+.secret-movie__watch-badge {
+    position: absolute;
+    bottom: 3px;
+    right: 3px;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    border: 1.5px solid rgba(0, 0, 0, 0.55);
+    padding: 0;
+    cursor: pointer;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+.secret-movie__watch-badge--not_watched { background: #e5484d; }
+.secret-movie__watch-badge--airing { background: #f5b544; }
+.secret-movie__watch-badge--watched { background: #46a758; }
 .secret-movie__poster {
     width: 88px;
     aspect-ratio: 2/3;
@@ -1993,6 +2013,36 @@ main { flex: 1; }
     .secret-toolbar__field select { height: 43px; padding: 0 0.8rem; font-size: 0.95rem; }
     .secret-toolbar__search input[type="search"] { height: 43px; padding: 0 0.8rem; font-size: 0.95rem; }
     .secret-toolbar .btn--sm { padding: 0.55rem 1.1rem; font-size: 0.95rem; }
+}
+
+@media (max-width: 640px) {
+    /* En PC estos ocho controles (buscar, tipo, orden, filtrar por listas,
+       vista) van bien repartidos por el ancho — en móvil, uno debajo de
+       otro, cada botón "toca fuerte" y da sensación de amontonamiento. Los
+       dos grupos que en realidad son un único selector con varias opciones
+       (tipo: Todas/Películas/Series, vista: Lista/Cuadrícula) se funden en
+       un único control "segmentado" — un borde compartido en vez de N
+       botones sueltos — y todo baja un poco de tamaño y de peso visual
+       (la opción activa se ve igual de clara, las demás no compiten tanto).
+       El punto táctil sigue siendo cómodo: solo cambia el aspecto. */
+    .secret-toolbar__group { gap: calc(var(--space-unit) * 1); }
+    .secret-toolbar .btn--sm { font-size: 0.82rem; }
+
+    .secret-toolbar__segmented {
+        gap: 0;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-base);
+        overflow: hidden;
+        align-self: stretch;
+    }
+    .secret-toolbar__segmented .btn--sm {
+        border: none;
+        border-radius: 0;
+        min-height: 34px;
+        padding: 0.4rem 0.7rem;
+    }
+    .secret-toolbar__segmented .btn--sm:not(:last-child) { border-right: 1px solid var(--color-border); }
+    .secret-toolbar__segmented .btn--ghost { background: transparent; }
 }
 
 .secret-list__sentinel { list-style: none; text-align: center; padding: calc(var(--space-unit) * 5) 0; }
@@ -2822,10 +2872,11 @@ main { flex: 1; }
     margin-top: calc(var(--space-unit) * 6);
 }
 
-/* Tablón de fotos: "Subir una foto" / "Gestionar acceso" / "Las fotos"
-   quedaban todo en una tira sin distinguirse unas de otras, sobre todo en
-   móvil — un encabezado numerado por paso y algo más de aire entre ellos
-   deja claro que son cosas distintas. */
+/* Tablón de fotos: "Gestionar acceso" y "Las fotos" quedaban todo en una
+   tira sin distinguirse unas de otras, sobre todo en móvil — un encabezado
+   propio y algo más de aire entre ellos deja claro que son cosas
+   distintas. Subir foto ya no es un paso más aquí mismo: es un botón que
+   lleva a su propia pantalla (ver photo_board_upload.html). */
 .photo-board-step__title {
     padding-top: calc(var(--space-unit) * 4);
     border-top: 1px solid var(--color-border);
@@ -2836,6 +2887,35 @@ main { flex: 1; }
     .photo-board-step__title { margin-top: calc(var(--space-unit) * 10); padding-top: calc(var(--space-unit) * 6); }
     .photo-board-step__title:first-of-type { margin-top: calc(var(--space-unit) * 4); padding-top: 0; }
 }
+
+/* "Las fotos" y sus botones (Subir/Editar) van en una barra — solo lleva
+   línea/aire de separación por arriba si "Gestionar acceso" existe antes
+   (dueño del tablón); en un tablón compartido es lo primero que hay. */
+.photo-board-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: calc(var(--space-unit) * 3);
+}
+.photo-board-toolbar__title { margin: 0; }
+.photo-board-toolbar__actions { display: flex; gap: calc(var(--space-unit) * 2); flex-wrap: wrap; }
+.photo-board-step__title ~ .photo-board-toolbar {
+    border-top: 1px solid var(--color-border);
+    padding-top: calc(var(--space-unit) * 4);
+    margin-top: calc(var(--space-unit) * 4);
+}
+@media (max-width: 640px) {
+    .photo-board-step__title ~ .photo-board-toolbar {
+        margin-top: calc(var(--space-unit) * 10);
+        padding-top: calc(var(--space-unit) * 6);
+    }
+}
+
+/* El resumen "Compartir tu tablón"/"Tableros compartidos contigo" iba
+   pegado al texto justo debajo (p. ej. "Todavía no has compartido tu
+   tablón con nadie."), en PC y en móvil por igual. */
+.photo-board-share summary + * { margin-top: calc(var(--space-unit) * 3); }
 
 .photo-board__item {
     margin: 0;
@@ -2886,20 +2966,28 @@ main { flex: 1; }
 
 .photo-board__caption .muted { color: #9a9a9a; }
 
+/* Ocultas por defecto: con "Subir"/"Editar" y ocho controles más
+   compitiendo por sitio, tener editar/borrar siempre visibles en cada foto
+   saturaba la cuadrícula. Solo aparecen tras pulsar "✏️ Editar". */
 .photo-board__owner-tools {
-    display: flex;
+    display: none;
     align-items: center;
     gap: calc(var(--space-unit) * 2);
     margin-top: calc(var(--space-unit) * 1.5);
     font-family: var(--font-body, sans-serif);
 }
+.photo-board--editing .photo-board__owner-tools { display: flex; }
 .photo-board__owner-tools .link-btn { font-size: 0.85rem; padding: 0.4rem; margin: -0.4rem; }
-.photo-board__edit-form {
-    display: flex;
-    gap: calc(var(--space-unit) * 1);
-    margin-top: calc(var(--space-unit) * 1.5);
+
+/* Vista previa de la foto en su pantalla de edición (photo_board_edit.html),
+   para saber cuál es antes de tocar nada. */
+.photo-board-edit__preview {
+    display: block;
+    max-width: 240px;
+    border-radius: 6px;
+    margin-bottom: calc(var(--space-unit) * 4);
+    filter: saturate(0.9) contrast(1.05);
 }
-.photo-board__edit-form input[type="text"] { flex: 1; min-width: 0; }
 
 /* --- Social: amigos y mensajes -------------------------------------------- */
 

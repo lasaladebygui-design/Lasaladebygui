@@ -120,6 +120,20 @@ class SecretMovie(models.Model):
         on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
     )
 
+    class SeriesWatchStatus(models.TextChoices):
+        NOT_WATCHED = "not_watched", "No vista"
+        AIRING = "airing", "En emisión"
+        WATCHED = "watched", "Vista"
+
+    # Solo tiene sentido cuando `movie` enlaza a una serie (movie.is_tv) —
+    # se refleja como un cuadradito de color en la esquina de la portada en
+    # Lista completa, clicable para ir pasando de un estado a otro sin
+    # entrar al admin.
+    series_watch_status = models.CharField(
+        "estado de visionado (series)", max_length=20,
+        choices=SeriesWatchStatus.choices, default=SeriesWatchStatus.NOT_WATCHED, blank=True,
+    )
+
     class Meta:
         # Solo el singular cambia (Django arma "Añadir {verbose_name}",
         # "¿Eliminar la {verbose_name} X?", etc. con esto) — el plural se

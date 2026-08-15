@@ -25,7 +25,7 @@ class SecretMovieForm(forms.ModelForm):
 
     class Meta:
         model = SecretMovie
-        fields = ["title", "personal_rating", "tie_break", "comment", "movie"]
+        fields = ["title", "personal_rating", "tie_break", "comment", "movie", "series_watch_status"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -106,16 +106,6 @@ class SecretPhotoForm(forms.ModelForm):
         model = SecretPhoto
         fields = ["image", "description"]
         labels = {"image": "Foto", "description": "Descripción"}
-        widgets = {
-            "description": forms.TextInput(attrs={"placeholder": "Una pequeña descripción..."}),
-        }
-
-
-class SecretPhotoEditForm(forms.ModelForm):
-    class Meta:
-        model = SecretPhoto
-        fields = ["description"]
-        labels = {"description": "Descripción"}
         widgets = {
             "description": forms.TextInput(attrs={"placeholder": "Una pequeña descripción..."}),
         }

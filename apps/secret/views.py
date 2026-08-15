@@ -30,7 +30,6 @@ from .forms import (
     FullListFilterForm,
     NumberSelectForm,
     RatingSearchForm,
-    SecretPhotoEditForm,
     SecretPhotoForm,
     TierLevelForm,
 )
@@ -264,6 +263,27 @@ def movie_detail(request, pk):
     return render(request, "secret/movie_detail.html", {
         "movie": movie, "rating_config": TopSecretConfig.load(),
     })
+
+
+# No vista → en emisión → vista → no vista... cualquier orden vale, lo
+# importante es que sea el mismo ciclo siempre.
+_WATCH_STATUS_CYCLE = [
+    SecretMovie.SeriesWatchStatus.NOT_WATCHED,
+    SecretMovie.SeriesWatchStatus.AIRING,
+    SecretMovie.SeriesWatchStatus.WATCHED,
+]
+
+
+@secret_required
+@login_required
+def movie_watch_cycle(request, pk):
+    movie = get_object_or_404(_visible_movies(request.user), pk=pk)
+    if request.method == "POST" and movie.movie_id and movie.movie.is_tv:
+        current = movie.series_watch_status or SecretMovie.SeriesWatchStatus.NOT_WATCHED
+        next_index = (_WATCH_STATUS_CYCLE.index(current) + 1) % len(_WATCH_STATUS_CYCLE)
+        movie.series_watch_status = _WATCH_STATUS_CYCLE[next_index]
+        movie.save(update_fields=["series_watch_status"])
+    return render(request, "secret/_movie_poster.html", {"movie": movie})
 
 
 @secret_required
@@ -520,24 +540,8 @@ def photo_board(request, username=None):
 
     is_owner = owner.pk == request.user.pk
 
-    if request.method == "POST":
-        if not _can_access_photo_board(request.user, owner):
-            raise Http404
-        form = SecretPhotoForm(request.POST, request.FILES)
-        if form.is_valid():
-            photo = form.save(commit=False)
-            photo.board_owner = owner
-            photo.uploaded_by = request.user
-            photo.save()
-            messages.success(request, "Foto subida al tablón.")
-            if is_owner:
-                return redirect("secret:photo-board")
-            return redirect("secret:photo-board-shared", owner.username)
-    else:
-        form = SecretPhotoForm()
-
     photos = SecretPhoto.objects.filter(board_owner=owner).select_related("uploaded_by")
-    context = {"form": form, "photos": photos, "board_owner": owner, "is_owner": is_owner}
+    context = {"photos": photos, "board_owner": owner, "is_owner": is_owner}
 
     if is_owner:
         members = PhotoBoardMember.objects.filter(owner=request.user).select_related("member")
@@ -551,6 +555,39 @@ def photo_board(request, username=None):
         })
 
     return render(request, "secret/photo_board.html", context)
+
+
+@secret_required
+@login_required
+def photo_board_upload(request, username=None):
+    # Antes vivía como un formulario más metido dentro de la propia página
+    # del tablón, mezclado con "gestionar acceso" y la cuadrícula de fotos —
+    # ahora es su propia pantalla, con un botón "Subir foto" que lleva aquí.
+    owner = request.user
+    if username:
+        owner = get_object_or_404(User, username=username)
+        if not _can_access_photo_board(request.user, owner):
+            raise Http404
+
+    is_owner = owner.pk == request.user.pk
+
+    if request.method == "POST":
+        form = SecretPhotoForm(request.POST, request.FILES)
+        if form.is_valid():
+            photo = form.save(commit=False)
+            photo.board_owner = owner
+            photo.uploaded_by = request.user
+            photo.save()
+            messages.success(request, "Foto subida al tablón.")
+            if is_owner:
+                return redirect("secret:photo-board")
+            return redirect("secret:photo-board-shared", owner.username)
+    else:
+        form = SecretPhotoForm()
+
+    return render(request, "secret/photo_board_upload.html", {
+        "form": form, "board_owner": owner, "is_owner": is_owner,
+    })
 
 
 @secret_required
@@ -582,15 +619,23 @@ def _photo_board_redirect(board_owner, viewer):
 @secret_required
 @login_required
 def photo_board_edit(request, pk):
-    # Solo quien subió la foto puede editar su descripción — no el dueño
-    # del tablón por sí solo, si la foto es de otra persona invitada.
+    # Solo quien subió la foto puede editarla — no el dueño del tablón por
+    # sí solo, si la foto es de otra persona invitada. Antes era una
+    # cajita minúscula solo para la descripción, sin poder tocar la
+    # imagen — ahora es su propia pantalla, con el mismo formulario que
+    # subir (así si la foto salió mal también se puede resubir de verdad,
+    # no solo retocar el texto).
     photo = get_object_or_404(SecretPhoto, pk=pk, uploaded_by=request.user)
     if request.method == "POST":
-        form = SecretPhotoEditForm(request.POST, instance=photo)
+        form = SecretPhotoForm(request.POST, request.FILES, instance=photo)
         if form.is_valid():
             form.save()
-            messages.success(request, "Descripción actualizada.")
-    return _photo_board_redirect(photo.board_owner, request.user)
+            messages.success(request, "Foto actualizada.")
+            return _photo_board_redirect(photo.board_owner, request.user)
+    else:
+        form = SecretPhotoForm(instance=photo)
+
+    return render(request, "secret/photo_board_edit.html", {"form": form, "photo": photo})
 
 
 @secret_required

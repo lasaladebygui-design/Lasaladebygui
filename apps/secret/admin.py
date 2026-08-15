@@ -94,6 +94,15 @@ class SecretMovieAdmin(admin.ModelAdmin):
     def genre_list(self, obj):
         return ", ".join(obj.genres.values_list("name", flat=True))
 
+    def get_fields(self, request, obj=None):
+        fields = list(super().get_fields(request, obj))
+        # Solo tiene sentido para series — al crear una entrada todavía no
+        # se sabe (la portada se elige en este mismo formulario), así que
+        # aparece a partir de guardarla si la portada enlazada es una serie.
+        if not (obj and obj.movie_id and obj.movie.is_tv):
+            fields.remove("series_watch_status")
+        return fields
+
 
 @admin.register(SecretPhoto)
 class SecretPhotoAdmin(admin.ModelAdmin):

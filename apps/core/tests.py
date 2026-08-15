@@ -1144,7 +1144,7 @@ class ExportExcelTests(TestCase):
         from apps.accounts.models import FavoriteMovie
         from apps.articles.models import ArticleIdea
         from apps.movies.models import Movie, SavedMovie, SavedMovieList
-        from apps.secret.models import CalendarDayNote, Genre, ReleaseEvent, SecretMovie
+        from apps.secret.models import CalendarDayNote, Genre, ReleaseEvent, SecretMovie, SecretPhoto
         from apps.shop.models import Product
 
         from .models import FavoriteQuote, PersonalNote
@@ -1155,6 +1155,26 @@ class ExportExcelTests(TestCase):
         terror = Genre.objects.create(name="Terror")
         movie_secret = SecretMovie.objects.create(title="El Exorcista", personal_rating="9.5", comment="Un clásico.")
         movie_secret.genres.add(terror)
+
+        serie_catalogo = Movie.objects.create(tmdb_id=99, title="Dark", media_type="tv")
+        SecretMovie.objects.create(
+            title="Dark", personal_rating="8.0", movie=serie_catalogo,
+            series_watch_status=SecretMovie.SeriesWatchStatus.WATCHED,
+        )
+
+        import io as _io
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from PIL import Image as _Image
+
+        buffer = _io.BytesIO()
+        _Image.new("RGB", (2, 2)).save(buffer, format="PNG")
+        buffer.seek(0)
+        SecretPhoto.objects.create(
+            board_owner=user, uploaded_by=user,
+            image=SimpleUploadedFile("foto.png", buffer.read(), content_type="image/png"),
+            description="Noche de pelis",
+        )
 
         movie = Movie.objects.create(tmdb_id=1, title="Drive", year="2011")
         sublist = SavedMovieList.objects.create(user=user, name="Favoritas")
@@ -1179,7 +1199,7 @@ class ExportExcelTests(TestCase):
         self.assertEqual(
             wb.sheetnames,
             [
-                "Calendario", "Calendario - películas", "Top Secret", "Guardadas", "Tienda",
+                "Calendario", "Calendario - películas", "Top Secret", "Guardadas", "Tablón de fotos", "Tienda",
                 "Imprescindibles y sugeridas", "Ideas de artículos", "Frases favoritas", "Apuntes personales",
             ],
         )
@@ -1191,10 +1211,14 @@ class ExportExcelTests(TestCase):
         self.assertIn((str(user), "05/01/2026", "Drive", "Estreno"), calendar_movies_rows)
 
         secret_rows = list(wb["Top Secret"].iter_rows(values_only=True))
-        self.assertIn(("El Exorcista", 9.5, "Terror", "Un clásico."), secret_rows)
+        self.assertIn(("El Exorcista", 9.5, "Terror", "Un clásico.", None), secret_rows)
+        self.assertIn(("Dark", 8, None, None, "Vista"), secret_rows)
 
         saved_rows = list(wb["Guardadas"].iter_rows(values_only=True))
         self.assertIn((str(user), "Favoritas", "Drive"), saved_rows)
+
+        photo_board_rows = list(wb["Tablón de fotos"].iter_rows(values_only=True))
+        self.assertIn((str(user), str(user), "Noche de pelis"), [r[:3] for r in photo_board_rows])
 
         shop_rows = list(wb["Tienda"].iter_rows(values_only=True))
         self.assertIn(("Taza Bygui", "Con el logo.", 12.5, "https://example.com/taza"), shop_rows)

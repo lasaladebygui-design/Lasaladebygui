@@ -156,20 +156,22 @@ def export_excel(request):
     """Copia de seguridad rápida en Excel de lo que no está en ningún otro
     sitio si la web "explota": el comentario de cada día del calendario
     personal y las películas/series que tenga puestas ese día, la lista
-    de Top Secret (nota, listas, comentario), las guardadas de cada
-    usuario agrupadas por su lista, el catálogo de la Tienda, los
-    imprescindibles/sugeridas de cada perfil con su porqué, las ideas de
-    artículos, las frases favoritas y los apuntes personales del admin —
-    en resumen, todo lo que alguien ha escrito a mano y no está en
-    ningún otro sitio. Un botón en el panel (topmenu de Jazzmin), nada
-    que requiera entrar a ningún modelo."""
+    de Top Secret (nota, listas, comentario, estado de visionado de las
+    series), las descripciones del tablón de fotos de cada quien (las
+    imágenes en sí no, solo el texto — para eso está el propio storage),
+    las guardadas de cada usuario agrupadas por su lista, el catálogo de
+    la Tienda, los imprescindibles/sugeridas de cada perfil con su
+    porqué, las ideas de artículos, las frases favoritas y los apuntes
+    personales del admin — en resumen, todo lo que alguien ha escrito a
+    mano y no está en ningún otro sitio. Un botón en el panel (topmenu
+    de Jazzmin), nada que requiera entrar a ningún modelo."""
     from openpyxl import Workbook
     from openpyxl.utils import get_column_letter
 
     from apps.accounts.models import FavoriteMovie
     from apps.articles.models import ArticleIdea
     from apps.movies.models import SavedMovie
-    from apps.secret.models import CalendarDayNote, ReleaseEvent, SecretMovie
+    from apps.secret.models import CalendarDayNote, ReleaseEvent, SecretMovie, SecretPhoto
     from apps.shop.models import Product
     from .models import FavoriteQuote, PersonalNote
 
@@ -187,16 +189,25 @@ def export_excel(request):
         ws_calendar_movies.append([str(event.user), event.date.strftime("%d/%m/%Y"), event.movie.title, event.note])
 
     ws_secret = wb.create_sheet("Top Secret")
-    ws_secret.append(["Nombre", "Nota", "Listas", "Comentario"])
-    for movie in SecretMovie.objects.prefetch_related("genres").order_by("title"):
+    ws_secret.append(["Nombre", "Nota", "Listas", "Comentario", "Estado (series)"])
+    for movie in SecretMovie.objects.prefetch_related("genres").select_related("movie").order_by("title"):
         listas = ", ".join(movie.genres.values_list("name", flat=True))
-        ws_secret.append([movie.title, float(movie.personal_rating), listas, movie.comment])
+        estado = movie.get_series_watch_status_display() if movie.movie_id and movie.movie.is_tv else ""
+        ws_secret.append([movie.title, float(movie.personal_rating), listas, movie.comment, estado])
 
     ws_saved = wb.create_sheet("Guardadas")
     ws_saved.append(["Usuario", "Lista", "Película"])
     for saved in SavedMovie.objects.select_related("user", "movie").prefetch_related("sublists").order_by("user__username", "movie__title"):
         listas = ", ".join(saved.sublists.values_list("name", flat=True)) or "Sin lista"
         ws_saved.append([str(saved.user), listas, saved.movie.title])
+
+    ws_photo_board = wb.create_sheet("Tablón de fotos")
+    ws_photo_board.append(["Tablón de", "Subida por", "Descripción", "Fecha"])
+    for photo in SecretPhoto.objects.select_related("board_owner", "uploaded_by").order_by("board_owner__username", "created_at"):
+        ws_photo_board.append([
+            str(photo.board_owner), str(photo.uploaded_by), photo.description,
+            photo.created_at.strftime("%d/%m/%Y %H:%M"),
+        ])
 
     ws_shop = wb.create_sheet("Tienda")
     ws_shop.append(["Nombre", "Descripción", "Precio", "Enlace"])

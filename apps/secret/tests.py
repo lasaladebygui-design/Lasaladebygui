@@ -266,6 +266,66 @@ class SecretMovieViewTests(TestCase):
         self.assertIsNone(getattr(by_pk[self.a.pk], "group_label", None))
         self.assertIsNone(getattr(by_pk[self.b.pk], "group_label", None))
 
+    def test_cuadradito_de_visto_solo_sale_en_series(self):
+        peli = Movie.objects.create(tmdb_id=8, title="Reservoir Dogs", media_type="movie")
+        serie = Movie.objects.create(tmdb_id=9, title="Dark", media_type="tv")
+        self.a.movie = peli
+        self.a.save()
+        SecretMovie.objects.create(title="Dark", personal_rating="7.0", movie=serie)
+
+        response = self.client.get(reverse("secret:list"))
+        self.assertContains(response, "secret-movie__watch-badge")
+        self.assertContains(response, "secret-movie__watch-badge--not_watched")
+
+    def test_cuadradito_de_visto_no_sale_en_peliculas_ni_sin_portada(self):
+        peli = Movie.objects.create(tmdb_id=10, title="Reservoir Dogs", media_type="movie")
+        self.a.movie = peli
+        self.a.save()
+
+        response = self.client.get(reverse("secret:list"))
+        self.assertNotContains(response, "secret-movie__watch-badge")
+
+    def test_click_en_el_cuadradito_va_pasando_de_estado(self):
+        serie = Movie.objects.create(tmdb_id=11, title="Dark", media_type="tv")
+        c = SecretMovie.objects.create(title="Dark", personal_rating="7.0", movie=serie)
+        user = User.objects.create(email="visto_test@test.local", role=User.Role.LECTOR, username="visto_test")
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+
+        response = self.client.post(reverse("secret:movie-watch-cycle", args=[c.pk]))
+        self.assertContains(response, "secret-movie__watch-badge--airing")
+        c.refresh_from_db()
+        self.assertEqual(c.series_watch_status, SecretMovie.SeriesWatchStatus.AIRING)
+
+        response = self.client.post(reverse("secret:movie-watch-cycle", args=[c.pk]))
+        self.assertContains(response, "secret-movie__watch-badge--watched")
+
+        response = self.client.post(reverse("secret:movie-watch-cycle", args=[c.pk]))
+        self.assertContains(response, "secret-movie__watch-badge--not_watched")
+
+    def test_no_se_puede_cambiar_el_estado_sin_login(self):
+        serie = Movie.objects.create(tmdb_id=12, title="Dark", media_type="tv")
+        c = SecretMovie.objects.create(title="Dark", personal_rating="7.0", movie=serie)
+        response = self.client.post(reverse("secret:movie-watch-cycle", args=[c.pk]))
+        self.assertIn("/cuenta/login/", response.url)
+        c.refresh_from_db()
+        self.assertEqual(c.series_watch_status, SecretMovie.SeriesWatchStatus.NOT_WATCHED)
+
+    def test_el_cuadradito_no_cambia_nada_si_la_portada_es_una_pelicula(self):
+        peli = Movie.objects.create(tmdb_id=13, title="Reservoir Dogs", media_type="movie")
+        self.a.movie = peli
+        self.a.save()
+        user = User.objects.create(email="visto_test2@test.local", role=User.Role.LECTOR, username="visto_test2")
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+
+        response = self.client.post(reverse("secret:movie-watch-cycle", args=[self.a.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.series_watch_status, SecretMovie.SeriesWatchStatus.NOT_WATCHED)
+
     def test_lista_completa_filtra_por_lista(self):
         terror = Genre.objects.create(name="Terror")
         self.a.genres.add(terror)
@@ -835,16 +895,24 @@ class PhotoBoardTests(TestCase):
         response = anon_client.get(reverse("secret:photo-board"))
         self.assertIn("/cuenta/login/", response.url)
 
-    def test_la_pagina_separa_subir_gestionar_y_ver_en_pasos(self):
-        # Antes iba todo en una tira sin distinguirse — ahora cada bloque
-        # tiene su propio encabezado numerado.
+    def test_la_pagina_del_tablon_separa_gestionar_acceso_de_las_fotos_y_no_lleva_el_formulario_de_subir(self):
+        # Antes el formulario de subir vivía mezclado aquí mismo con
+        # "gestionar acceso" y la cuadrícula de fotos — ahora subir es su
+        # propia pantalla (ver photo_board_upload.html), enlazada con un
+        # botón, y aquí solo quedan "Gestionar acceso" y "Las fotos".
         response = self.client.get(reverse("secret:photo-board"))
-        self.assertContains(response, "1. Subir una foto")
-        self.assertContains(response, "2. Gestionar acceso")
-        self.assertContains(response, "3. Las fotos")
+        self.assertContains(response, "Gestionar acceso")
+        self.assertContains(response, "Las fotos")
+        self.assertContains(response, reverse("secret:photo-board-upload"))
+        self.assertNotContains(response, 'enctype="multipart/form-data"')
+
+    def test_la_pagina_de_subir_tiene_el_formulario(self):
+        response = self.client.get(reverse("secret:photo-board-upload"))
+        self.assertContains(response, 'enctype="multipart/form-data"')
+        self.assertContains(response, "Subir foto")
 
     def test_subir_foto_a_tu_propio_tablon(self):
-        response = self.client.post(reverse("secret:photo-board"), {
+        response = self.client.post(reverse("secret:photo-board-upload"), {
             "image": _fake_image(), "description": "Mi foto",
         })
         self.assertRedirects(response, reverse("secret:photo-board"))
@@ -860,7 +928,7 @@ class PhotoBoardTests(TestCase):
         self.assertContains(response, "Foto de prueba")
 
     def test_sin_imagen_no_crea_la_foto(self):
-        response = self.client.post(reverse("secret:photo-board"), {"description": "Sin imagen"})
+        response = self.client.post(reverse("secret:photo-board-upload"), {"description": "Sin imagen"})
         self.assertEqual(response.status_code, 200)
         self.assertFalse(SecretPhoto.objects.exists())
 
@@ -894,7 +962,7 @@ class PhotoBoardTests(TestCase):
         friend_client.login(username=friend.email, password="Testpass123!")
         friend_client.post(reverse("secret:gate"), {"code": "8888"})
 
-        response = friend_client.post(reverse("secret:photo-board-shared", args=[self.user.username]), {
+        response = friend_client.post(reverse("secret:photo-board-upload-shared", args=[self.user.username]), {
             "image": _fake_image(), "description": "Del invitado",
         })
         self.assertRedirects(response, reverse("secret:photo-board-shared", args=[self.user.username]))
@@ -937,6 +1005,37 @@ class PhotoBoardTests(TestCase):
         self.assertEqual(response.status_code, 404)
         photo.refresh_from_db()
         self.assertEqual(photo.description, "Del invitado")
+
+    def test_la_pagina_de_editar_tiene_el_formulario_y_la_foto_actual(self):
+        photo = SecretPhoto.objects.create(
+            board_owner=self.user, uploaded_by=self.user, image=_fake_image(), description="Actual",
+        )
+        response = self.client.get(reverse("secret:photo-board-edit", args=[photo.pk]))
+        self.assertContains(response, 'enctype="multipart/form-data"')
+        self.assertContains(response, "Actual")
+        self.assertContains(response, reverse("secret:photo-serve", args=[photo.pk]))
+
+    def test_editar_puede_resubir_la_imagen_ademas_de_la_descripcion(self):
+        photo = SecretPhoto.objects.create(
+            board_owner=self.user, uploaded_by=self.user, image=_fake_image(), description="Antes",
+        )
+        old_name = photo.image.name
+        response = self.client.post(reverse("secret:photo-board-edit", args=[photo.pk]), {
+            "image": _fake_image(), "description": "Después",
+        })
+        self.assertRedirects(response, reverse("secret:photo-board"))
+        photo.refresh_from_db()
+        self.assertEqual(photo.description, "Después")
+        self.assertNotEqual(photo.image.name, old_name)
+
+    def test_no_puedes_ver_la_pagina_de_editar_de_una_foto_ajena(self):
+        friend = User.objects.create(email="amigo7_tablon@test.local", role=User.Role.LECTOR, username="amigo7")
+        PhotoBoardMember.objects.create(owner=self.user, member=friend)
+        photo = SecretPhoto.objects.create(
+            board_owner=self.user, uploaded_by=friend, image=_fake_image(), description="Del invitado",
+        )
+        response = self.client.get(reverse("secret:photo-board-edit", args=[photo.pk]))
+        self.assertEqual(response.status_code, 404)
 
     def test_puedes_borrar_tu_propia_foto(self):
         photo = SecretPhoto.objects.create(
