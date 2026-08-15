@@ -2822,6 +2822,21 @@ main { flex: 1; }
     margin-top: calc(var(--space-unit) * 6);
 }
 
+/* Tablón de fotos: "Subir una foto" / "Gestionar acceso" / "Las fotos"
+   quedaban todo en una tira sin distinguirse unas de otras, sobre todo en
+   móvil — un encabezado numerado por paso y algo más de aire entre ellos
+   deja claro que son cosas distintas. */
+.photo-board-step__title {
+    padding-top: calc(var(--space-unit) * 4);
+    border-top: 1px solid var(--color-border);
+}
+.photo-board-step__title:first-of-type { padding-top: 0; border-top: none; }
+.photo-board__invite-label { margin: calc(var(--space-unit) * 3) 0 calc(var(--space-unit) * 1); }
+@media (max-width: 640px) {
+    .photo-board-step__title { margin-top: calc(var(--space-unit) * 10); padding-top: calc(var(--space-unit) * 6); }
+    .photo-board-step__title:first-of-type { margin-top: calc(var(--space-unit) * 4); padding-top: 0; }
+}
+
 .photo-board__item {
     margin: 0;
     background: #0b0b0b;
@@ -2870,6 +2885,21 @@ main { flex: 1; }
 }
 
 .photo-board__caption .muted { color: #9a9a9a; }
+
+.photo-board__owner-tools {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--space-unit) * 2);
+    margin-top: calc(var(--space-unit) * 1.5);
+    font-family: var(--font-body, sans-serif);
+}
+.photo-board__owner-tools .link-btn { font-size: 0.85rem; padding: 0.4rem; margin: -0.4rem; }
+.photo-board__edit-form {
+    display: flex;
+    gap: calc(var(--space-unit) * 1);
+    margin-top: calc(var(--space-unit) * 1.5);
+}
+.photo-board__edit-form input[type="text"] { flex: 1; min-width: 0; }
 
 /* --- Social: amigos y mensajes -------------------------------------------- */
 

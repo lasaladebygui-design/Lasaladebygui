@@ -835,6 +835,14 @@ class PhotoBoardTests(TestCase):
         response = anon_client.get(reverse("secret:photo-board"))
         self.assertIn("/cuenta/login/", response.url)
 
+    def test_la_pagina_separa_subir_gestionar_y_ver_en_pasos(self):
+        # Antes iba todo en una tira sin distinguirse — ahora cada bloque
+        # tiene su propio encabezado numerado.
+        response = self.client.get(reverse("secret:photo-board"))
+        self.assertContains(response, "1. Subir una foto")
+        self.assertContains(response, "2. Gestionar acceso")
+        self.assertContains(response, "3. Las fotos")
+
     def test_subir_foto_a_tu_propio_tablon(self):
         response = self.client.post(reverse("secret:photo-board"), {
             "image": _fake_image(), "description": "Mi foto",
@@ -909,6 +917,61 @@ class PhotoBoardTests(TestCase):
         response = self.client.post(reverse("secret:photo-board-kick", args=[member.pk]))
         self.assertEqual(response.status_code, 404)
         self.assertTrue(PhotoBoardMember.objects.filter(pk=member.pk).exists())
+
+    def test_puedes_editar_la_descripcion_de_tu_propia_foto(self):
+        photo = SecretPhoto.objects.create(
+            board_owner=self.user, uploaded_by=self.user, image=_fake_image(), description="Antes",
+        )
+        response = self.client.post(reverse("secret:photo-board-edit", args=[photo.pk]), {"description": "Después"})
+        self.assertRedirects(response, reverse("secret:photo-board"))
+        photo.refresh_from_db()
+        self.assertEqual(photo.description, "Después")
+
+    def test_no_puedes_editar_una_foto_que_no_subiste_tu(self):
+        friend = User.objects.create(email="amigo4_tablon@test.local", role=User.Role.LECTOR, username="amigo4")
+        PhotoBoardMember.objects.create(owner=self.user, member=friend)
+        photo = SecretPhoto.objects.create(
+            board_owner=self.user, uploaded_by=friend, image=_fake_image(), description="Del invitado",
+        )
+        response = self.client.post(reverse("secret:photo-board-edit", args=[photo.pk]), {"description": "Cambiada"})
+        self.assertEqual(response.status_code, 404)
+        photo.refresh_from_db()
+        self.assertEqual(photo.description, "Del invitado")
+
+    def test_puedes_borrar_tu_propia_foto(self):
+        photo = SecretPhoto.objects.create(
+            board_owner=self.user, uploaded_by=self.user, image=_fake_image(), description="A borrar",
+        )
+        response = self.client.post(reverse("secret:photo-board-delete", args=[photo.pk]))
+        self.assertRedirects(response, reverse("secret:photo-board"))
+        self.assertFalse(SecretPhoto.objects.filter(pk=photo.pk).exists())
+
+    def test_no_puedes_borrar_una_foto_que_no_subiste_tu(self):
+        friend = User.objects.create(email="amigo5_tablon@test.local", role=User.Role.LECTOR, username="amigo5")
+        PhotoBoardMember.objects.create(owner=self.user, member=friend)
+        photo = SecretPhoto.objects.create(
+            board_owner=self.user, uploaded_by=friend, image=_fake_image(), description="Del invitado",
+        )
+        response = self.client.post(reverse("secret:photo-board-delete", args=[photo.pk]))
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(SecretPhoto.objects.filter(pk=photo.pk).exists())
+
+    def test_borrar_desde_un_tablon_compartido_vuelve_al_tablon_compartido(self):
+        friend = User.objects.create(email="amigo6_tablon@test.local", role=User.Role.LECTOR, username="amigo6")
+        friend.set_password("Testpass123!")
+        friend.save()
+        PhotoBoardMember.objects.create(owner=self.user, member=friend)
+        photo = SecretPhoto.objects.create(
+            board_owner=self.user, uploaded_by=friend, image=_fake_image(), description="Del invitado",
+        )
+
+        friend_client = self.client_class()
+        friend_client.login(username=friend.email, password="Testpass123!")
+        friend_client.post(reverse("secret:gate"), {"code": "8888"})
+
+        response = friend_client.post(reverse("secret:photo-board-delete", args=[photo.pk]))
+        self.assertRedirects(response, reverse("secret:photo-board-shared", args=[self.user.username]))
+        self.assertFalse(SecretPhoto.objects.filter(pk=photo.pk).exists())
 
     def test_la_pagina_del_tablon_enlaza_a_la_vista_protegida_no_a_la_url_del_storage(self):
         photo = SecretPhoto.objects.create(

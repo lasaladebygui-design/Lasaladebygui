@@ -109,3 +109,13 @@ class SecretPhotoForm(forms.ModelForm):
         widgets = {
             "description": forms.TextInput(attrs={"placeholder": "Una pequeña descripción..."}),
         }
+
+
+class SecretPhotoEditForm(forms.ModelForm):
+    class Meta:
+        model = SecretPhoto
+        fields = ["description"]
+        labels = {"description": "Descripción"}
+        widgets = {
+            "description": forms.TextInput(attrs={"placeholder": "Una pequeña descripción..."}),
+        }

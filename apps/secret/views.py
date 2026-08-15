@@ -25,7 +25,15 @@ from apps.movies.models import Movie
 from apps.movies.services import MovieAPIError, tmdb_search
 from apps.social.models import are_friends, friends_of
 
-from .forms import CodeForm, FullListFilterForm, NumberSelectForm, RatingSearchForm, SecretPhotoForm, TierLevelForm
+from .forms import (
+    CodeForm,
+    FullListFilterForm,
+    NumberSelectForm,
+    RatingSearchForm,
+    SecretPhotoEditForm,
+    SecretPhotoForm,
+    TierLevelForm,
+)
 from .models import (
     CalendarDayNote,
     Genre,
@@ -563,6 +571,37 @@ def photo_board_kick(request, pk):
         member.delete()
         messages.success(request, f"{member.member} ya no tiene acceso a tu tablón.")
     return redirect("secret:photo-board")
+
+
+def _photo_board_redirect(board_owner, viewer):
+    if board_owner.pk == viewer.pk:
+        return redirect("secret:photo-board")
+    return redirect("secret:photo-board-shared", board_owner.username)
+
+
+@secret_required
+@login_required
+def photo_board_edit(request, pk):
+    # Solo quien subió la foto puede editar su descripción — no el dueño
+    # del tablón por sí solo, si la foto es de otra persona invitada.
+    photo = get_object_or_404(SecretPhoto, pk=pk, uploaded_by=request.user)
+    if request.method == "POST":
+        form = SecretPhotoEditForm(request.POST, instance=photo)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Descripción actualizada.")
+    return _photo_board_redirect(photo.board_owner, request.user)
+
+
+@secret_required
+@login_required
+def photo_board_delete(request, pk):
+    photo = get_object_or_404(SecretPhoto, pk=pk, uploaded_by=request.user)
+    board_owner = photo.board_owner
+    if request.method == "POST":
+        photo.delete()
+        messages.success(request, "Foto eliminada del tablón.")
+    return _photo_board_redirect(board_owner, request.user)
 
 
 # --- Calendario de estrenos --------------------------------------------------
