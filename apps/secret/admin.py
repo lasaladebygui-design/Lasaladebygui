@@ -30,7 +30,8 @@ class TopSecretConfigForm(forms.ModelForm):
 
     class Meta:
         model = TopSecretConfig
-        fields = []
+        fields = ["rating_guide"]
+        widgets = {"rating_guide": forms.Textarea(attrs={"rows": 10})}
 
     def save(self, commit=True):
         instance = super().save(commit=False)
@@ -64,6 +65,10 @@ class TopSecretConfigAdmin(SingletonAdmin):
     inlines = [RatingColorBandInline]
     fieldsets = (
         (None, {"fields": ("new_code",)}),
+        ("Guía para entender la lista", {
+            "fields": ("rating_guide",),
+            "description": "Se enseña colapsada, en un desplegable con un icono ℹ️, en Top Secret → Lista completa.",
+        }),
     )
 
 

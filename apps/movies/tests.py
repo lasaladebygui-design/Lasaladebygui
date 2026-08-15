@@ -331,6 +331,18 @@ class SavedMovieSublistTests(TestCase):
         self.client.post(reverse("movies:saved-list-create"), {"name": "Terror"})
         self.assertTrue(SavedMovieList.objects.filter(user=self.user, name="Terror").exists())
 
+    def test_ordenar_listas_es_un_desplegable_colapsado(self):
+        # No es una sección siempre visible: un <details> pequeño, cerrado
+        # por defecto, debajo de las guardadas.
+        SavedMovieList.objects.create(user=self.user, name="Terror")
+        response = self.client.get(reverse("movies:saved-movies"))
+        self.assertContains(response, "Ordenar listas")
+        self.assertContains(response, "saved-lists-manage")
+
+    def test_sin_sublistas_no_sale_el_desplegable_de_ordenar(self):
+        response = self.client.get(reverse("movies:saved-movies"))
+        self.assertNotContains(response, "Ordenar listas")
+
     def test_crear_sublista_con_nombre_repetido_no_duplica(self):
         SavedMovieList.objects.create(user=self.user, name="Terror")
         self.client.post(reverse("movies:saved-list-create"), {"name": "Terror"})

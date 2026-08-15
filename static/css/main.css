@@ -1362,6 +1362,8 @@ main { flex: 1; }
     gap: 0.5rem;
 }
 .list-manage__row .inline-form { margin-left: auto; }
+.saved-lists-manage { margin-bottom: calc(var(--space-unit) * 6); }
+.saved-lists-manage__hint { font-size: 0.85rem; margin: 0.6rem 0 0.3rem; }
 .list-picker summary {
     list-style: none;
     cursor: pointer;
@@ -1888,6 +1890,31 @@ main { flex: 1; }
     .secret-movie__rating-number { font-size: 1.3rem; }
     .secret-movie__title { font-size: 0.95rem; }
 }
+
+/* Icono "Cómo leo la nota" (ℹ️) de Lista completa: un botón discreto que
+   despliega el porqué de las notas sin ocupar sitio mientras está
+   cerrado — no es un botón más de la cabecera, es solo el icono. */
+.rating-guide__toggle {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.4rem;
+    border-radius: var(--radius-base);
+}
+.rating-guide__toggle:hover { background: var(--color-surface); }
+.rating-guide__panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    padding: calc(var(--space-unit) * 5);
+    margin-bottom: calc(var(--space-unit) * 6);
+}
+.rating-guide__panel .movie-section-title { margin-top: 0; }
+.rating-guide__text { color: var(--color-text-muted); }
+.rating-guide__text p { margin-bottom: calc(var(--space-unit) * 3); }
+.rating-guide__text p:last-child { margin-bottom: 0; }
 
 /* --- Top Secret: lista completa — desplegables de orden/filtro y
    alternar entre fila/cuadrícula (ver templates/secret/list.html). Sin
@@ -3126,6 +3153,15 @@ main { flex: 1; }
 }
 
 @media (max-width: 640px) {
+    /* Zonas táctiles cómodas en botones que en desktop van bien pequeños
+       a propósito (con ratón no hace falta más): .btn--sm (filtros,
+       "Buscar"...), .link-btn (▲▼, 🗑️, sin padding en absoluto) y
+       .drag-handle. El tamaño visual apenas cambia — de sobra para no
+       tener que acertar un pixel exacto con el dedo. */
+    .btn--sm { min-height: 40px; padding: 0.55rem 1rem; }
+    .link-btn { padding: 0.5rem; margin: -0.5rem; }
+    .drag-handle { padding: 0.5rem; margin: -0.5rem; }
+
     .site-header__right { gap: calc(var(--space-unit) * 2); }
     .header-profile__name { display: none; }
     .brand__text { display: none; }
@@ -3171,6 +3207,36 @@ main { flex: 1; }
 
     .movie-detail { grid-template-columns: 1fr; }
     .movie-detail__poster { max-width: 220px; margin-inline: auto; }
+
+    /* Guardadas: la fila de cada guardada (tirador+flechas, portada+
+       título, pastillas de listas, quitar) iba toda en una sola línea que
+       envolvía como podía — con una lista de nombre largo, las pastillas
+       le quitaban sitio a la portada hasta esconderla o cortarla a
+       medias. En rejilla: portada+título arriba (con la papelera al
+       lado), pastillas en su propia fila debajo, y arrastrar/subir/bajar
+       en la suya — nada compite por el ancho de la portada. */
+    li.saved-movie-list__row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        grid-template-areas: "media remove" "actions actions" "pills pills";
+        column-gap: calc(var(--space-unit) * 3);
+        row-gap: calc(var(--space-unit) * 2);
+        align-items: start;
+    }
+    .saved-movie-list .movie-card--row { grid-area: media; min-width: 0; }
+    .saved-movie-list .movie-card--row .movie-card__body { min-width: 0; }
+    .saved-movie-list .movie-card--row h3 { overflow-wrap: break-word; }
+    .saved-movie-list__remove { grid-area: remove; }
+    .saved-movie-list .reorder-buttons {
+        grid-area: actions;
+        flex-direction: row;
+        gap: calc(var(--space-unit) * 4);
+    }
+    .saved-movie-list .reorder-buttons .link-btn,
+    .saved-movie-list .reorder-buttons .drag-handle { font-size: 1.2rem; padding: 0.2rem; }
+    .saved-movie-list .list-picker { grid-area: pills; margin-left: 0; }
+    .saved-movie-list .list-picker__pills { max-width: none; }
+
     .rating-form__row { flex-direction: column; gap: calc(var(--space-unit) * 4); }
     .slot-reel { width: 96px; }
     .slot-machine__reels { gap: calc(var(--space-unit) * 2); padding: calc(var(--space-unit) * 3) calc(var(--space-unit) * 2); }

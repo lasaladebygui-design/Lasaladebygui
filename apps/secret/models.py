@@ -21,6 +21,10 @@ class TopSecretConfig(SingletonModel):
     access_code_hash = models.CharField(
         "código de acceso (hash)", max_length=128, default=_default_code_hash
     )
+    rating_guide = models.TextField(
+        "guía para entender la lista", blank=True,
+        help_text="Explica tu criterio a la hora de puntuar (qué hunde una nota, qué la infla...). Se enseña colapsada, en un desplegable, en la lista completa.",
+    )
 
     class Meta:
         verbose_name = "código de acceso y colores"

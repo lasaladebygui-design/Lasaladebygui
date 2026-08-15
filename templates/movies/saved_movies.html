@@ -58,9 +58,9 @@
         </details>
 
         {% if saved %}
-        <ul class="plain-list" data-sortable-url="{% url 'movies:saved-movie-reorder' %}" data-sortable-handle=".drag-handle">
+        <ul class="plain-list saved-movie-list" data-sortable-url="{% url 'movies:saved-movie-reorder' %}" data-sortable-handle=".drag-handle">
             {% for item in saved %}
-            <li id="saved-row-{{ item.pk }}" data-sortable-id="{{ item.pk }}">
+            <li id="saved-row-{{ item.pk }}" class="saved-movie-list__row" data-sortable-id="{{ item.pk }}">
                 <div class="reorder-buttons">
                     <span class="drag-handle" title="Arrastra para reordenar">⠿</span>
                     <form method="post" action="{% url 'movies:saved-movie-move' pk=item.pk direction='up' %}">
@@ -108,6 +108,7 @@
                 </div>
                 {% endif %}
                 <form method="post" action="{% url 'movies:saved-movie-remove' pk=item.pk %}"
+                      class="saved-movie-list__remove"
                       hx-post="{% url 'movies:saved-movie-remove' pk=item.pk %}"
                       hx-target="#saved-row-{{ item.pk }}" hx-swap="outerHTML swap:200ms"
                       hx-confirm="¿Quitar «{{ item.movie.title }}» de Guardadas?">
@@ -124,21 +125,23 @@
         {% endif %}
 
         {% if sublists %}
-        <h2 class="movie-section-title">Tus listas</h2>
-        <p class="muted">Arrastra del tirador ⠿ para cambiar el orden en que aparecen en los filtros de arriba.</p>
-        <div class="list-manage" data-sortable-url="{% url 'movies:saved-list-reorder' %}" data-sortable-handle=".drag-handle">
-            {% for sublist in sublists %}
-            <div class="list-manage__row" data-sortable-id="{{ sublist.pk }}">
-                <span class="drag-handle" title="Arrastra para reordenar">⠿</span>
-                <span class="muted">{{ sublist.name }}</span>
-                <form method="post" action="{% url 'movies:saved-list-delete' pk=sublist.pk %}" class="inline-form"
-                      onsubmit="return confirm('¿Borrar la lista {{ sublist.name }}? Sus películas seguirán guardadas.');">
-                    {% csrf_token %}
-                    <button type="submit" class="link-btn link-btn--danger" title="Borrar">🗑️</button>
-                </form>
+        <details class="list-filter saved-lists-manage">
+            <summary class="btn btn--ghost btn--sm">Ordenar listas ▾</summary>
+            <p class="muted saved-lists-manage__hint">Arrastra del tirador ⠿ para cambiar el orden en que aparecen en los filtros de arriba.</p>
+            <div class="list-manage" data-sortable-url="{% url 'movies:saved-list-reorder' %}" data-sortable-handle=".drag-handle">
+                {% for sublist in sublists %}
+                <div class="list-manage__row" data-sortable-id="{{ sublist.pk }}">
+                    <span class="drag-handle" title="Arrastra para reordenar">⠿</span>
+                    <span class="muted">{{ sublist.name }}</span>
+                    <form method="post" action="{% url 'movies:saved-list-delete' pk=sublist.pk %}" class="inline-form"
+                          onsubmit="return confirm('¿Borrar la lista {{ sublist.name }}? Sus películas seguirán guardadas.');">
+                        {% csrf_token %}
+                        <button type="submit" class="link-btn link-btn--danger" title="Borrar">🗑️</button>
+                    </form>
+                </div>
+                {% endfor %}
             </div>
-            {% endfor %}
-        </div>
+        </details>
         {% endif %}
     </div>
 </section>

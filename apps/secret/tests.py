@@ -175,6 +175,21 @@ class SecretMovieViewTests(TestCase):
         response = self.client.get(reverse("secret:list"))
         self.assertEqual(list(response.context["movies"]), [self.a, self.b])
 
+    def test_lista_completa_enseña_el_icono_de_guia_si_hay_texto(self):
+        config = TopSecretConfig.load()
+        config.rating_guide = "A partir del 8 me lo pienso dos veces."
+        config.save()
+        response = self.client.get(reverse("secret:list"))
+        self.assertContains(response, "rating-guide__toggle")
+        self.assertContains(response, "A partir del 8 me lo pienso dos veces.")
+
+    def test_lista_completa_no_enseña_el_icono_sin_guia(self):
+        config = TopSecretConfig.load()
+        config.rating_guide = ""
+        config.save()
+        response = self.client.get(reverse("secret:list"))
+        self.assertNotContains(response, "rating-guide__toggle")
+
     def test_lista_completa_busca_por_titulo(self):
         response = self.client.get(reverse("secret:list"), {"q": "kill"})
         self.assertEqual(list(response.context["movies"]), [self.b])
