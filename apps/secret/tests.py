@@ -540,6 +540,16 @@ class SecretMovieAdminWatchStatusTests(TestCase):
         response = self.client.get(reverse("admin:secret_secretmovie_movie_is_tv", args=[1]))
         self.assertNotEqual(response.status_code, 200)
 
+    def test_el_listado_se_puede_editar_desde_cualquier_columna_no_solo_el_numero(self):
+        # Por defecto Django solo deja clicable la primera columna (number)
+        # — aquí cualquier columna visible debe llevar a la ficha de edición.
+        movie = SecretMovie.objects.create(title="Reservoir Dogs", personal_rating="9.0")
+        response = self.client.get(reverse("admin:secret_secretmovie_changelist"))
+        change_url = reverse("admin:secret_secretmovie_change", args=[movie.pk])
+        html = response.content.decode()
+        title_cell = html[html.index('class="field-title"'):]
+        self.assertIn(f'href="{change_url}"', title_cell[:300])
+
 
 class AdminOnlyGenreTests(TestCase):
     """Una lista marcada `admin_only` (y las películas que tenga) no la ve
