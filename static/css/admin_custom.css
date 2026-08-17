@@ -94,6 +94,15 @@ a[href*="admin-exportar"]:hover {
 .field-movie .select2-selection__rendered { line-height: 1.6 !important; }
 .field-movie .select2-selection__arrow { height: 100% !important; }
 
+/* Listado de Películas secretas: la columna "Número" ya se ordena así
+   por defecto (SecretMovieAdmin.ordering) y encima Jazzmin le pinta el
+   icono de "quitar orden" (✕) y una flecha de dirección, aunque no haya
+   ningún orden manual distinto que quitar — solo ruido visual, se quita. */
+body.model-secretmovie #result_list thead th .fa-times,
+body.model-secretmovie #result_list thead th i[class*="fa-sort-"] {
+    display: none;
+}
+
 /* "Listas existentes" en Películas secretas (checkboxes de Genre,
    #id_genres): una lista muy larga en una sola columna obligaba a
    desplazarse mucho para verlas todas. Solo en escritorio, donde sobra
