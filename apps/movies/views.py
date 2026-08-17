@@ -80,50 +80,59 @@ def _build_reel(final_movie, decoy_queryset):
 def movie_list(request):
     form = MovieSearchForm(request.GET or None)
     media_type = _media_type_from_request(request)
-    movies = Movie.objects.all() if media_type == "all" else Movie.objects.filter(media_type=media_type)
     query = ""
-
     if form.is_valid() and form.cleaned_data["query"]:
         query = form.cleaned_data["query"]
-        movies = movies.filter(title__icontains=query)
 
-    paginator = Paginator(movies, 24)
+    if query:
+        # El catálogo es el de TMDb entero, no una lista propia aparte: al
+        # buscar se pega siempre a la API en vivo (nada de distinguir "lo ya
+        # visto antes" de "el resto"). Si un resultado ya se visitó antes se
+        # enlaza directo a su ficha local (con la nota IMDb ya cacheada);
+        # si no, el primer clic la crea sobre la marcha (ver movie_from_tmdb).
+        types_to_search = ("movie", "tv") if media_type == "all" else (media_type,)
+        search_error = None
+        results = []
+        try:
+            for t in types_to_search:
+                results += tmdb_search(query, media_type=t)
+        except MovieAPIError as exc:
+            search_error = str(exc)
+
+        cached_by_key = {
+            (m.tmdb_id, m.media_type): m
+            for m in Movie.objects.filter(
+                media_type__in=types_to_search, tmdb_id__in=[r.tmdb_id for r in results],
+            )
+        }
+        movies = [
+            (cached_by_key[(r.tmdb_id, r.media_type)], True)
+            if (r.tmdb_id, r.media_type) in cached_by_key
+            else (r, False)
+            for r in results
+        ]
+
+        return render(request, "movies/list.html", {
+            "form": form,
+            "query": query,
+            "media_type": media_type,
+            "movies": movies,
+            "search_error": search_error,
+        })
+
+    # Sin búsqueda: se navega lo ya visitado localmente (scroll infinito) —
+    # listar aquí el catálogo entero de TMDb no tendría sentido sin filtro.
+    movies_qs = Movie.objects.all() if media_type == "all" else Movie.objects.filter(media_type=media_type)
+    paginator = Paginator(movies_qs, 24)
     page = paginator.get_page(request.GET.get("page"))
 
     if _is_htmx(request):
-        # Scroll infinito: cada tramo siguiente solo necesita las tarjetas
-        # de esa página y, si hay más, el próximo "sensor" — no hace falta
-        # repetir la búsqueda en vivo a TMDb en cada tramo.
         return render(request, "movies/_movie_grid_page.html", {"page_obj": page, "query": query, "media_type": media_type})
-
-    external_results = []
-    search_error = None
-    if query:
-        # El catálogo local solo tiene lo ya sembrado/visto antes: se
-        # complementa con una búsqueda en vivo a TMDb para que cualquier
-        # título que se busque aparezca, no solo los ya cacheados. Si el
-        # tipo elegido es "all" se busca en los dos catálogos de TMDb.
-        types_to_search = ("movie", "tv") if media_type == "all" else (media_type,)
-        local_ids = set(
-            Movie.objects.filter(media_type__in=types_to_search).values_list("tmdb_id", "media_type")
-        )
-        try:
-            tmdb_results = []
-            for t in types_to_search:
-                tmdb_results += tmdb_search(query, media_type=t)
-        except MovieAPIError as exc:
-            search_error = str(exc)
-        else:
-            external_results = [
-                r for r in tmdb_results if (r.tmdb_id, r.media_type) not in local_ids
-            ][:12]
 
     return render(request, "movies/list.html", {
         "page_obj": page,
         "form": form,
         "query": query,
-        "external_results": external_results,
-        "search_error": search_error,
         "media_type": media_type,
     })
 

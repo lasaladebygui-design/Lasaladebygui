@@ -1,5 +1,5 @@
 <div class="movie-grid">
-    {% for movie in movies %}
-        {% include "movies/_movie_card.html" with movie=movie local=local %}
+    {% for movie, is_local in movies %}
+        {% include "movies/_movie_card.html" with movie=movie local=is_local %}
     {% endfor %}
 </div>

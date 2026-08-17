@@ -600,12 +600,14 @@ class RouletteListSublistTests(TestCase):
 
 
 class MovieListLiveSearchTests(TestCase):
-    """El catálogo local es limitado a lo ya sembrado/visto; al buscar debe
-    complementarse con una búsqueda en vivo a TMDb para cualquier título."""
+    """El catálogo es el de TMDb entero, no una lista local aparte: buscar
+    siempre pega en vivo a la API. Un resultado ya visitado antes se marca
+    como local (enlaza directo a su ficha, con la nota IMDb ya cacheada) en
+    vez de aparecer duplicado como si fuera un resultado distinto."""
 
-    def _tmdb_result(self, tmdb_id, title):
+    def _tmdb_result(self, tmdb_id, title, media_type="movie"):
         from apps.movies.services import TMDbResult
-        return TMDbResult(tmdb_id=tmdb_id, title=title, year="2020", poster_path="/x.jpg", overview="...")
+        return TMDbResult(tmdb_id=tmdb_id, title=title, year="2020", poster_path="/x.jpg", overview="...", media_type=media_type)
 
     def test_sin_query_no_busca_en_tmdb(self):
         with patch("apps.movies.views.tmdb_search") as mock_search:
@@ -614,21 +616,26 @@ class MovieListLiveSearchTests(TestCase):
             mock_search.assert_not_called()
 
     @patch("apps.movies.views.tmdb_search")
-    def test_pelicula_no_cacheada_aparece_como_resultado_externo(self, mock_search):
+    def test_pelicula_no_cacheada_aparece_como_no_local(self, mock_search):
         mock_search.return_value = [self._tmdb_result(603, "The Matrix")]
         response = self.client.get(reverse("movies:list"), {"query": "matrix"})
         mock_search.assert_called_once_with("matrix", media_type="movie")
-        external = response.context["external_results"]
-        self.assertEqual(len(external), 1)
-        self.assertEqual(external[0].tmdb_id, 603)
+        movies = response.context["movies"]
+        self.assertEqual(len(movies), 1)
+        result, is_local = movies[0]
+        self.assertEqual(result.tmdb_id, 603)
+        self.assertFalse(is_local)
 
     @patch("apps.movies.views.tmdb_search")
-    def test_pelicula_ya_cacheada_no_se_duplica_en_externos(self, mock_search):
-        make_movie(603, "Matrix", None)
+    def test_pelicula_ya_cacheada_aparece_como_local_sin_duplicarse(self, mock_search):
+        movie = make_movie(603, "Matrix", None)
         mock_search.return_value = [self._tmdb_result(603, "The Matrix")]
         response = self.client.get(reverse("movies:list"), {"query": "matrix"})
-        self.assertEqual(len(response.context["page_obj"].object_list), 1)
-        self.assertEqual(response.context["external_results"], [])
+        movies = response.context["movies"]
+        self.assertEqual(len(movies), 1)
+        result, is_local = movies[0]
+        self.assertEqual(result, movie)
+        self.assertTrue(is_local)
 
     @patch("apps.movies.views.tmdb_search", side_effect=MovieAPIError("fallo de red"))
     def test_error_de_tmdb_no_rompe_la_pagina(self, mock_search):
@@ -649,7 +656,7 @@ class MovieListLiveSearchTests(TestCase):
         self.assertRedirects(response, reverse("movies:detail", args=[mock_get_or_create.return_value.pk]))
         mock_get_or_create.assert_called_once_with(1, media_type="tv")
 
-    def test_catalogo_filtra_por_tipo(self):
+    def test_catalogo_sin_busqueda_filtra_por_tipo(self):
         pelicula = make_movie(1, "Una película", None)
         serie = Movie.objects.create(tmdb_id=2, title="Una serie", media_type="tv")
 
@@ -667,6 +674,16 @@ class MovieListLiveSearchTests(TestCase):
         mock_search.return_value = []
         self.client.get(reverse("movies:list"), {"query": "dark", "type": "tv"})
         mock_search.assert_called_once_with("dark", media_type="tv")
+
+    @patch("apps.movies.views.tmdb_search")
+    def test_busqueda_con_tipo_todas_junta_peliculas_y_series(self, mock_search):
+        mock_search.side_effect = lambda term, media_type: (
+            [self._tmdb_result(1, "Una película", "movie")] if media_type == "movie"
+            else [self._tmdb_result(2, "Una serie", "tv")]
+        )
+        response = self.client.get(reverse("movies:list"), {"query": "algo", "type": "all"})
+        results = [r for r, _ in response.context["movies"]]
+        self.assertEqual({r.tmdb_id for r in results}, {1, 2})
 
 
 class MovieAdminAutocompleteImportTests(TestCase):
@@ -728,13 +745,6 @@ class MovieListInfiniteScrollTests(TestCase):
         self.assertContains(response, "movie-card")
         self.assertNotContains(response, "<html")
         self.assertNotContains(response, "movie-grid__sentinel")
-
-    @patch("apps.movies.views.tmdb_search")
-    def test_htmx_no_repite_la_busqueda_en_tmdb(self, mock_search):
-        self.client.get(
-            reverse("movies:list"), {"page": 1, "query": "película"}, HTTP_HX_REQUEST="true",
-        )
-        mock_search.assert_not_called()
 
 
 class SeedMoviesCommandTests(TestCase):

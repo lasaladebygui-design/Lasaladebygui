@@ -32,19 +32,11 @@
         </form>
 
         {% if query %}
-            {% if page_obj.object_list %}
-                <h2 class="movie-section-title">En el catálogo</h2>
-                {% include "movies/_movie_grid_infinite.html" %}
-            {% endif %}
-
             {% if search_error %}
                 <p class="field-errors">{{ search_error }}</p>
-            {% elif external_results %}
-                <h2 class="movie-section-title">Más resultados (TMDb)</h2>
-                {% include "movies/_movie_grid.html" with movies=external_results local=False %}
-            {% endif %}
-
-            {% if not page_obj.object_list and not external_results and not search_error %}
+            {% elif movies %}
+                {% include "movies/_movie_grid.html" %}
+            {% else %}
                 <p class="muted">Sin resultados para «{{ query }}».</p>
             {% endif %}
         {% else %}
