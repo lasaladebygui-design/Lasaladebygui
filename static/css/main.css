@@ -1411,12 +1411,15 @@ main { flex: 1; }
     gap: calc(var(--space-unit) * 8);
     align-items: start;
 }
+.movie-detail__poster-wrap { position: relative; }
 .movie-detail__poster {
     width: 100%;
     border-radius: var(--radius-base);
     aspect-ratio: 2 / 3;
     object-fit: cover;
+    display: block;
 }
+.movie-detail__poster-wrap .secret-movie__watch-badge { width: 18px; height: 18px; bottom: 6px; right: 6px; }
 .movie-detail__actions {
     display: flex;
     flex-wrap: wrap;
@@ -1894,7 +1897,7 @@ main { flex: 1; }
     font-size: 1.6rem;
 }
 .secret-movie__title { flex: 1; min-width: 0; font-size: 1.05rem; }
-.secret-movie__lists { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.secret-movie__lists { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: calc(var(--space-unit) * 3); }
 .secret-movie__lists-toggle { font-size: 0.85rem; }
 .secret-movie__hint { font-size: 0.8rem; margin: 0.6rem 0 0; }
 .secret-movie__comment { white-space: pre-line; }
@@ -3347,7 +3350,7 @@ main { flex: 1; }
     .thread-comment__children { padding-left: calc(var(--space-unit) * 2); }
 
     .movie-detail { grid-template-columns: 1fr; }
-    .movie-detail__poster { max-width: 220px; margin-inline: auto; }
+    .movie-detail__poster-wrap { max-width: 220px; margin-inline: auto; }
 
     /* Guardadas: la fila de cada guardada (tirador+flechas, portada+
        título, pastillas de listas, quitar) iba toda en una sola línea que

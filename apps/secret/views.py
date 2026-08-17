@@ -283,7 +283,8 @@ def movie_watch_cycle(request, pk):
         next_index = (_WATCH_STATUS_CYCLE.index(current) + 1) % len(_WATCH_STATUS_CYCLE)
         movie.series_watch_status = _WATCH_STATUS_CYCLE[next_index]
         movie.save(update_fields=["series_watch_status"])
-    return render(request, "secret/_movie_poster.html", {"movie": movie})
+    template = "secret/_movie_detail_poster.html" if request.GET.get("context") == "detail" else "secret/_movie_poster.html"
+    return render(request, template, {"movie": movie})
 
 
 @secret_required

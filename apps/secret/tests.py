@@ -439,6 +439,35 @@ class SecretMovieViewTests(TestCase):
         self.assertContains(response, self.a.title)
         self.assertContains(response, "Mi comentario sobre esta película.")
 
+    def test_ficha_completa_muestra_el_cuadradito_de_visto_en_series(self):
+        serie = Movie.objects.create(tmdb_id=20, title="Dark", media_type="tv")
+        self.a.movie = serie
+        self.a.save()
+
+        response = self.client.get(reverse("secret:movie-detail", args=[self.a.pk]))
+        self.assertContains(response, "secret-movie__watch-badge")
+        self.assertContains(response, "secret-movie__watch-badge--not_watched")
+
+    def test_ficha_completa_no_muestra_el_cuadradito_en_peliculas(self):
+        peli = Movie.objects.create(tmdb_id=21, title="Drive", media_type="movie")
+        self.a.movie = peli
+        self.a.save()
+
+        response = self.client.get(reverse("secret:movie-detail", args=[self.a.pk]))
+        self.assertNotContains(response, "secret-movie__watch-badge")
+
+    def test_click_en_el_cuadradito_desde_la_ficha_completa_devuelve_su_propio_fragmento(self):
+        serie = Movie.objects.create(tmdb_id=22, title="Dark", media_type="tv")
+        c = SecretMovie.objects.create(title="Dark", personal_rating="7.0", movie=serie)
+        user = User.objects.create(email="visto_ficha@test.local", role=User.Role.LECTOR, username="visto_ficha")
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+
+        response = self.client.post(reverse("secret:movie-watch-cycle", args=[c.pk]) + "?context=detail")
+        self.assertContains(response, "movie-detail__poster-wrap")
+        self.assertContains(response, "secret-movie__watch-badge--airing")
+
     def test_buscador_por_nota_filtra_por_genero(self):
         terror = Genre.objects.create(name="Terror")
         self.a.genres.add(terror)
@@ -489,6 +518,39 @@ class GenreSortableAdminTests(TestCase):
     def test_el_listado_tiene_el_tirador_de_arrastre(self):
         response = self.client.get(reverse("admin:secret_genre_changelist"))
         self.assertContains(response, "drag-handle")
+
+
+class SecretMovieAdminWatchStatusTests(TestCase):
+    """El campo "estado de visionado (series)" está siempre en el
+    formulario (para poder mostrarlo/ocultarlo al vuelo desde JS según la
+    portada elegida, sin depender de guardar y volver a abrir la entrada
+    — ver static/js/admin_secret_movie_watch_status.js), y el endpoint que
+    esa JS consulta dice si una película del catálogo es una serie."""
+
+    def setUp(self):
+        self.admin = User.objects.create(email="watch_status_admin@test.local", role=User.Role.ADMIN, is_staff=True, is_superuser=True)
+        self.admin.set_password("Testpass123!")
+        self.admin.save()
+        self.client.login(username=self.admin.email, password="Testpass123!")
+
+    def test_el_formulario_de_anadir_incluye_el_campo_aunque_no_haya_portada_todavia(self):
+        response = self.client.get(reverse("admin:secret_secretmovie_add"))
+        self.assertContains(response, "id_series_watch_status")
+
+    def test_el_endpoint_dice_si_la_pelicula_es_una_serie(self):
+        serie = Movie.objects.create(tmdb_id=30, title="Dark", media_type="tv")
+        peli = Movie.objects.create(tmdb_id=31, title="Drive", media_type="movie")
+
+        response = self.client.get(reverse("admin:secret_secretmovie_movie_is_tv", args=[serie.pk]))
+        self.assertEqual(response.json(), {"is_tv": True})
+
+        response = self.client.get(reverse("admin:secret_secretmovie_movie_is_tv", args=[peli.pk]))
+        self.assertEqual(response.json(), {"is_tv": False})
+
+    def test_el_endpoint_requiere_ser_staff(self):
+        self.client.logout()
+        response = self.client.get(reverse("admin:secret_secretmovie_movie_is_tv", args=[1]))
+        self.assertNotEqual(response.status_code, 200)
 
 
 class AdminOnlyGenreTests(TestCase):

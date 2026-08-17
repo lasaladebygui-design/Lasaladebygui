@@ -77,3 +77,32 @@ a[href*="admin-exportar"]:hover {
     background: #218838;
     color: #fff !important;
 }
+
+/* "Película del catálogo" en Películas secretas (form-row field-movie):
+   el propio Select2 no llevaba borde ni fondo propios, así que sobre el
+   tema oscuro no se distinguía como un control clicable — funcionaba
+   perfectamente, pero no se veía dónde había que pulsar para elegir la
+   portada. */
+.field-movie .select2-container { min-width: 260px; }
+.field-movie .select2-selection--single {
+    height: auto !important;
+    border: 1px solid rgba(127, 127, 127, 0.6) !important;
+    border-radius: 0.35rem !important;
+    background: rgba(127, 127, 127, 0.15) !important;
+    padding: 0.35rem 0.5rem !important;
+}
+.field-movie .select2-selection__rendered { line-height: 1.6 !important; }
+.field-movie .select2-selection__arrow { height: 100% !important; }
+
+/* "Listas existentes" en Películas secretas (checkboxes de Genre,
+   #id_genres): una lista muy larga en una sola columna obligaba a
+   desplazarse mucho para verlas todas. Solo en escritorio, donde sobra
+   ancho, se reparten en columnas para verlas de un vistazo. En
+   móvil/tablet se queda tal cual (una columna, más fácil de tocar). */
+@media (min-width: 992px) {
+    #id_genres {
+        column-count: 3;
+        column-gap: 2rem;
+    }
+    #id_genres > div { break-inside: avoid; margin-bottom: 0.3rem; }
+}

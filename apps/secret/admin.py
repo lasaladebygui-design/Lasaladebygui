@@ -1,7 +1,10 @@
 from django import forms
 from django.contrib import admin
+from django.http import JsonResponse
+from django.urls import path
 
 from apps.core.admin import SingletonAdmin, SortableAdminMixin
+from apps.movies.models import Movie
 
 from .forms import SecretMovieForm
 from .models import (
@@ -90,18 +93,32 @@ class SecretMovieAdmin(admin.ModelAdmin):
     autocomplete_fields = ("movie",)
     ordering = ("number",)
 
+    class Media:
+        js = ("js/admin_secret_movie_watch_status.js",)
+
     @admin.display(description="listas")
     def genre_list(self, obj):
         return ", ".join(obj.genres.values_list("name", flat=True))
 
-    def get_fields(self, request, obj=None):
-        fields = list(super().get_fields(request, obj))
-        # Solo tiene sentido para series — al crear una entrada todavía no
-        # se sabe (la portada se elige en este mismo formulario), así que
-        # aparece a partir de guardarla si la portada enlazada es una serie.
-        if not (obj and obj.movie_id and obj.movie.is_tv):
-            fields.remove("series_watch_status")
-        return fields
+    def get_urls(self):
+        info = self.model._meta.app_label, self.model._meta.model_name
+        custom = [
+            path(
+                "movie-is-tv/<int:movie_id>/",
+                self.admin_site.admin_view(self.movie_is_tv_view),
+                name="%s_%s_movie_is_tv" % info,
+            ),
+        ]
+        return custom + super().get_urls()
+
+    def movie_is_tv_view(self, request, movie_id):
+        # El campo "series_watch_status" siempre está en el formulario (ver
+        # forms.SecretMovieForm) para poder mostrarlo/ocultarlo al vuelo
+        # según la portada elegida — static/js/admin_secret_movie_watch_status.js
+        # llama aquí cada vez que cambia el campo "movie" (select2), en vez
+        # de esperar a guardar y volver a abrir la entrada.
+        is_tv = Movie.objects.filter(pk=movie_id, media_type=Movie.MediaType.TV).exists()
+        return JsonResponse({"is_tv": is_tv})
 
 
 @admin.register(SecretPhoto)
