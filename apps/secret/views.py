@@ -199,7 +199,7 @@ def full_list(request):
     sort = request.GET.get("sort")
     grouped_labels = None
     if sort == "asc":
-        movies = movies.order_by("personal_rating", "-tie_break", "-number")
+        movies = movies.order_by("personal_rating", "tie_break", "-number")
     elif sort in ("movies_first", "series_first"):
         # Dentro de cada grupo (películas / series), se ordena igual que el
         # modo por defecto (nota de mayor a menor). Las que no tienen
@@ -218,10 +218,10 @@ def full_list(request):
                 default=Value(2),
                 output_field=IntegerField(),
             )
-        ).order_by("type_order", "-personal_rating", "tie_break", "number")
+        ).order_by("type_order", "-personal_rating", "-tie_break", "number")
     else:
         sort = "desc"
-        movies = movies.order_by("-personal_rating", "tie_break", "number")
+        movies = movies.order_by("-personal_rating", "-tie_break", "number")
 
     # Parámetros a conservar al pedir la siguiente página (filtro de listas,
     # orden) — sin "page", que lo pone el propio enlace de paginación.

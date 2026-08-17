@@ -111,7 +111,7 @@ class SecretMovie(models.Model):
     personal_rating = models.DecimalField("nota personal", max_digits=3, decimal_places=1)
     tie_break = models.PositiveIntegerField(
         "orden de desempate", default=0, blank=True,
-        help_text="Solo importa entre dos películas con la misma nota: la de menor valor aquí sale antes en el número.",
+        help_text="Solo importa entre dos películas con la misma nota: la de mayor valor aquí sale antes en el número.",
     )
     comment = models.TextField("comentario", blank=True)
     genres = models.ManyToManyField(Genre, verbose_name="listas", blank=True, related_name="secret_movies")
@@ -147,6 +147,18 @@ class SecretMovie(models.Model):
         return f"#{self.number} — {self.title}"
 
     def save(self, *args, **kwargs):
+        if self.pk:
+            # `number` lo calcula solo _renumber_all() (no es editable a
+            # mano, ver arriba) — si esta instancia lleva en memoria un
+            # `number` desactualizado (porque otra entrada se guardó de
+            # por medio y la desplazó de posición sin que este objeto se
+            # enterara), un save() normal lo sobreescribiría con ese valor
+            # viejo antes de recalcular, arriesgando pisar por un instante
+            # el número vigente de otra fila y chocar con su restricción
+            # de unicidad. Se refresca justo antes de guardar para evitarlo.
+            current_number = type(self).objects.filter(pk=self.pk).values_list("number", flat=True).first()
+            if current_number is not None:
+                self.number = current_number
         super().save(*args, **kwargs)
         type(self)._renumber_all()
         # `_renumber_all` opera sobre copias propias leídas de la base de
@@ -174,7 +186,7 @@ class SecretMovie(models.Model):
         con dos filas repitiendo el mismo número. `number` es un
         PositiveIntegerField, así que el valor temporal tiene que ser
         positivo (no vale usar negativos)."""
-        ordered = list(cls.objects.order_by("-personal_rating", "tie_break", "pk"))
+        ordered = list(cls.objects.order_by("-personal_rating", "-tie_break", "pk"))
         targets = [
             (movie, position) for position, movie in enumerate(ordered, start=1)
             if movie.number != position

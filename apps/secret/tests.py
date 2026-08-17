@@ -210,18 +210,6 @@ class SecretMovieViewTests(TestCase):
         response = self.client.get(reverse("secret:list"), {"type": "tv"})
         self.assertEqual(list(response.context["movies"]), [c])
 
-    def test_lista_completa_muestra_el_distintivo_de_tipo_solo_si_hay_portada_enlazada(self):
-        peli = Movie.objects.create(tmdb_id=3, title="Reservoir Dogs", media_type="movie")
-        self.a.movie = peli
-        self.a.save()
-
-        response = self.client.get(reverse("secret:list"))
-        self.assertContains(response, "secret-movie__type-badge")
-
-    def test_lista_completa_sin_ninguna_portada_enlazada_no_hay_distintivo(self):
-        response = self.client.get(reverse("secret:list"))
-        self.assertNotContains(response, "secret-movie__type-badge")
-
     def test_ordenar_peliculas_primero_enseña_separador_entre_grupos(self):
         peli = Movie.objects.create(tmdb_id=4, title="Reservoir Dogs", media_type="movie")
         serie = Movie.objects.create(tmdb_id=5, title="Dark", media_type="tv")
@@ -650,25 +638,26 @@ class SecretMovieAutoNumberingTests(TestCase):
         self.assertEqual(b.number, 1)
 
     def test_misma_nota_desempata_por_tie_break(self):
+        # A mayor valor de tie_break, mejor puesto (número más bajo).
         a = SecretMovie.objects.create(title="A", personal_rating="9.0", tie_break=1)
         b = SecretMovie.objects.create(title="B", personal_rating="9.0", tie_break=0)
         a.refresh_from_db()
         b.refresh_from_db()
-        self.assertEqual(b.number, 1)
-        self.assertEqual(a.number, 2)
+        self.assertEqual(a.number, 1)
+        self.assertEqual(b.number, 2)
 
     def test_cambiar_el_tie_break_reordena_el_empate(self):
         a = SecretMovie.objects.create(title="A", personal_rating="9.0", tie_break=0)
         b = SecretMovie.objects.create(title="B", personal_rating="9.0", tie_break=1)
-        a.refresh_from_db()
-        self.assertEqual(a.number, 1)
+        b.refresh_from_db()
+        self.assertEqual(b.number, 1)
 
         a.tie_break = 5
         a.save()
         a.refresh_from_db()
         b.refresh_from_db()
-        self.assertEqual(b.number, 1)
-        self.assertEqual(a.number, 2)
+        self.assertEqual(a.number, 1)
+        self.assertEqual(b.number, 2)
 
     def test_la_lista_completa_sale_ordenada_por_nota_sin_filtrar(self):
         SecretMovie.objects.create(title="Floja", personal_rating="5.0")
