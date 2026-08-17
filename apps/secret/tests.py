@@ -427,6 +427,16 @@ class SecretMovieViewTests(TestCase):
         self.assertContains(response, self.a.title)
         self.assertContains(response, "Mi comentario sobre esta película.")
 
+    def test_ficha_completa_respeta_los_saltos_de_linea_del_comentario(self):
+        # El <p> del comentario necesita la misma clase que ya usaba el de
+        # Lista completa (white-space: pre-line) para que los saltos de
+        # línea que se escriban se vean tal cual, no todos seguidos.
+        self.a.comment = "Primera línea.\nSegunda línea."
+        self.a.save(update_fields=["comment"])
+
+        response = self.client.get(reverse("secret:movie-detail", args=[self.a.pk]))
+        self.assertContains(response, '<p class="secret-movie__comment">Primera línea.\nSegunda línea.</p>')
+
     def test_ficha_completa_muestra_el_cuadradito_de_visto_en_series(self):
         serie = Movie.objects.create(tmdb_id=20, title="Dark", media_type="tv")
         self.a.movie = serie
