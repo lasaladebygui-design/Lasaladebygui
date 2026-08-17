@@ -33,7 +33,7 @@ class TopSecretConfigForm(forms.ModelForm):
 
     class Meta:
         model = TopSecretConfig
-        fields = ["rating_guide"]
+        fields = ["rating_guide", "allow_web_editing"]
         widgets = {"rating_guide": forms.Textarea(attrs={"rows": 10})}
 
     def save(self, commit=True):
@@ -71,6 +71,10 @@ class TopSecretConfigAdmin(SingletonAdmin):
         ("Guía para entender la lista", {
             "fields": ("rating_guide",),
             "description": "Se enseña colapsada, en un desplegable con un icono ℹ️, en Top Secret → Lista completa.",
+        }),
+        ("Edición desde la web", {
+            "fields": ("allow_web_editing",),
+            "description": "Interruptor temporal: con esto activo, la nota, el desempate y las listas de cada película se pueden editar directamente en Lista completa, sin pasar por aquí.",
         }),
     )
 

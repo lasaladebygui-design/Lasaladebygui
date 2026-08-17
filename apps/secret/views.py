@@ -15,6 +15,7 @@ from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from apps.accounts.models import User
 from apps.core.google_calendar import create_event as google_create_event
@@ -28,8 +29,10 @@ from apps.social.models import are_friends, friends_of
 from .forms import (
     CodeForm,
     FullListFilterForm,
+    GenreQuickForm,
     NumberSelectForm,
     RatingSearchForm,
+    SecretMovieQuickEditForm,
     SecretPhotoForm,
     TierLevelForm,
 )
@@ -247,10 +250,12 @@ def full_list(request):
         if prev_type is not None:
             querystring["prev_type"] = prev_type
 
+    rating_config = TopSecretConfig.load()
     context = {
-        "movies": page_obj, "form": form, "rating_config": TopSecretConfig.load(),
+        "movies": page_obj, "form": form, "rating_config": rating_config,
         "sort": sort, "querystring": querystring.urlencode(), "query": query,
         "media_type": media_type,
+        "all_genres": Genre.objects.all() if rating_config.allow_web_editing else Genre.objects.none(),
     }
     if _is_htmx(request):
         return render(request, "secret/_list_items.html", context)
@@ -285,6 +290,66 @@ def movie_watch_cycle(request, pk):
         movie.save(update_fields=["series_watch_status"])
     template = "secret/_movie_detail_poster.html" if request.GET.get("context") == "detail" else "secret/_movie_poster.html"
     return render(request, template, {"movie": movie})
+
+
+def _web_editing_allowed():
+    return TopSecretConfig.load().allow_web_editing
+
+
+@secret_required
+@login_required
+def movie_quick_edit(request, pk):
+    """Editar nota, desempate y listas de una película directamente desde
+    Lista completa, sin pasar por el admin -- solo mientras
+    TopSecretConfig.allow_web_editing esté activo (ver _web_editing_allowed)."""
+    if not _web_editing_allowed():
+        raise Http404
+    movie = get_object_or_404(_visible_movies(request.user), pk=pk)
+    if request.method == "POST":
+        form = SecretMovieQuickEditForm(request.POST, instance=movie)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"«{movie.title}» actualizada.")
+        else:
+            messages.error(request, "No se pudo guardar: revisa la nota.")
+    # "next" viene de un campo oculto del propio formulario (para volver a
+    # la misma página/filtro de Lista completa) — se valida igual que
+    # cualquier redirección con destino enviado por el cliente, para que
+    # manipular ese campo no sirva para mandar a otra web (open redirect).
+    next_url = request.POST.get("next", "")
+    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return redirect(next_url)
+    return redirect("secret:list")
+
+
+@secret_required
+@login_required
+def genre_manage(request):
+    if not _web_editing_allowed():
+        raise Http404
+    if request.method == "POST":
+        form = GenreQuickForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Lista creada.")
+        else:
+            messages.error(request, "No se pudo crear la lista (¿ya existe ese nombre?).")
+        return redirect("secret:genre-manage")
+    return render(request, "secret/genre_manage.html", {
+        "genres": Genre.objects.all(), "form": GenreQuickForm(),
+    })
+
+
+@secret_required
+@login_required
+def genre_delete(request, pk):
+    if not _web_editing_allowed():
+        raise Http404
+    genre = get_object_or_404(Genre, pk=pk)
+    if request.method == "POST":
+        genre.delete()
+        messages.success(request, f"Lista «{genre.name}» eliminada.")
+    return redirect("secret:genre-manage")
 
 
 @secret_required

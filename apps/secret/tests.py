@@ -1,6 +1,7 @@
 import io
 import tempfile
 from datetime import date
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.core.cache import cache
@@ -484,6 +485,97 @@ class SecretMovieViewTests(TestCase):
             "min_rating": 8, "max_rating": 9, "genre": comedia.slug,
         })
         self.assertIsNone(response.context["result"])
+
+
+class SecretMovieQuickEditTests(TestCase):
+    """Edición temporal de nota/desempate/listas desde Lista completa (no el
+    admin) -- solo mientras TopSecretConfig.allow_web_editing esté activo,
+    y solo con sesión iniciada (igual que movie_watch_cycle)."""
+
+    def setUp(self):
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.movie = SecretMovie.objects.create(title="Reservoir Dogs", personal_rating="9.0")
+        self.user = User.objects.create(email="edit_test@test.local", role=User.Role.LECTOR, username="edit_test")
+        self.user.set_password("Testpass123!")
+        self.user.save()
+
+    def _enable_web_editing(self):
+        config = TopSecretConfig.load()
+        config.allow_web_editing = True
+        config.save()
+
+    def test_editar_da_404_si_el_interruptor_esta_apagado(self):
+        self.client.login(username=self.user.email, password="Testpass123!")
+        response = self.client.post(reverse("secret:movie-quick-edit", args=[self.movie.pk]), {
+            "personal_rating": "7.5", "tie_break": "0",
+        })
+        self.assertEqual(response.status_code, 404)
+        self.movie.refresh_from_db()
+        self.assertEqual(self.movie.personal_rating, Decimal("9.0"))
+
+    def test_editar_requiere_login_aunque_el_interruptor_este_encendido(self):
+        self._enable_web_editing()
+        response = self.client.post(reverse("secret:movie-quick-edit", args=[self.movie.pk]), {
+            "personal_rating": "7.5", "tie_break": "0",
+        })
+        self.assertIn("/cuenta/login/", response.url)
+        self.movie.refresh_from_db()
+        self.assertEqual(self.movie.personal_rating, Decimal("9.0"))
+
+    def test_editar_nota_y_listas_con_el_interruptor_encendido(self):
+        self._enable_web_editing()
+        self.client.login(username=self.user.email, password="Testpass123!")
+        terror = Genre.objects.create(name="Terror")
+
+        response = self.client.post(reverse("secret:movie-quick-edit", args=[self.movie.pk]), {
+            "personal_rating": "7.5", "tie_break": "3", "genres": [terror.pk], "new_genres_input": "Culto",
+        })
+        self.assertRedirects(response, reverse("secret:list"))
+        self.movie.refresh_from_db()
+        self.assertEqual(self.movie.personal_rating, Decimal("7.5"))
+        self.assertEqual(self.movie.tie_break, 3)
+        self.assertEqual(set(self.movie.genres.values_list("name", flat=True)), {"Terror", "Culto"})
+
+    def test_lista_completa_no_enseña_el_formulario_de_edicion_sin_el_interruptor(self):
+        response = self.client.get(reverse("secret:list"))
+        self.assertNotContains(response, "secret-movie__edit-form")
+
+    def test_lista_completa_enseña_el_formulario_de_edicion_con_el_interruptor(self):
+        self._enable_web_editing()
+        response = self.client.get(reverse("secret:list"))
+        self.assertContains(response, "secret-movie__edit-form")
+
+
+class GenreManageTests(TestCase):
+    def setUp(self):
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.user = User.objects.create(email="genre_manage_test@test.local", role=User.Role.LECTOR, username="genre_manage_test")
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        config = TopSecretConfig.load()
+        config.allow_web_editing = True
+        config.save()
+
+    def test_pagina_de_gestion_da_404_si_el_interruptor_esta_apagado(self):
+        config = TopSecretConfig.load()
+        config.allow_web_editing = False
+        config.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+        response = self.client.get(reverse("secret:genre-manage"))
+        self.assertEqual(response.status_code, 404)
+
+    def test_crear_lista(self):
+        self.client.login(username=self.user.email, password="Testpass123!")
+        response = self.client.post(reverse("secret:genre-manage"), {"name": "Infravaloradas"})
+        self.assertRedirects(response, reverse("secret:genre-manage"))
+        self.assertTrue(Genre.objects.filter(name="Infravaloradas").exists())
+
+    def test_borrar_lista(self):
+        self.client.login(username=self.user.email, password="Testpass123!")
+        genre = Genre.objects.create(name="Terror")
+        response = self.client.post(reverse("secret:genre-delete", args=[genre.pk]))
+        self.assertRedirects(response, reverse("secret:genre-manage"))
+        self.assertFalse(Genre.objects.filter(pk=genre.pk).exists())
 
 
 class GenreSortableAdminTests(TestCase):

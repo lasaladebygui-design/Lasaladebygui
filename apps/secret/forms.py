@@ -48,6 +48,55 @@ class SecretMovieForm(forms.ModelForm):
         return movie
 
 
+class SecretMovieQuickEditForm(forms.ModelForm):
+    """Version reducida de SecretMovieForm para editar desde Lista completa
+    (no el admin): solo nota, desempate y listas -- nada de título,
+    comentario ni portada, que se siguen tocando desde el admin."""
+
+    genres = forms.ModelMultipleChoiceField(
+        label="Listas existentes",
+        queryset=Genre.objects.all(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+    )
+    new_genres_input = forms.CharField(
+        label="Listas nuevas",
+        required=False,
+        help_text="Solo para listas que todavía no existan — sepáralas con comas.",
+    )
+
+    class Meta:
+        model = SecretMovie
+        fields = ["personal_rating", "tie_break"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            self.fields["genres"].initial = self.instance.genres.all()
+
+    def save(self, commit=True):
+        movie = super().save(commit=commit)
+
+        def sync_genres():
+            genres = list(self.cleaned_data["genres"])
+            new_names = [n.strip() for n in self.cleaned_data["new_genres_input"].split(",") if n.strip()]
+            genres += [Genre.objects.get_or_create(name=name)[0] for name in new_names]
+            movie.genres.set(genres)
+
+        if commit:
+            sync_genres()
+        else:
+            self.save_m2m = sync_genres
+        return movie
+
+
+class GenreQuickForm(forms.ModelForm):
+    class Meta:
+        model = Genre
+        fields = ["name"]
+        labels = {"name": "Nombre de la lista nueva"}
+
+
 class CodeForm(forms.Form):
     code = forms.CharField(label="Código", widget=forms.PasswordInput(attrs={"autocomplete": "off", "autofocus": True}))
 

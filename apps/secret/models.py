@@ -25,6 +25,16 @@ class TopSecretConfig(SingletonModel):
         "guía para entender la lista", blank=True,
         help_text="Explica tu criterio a la hora de puntuar (qué hunde una nota, qué la infla...). Se enseña colapsada, en un desplegable, en la lista completa.",
     )
+    allow_web_editing = models.BooleanField(
+        "permitir editar nota y listas desde la web", default=False,
+        help_text=(
+            "Mientras esté activo, en Lista completa se puede cambiar la nota, el "
+            "desempate y las listas de cada película sin pasar por el admin, y hay "
+            "una pantalla para crear/borrar listas. Es un interruptor tuyo: actívalo "
+            "cuando quieras revisar algo desde el móvil y desactívalo cuando "
+            "termines — con esto en no, la web vuelve a ser de solo lectura."
+        ),
+    )
 
     class Meta:
         verbose_name = "código de acceso y colores"

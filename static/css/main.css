@@ -1889,6 +1889,30 @@ main { flex: 1; }
 .secret-movie__hint { font-size: 0.8rem; margin: 0.6rem 0 0; }
 .secret-movie__comment { white-space: pre-line; }
 
+/* Edición temporal de nota/listas desde Lista completa (ver
+   TopSecretConfig.allow_web_editing) -- un formulario más, dentro de la
+   misma tarjeta expandida, que solo aparece mientras el interruptor esté
+   activo. */
+.secret-movie__edit-toggle { font-size: 0.85rem; }
+.secret-movie__edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--space-unit) * 3);
+    width: 100%;
+    max-width: 360px;
+    margin-top: calc(var(--space-unit) * 2);
+    padding-top: calc(var(--space-unit) * 3);
+    border-top: 1px solid var(--color-border);
+}
+
+.genre-manage-row {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--space-unit) * 3);
+    flex-wrap: wrap;
+}
+.genre-manage-row form { margin-left: auto; }
+
 .secret-movie__rating {
     flex-shrink: 0;
     display: flex;
