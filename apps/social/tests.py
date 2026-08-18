@@ -67,6 +67,24 @@ class ContactHelpersTests(TestCase):
         bot2 = get_contact_bot_user()
         self.assertEqual(bot1.pk, bot2.pk)
 
+    def test_el_bot_de_contacto_tiene_nombre_y_avatar_generados(self):
+        bot = get_contact_bot_user()
+        self.assertEqual(bot.first_name, "Buzón de contacto")
+        self.assertTrue(bot.avatar)
+
+    def test_una_cuenta_ya_creada_sin_nombre_ni_avatar_se_completa_sola(self):
+        from apps.accounts.models import User as _User
+        from .models import CONTACT_BOT_EMAIL
+
+        legacy = _User(email=CONTACT_BOT_EMAIL, username="buzon-contacto", role=_User.Role.LECTOR)
+        legacy.set_unusable_password()
+        legacy.save()
+
+        bot = get_contact_bot_user()
+        self.assertEqual(bot.pk, legacy.pk)
+        self.assertEqual(bot.first_name, "Buzón de contacto")
+        self.assertTrue(bot.avatar)
+
     def test_el_bot_de_contacto_no_puede_iniciar_sesion(self):
         bot = get_contact_bot_user()
         self.assertFalse(bot.has_usable_password())

@@ -3037,6 +3037,12 @@ main { flex: 1; }
 }
 .chat-row__profile-link:hover { opacity: 1; }
 
+.conversation-header {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--space-unit) * 2);
+}
+
 .conversation-thread {
     display: flex;
     flex-direction: column;

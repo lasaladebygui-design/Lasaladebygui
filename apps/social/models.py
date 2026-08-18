@@ -68,6 +68,11 @@ class Message(models.Model):
         "mensaje de «Escríbenos»", default=False,
         help_text="Llegó desde el formulario de contacto, no escrito a mano en un chat.",
     )
+    contact_name = models.CharField(
+        "nombre de quien escribió", max_length=120, blank=True,
+        help_text="Solo en mensajes de «Escríbenos»: cómo se identificó quien escribió, para poder distinguir remitentes cuando todos comparten el Buzón de contacto.",
+    )
+    contact_email = models.EmailField("email de quien escribió", blank=True)
 
     class Meta:
         verbose_name = "mensaje"
@@ -81,18 +86,58 @@ class Message(models.Model):
 CONTACT_BOT_EMAIL = "buzon-contacto@lasaladebygui.local"
 
 
+def _generate_contact_bot_avatar():
+    """Icono de sobre generado (no subido a mano) para que el Buzón de
+    contacto tenga una foto de perfil propia en vez del placeholder
+    genérico 🎬 que sale cuando nadie tiene avatar — mismo estilo simple
+    que el resto de imágenes generadas del sitio (calendario, tier list)."""
+    import io
+
+    from django.core.files.base import ContentFile
+    from PIL import Image, ImageDraw
+
+    size = 256
+    img = Image.new("RGB", (size, size), "#2DD4BF")
+    draw = ImageDraw.Draw(img)
+    pad = 56
+    draw.rectangle([pad, pad + 20, size - pad, size - pad], outline="#0B1416", width=10, fill="#E5E7EB")
+    draw.line(
+        [(pad, pad + 20), (size / 2, size / 2 + 10), (size - pad, pad + 20)],
+        fill="#0B1416", width=10, joint="curve",
+    )
+
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    return ContentFile(buffer.getvalue(), name="buzon_contacto.png")
+
+
 def get_contact_bot_user():
     """Cuenta fija que agrupa los mensajes de "Escríbenos" de quien no
     tiene cuenta en el sitio — así el mensaje sigue siendo un `Message`
     normal (sender != recipient) en vez del autoenvío de antes, que
-    rompía la conversación al abrirla (ver `ensure_friends`)."""
+    rompía la conversación al abrirla (ver `ensure_friends`). Nombre y
+    avatar se rellenan solos la primera vez (o si faltan en una cuenta ya
+    creada antes de que existieran estos campos)."""
     from apps.accounts.models import User
 
     bot = User.objects.filter(email=CONTACT_BOT_EMAIL).first()
-    if bot is None:
+    is_new = bot is None
+    if is_new:
         bot = User(email=CONTACT_BOT_EMAIL, username="buzon-contacto", role=User.Role.LECTOR)
         bot.set_unusable_password()
+
+    update_fields = []
+    if not bot.first_name:
+        bot.first_name = "Buzón de contacto"
+        update_fields.append("first_name")
+    if not bot.avatar:
+        bot.avatar = _generate_contact_bot_avatar()
+        update_fields.append("avatar")
+
+    if is_new:
         bot.save()
+    elif update_fields:
+        bot.save(update_fields=update_fields)
     return bot
 
 

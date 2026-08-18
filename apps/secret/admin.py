@@ -92,10 +92,12 @@ class GenreAdmin(SortableAdminMixin, admin.ModelAdmin):
 @admin.register(SecretMovie)
 class SecretMovieAdmin(admin.ModelAdmin):
     form = SecretMovieForm
-    list_display = ("number", "title", "personal_rating", "tie_break", "genre_list")
+    list_display = ("number", "title", "personal_rating", "tie_break", "genre_list", "admin_only")
     # Por defecto Django solo deja clicable la primera columna (number) —
     # aquí cualquiera de las columnas visibles lleva a la ficha de edición.
     list_display_links = ("number", "title", "personal_rating", "tie_break", "genre_list")
+    list_editable = ("admin_only",)
+    list_filter = ("admin_only",)
     search_fields = ("title",)
     autocomplete_fields = ("movie",)
     ordering = ("number",)

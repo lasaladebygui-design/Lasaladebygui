@@ -76,11 +76,12 @@ def _is_admin(user):
 def _visible_movies(user):
     """Base queryset de SecretMovie según quién mira: un Admin ve todo,
     cualquier otra persona (aunque tenga el código) no ve ninguna
-    película marcada con una lista `admin_only`."""
+    película marcada con una lista `admin_only`, ni ninguna película
+    marcada como `admin_only` ella misma (independiente de sus listas)."""
     movies = SecretMovie.objects.prefetch_related("genres").select_related("movie")
     if _is_admin(user):
         return movies
-    return movies.exclude(genres__admin_only=True)
+    return movies.exclude(genres__admin_only=True).exclude(admin_only=True)
 
 
 def secret_required(view_func):

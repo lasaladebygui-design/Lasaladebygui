@@ -258,9 +258,19 @@ class ContactFormTests(TestCase):
         msg = Message.objects.get(recipient=self.admin)
         self.assertEqual(msg.sender.email, CONTACT_BOT_EMAIL)
         self.assertTrue(msg.is_contact)
-        self.assertIn("Ana", msg.body)
-        self.assertIn("ana@example.com", msg.body)
-        self.assertIn("Hola, os escribo para...", msg.body)
+        self.assertEqual(msg.contact_name, "Ana")
+        self.assertEqual(msg.contact_email, "ana@example.com")
+        self.assertEqual(msg.body, "Hola, os escribo para...")
+
+    def test_el_buzon_de_contacto_tiene_nombre_y_foto_propios(self):
+        from apps.social.models import CONTACT_BOT_EMAIL
+
+        self.client.post(reverse("core:contact"), {
+            "name": "Ana", "email": "ana@example.com", "message": "Hola", "website": "",
+        })
+        bot = User.objects.get(email=CONTACT_BOT_EMAIL)
+        self.assertEqual(bot.first_name, "Buzón de contacto")
+        self.assertTrue(bot.avatar)
 
     def test_envio_de_usuario_logueado_llega_desde_su_propia_cuenta(self):
         from apps.social.models import Message
@@ -277,6 +287,8 @@ class ContactFormTests(TestCase):
         self.assertEqual(msg.sender, user)
         self.assertTrue(msg.is_contact)
         self.assertEqual(msg.body, "Hola, os escribo para...")
+        self.assertEqual(msg.contact_name, "")
+        self.assertEqual(msg.contact_email, "")
 
     def test_llega_a_todos_los_admin_si_hay_varios(self):
         from apps.social.models import Message

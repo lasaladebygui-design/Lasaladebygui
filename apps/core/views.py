@@ -95,18 +95,25 @@ def _notify_admins_of_contact_message(user, name, email, message):
     quedaba para siempre en el tablón). Ahora es un `Message` normal, real,
     de Social: si quien escribe tiene cuenta, el mensaje es suyo (los admins
     pueden responderle desde un chat de verdad); si no, se agrupa bajo el
-    Buzón de contacto. En ambos casos se fuerza la amistad con cada admin
-    para que la conversación se pueda abrir sin pasar por una solicitud
-    manual."""
+    Buzón de contacto, con quién escribió guardado aparte en
+    `contact_name`/`contact_email` (no metido en el propio texto) para que
+    la conversación pueda distinguir un remitente de otro aunque todos
+    compartan la misma cuenta. En ambos casos se fuerza la amistad con cada
+    admin para que la conversación se pueda abrir sin pasar por una
+    solicitud manual."""
     from apps.accounts.models import User
     from apps.social.models import Message, ensure_friends, get_contact_bot_user
 
     sender = user if user.is_authenticated else get_contact_bot_user()
-    body = message if user.is_authenticated else f"Mensaje de «Escríbenos» de {name} <{email}>:\n\n{message}"
+    contact_name = "" if user.is_authenticated else name
+    contact_email = "" if user.is_authenticated else email
 
     for admin in User.objects.filter(role=User.Role.ADMIN).exclude(pk=sender.pk):
         ensure_friends(sender, admin)
-        Message.objects.create(sender=sender, recipient=admin, body=body, is_contact=True)
+        Message.objects.create(
+            sender=sender, recipient=admin, body=message, is_contact=True,
+            contact_name=contact_name, contact_email=contact_email,
+        )
 
 
 @cache_control(private=True, no_cache=True)

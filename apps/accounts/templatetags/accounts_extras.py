@@ -7,10 +7,13 @@ register = template.Library()
 @register.simple_tag
 def username_badge(user, fallback="usuario eliminado"):
     """Nombre de usuario coloreado según su rol (Admin/Gestor/Editor/Lector),
-    para que el rango se note de un vistazo donde sea que aparezca un autor."""
+    para que el rango se note de un vistazo donde sea que aparezca un autor.
+    Usa el nombre completo si lo tiene (p. ej. el Buzón de contacto), que
+    para el resto de cuentas normales está vacío y no cambia nada."""
     if not user:
         return fallback
-    return format_html('<span class="role-badge role-{}">{}</span>', user.role, user.username)
+    display_name = user.get_full_name() or user.username
+    return format_html('<span class="role-badge role-{}">{}</span>', user.role, display_name)
 
 
 @register.simple_tag

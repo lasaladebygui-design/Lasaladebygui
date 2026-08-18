@@ -124,6 +124,10 @@ class SecretMovie(models.Model):
         help_text="Solo importa entre dos películas con la misma nota: la de mayor valor aquí sale antes en el número.",
     )
     comment = models.TextField("comentario", blank=True)
+    admin_only = models.BooleanField(
+        "solo para admins", default=False,
+        help_text="Oculta esta película para cualquiera que no sea Admin, aunque tenga el código y esté en una lista pública. Publícala cuando quieras desmarcando esto.",
+    )
     genres = models.ManyToManyField(Genre, verbose_name="listas", blank=True, related_name="secret_movies")
     movie = models.ForeignKey(
         Movie, verbose_name="película del catálogo (opcional, para la portada)",

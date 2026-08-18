@@ -25,7 +25,7 @@ class SecretMovieForm(forms.ModelForm):
 
     class Meta:
         model = SecretMovie
-        fields = ["title", "personal_rating", "tie_break", "comment", "movie", "series_watch_status"]
+        fields = ["title", "personal_rating", "tie_break", "comment", "movie", "series_watch_status", "admin_only"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -50,8 +50,9 @@ class SecretMovieForm(forms.ModelForm):
 
 class SecretMovieQuickEditForm(forms.ModelForm):
     """Version reducida de SecretMovieForm para editar desde Lista completa
-    (no el admin): solo nota, desempate y listas -- nada de título,
-    comentario ni portada, que se siguen tocando desde el admin."""
+    (no el admin): título, nota, desempate y listas -- la portada se
+    busca y enlaza aparte (ver movie_poster_search/movie_poster_set en
+    views.py), y el comentario se sigue tocando desde el admin."""
 
     genres = forms.ModelMultipleChoiceField(
         label="Listas existentes",
@@ -67,7 +68,7 @@ class SecretMovieQuickEditForm(forms.ModelForm):
 
     class Meta:
         model = SecretMovie
-        fields = ["personal_rating", "tie_break"]
+        fields = ["title", "personal_rating", "tie_break"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

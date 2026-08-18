@@ -14,7 +14,12 @@ def fix_self_sent_contact_messages(apps, schema_editor):
     conversación normal, abrible y marcable como leída."""
     from apps.social.models import Message, ensure_friends, get_contact_bot_user
 
-    stuck = list(Message.objects.filter(sender_id=F("recipient_id")))
+    # .only(...) evita seleccionar columnas que todavía no existen en la
+    # base de datos en este punto de la migración (contact_name/contact_email
+    # se añaden en una migración posterior, pero como Message se importa de
+    # verdad -no del estado histórico- para poder usar ensure_friends/
+    # get_contact_bot_user, un SELECT * fallaría aquí en una base nueva.
+    stuck = list(Message.objects.only("id", "sender_id", "recipient_id").filter(sender_id=F("recipient_id")))
     if not stuck:
         return
 

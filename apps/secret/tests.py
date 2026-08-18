@@ -528,13 +528,24 @@ class SecretMovieQuickEditTests(TestCase):
         terror = Genre.objects.create(name="Terror")
 
         response = self.client.post(reverse("secret:movie-quick-edit", args=[self.movie.pk]), {
-            "personal_rating": "7.5", "tie_break": "3", "genres": [terror.pk], "new_genres_input": "Culto",
+            "title": self.movie.title, "personal_rating": "7.5", "tie_break": "3",
+            "genres": [terror.pk], "new_genres_input": "Culto",
         })
         self.assertRedirects(response, reverse("secret:list"))
         self.movie.refresh_from_db()
         self.assertEqual(self.movie.personal_rating, Decimal("7.5"))
         self.assertEqual(self.movie.tie_break, 3)
         self.assertEqual(set(self.movie.genres.values_list("name", flat=True)), {"Terror", "Culto"})
+
+    def test_editar_titulo_con_el_interruptor_encendido(self):
+        self._enable_web_editing()
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+        self.client.post(reverse("secret:movie-quick-edit", args=[self.movie.pk]), {
+            "title": "Reservoir Dogs (1992)", "personal_rating": "9.0", "tie_break": "0",
+        })
+        self.movie.refresh_from_db()
+        self.assertEqual(self.movie.title, "Reservoir Dogs (1992)")
 
     def test_lista_completa_no_enseña_el_formulario_de_edicion_sin_el_interruptor(self):
         response = self.client.get(reverse("secret:list"))
@@ -544,6 +555,38 @@ class SecretMovieQuickEditTests(TestCase):
         self._enable_web_editing()
         response = self.client.get(reverse("secret:list"))
         self.assertContains(response, "secret-movie__edit-form")
+
+
+class AdminOnlyMovieTests(TestCase):
+    """Una película marcada `admin_only` a ella misma (sin pasar por
+    ninguna lista) tampoco la ve nadie que no sea Admin, aunque tenga el
+    código — independiente de en qué listas esté."""
+
+    def setUp(self):
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.oculta = SecretMovie.objects.create(title="Solo para mí", personal_rating="9.0", admin_only=True)
+        self.visible = SecretMovie.objects.create(title="Para todos", personal_rating="8.0")
+
+        self.admin = User.objects.create(email="admin_only_movie@test.local", role=User.Role.ADMIN)
+        self.admin.set_password("Testpass123!")
+        self.admin.save()
+
+    def test_no_admin_no_ve_la_pelicula_oculta_en_la_lista_completa(self):
+        response = self.client.get(reverse("secret:list"))
+        self.assertEqual(list(response.context["movies"]), [self.visible])
+
+    def test_admin_si_ve_la_pelicula_oculta_en_la_lista_completa(self):
+        self.client.login(username=self.admin.email, password="Testpass123!")
+        response = self.client.get(reverse("secret:list"))
+        self.assertIn(self.oculta, list(response.context["movies"]))
+
+    def test_no_admin_no_puede_acceder_a_la_ficha_de_la_pelicula_oculta(self):
+        response = self.client.get(reverse("secret:movie-detail", args=[self.oculta.pk]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_no_admin_no_puede_acceder_a_la_pelicula_oculta_por_numero(self):
+        response = self.client.get(reverse("secret:by-number"), {"number": self.oculta.number})
+        self.assertEqual(response.status_code, 404)
 
 
 class MoviePosterEditTests(TestCase):
