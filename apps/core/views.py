@@ -78,7 +78,7 @@ def contact(request):
         form = ContactForm(request.POST)
         if form.is_valid():
             if not form.is_spam():
-                _notify_admins_of_contact_message(form.cleaned_data["name"], form.cleaned_data["email"], form.cleaned_data["message"])
+                _notify_admins_of_contact_message(request.user, form.cleaned_data["name"], form.cleaned_data["email"], form.cleaned_data["message"])
             messages.success(request, "¡Mensaje enviado! Te responderemos lo antes posible.")
             return redirect("core:contact")
     else:
@@ -87,17 +87,26 @@ def contact(request):
     return render(request, "core/contact.html", {"form": form, "contact_links": contact_links})
 
 
-def _notify_admins_of_contact_message(name, email, message):
-    """"Escríbenos" ya no manda un email (el SMTP no era de fiar) — en su
-    lugar, cada Admin recibe el mensaje como un aviso de Social (mensaje
-    autoenviado, ya que quien escribe no tiene por qué tener cuenta), donde
-    también aparece en su campanita de avisos."""
+def _notify_admins_of_contact_message(user, name, email, message):
+    """"Escríbenos" ya no manda un email (el SMTP no era de fiar) ni se
+    autoenvía el propio admin el mensaje (eso rompía la conversación al
+    abrirla — "hablar contigo mismo" no encaja con el requisito de amistad
+    de `conversation`, y como nunca se marcaba como leído, el aviso se
+    quedaba para siempre en el tablón). Ahora es un `Message` normal, real,
+    de Social: si quien escribe tiene cuenta, el mensaje es suyo (los admins
+    pueden responderle desde un chat de verdad); si no, se agrupa bajo el
+    Buzón de contacto. En ambos casos se fuerza la amistad con cada admin
+    para que la conversación se pueda abrir sin pasar por una solicitud
+    manual."""
     from apps.accounts.models import User
-    from apps.social.models import Message
+    from apps.social.models import Message, ensure_friends, get_contact_bot_user
 
-    body = f"Mensaje de «Escríbenos» de {name} <{email}>:\n\n{message}"
-    for admin in User.objects.filter(role=User.Role.ADMIN):
-        Message.objects.create(sender=admin, recipient=admin, body=body)
+    sender = user if user.is_authenticated else get_contact_bot_user()
+    body = message if user.is_authenticated else f"Mensaje de «Escríbenos» de {name} <{email}>:\n\n{message}"
+
+    for admin in User.objects.filter(role=User.Role.ADMIN).exclude(pk=sender.pk):
+        ensure_friends(sender, admin)
+        Message.objects.create(sender=sender, recipient=admin, body=body, is_contact=True)
 
 
 @cache_control(private=True, no_cache=True)

@@ -1913,6 +1913,14 @@ main { flex: 1; }
 }
 .genre-manage-row form { margin-left: auto; }
 
+.secret-movie__edit-poster {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: calc(var(--space-unit) * 2);
+    margin-top: calc(var(--space-unit) * 3);
+}
+
 .secret-movie__rating {
     flex-shrink: 0;
     display: flex;

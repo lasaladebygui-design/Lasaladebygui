@@ -471,8 +471,9 @@ class TriviaGameTests(TestCase):
 
 
 class EmojiGameTests(TestCase):
-    """A diferencia del resto, aquí se revela un emoji a la vez: fallar solo
-    rompe la racha si ya no quedan más emojis por revelar."""
+    """Un único emoji, una única respuesta — igual que el resto de
+    categorías de _trivia_game (Trivial, Malas descripciones...): fallar
+    rompe la racha directamente, sin pistas ni intentos extra."""
 
     def setUp(self):
         self.question = TriviaQuestion.objects.create(
@@ -480,31 +481,13 @@ class EmojiGameTests(TestCase):
             correct_answer="El rey león", wrong_answer_1="Madagascar", wrong_answer_2="Tarzán",
         )
 
-    def test_al_empezar_solo_se_revela_el_primer_emoji(self):
+    def test_solo_se_enseña_el_primer_emoji_del_prompt(self):
         response = self.client.get(reverse("games:emoji-game"))
-        self.assertEqual(response.context["revealed_emojis"], "🦁")
-        self.assertEqual(response.context["reveal_count"], 1)
-        self.assertEqual(response.context["total_emojis"], 3)
+        self.assertEqual(response.context["prompt"], "🦁")
 
-    def test_fallar_con_pistas_restantes_no_rompe_la_racha_y_revela_otra(self):
+    def test_fallar_rompe_la_racha_directamente(self):
         session = self.client.session
         session["trivia_streak_emoji"] = 2
-        session.save()
-
-        response = self.client.post(reverse("games:emoji-game"), {
-            "question_id": self.question.pk, "answer": "Madagascar",
-        })
-        self.assertEqual(response.context["streak"], 2)
-        self.assertFalse(response.context["game_over"])
-        self.assertTrue(response.context["just_wrong"])
-        self.assertEqual(response.context["revealed_emojis"], "🦁 👑")
-        self.assertEqual(response.context["question"], self.question)
-
-    def test_fallar_sin_pistas_restantes_rompe_la_racha(self):
-        session = self.client.session
-        session["trivia_streak_emoji"] = 2
-        session["emoji_current_question_id"] = self.question.pk
-        session["emoji_reveal_count"] = 3
         session.save()
 
         response = self.client.post(reverse("games:emoji-game"), {
@@ -515,6 +498,18 @@ class EmojiGameTests(TestCase):
         self.assertEqual(response.context["final_streak"], 2)
         self.assertEqual(response.context["wrong_answer"], "El rey león")
 
+    def test_acertar_incrementa_la_racha(self):
+        # Segunda pregunta para que el pool no se agote con este acierto
+        # (si no, entraría en juego la pantalla de victoria, no la racha).
+        TriviaQuestion.objects.create(
+            category=TriviaQuestion.Category.EMOJI, prompt="🕷️",
+            correct_answer="Spider-Man", wrong_answer_1="Venom", wrong_answer_2="Los 4 Fantásticos",
+        )
+        response = self.client.post(reverse("games:emoji-game"), {
+            "question_id": self.question.pk, "answer": "El rey león",
+        })
+        self.assertEqual(response.context["streak"], 1)
+
     def test_agotar_el_pool_sin_fallar_muestra_pantalla_de_victoria(self):
         response = self.client.post(reverse("games:emoji-game"), {
             "question_id": self.question.pk, "answer": "El rey león",
@@ -523,26 +518,6 @@ class EmojiGameTests(TestCase):
         self.assertEqual(response.context["final_streak"], 1)
         self.assertIsNone(response.context["question"])
         self.assertNotIn("trivia_seen_emoji", self.client.session)
-
-    def test_acertar_con_pistas_a_medias_incrementa_la_racha_y_pasa_de_pregunta(self):
-        # Segunda pregunta para que el pool no se agote con este acierto
-        # (si no, entraría en juego la pantalla de victoria, no la racha).
-        TriviaQuestion.objects.create(
-            category=TriviaQuestion.Category.EMOJI, prompt="🕷️ 🧑",
-            correct_answer="Spider-Man", wrong_answer_1="Venom", wrong_answer_2="Los 4 Fantásticos",
-        )
-        session = self.client.session
-        session["emoji_current_question_id"] = self.question.pk
-        session["emoji_reveal_count"] = 2
-        session.save()
-
-        response = self.client.post(reverse("games:emoji-game"), {
-            "question_id": self.question.pk, "answer": "El rey león",
-        })
-        self.assertEqual(response.context["streak"], 1)
-        # Acertar pasa a una pregunta nueva, siempre con la primera pista
-        # (nunca sigue en la misma pregunta con las pistas ya reveladas).
-        self.assertEqual(self.client.session["emoji_reveal_count"], 1)
 
 
 class TrueFalseGameTests(TestCase):

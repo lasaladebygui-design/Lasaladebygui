@@ -61,7 +61,7 @@ class TriviaQuestion(models.Model):
         "enunciado",
         help_text=(
             "Según la categoría: la pregunta de trivia, la mala descripción, o el nombre del actor/actriz. "
-            "En Emoji, cada emoji separado por un espacio (se revelan de uno en uno, no todos a la vez): «🦁 👑»."
+            "En Emoji, un único emoji (si escribes varios separados por espacio, solo se enseña el primero): «🦁»."
         ),
     )
     image_url = models.URLField(

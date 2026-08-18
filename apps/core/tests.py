@@ -234,16 +234,19 @@ class RecentActivityTests(TestCase):
 
 
 class ContactFormTests(TestCase):
-    """"Escríbenos" ya no manda un email (el SMTP no era de fiar) — en su
-    lugar, cada Admin recibe el mensaje como un aviso de Social."""
+    """"Escríbenos" ya no manda un email (el SMTP no era de fiar) ni se
+    autoenvía el propio admin el mensaje (eso rompía la conversación al
+    abrirla, y el aviso no se quitaba nunca del tablón) — ahora es un
+    `Message` real de Social, con el Buzón de contacto o la propia cuenta
+    de quien escribe como remitente."""
 
     def setUp(self):
         self.admin = User.objects.create(email="admin_contacto@test.local", role=User.Role.ADMIN)
         self.admin.set_password("Testpass123!")
         self.admin.save()
 
-    def test_envio_valido_llega_como_mensaje_de_social_al_admin(self):
-        from apps.social.models import Message
+    def test_envio_anonimo_llega_desde_el_buzon_de_contacto(self):
+        from apps.social.models import CONTACT_BOT_EMAIL, Message
 
         response = self.client.post(reverse("core:contact"), {
             "name": "Ana",
@@ -253,10 +256,27 @@ class ContactFormTests(TestCase):
         })
         self.assertRedirects(response, reverse("core:contact"))
         msg = Message.objects.get(recipient=self.admin)
-        self.assertEqual(msg.sender, self.admin)
+        self.assertEqual(msg.sender.email, CONTACT_BOT_EMAIL)
+        self.assertTrue(msg.is_contact)
         self.assertIn("Ana", msg.body)
         self.assertIn("ana@example.com", msg.body)
         self.assertIn("Hola, os escribo para...", msg.body)
+
+    def test_envio_de_usuario_logueado_llega_desde_su_propia_cuenta(self):
+        from apps.social.models import Message
+
+        user = User.objects.create(email="ana_logueada@test.local", role=User.Role.LECTOR)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username="ana_logueada@test.local", password="Testpass123!")
+
+        self.client.post(reverse("core:contact"), {
+            "name": "Ana", "email": "ana@example.com", "message": "Hola, os escribo para...", "website": "",
+        })
+        msg = Message.objects.get(recipient=self.admin)
+        self.assertEqual(msg.sender, user)
+        self.assertTrue(msg.is_contact)
+        self.assertEqual(msg.body, "Hola, os escribo para...")
 
     def test_llega_a_todos_los_admin_si_hay_varios(self):
         from apps.social.models import Message
@@ -267,6 +287,35 @@ class ContactFormTests(TestCase):
         })
         self.assertTrue(Message.objects.filter(recipient=self.admin).exists())
         self.assertTrue(Message.objects.filter(recipient=otro_admin).exists())
+
+    def test_un_admin_escribiendo_no_se_manda_el_mensaje_a_si_mismo(self):
+        from apps.social.models import Message
+
+        self.client.login(username="admin_contacto@test.local", password="Testpass123!")
+        self.client.post(reverse("core:contact"), {
+            "name": "Admin", "email": "admin_contacto@test.local", "message": "Nota para mí", "website": "",
+        })
+        self.assertFalse(Message.objects.filter(sender=self.admin, recipient=self.admin).exists())
+
+    def test_el_admin_puede_leer_y_marcar_como_leido_el_mensaje_de_contacto(self):
+        """Antes esto daba 404 (sender == recipient, "amigo de ti mismo" no
+        existe) y el mensaje se quedaba sin leer para siempre."""
+        from apps.core.notifications import unread_notifications_count
+        from apps.social.models import Message
+
+        self.client.post(reverse("core:contact"), {
+            "name": "Ana", "email": "ana@example.com", "message": "Hola", "website": "",
+        })
+        msg = Message.objects.get(recipient=self.admin)
+        self.assertEqual(unread_notifications_count(self.admin), 1)
+
+        self.client.login(username="admin_contacto@test.local", password="Testpass123!")
+        response = self.client.get(reverse("social:conversation", kwargs={"username": msg.sender.username}))
+        self.assertEqual(response.status_code, 200)
+
+        msg.refresh_from_db()
+        self.assertIsNotNone(msg.read_at)
+        self.assertEqual(unread_notifications_count(self.admin), 0)
 
     def test_honeypot_relleno_no_manda_nada(self):
         from apps.social.models import Message

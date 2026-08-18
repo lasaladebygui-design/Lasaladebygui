@@ -322,6 +322,66 @@ def movie_quick_edit(request, pk):
     return redirect("secret:list")
 
 
+def _movie_quick_edit_redirect(request):
+    next_url = request.POST.get("next", "")
+    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return redirect(next_url)
+    return redirect("secret:list")
+
+
+@secret_required
+@login_required
+def movie_poster_search(request, pk):
+    """Buscar en TMDb para enlazar como portada desde Lista completa (mismo
+    hueco que nota/desempate/listas, ver movie_quick_edit) -- solo mientras
+    TopSecretConfig.allow_web_editing esté activo."""
+    if not _web_editing_allowed():
+        raise Http404
+    get_object_or_404(_visible_movies(request.user), pk=pk)
+    query = request.GET.get("query", "").strip()
+    results = []
+    error = None
+    if query:
+        try:
+            results = tmdb_search(query)[:8]
+        except MovieAPIError as exc:
+            error = str(exc)
+    return render(request, "secret/_movie_poster_search_results.html", {
+        "results": results, "error": error, "query": query, "movie_pk": pk,
+    })
+
+
+@secret_required
+@login_required
+def movie_poster_set(request, pk, tmdb_id):
+    if not _web_editing_allowed():
+        raise Http404
+    movie = get_object_or_404(_visible_movies(request.user), pk=pk)
+    if request.method == "POST":
+        try:
+            catalog_movie = Movie.get_or_create_from_tmdb(tmdb_id)
+        except MovieAPIError as exc:
+            messages.error(request, str(exc))
+        else:
+            movie.movie = catalog_movie
+            movie.save(update_fields=["movie"])
+            messages.success(request, "Portada actualizada.")
+    return redirect("secret:list")
+
+
+@secret_required
+@login_required
+def movie_poster_remove(request, pk):
+    if not _web_editing_allowed():
+        raise Http404
+    movie = get_object_or_404(_visible_movies(request.user), pk=pk)
+    if request.method == "POST":
+        movie.movie = None
+        movie.save(update_fields=["movie"])
+        messages.success(request, "Portada quitada.")
+    return _movie_quick_edit_redirect(request)
+
+
 @secret_required
 @login_required
 def genre_manage(request):

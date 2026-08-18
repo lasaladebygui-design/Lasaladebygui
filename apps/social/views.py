@@ -10,7 +10,7 @@ from apps.accounts.models import FavoriteMovie, User
 from apps.core.push import send_push_to_user
 from apps.games.models import DuelRecord
 
-from .models import FriendRequest, Message, friends_of, friendship_status
+from .models import CONTACT_BOT_EMAIL, FriendRequest, Message, friends_of, friendship_status
 
 
 @login_required
@@ -119,7 +119,10 @@ def social_home(request):
     query = request.GET.get("q", "").strip()
     results = []
     if query:
-        results = User.objects.filter(username__icontains=query).exclude(pk=request.user.pk)[:20]
+        results = (
+            User.objects.filter(username__icontains=query)
+            .exclude(pk=request.user.pk).exclude(email=CONTACT_BOT_EMAIL)[:20]
+        )
 
     thread_messages = Message.objects.filter(
         Q(sender=request.user) | Q(recipient=request.user)

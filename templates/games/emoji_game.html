@@ -9,7 +9,7 @@
         <span class="card__tag">Juegos</span>
         <h1>😀 Emoji</h1>
         <p class="quote-game__score">Racha actual: <strong>{{ streak }}</strong> · Mejor racha: <strong>{{ best }}</strong></p>
-        <p class="muted">Se revela un emoji, y si fallas se añade otro más como pista — solo se rompe la racha si fallas con todos a la vista.</p>
+        <p class="muted">Un emoji, una respuesta — si fallas, se rompe la racha.</p>
 
         {% if not user.is_authenticated %}
         <p class="muted">
@@ -34,9 +34,7 @@
             <a href="{% url 'games:emoji-game' %}" class="btn btn--accent btn--block">Jugar de nuevo</a>
         </div>
         {% elif question %}
-        {% if just_wrong %}<p class="muted">❌ No era — una pista más:</p>{% endif %}
-        <blockquote class="quote-game__quote trivia-game__emoji">{{ revealed_emojis }}</blockquote>
-        <p class="muted trivia-game__emoji-progress">Pista {{ reveal_count }} de {{ total_emojis }}</p>
+        <blockquote class="quote-game__quote trivia-game__emoji">{{ prompt }}</blockquote>
         <form method="post" class="quote-game__options js-streak-answer-form">
             {% csrf_token %}
             <input type="hidden" name="question_id" value="{{ question.pk }}">

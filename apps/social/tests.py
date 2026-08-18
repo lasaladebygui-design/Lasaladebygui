@@ -5,7 +5,7 @@ from django.urls import reverse
 
 from apps.accounts.models import PushSubscription, User
 
-from .models import FriendRequest, Message, are_friends, friendship_status
+from .models import FriendRequest, Message, are_friends, ensure_friends, friendship_status, get_contact_bot_user
 
 
 def make_user(email, **extra):
@@ -37,6 +37,39 @@ class FriendshipHelpersTests(TestCase):
 
     def test_uno_mismo_es_self(self):
         self.assertEqual(friendship_status(self.ana, self.ana), "self")
+
+
+class ContactHelpersTests(TestCase):
+    """`ensure_friends`/`get_contact_bot_user` — usados para que los
+    mensajes de "Escríbenos" (apps.core.views._notify_admins_of_contact_message)
+    abran una conversación real sin pasar por una solicitud de amistad
+    manual."""
+
+    def setUp(self):
+        self.ana = make_user("ana_contact@test.local")
+        self.bea = make_user("bea_contact@test.local")
+
+    def test_ensure_friends_crea_amistad_aceptada(self):
+        ensure_friends(self.ana, self.bea)
+        self.assertTrue(are_friends(self.ana, self.bea))
+
+    def test_ensure_friends_acepta_una_solicitud_pendiente_existente(self):
+        FriendRequest.objects.create(from_user=self.bea, to_user=self.ana, accepted=False)
+        ensure_friends(self.ana, self.bea)
+        self.assertTrue(are_friends(self.ana, self.bea))
+
+    def test_ensure_friends_con_el_mismo_usuario_no_hace_nada(self):
+        ensure_friends(self.ana, self.ana)
+        self.assertEqual(FriendRequest.objects.count(), 0)
+
+    def test_get_contact_bot_user_es_idempotente(self):
+        bot1 = get_contact_bot_user()
+        bot2 = get_contact_bot_user()
+        self.assertEqual(bot1.pk, bot2.pk)
+
+    def test_el_bot_de_contacto_no_puede_iniciar_sesion(self):
+        bot = get_contact_bot_user()
+        self.assertFalse(bot.has_usable_password())
 
 
 class FriendRequestFlowTests(TestCase):

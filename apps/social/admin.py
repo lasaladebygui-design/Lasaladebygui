@@ -12,5 +12,6 @@ class FriendRequestAdmin(admin.ModelAdmin):
 
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
-    list_display = ("sender", "recipient", "created_at", "read_at")
+    list_display = ("sender", "recipient", "is_contact", "created_at", "read_at")
+    list_filter = ("is_contact",)
     search_fields = ("sender__username", "recipient__username", "body")

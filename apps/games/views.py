@@ -502,12 +502,15 @@ def _register_trivia_best(request, category, streak):
             request.session[key] = streak
 
 
-def _trivia_game(request, category, template):
+def _trivia_game(request, category, template, prompt=None):
     """El pool de cada categoría es lo bastante grande para que agotarlo
     sea difícil — pero por si acaso: dentro de una misma partida no se
     repite ninguna pregunta ya vista (`seen_key`, se resetea al fallar o al
     ganar), y si se acaban de verdad sin haber fallado ninguna, se corta la
-    partida con pantalla de victoria en vez de reciclar preguntas."""
+    partida con pantalla de victoria en vez de reciclar preguntas.
+
+    `prompt` es un transform opcional sobre `question.prompt` para la
+    plantilla (ver `emoji_game`, que solo enseña el primer emoji)."""
     streak_key = _trivia_streak_key(category)
     seen_key = _trivia_seen_key(category)
     streak = request.session.get(streak_key, 0)
@@ -571,6 +574,7 @@ def _trivia_game(request, category, template):
         "question": next_question, "options": options, "streak": streak, "best": best,
         "game_over": game_over, "game_won": game_won, "is_new_record": is_new_record,
         "final_streak": final_streak, "wrong_answer": wrong_answer,
+        "prompt": prompt(next_question.prompt) if prompt and next_question else (next_question.prompt if next_question else ""),
     })
 
 
@@ -578,121 +582,15 @@ def trivia_game(request):
     return _trivia_game(request, TriviaQuestion.Category.TRIVIA, "games/trivia_game.html")
 
 
-# --- Emoji ------------------------------------------------------------
-# A diferencia del resto (que enseñan el enunciado entero desde el
-# principio), aquí los emojis se revelan de uno en uno: solo se ve el
-# primero, y cada vez que fallas se añade uno más como pista — perder solo
-# cuenta de verdad (rompe la racha) si fallas ya con todos los emojis a la
-# vista. La pregunta actual y cuántos emojis van revelados se guardan en
-# sesión para que sobrevivan entre intentos de la misma pregunta.
-
-EMOJI_STREAK_KEY = _trivia_streak_key(TriviaQuestion.Category.EMOJI)
-EMOJI_CURRENT_QUESTION_KEY = "emoji_current_question_id"
-EMOJI_REVEAL_COUNT_KEY = "emoji_reveal_count"
-EMOJI_SEEN_KEY = _trivia_seen_key(TriviaQuestion.Category.EMOJI)
-
-
 def emoji_game(request):
-    streak = request.session.get(EMOJI_STREAK_KEY, 0)
-    seen_ids = request.session.get(EMOJI_SEEN_KEY, [])
-    game_over = False
-    game_won = False
-    is_new_record = False
-    final_streak = None
-    wrong_answer = None
-    just_wrong = False
-
-    if request.method == "POST":
-        question = get_object_or_404(
-            TriviaQuestion, pk=request.POST.get("question_id"), category=TriviaQuestion.Category.EMOJI,
-        )
-        emoji_count = len(question.prompt.split())
-        if request.POST.get("answer") == question.correct_answer:
-            streak += 1
-            request.session[EMOJI_STREAK_KEY] = streak
-            request.session.pop(EMOJI_CURRENT_QUESTION_KEY, None)
-            request.session.pop(EMOJI_REVEAL_COUNT_KEY, None)
-            if question.pk not in seen_ids:
-                seen_ids.append(question.pk)
-            request.session[EMOJI_SEEN_KEY] = seen_ids
-        else:
-            reveal_count = request.session.get(EMOJI_REVEAL_COUNT_KEY, 1)
-            if reveal_count < emoji_count:
-                # Quedan emojis por revelar: no se rompe la racha todavía,
-                # se enseña una pista más de la misma pregunta.
-                just_wrong = True
-                request.session[EMOJI_CURRENT_QUESTION_KEY] = question.pk
-                request.session[EMOJI_REVEAL_COUNT_KEY] = reveal_count + 1
-            else:
-                previous_best = (
-                    getattr(request.user, TRIVIA_BEST_FIELDS[TriviaQuestion.Category.EMOJI])
-                    if request.user.is_authenticated
-                    else request.session.get(_trivia_best_anon_key(TriviaQuestion.Category.EMOJI), 0)
-                )
-                final_streak = streak
-                is_new_record = streak > previous_best
-                wrong_answer = question.correct_answer
-                _register_trivia_best(request, TriviaQuestion.Category.EMOJI, streak)
-                request.session[EMOJI_STREAK_KEY] = 0
-                request.session.pop(EMOJI_SEEN_KEY, None)
-                streak = 0
-                game_over = True
-                request.session.pop(EMOJI_CURRENT_QUESTION_KEY, None)
-                request.session.pop(EMOJI_REVEAL_COUNT_KEY, None)
-
-    next_question = None
-    options = []
-    revealed_emojis = ""
-    total_emojis = 0
-    reveal_count = 0
-    if not game_over:
-        question_id = request.session.get(EMOJI_CURRENT_QUESTION_KEY)
-        next_question = (
-            TriviaQuestion.objects.filter(pk=question_id, category=TriviaQuestion.Category.EMOJI).first()
-            if question_id else None
-        )
-        reveal_count = request.session.get(EMOJI_REVEAL_COUNT_KEY, 1)
-        if next_question is None:
-            next_question = (
-                TriviaQuestion.objects.filter(category=TriviaQuestion.Category.EMOJI)
-                .exclude(pk__in=seen_ids).order_by("?").first()
-            )
-            if next_question is None and seen_ids:
-                previous_best = (
-                    getattr(request.user, TRIVIA_BEST_FIELDS[TriviaQuestion.Category.EMOJI])
-                    if request.user.is_authenticated
-                    else request.session.get(_trivia_best_anon_key(TriviaQuestion.Category.EMOJI), 0)
-                )
-                final_streak = streak
-                is_new_record = streak > previous_best
-                _register_trivia_best(request, TriviaQuestion.Category.EMOJI, streak)
-                request.session[EMOJI_STREAK_KEY] = 0
-                request.session.pop(EMOJI_SEEN_KEY, None)
-                streak = 0
-                game_won = True
-            else:
-                reveal_count = 1
-                if next_question:
-                    request.session[EMOJI_CURRENT_QUESTION_KEY] = next_question.pk
-                    request.session[EMOJI_REVEAL_COUNT_KEY] = 1
-        if next_question:
-            emojis = next_question.prompt.split()
-            total_emojis = len(emojis)
-            revealed_emojis = " ".join(emojis[:reveal_count])
-            options = [next_question.correct_answer, next_question.wrong_answer_1, next_question.wrong_answer_2]
-            random.shuffle(options)
-
-    best = (
-        getattr(request.user, TRIVIA_BEST_FIELDS[TriviaQuestion.Category.EMOJI]) if request.user.is_authenticated
-        else request.session.get(_trivia_best_anon_key(TriviaQuestion.Category.EMOJI), 0)
+    # Un único emoji, una única respuesta: como cualquier otra categoría de
+    # _trivia_game, fallar rompe la racha directamente (antes se revelaban
+    # los emojis del prompt de uno en uno con varios intentos por pregunta;
+    # ahora solo se enseña el primero, sea cual sea la longitud del prompt).
+    return _trivia_game(
+        request, TriviaQuestion.Category.EMOJI, "games/emoji_game.html",
+        prompt=lambda p: p.split()[0] if p.split() else p,
     )
-
-    return render(request, "games/emoji_game.html", {
-        "question": next_question, "options": options, "streak": streak, "best": best,
-        "game_over": game_over, "game_won": game_won, "is_new_record": is_new_record, "just_wrong": just_wrong,
-        "final_streak": final_streak, "wrong_answer": wrong_answer,
-        "revealed_emojis": revealed_emojis, "reveal_count": reveal_count, "total_emojis": total_emojis,
-    })
 
 
 def bad_description_game(request):

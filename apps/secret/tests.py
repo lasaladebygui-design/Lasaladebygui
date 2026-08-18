@@ -546,6 +546,66 @@ class SecretMovieQuickEditTests(TestCase):
         self.assertContains(response, "secret-movie__edit-form")
 
 
+class MoviePosterEditTests(TestCase):
+    """Buscar y enlazar/quitar la portada de una entrada de Lista completa
+    desde la propia web (mismo hueco e interruptor que nota/desempate/
+    listas, ver SecretMovieQuickEditTests)."""
+
+    def setUp(self):
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.movie = SecretMovie.objects.create(title="Drive", personal_rating="8.0")
+        self.user = User.objects.create(email="poster_test@test.local", role=User.Role.LECTOR, username="poster_test")
+        self.user.set_password("Testpass123!")
+        self.user.save()
+
+    def _enable_web_editing(self):
+        config = TopSecretConfig.load()
+        config.allow_web_editing = True
+        config.save()
+
+    def test_buscar_da_404_si_el_interruptor_esta_apagado(self):
+        self.client.login(username=self.user.email, password="Testpass123!")
+        response = self.client.get(reverse("secret:movie-poster-search", args=[self.movie.pk]))
+        self.assertEqual(response.status_code, 404)
+
+    @patch("apps.secret.views.tmdb_search")
+    def test_buscar_usa_el_servicio_tmdb_con_el_interruptor_encendido(self, mock_search):
+        self._enable_web_editing()
+        self.client.login(username=self.user.email, password="Testpass123!")
+        mock_search.return_value = []
+        response = self.client.get(reverse("secret:movie-poster-search", args=[self.movie.pk]), {"query": "drive"})
+        self.assertEqual(response.status_code, 200)
+        mock_search.assert_called_once_with("drive")
+
+    @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
+    def test_enlazar_una_portada(self, mock_get_or_create):
+        self._enable_web_editing()
+        self.client.login(username=self.user.email, password="Testpass123!")
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=55, title="Drive", media_type="movie")
+
+        response = self.client.post(reverse("secret:movie-poster-set", args=[self.movie.pk, 55]))
+        self.assertRedirects(response, reverse("secret:list"))
+        self.movie.refresh_from_db()
+        self.assertEqual(self.movie.movie.tmdb_id, 55)
+
+    def test_enlazar_portada_da_404_si_el_interruptor_esta_apagado(self):
+        self.client.login(username=self.user.email, password="Testpass123!")
+        response = self.client.post(reverse("secret:movie-poster-set", args=[self.movie.pk, 55]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_quitar_la_portada(self):
+        self._enable_web_editing()
+        catalog_movie = Movie.objects.create(tmdb_id=56, title="Drive", media_type="movie")
+        self.movie.movie = catalog_movie
+        self.movie.save(update_fields=["movie"])
+
+        self.client.login(username=self.user.email, password="Testpass123!")
+        response = self.client.post(reverse("secret:movie-poster-remove", args=[self.movie.pk]))
+        self.assertRedirects(response, reverse("secret:list"))
+        self.movie.refresh_from_db()
+        self.assertIsNone(self.movie.movie)
+
+
 class GenreManageTests(TestCase):
     def setUp(self):
         self.client.post(reverse("secret:gate"), {"code": "8888"})

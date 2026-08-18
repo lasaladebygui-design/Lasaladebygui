@@ -56,13 +56,18 @@ def friendship_status(viewer, other):
 
 
 class Message(models.Model):
-    """Mensaje privado entre dos amigos."""
+    """Mensaje privado entre dos amigos (o de "Escríbenos" hacia un admin,
+    ver `is_contact`)."""
 
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sent_messages")
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="received_messages")
     body = models.TextField("mensaje")
     created_at = models.DateTimeField(auto_now_add=True)
     read_at = models.DateTimeField(null=True, blank=True)
+    is_contact = models.BooleanField(
+        "mensaje de «Escríbenos»", default=False,
+        help_text="Llegó desde el formulario de contacto, no escrito a mano en un chat.",
+    )
 
     class Meta:
         verbose_name = "mensaje"
@@ -71,3 +76,39 @@ class Message(models.Model):
 
     def __str__(self):
         return f"{self.sender} → {self.recipient}: {self.body[:40]}"
+
+
+CONTACT_BOT_EMAIL = "buzon-contacto@lasaladebygui.local"
+
+
+def get_contact_bot_user():
+    """Cuenta fija que agrupa los mensajes de "Escríbenos" de quien no
+    tiene cuenta en el sitio — así el mensaje sigue siendo un `Message`
+    normal (sender != recipient) en vez del autoenvío de antes, que
+    rompía la conversación al abrirla (ver `ensure_friends`)."""
+    from apps.accounts.models import User
+
+    bot = User.objects.filter(email=CONTACT_BOT_EMAIL).first()
+    if bot is None:
+        bot = User(email=CONTACT_BOT_EMAIL, username="buzon-contacto", role=User.Role.LECTOR)
+        bot.set_unusable_password()
+        bot.save()
+    return bot
+
+
+def ensure_friends(user_a, user_b):
+    """Dos usuarios quedan como amigos (aceptados) sin pasar por una
+    solicitud manual — usado para que quien escribe desde /contacto/ (o el
+    Buzón de contacto, si no tiene cuenta) pueda abrir una conversación de
+    verdad con cada admin, ya que `conversation` exige amistad."""
+    if user_a.pk == user_b.pk:
+        return
+    existing = FriendRequest.objects.filter(
+        Q(from_user=user_a, to_user=user_b) | Q(from_user=user_b, to_user=user_a)
+    ).first()
+    if existing:
+        if not existing.accepted:
+            existing.accepted = True
+            existing.save(update_fields=["accepted"])
+    else:
+        FriendRequest.objects.create(from_user=user_a, to_user=user_b, accepted=True)
