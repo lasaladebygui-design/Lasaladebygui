@@ -15,6 +15,15 @@ RECENT_ARTICLES_DAYS = 30
 RECENT_PRODUCTS_DAYS = 30
 
 
+def _joined_cutoff(user, days):
+    """El más reciente entre "hace X días" y "cuando te registraste" — así
+    una cuenta nueva no ve como aviso algo publicado antes de que existiera
+    (solo importa lo de después de darte de alta), y una cuenta antigua
+    sigue sin ver avisos de hace más de X días."""
+    recent_cutoff = timezone.now() - timedelta(days=days)
+    return max(recent_cutoff, user.date_joined)
+
+
 def _unseen_articles(user):
     from apps.articles.models import Article, ArticleView
     from apps.articles.permissions import can_manage_private_articles
@@ -24,8 +33,7 @@ def _unseen_articles(user):
     ).exclude(author=user)
     if not can_manage_private_articles(user):
         articles = articles.filter(is_private=False)
-    cutoff = timezone.now() - timedelta(days=RECENT_ARTICLES_DAYS)
-    return articles.filter(created_at__gte=cutoff)
+    return articles.filter(created_at__gte=_joined_cutoff(user, RECENT_ARTICLES_DAYS))
 
 
 def _unseen_products(user):
@@ -34,8 +42,7 @@ def _unseen_products(user):
     products = Product.objects.exclude(
         pk__in=ProductView.objects.filter(user=user).values("product_id")
     )
-    cutoff = timezone.now() - timedelta(days=RECENT_PRODUCTS_DAYS)
-    return products.filter(created_at__gte=cutoff)
+    return products.filter(created_at__gte=_joined_cutoff(user, RECENT_PRODUCTS_DAYS))
 
 
 def unread_notifications_count(user):
@@ -49,7 +56,7 @@ def unread_notifications_count(user):
     count = 0
     count += Message.objects.filter(recipient=user, read_at__isnull=True).count()
     count += FriendRequest.objects.filter(to_user=user, accepted=False).count()
-    count += Announcement.objects.exclude(read_by=user).count()
+    count += Announcement.objects.exclude(read_by=user).filter(created_at__gte=user.date_joined).count()
     count += _unseen_articles(user).count()
     count += _unseen_products(user).count()
     return count
@@ -95,7 +102,10 @@ def notifications_feed(user, limit_per_category=5):
             "created_at": fr.created_at,
         })
 
-    announcements = Announcement.objects.exclude(read_by=user).order_by("-created_at")[:limit_per_category]
+    announcements = (
+        Announcement.objects.exclude(read_by=user).filter(created_at__gte=user.date_joined)
+        .order_by("-created_at")[:limit_per_category]
+    )
     for ann in announcements:
         items.append({
             "kind": "announcement", "icon": "📣",

@@ -11,9 +11,14 @@ class SecretMovieForm(forms.ModelForm):
     # cada vez, con riesgo de typos creando listas duplicadas casi iguales.
     # Ahora las que ya existen se marcan con casillas (rápido, sin errores)
     # y solo hace falta escribir algo si la lista es de verdad nueva.
+    #
+    # El admin ahora ve TODAS las entradas (la de Bygui y la propia de
+    # cada usuario, ver SecretMovieAdmin) -- las listas (Genre) que se
+    # ofrecen aquí son las del MISMO dueño que la entrada que se está
+    # editando (Bygui al crear una nueva desde aquí), nunca una mezcla.
     genres = forms.ModelMultipleChoiceField(
         label="Listas existentes",
-        queryset=Genre.objects.all(),
+        queryset=Genre.objects.none(),
         required=False,
         widget=forms.CheckboxSelectMultiple,
     )
@@ -29,8 +34,10 @@ class SecretMovieForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._genre_owner = self.instance.owner if self.instance.pk else None
+        self.fields["genres"].queryset = Genre.objects.filter(owner=self._genre_owner)
         if self.instance.pk:
-            self.fields["genres"].initial = self.instance.genres.all()
+            self.fields["genres"].initial = self.instance.genres.filter(owner=self._genre_owner)
 
     def save(self, commit=True):
         movie = super().save(commit=commit)
@@ -38,8 +45,9 @@ class SecretMovieForm(forms.ModelForm):
         def sync_genres():
             genres = list(self.cleaned_data["genres"])
             new_names = [n.strip() for n in self.cleaned_data["new_genres_input"].split(",") if n.strip()]
-            genres += [Genre.objects.get_or_create(name=name)[0] for name in new_names]
-            movie.genres.set(genres)
+            genres += [Genre.objects.get_or_create(owner=self._genre_owner, name=name)[0] for name in new_names]
+            other_genres = movie.genres.exclude(owner=self._genre_owner)
+            movie.genres.set(genres + list(other_genres))
 
         if commit:
             sync_genres()
@@ -49,14 +57,17 @@ class SecretMovieForm(forms.ModelForm):
 
 
 class SecretMovieQuickEditForm(forms.ModelForm):
-    """Version reducida de SecretMovieForm para editar desde Lista completa
-    (no el admin): título, nota, desempate y listas -- la portada se
-    busca y enlaza aparte (ver movie_poster_search/movie_poster_set en
-    views.py), y el comentario se sigue tocando desde el admin."""
+    """Version reducida de SecretMovieForm para editar desde una lista
+    completa (no el admin): título, nota, desempate y listas -- la portada
+    se busca y enlaza aparte (ver movie_poster_search/movie_poster_set en
+    views.py). `owner` decide de qué lista son las listas (Genre)
+    disponibles para marcar/crear: la de Bygui (owner=None) o la propia de
+    quien edita -- cada una con su propio espacio de nombres, ver
+    Genre.Meta.constraints."""
 
     genres = forms.ModelMultipleChoiceField(
         label="Listas existentes",
-        queryset=Genre.objects.all(),
+        queryset=Genre.objects.none(),
         required=False,
         widget=forms.CheckboxSelectMultiple,
     )
@@ -68,12 +79,14 @@ class SecretMovieQuickEditForm(forms.ModelForm):
 
     class Meta:
         model = SecretMovie
-        fields = ["title", "personal_rating", "tie_break"]
+        fields = ["title", "personal_rating", "tie_break", "comment"]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, owner=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._genre_owner = owner
+        self.fields["genres"].queryset = Genre.objects.filter(owner=owner)
         if self.instance.pk:
-            self.fields["genres"].initial = self.instance.genres.all()
+            self.fields["genres"].initial = self.instance.genres.filter(owner=owner)
 
     def save(self, commit=True):
         movie = super().save(commit=commit)
@@ -81,8 +94,12 @@ class SecretMovieQuickEditForm(forms.ModelForm):
         def sync_genres():
             genres = list(self.cleaned_data["genres"])
             new_names = [n.strip() for n in self.cleaned_data["new_genres_input"].split(",") if n.strip()]
-            genres += [Genre.objects.get_or_create(name=name)[0] for name in new_names]
-            movie.genres.set(genres)
+            genres += [Genre.objects.get_or_create(owner=self._genre_owner, name=name)[0] for name in new_names]
+            # Solo se tocan las listas del mismo dueño que se estaban
+            # editando -- si la película tuviera listas de otro origen (no
+            # debería, pero por si acaso) no se pierden al guardar.
+            other_genres = movie.genres.exclude(owner=self._genre_owner)
+            movie.genres.set(genres + list(other_genres))
 
         if commit:
             sync_genres()
@@ -127,17 +144,19 @@ class RatingSearchForm(forms.Form):
 class FullListFilterForm(forms.Form):
     genres = forms.ModelMultipleChoiceField(
         label="Listas",
-        queryset=Genre.objects.all(),
+        queryset=Genre.objects.none(),
         to_field_name="slug",
         required=False,
         widget=forms.CheckboxSelectMultiple,
         help_text="Marca varias para cruzarlas: solo aparecen las películas que estén en todas las marcadas.",
     )
 
-    def __init__(self, *args, admin_user=False, **kwargs):
+    def __init__(self, *args, owner=None, admin_user=False, **kwargs):
         super().__init__(*args, **kwargs)
-        if not admin_user:
-            self.fields["genres"].queryset = Genre.objects.filter(admin_only=False)
+        genres = Genre.objects.filter(owner=owner)
+        if owner is None and not admin_user:
+            genres = genres.filter(admin_only=False)
+        self.fields["genres"].queryset = genres
 
 
 class TierLevelForm(forms.ModelForm):

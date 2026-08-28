@@ -6,6 +6,7 @@ IMDb no ofrece una API pública oficial, así que usamos OMDb
 uso personal/no comercial.
 """
 
+import unicodedata
 from dataclasses import dataclass
 
 import requests
@@ -35,24 +36,56 @@ class TMDbResult:
         return poster_url(self.poster_path)
 
 
-def tmdb_search(query, media_type="movie"):
-    """Busca películas o series por título en TMDb. Devuelve una lista de
-    TMDbResult. `media_type` es "movie" o "tv" — cada uno pega a un endpoint
-    de búsqueda distinto de TMDb, ya que son catálogos separados."""
-    endpoint = "tv" if media_type == "tv" else "movie"
+def _strip_accents(text):
+    """Quita acentos/diacríticos (á→a, ñ→n...) para el reintento sin
+    ortografía exacta — el despiste más común al escribir rápido."""
+    normalized = unicodedata.normalize("NFKD", text)
+    return "".join(ch for ch in normalized if not unicodedata.combining(ch))
+
+
+def _tmdb_search_raw(query, endpoint, language):
     try:
         response = requests.get(
             f"{TMDB_BASE_URL}/search/{endpoint}",
-            params={"api_key": settings.TMDB_API_KEY, "query": query, "language": "es-ES"},
+            params={"api_key": settings.TMDB_API_KEY, "query": query, "language": language},
             timeout=REQUEST_TIMEOUT,
         )
         response.raise_for_status()
     except requests.RequestException as exc:
         raise MovieAPIError("No se pudo contactar con TMDb.") from exc
+    return response.json().get("results", [])
 
-    data = response.json()
+
+def tmdb_search(query, media_type="movie"):
+    """Busca películas o series por título en TMDb. Devuelve una lista de
+    TMDbResult. `media_type` es "movie" o "tv" — cada uno pega a un endpoint
+    de búsqueda distinto de TMDb, ya que son catálogos separados.
+
+    TMDb trata cada `language` como una búsqueda distinta: un título
+    tecleado en inglés puede no encontrar nada buscando solo en es-ES (y al
+    revés con un título traducido). Por eso se busca en los dos idiomas a
+    la vez y se combina sin duplicar la misma película/serie (misma id de
+    TMDb) — quedándose con la versión en español cuando aparece en ambas,
+    ya que el resto del sitio está en ese idioma. Si ninguna de las dos
+    devuelve nada, se reintenta sin acentos antes de rendirse."""
+    endpoint = "tv" if media_type == "tv" else "movie"
+
+    def _search(q):
+        results_es = _tmdb_search_raw(q, endpoint, "es-ES")
+        results_en = _tmdb_search_raw(q, endpoint, "en-US")
+        by_id = {}
+        for item in results_es + results_en:
+            by_id.setdefault(item["id"], item)
+        return list(by_id.values())
+
+    items = _search(query)
+    if not items:
+        stripped = _strip_accents(query)
+        if stripped != query:
+            items = _search(stripped)
+
     results = []
-    for item in data.get("results", []):
+    for item in items:
         if media_type == "tv":
             title = item.get("name") or item.get("original_name") or "(sin título)"
             date = item.get("first_air_date") or ""

@@ -2,6 +2,7 @@ import calendar as calendar_module
 import random
 import unicodedata
 from datetime import date, timedelta
+from decimal import Decimal, InvalidOperation
 from functools import wraps
 
 import requests
@@ -22,7 +23,7 @@ from apps.core.google_calendar import create_event as google_create_event
 from apps.core.google_calendar import delete_event as google_delete_event
 from apps.core.google_calendar import google_calendar_enabled
 from apps.core.models import get_effective_theme
-from apps.movies.models import Movie
+from apps.movies.models import Movie, SavedMovie
 from apps.movies.services import MovieAPIError, tmdb_search
 from apps.social.models import are_friends, friends_of
 
@@ -38,9 +39,11 @@ from .forms import (
 )
 from .models import (
     CalendarDayNote,
+    CalendarShareMember,
     Genre,
     PhotoBoardMember,
     ReleaseEvent,
+    SecretListMember,
     SecretMovie,
     SecretPhoto,
     TierLevel,
@@ -73,15 +76,62 @@ def _is_admin(user):
     return user.is_authenticated and user.role == User.Role.ADMIN
 
 
-def _visible_movies(user):
-    """Base queryset de SecretMovie según quién mira: un Admin ve todo,
-    cualquier otra persona (aunque tenga el código) no ve ninguna
-    película marcada con una lista `admin_only`, ni ninguna película
-    marcada como `admin_only` ella misma (independiente de sus listas)."""
-    movies = SecretMovie.objects.prefetch_related("genres").select_related("movie")
-    if _is_admin(user):
-        return movies
-    return movies.exclude(genres__admin_only=True).exclude(admin_only=True)
+def _visible_movies(user, owner):
+    """Base queryset de SecretMovie de UN dueño concreto (`owner`, `None`
+    para la lista de Bygui). La lista de Bygui sigue ocultando lo
+    `admin_only` a quien no sea Admin, igual que siempre; una lista propia
+    se ve entera por quien tenga permiso para verla — ese permiso ya se
+    decidió en `_resolve_scope`, aquí no hay nada más que filtrar."""
+    movies = SecretMovie.objects.filter(owner=owner).prefetch_related("genres").select_related("movie")
+    if owner is None and not _is_admin(user):
+        movies = movies.exclude(genres__admin_only=True).exclude(admin_only=True)
+    return movies
+
+
+def _resolve_scope(request):
+    """A qué lista completa se refiere esta petición, y si quien mira
+    puede editarla. Todo el mundo con cuenta tiene su propia lista,
+    siempre editable por su dueño y de nadie más; la lista de Bygui es un
+    caso especial de "propia" que por continuidad con los datos de
+    siempre se sigue guardando con owner=None en vez de con su usuario, y
+    que solo ella (Admin) puede editar — y únicamente mientras
+    TopSecretConfig.allow_web_editing esté activo, igual que siempre.
+
+    - 'own' (por defecto si tienes cuenta): tu propia lista.
+    - 'bygui' (por defecto si no tienes cuenta): la lista de Bygui — de
+      solo lectura para cualquiera que no sea ella.
+    - cualquier otro valor: el username de alguien que te ha dado acceso
+      de solo lectura a la suya (ver SecretListMember). 404 si no es así.
+
+    Devuelve (owner, editable, scope): `owner` es el User dueño de esa
+    lista (None para la de Bygui), `scope` es el valor a propagar en los
+    enlaces/formularios de esa misma página."""
+    user = request.user
+    scope = request.GET.get("scope") or request.POST.get("scope")
+    if not scope:
+        scope = "own" if user.is_authenticated else "bygui"
+
+    if _is_admin(user) and scope in ("own", "bygui"):
+        # Para Bygui, "mi lista" y "la lista de Bygui" son la misma cosa —
+        # los datos de siempre, sin una copia aparte vacía para ella.
+        return None, _web_editing_allowed(), scope
+
+    if scope == "own":
+        if not user.is_authenticated:
+            raise Http404
+        return user, True, "own"
+
+    if scope == "bygui":
+        return None, False, "bygui"
+
+    if not user.is_authenticated:
+        raise Http404
+    friend_owner = get_object_or_404(User, username=scope)
+    if friend_owner.pk == user.pk:
+        return user, True, "own"
+    if not SecretListMember.objects.filter(owner=friend_owner, member=user).exists():
+        raise Http404
+    return friend_owner, False, scope
 
 
 def secret_required(view_func):
@@ -129,11 +179,30 @@ def lock(request):
 
 @secret_required
 def home(request):
-    return render(request, "secret/home.html")
+    owner, editable, scope = _resolve_scope(request)
+    return render(request, "secret/home.html", {
+        "scope": scope, "editable": editable, "list_owner": owner,
+        **_scope_context(request),
+    })
+
+
+def _scope_context(request):
+    """Contexto común de selector de lista para by_number/by_rating/list:
+    tu propia lista, la de Bygui y las que te hayan compartido (ver
+    SecretListMember) — para pintar el botón/desplegable "qué lista
+    estás viendo" en las tres pantallas."""
+    user = request.user
+    shared_with_me = []
+    if user.is_authenticated:
+        shared_with_me = [
+            m.owner for m in SecretListMember.objects.filter(member=user).select_related("owner")
+        ]
+    return {"shared_with_me": shared_with_me}
 
 
 @secret_required
 def by_number(request):
+    owner, editable, scope = _resolve_scope(request)
     form = NumberSelectForm(request.GET or None)
     result = None
     searched = False
@@ -147,25 +216,32 @@ def by_number(request):
         # solo se ha filtrado por ser de una lista oculta para este
         # usuario, se mantiene el 404 (igual que movie_detail): no se
         # distingue "no existe" de "no puedes verla".
-        result = _visible_movies(request.user).filter(number=number).first()
-        if result is None and SecretMovie.objects.filter(number=number).exists():
+        result = _visible_movies(request.user, owner).filter(number=number).first()
+        if result is None and SecretMovie.objects.filter(owner=owner, number=number).exists():
             raise Http404
-    return render(request, "secret/by_number.html", {"form": form, "result": result, "searched": searched})
+    return render(request, "secret/by_number.html", {
+        "form": form, "result": result, "searched": searched,
+        "scope": scope, "editable": editable, "list_owner": owner,
+        **_scope_context(request),
+    })
 
 
 @secret_required
 def by_rating(request):
+    owner, editable, scope = _resolve_scope(request)
     form = RatingSearchForm(request.GET or None)
     result = None
     searched = False
     genre_slug = request.GET.get("genre", "").strip()
-    genres = Genre.objects.all() if _is_admin(request.user) else Genre.objects.filter(admin_only=False)
+    genres = Genre.objects.filter(owner=owner)
+    if owner is None and not _is_admin(request.user):
+        genres = genres.filter(admin_only=False)
     selected_genre_name = next((g.name for g in genres if g.slug == genre_slug), "")
 
     if request.GET and form.is_valid():
         searched = True
         min_r, max_r = int(form.cleaned_data["min_rating"]), int(form.cleaned_data["max_rating"])
-        matches = _visible_movies(request.user).filter(personal_rating__gte=min_r, personal_rating__lte=max_r)
+        matches = _visible_movies(request.user, owner).filter(personal_rating__gte=min_r, personal_rating__lte=max_r)
         if genre_slug:
             matches = matches.filter(genres__slug=genre_slug)
         matches = list(matches)
@@ -175,13 +251,16 @@ def by_rating(request):
     return render(request, "secret/by_rating.html", {
         "form": form, "result": result, "searched": searched,
         "genres": genres, "selected_genre": genre_slug, "selected_genre_name": selected_genre_name,
+        "scope": scope, "editable": editable, "list_owner": owner,
+        **_scope_context(request),
     })
 
 
 @secret_required
 def full_list(request):
-    form = FullListFilterForm(request.GET or None, admin_user=_is_admin(request.user))
-    movies = _visible_movies(request.user)
+    owner, editable, scope = _resolve_scope(request)
+    form = FullListFilterForm(request.GET or None, owner=owner, admin_user=_is_admin(request.user))
+    movies = _visible_movies(request.user, owner)
     if form.is_valid():
         genres = form.cleaned_data.get("genres")
         if genres:
@@ -256,7 +335,10 @@ def full_list(request):
         "movies": page_obj, "form": form, "rating_config": rating_config,
         "sort": sort, "querystring": querystring.urlencode(), "query": query,
         "media_type": media_type,
-        "all_genres": Genre.objects.all() if rating_config.allow_web_editing else Genre.objects.none(),
+        "all_genres": Genre.objects.filter(owner=owner) if editable else Genre.objects.none(),
+        "scope": scope, "editable": editable, "list_owner": owner,
+        "can_add": scope == "own",
+        **_scope_context(request),
     }
     if _is_htmx(request):
         return render(request, "secret/_list_items.html", context)
@@ -265,9 +347,11 @@ def full_list(request):
 
 @secret_required
 def movie_detail(request, pk):
-    movie = get_object_or_404(_visible_movies(request.user), pk=pk)
+    owner, editable, scope = _resolve_scope(request)
+    movie = get_object_or_404(_visible_movies(request.user, owner), pk=pk)
     return render(request, "secret/movie_detail.html", {
         "movie": movie, "rating_config": TopSecretConfig.load(),
+        "scope": scope, "editable": editable, "list_owner": owner,
     })
 
 
@@ -283,47 +367,59 @@ _WATCH_STATUS_CYCLE = [
 @secret_required
 @login_required
 def movie_watch_cycle(request, pk):
-    movie = get_object_or_404(_visible_movies(request.user), pk=pk)
-    if request.method == "POST" and movie.movie_id and movie.movie.is_tv:
+    owner, editable, scope = _resolve_scope(request)
+    movie = get_object_or_404(_visible_movies(request.user, owner), pk=pk)
+    if request.method == "POST" and editable and movie.movie_id and movie.movie.is_tv:
         current = movie.series_watch_status or SecretMovie.SeriesWatchStatus.NOT_WATCHED
         next_index = (_WATCH_STATUS_CYCLE.index(current) + 1) % len(_WATCH_STATUS_CYCLE)
         movie.series_watch_status = _WATCH_STATUS_CYCLE[next_index]
         movie.save(update_fields=["series_watch_status"])
     template = "secret/_movie_detail_poster.html" if request.GET.get("context") == "detail" else "secret/_movie_poster.html"
-    return render(request, template, {"movie": movie})
+    return render(request, template, {"movie": movie, "scope": scope, "editable": editable})
 
 
 def _web_editing_allowed():
     return TopSecretConfig.load().allow_web_editing
 
 
+def _drop_from_saved(user, movie):
+    """Una película que acabas de catalogar en una lista secreta (la tuya
+    o la de Bygui) ya no necesita seguir en tus Guardadas de "quiero
+    verla" -- se quita solo de las TUYAS, nunca de las de otro usuario.
+    Si más tarde la vuelves a guardar a mano, se guarda sin problema (esto
+    no la bloquea, solo la quita una vez en el momento de catalogarla)."""
+    if user.is_authenticated and movie is not None:
+        SavedMovie.objects.filter(user=user, movie=movie).delete()
+
+
 @secret_required
 @login_required
 def movie_quick_edit(request, pk):
-    """Editar nota, desempate y listas de una película directamente desde
-    Lista completa, sin pasar por el admin -- solo mientras
-    TopSecretConfig.allow_web_editing esté activo (ver _web_editing_allowed)."""
-    if not _web_editing_allowed():
+    """Editar título, nota, desempate, comentario y listas de una película
+    directamente desde una lista completa, sin pasar por el admin —
+    disponible en tu propia lista (u otra que edites vía _resolve_scope)
+    sin restricción, y en la de Bygui solo si eres Admin y
+    TopSecretConfig.allow_web_editing está activo."""
+    owner, editable, scope = _resolve_scope(request)
+    if not editable:
         raise Http404
-    movie = get_object_or_404(_visible_movies(request.user), pk=pk)
+    movie = get_object_or_404(_visible_movies(request.user, owner), pk=pk)
     if request.method == "POST":
-        form = SecretMovieQuickEditForm(request.POST, instance=movie)
+        form = SecretMovieQuickEditForm(request.POST, instance=movie, owner=owner)
         if form.is_valid():
             form.save()
             messages.success(request, f"«{movie.title}» actualizada.")
         else:
             messages.error(request, "No se pudo guardar: revisa la nota.")
-    # "next" viene de un campo oculto del propio formulario (para volver a
-    # la misma página/filtro de Lista completa) — se valida igual que
-    # cualquier redirección con destino enviado por el cliente, para que
-    # manipular ese campo no sirva para mandar a otra web (open redirect).
-    next_url = request.POST.get("next", "")
-    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
-        return redirect(next_url)
-    return redirect("secret:list")
+    return _movie_quick_edit_redirect(request)
 
 
 def _movie_quick_edit_redirect(request):
+    # "next" viene de un campo oculto del propio formulario (para volver a
+    # la misma página/filtro, con su ?scope= incluido) — se valida igual
+    # que cualquier redirección con destino enviado por el cliente, para
+    # que manipular ese campo no sirva para mandar a otra web (open
+    # redirect).
     next_url = request.POST.get("next", "")
     if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
         return redirect(next_url)
@@ -333,12 +429,12 @@ def _movie_quick_edit_redirect(request):
 @secret_required
 @login_required
 def movie_poster_search(request, pk):
-    """Buscar en TMDb para enlazar como portada desde Lista completa (mismo
-    hueco que nota/desempate/listas, ver movie_quick_edit) -- solo mientras
-    TopSecretConfig.allow_web_editing esté activo."""
-    if not _web_editing_allowed():
+    """Buscar en TMDb para enlazar como portada desde una lista completa
+    (mismo hueco que nota/desempate/listas, ver movie_quick_edit)."""
+    owner, editable, scope = _resolve_scope(request)
+    if not editable:
         raise Http404
-    get_object_or_404(_visible_movies(request.user), pk=pk)
+    get_object_or_404(_visible_movies(request.user, owner), pk=pk)
     query = request.GET.get("query", "").strip()
     results = []
     error = None
@@ -348,16 +444,17 @@ def movie_poster_search(request, pk):
         except MovieAPIError as exc:
             error = str(exc)
     return render(request, "secret/_movie_poster_search_results.html", {
-        "results": results, "error": error, "query": query, "movie_pk": pk,
+        "results": results, "error": error, "query": query, "movie_pk": pk, "scope": scope,
     })
 
 
 @secret_required
 @login_required
 def movie_poster_set(request, pk, tmdb_id):
-    if not _web_editing_allowed():
+    owner, editable, scope = _resolve_scope(request)
+    if not editable:
         raise Http404
-    movie = get_object_or_404(_visible_movies(request.user), pk=pk)
+    movie = get_object_or_404(_visible_movies(request.user, owner), pk=pk)
     if request.method == "POST":
         try:
             catalog_movie = Movie.get_or_create_from_tmdb(tmdb_id)
@@ -366,16 +463,18 @@ def movie_poster_set(request, pk, tmdb_id):
         else:
             movie.movie = catalog_movie
             movie.save(update_fields=["movie"])
+            _drop_from_saved(request.user, catalog_movie)
             messages.success(request, "Portada actualizada.")
-    return redirect("secret:list")
+    return redirect(f"{reverse('secret:list')}?scope={scope}")
 
 
 @secret_required
 @login_required
 def movie_poster_remove(request, pk):
-    if not _web_editing_allowed():
+    owner, editable, scope = _resolve_scope(request)
+    if not editable:
         raise Http404
-    movie = get_object_or_404(_visible_movies(request.user), pk=pk)
+    movie = get_object_or_404(_visible_movies(request.user, owner), pk=pk)
     if request.method == "POST":
         movie.movie = None
         movie.save(update_fields=["movie"])
@@ -386,31 +485,158 @@ def movie_poster_remove(request, pk):
 @secret_required
 @login_required
 def genre_manage(request):
-    if not _web_editing_allowed():
+    owner, editable, scope = _resolve_scope(request)
+    if not editable:
         raise Http404
     if request.method == "POST":
         form = GenreQuickForm(request.POST)
         if form.is_valid():
-            form.save()
+            genre = form.save(commit=False)
+            genre.owner = owner
+            genre.save()
             messages.success(request, "Lista creada.")
         else:
             messages.error(request, "No se pudo crear la lista (¿ya existe ese nombre?).")
-        return redirect("secret:genre-manage")
+        return redirect(f"{reverse('secret:genre-manage')}?scope={scope}")
     return render(request, "secret/genre_manage.html", {
-        "genres": Genre.objects.all(), "form": GenreQuickForm(),
+        "genres": Genre.objects.filter(owner=owner), "form": GenreQuickForm(), "scope": scope,
     })
 
 
 @secret_required
 @login_required
 def genre_delete(request, pk):
-    if not _web_editing_allowed():
+    owner, editable, scope = _resolve_scope(request)
+    if not editable:
         raise Http404
-    genre = get_object_or_404(Genre, pk=pk)
+    genre = get_object_or_404(Genre, pk=pk, owner=owner)
     if request.method == "POST":
         genre.delete()
         messages.success(request, f"Lista «{genre.name}» eliminada.")
-    return redirect("secret:genre-manage")
+    return redirect(f"{reverse('secret:genre-manage')}?scope={scope}")
+
+
+@secret_required
+@login_required
+def own_movie_add_search(request):
+    """Buscar en TMDb para añadir una película nueva a tu propia lista —
+    a diferencia de la de Bygui (gestionada desde el admin), tu lista no
+    tiene equivalente en /admin/: todo el alta se hace desde aquí."""
+    query = request.GET.get("query", "").strip()
+    results = []
+    error = None
+    if query:
+        try:
+            results = tmdb_search(query)[:8]
+        except MovieAPIError as exc:
+            error = str(exc)
+    return render(request, "secret/_own_add_results.html", {"results": results, "error": error, "query": query})
+
+
+@secret_required
+@login_required
+def own_movie_add(request, tmdb_id):
+    if request.method == "POST":
+        try:
+            rating = Decimal(request.POST.get("personal_rating", "5")).quantize(Decimal("0.1"))
+        except (InvalidOperation, TypeError):
+            rating = Decimal("5")
+        rating = min(max(rating, Decimal("1")), Decimal("10"))
+        comment = request.POST.get("comment", "").strip()
+
+        try:
+            catalog_movie = Movie.get_or_create_from_tmdb(tmdb_id)
+        except MovieAPIError as exc:
+            messages.error(request, str(exc))
+        else:
+            existing = SecretMovie.objects.filter(owner=request.user, movie=catalog_movie).first()
+            if existing:
+                messages.info(request, f"«{catalog_movie.title}» ya está en tu lista.")
+            else:
+                SecretMovie.objects.create(
+                    owner=request.user, movie=catalog_movie, title=catalog_movie.title,
+                    personal_rating=rating, comment=comment,
+                )
+                _drop_from_saved(request.user, catalog_movie)
+                messages.success(request, f"«{catalog_movie.title}» añadida a tu lista.")
+    return redirect(f"{reverse('secret:list')}?scope=own")
+
+
+@secret_required
+@login_required
+def own_movie_delete(request, pk):
+    movie = get_object_or_404(SecretMovie, pk=pk, owner=request.user)
+    if request.method == "POST":
+        movie.delete()
+        messages.success(request, f"«{movie.title}» eliminada de tu lista.")
+    return redirect(f"{reverse('secret:list')}?scope=own")
+
+
+@secret_required
+@login_required
+def shared_hub(request):
+    """Un único sitio para ver y gestionar qué compartes de tu Top Secret
+    (lista, tablón de fotos, calendario) con cada amigo, y qué te han
+    compartido a ti -- antes había que entrar a cada apartado por
+    separado para gestionar su propio "compartir". Los interruptores de
+    aquí reutilizan las mismas invitar/expulsar de cada apartado, así que
+    activarlos ahí o desde aquí es exactamente lo mismo."""
+    friends = friends_of(request.user)
+    list_members = {m.member_id: m for m in SecretListMember.objects.filter(owner=request.user)}
+    photo_members = {m.member_id: m for m in PhotoBoardMember.objects.filter(owner=request.user)}
+    calendar_members = {m.member_id: m for m in CalendarShareMember.objects.filter(owner=request.user)}
+
+    rows = [
+        {
+            "friend": friend,
+            "list_member": list_members.get(friend.pk),
+            "photo_member": photo_members.get(friend.pk),
+            "calendar_member": calendar_members.get(friend.pk),
+        }
+        for friend in friends
+    ]
+
+    shared_with_me = {
+        "list": [m.owner for m in SecretListMember.objects.filter(member=request.user).select_related("owner")],
+        "photos": [m.owner for m in PhotoBoardMember.objects.filter(member=request.user).select_related("owner")],
+        "calendar": [m.owner for m in CalendarShareMember.objects.filter(member=request.user).select_related("owner")],
+    }
+
+    return render(request, "secret/shared_hub.html", {"rows": rows, "shared_with_me": shared_with_me})
+
+
+@secret_required
+@login_required
+def own_list_share(request):
+    """Gestionar con qué amigos compartes tu lista propia (solo lectura
+    para ellos) — mismo patrón que el tablón de fotos (PhotoBoardMember)."""
+    members = SecretListMember.objects.filter(owner=request.user).select_related("member")
+    member_ids = {m.member_id for m in members}
+    invitable_friends = [f for f in friends_of(request.user) if f.pk not in member_ids]
+    shared_with_me = SecretListMember.objects.filter(member=request.user).select_related("owner")
+    return render(request, "secret/own_list_share.html", {
+        "members": members, "invitable_friends": invitable_friends, "shared_with_me": shared_with_me,
+    })
+
+
+@secret_required
+@login_required
+def own_list_share_invite(request, username):
+    friend = get_object_or_404(User, username=username)
+    if request.method == "POST" and are_friends(request.user, friend):
+        SecretListMember.objects.get_or_create(owner=request.user, member=friend)
+        messages.success(request, f"{friend} ya puede ver tu lista.")
+    return redirect("secret:own-list-share")
+
+
+@secret_required
+@login_required
+def own_list_share_kick(request, pk):
+    member = get_object_or_404(SecretListMember, pk=pk, owner=request.user)
+    if request.method == "POST":
+        member.delete()
+        messages.success(request, f"{member.member} ya no puede ver tu lista.")
+    return redirect("secret:own-list-share")
 
 
 @secret_required
@@ -809,18 +1035,29 @@ def _events_by_date(user, year, month):
     return events_by_date
 
 
+def _can_access_calendar(viewer, owner):
+    return viewer.pk == owner.pk or CalendarShareMember.objects.filter(owner=owner, member=viewer).exists()
+
+
 @secret_required
 @login_required
-def calendar_view(request):
+def calendar_view(request, username=None):
+    owner = request.user
+    if username:
+        owner = get_object_or_404(User, username=username)
+        if not _can_access_calendar(request.user, owner):
+            raise Http404
+    is_owner = owner.pk == request.user.pk
+
     today = timezone.localdate()
     year, month, first_of_month = _parse_calendar_month(request, today)
 
     raw_weeks = calendar_module.Calendar(firstweekday=0).monthdatescalendar(year, month)
-    events_by_date = _events_by_date(request.user, year, month)
+    events_by_date = _events_by_date(owner, year, month)
 
     notes_by_date = {
         note.date: note.note
-        for note in CalendarDayNote.objects.filter(user=request.user, date__year=year, date__month=month)
+        for note in CalendarDayNote.objects.filter(user=owner, date__year=year, date__month=month)
     }
 
     weeks = [
@@ -849,9 +1086,45 @@ def calendar_view(request):
         "prev_month": prev_month_date.month,
         "next_year": next_month_date.year,
         "next_month": next_month_date.month,
-        "google_calendar_enabled": google_calendar_enabled(),
-        "google_calendar_connected": hasattr(request.user, "google_calendar_connection"),
+        "google_calendar_enabled": google_calendar_enabled() if is_owner else False,
+        "google_calendar_connected": is_owner and hasattr(request.user, "google_calendar_connection"),
+        "calendar_owner": owner,
+        "is_owner": is_owner,
     })
+
+
+@secret_required
+@login_required
+def calendar_share(request):
+    """Gestionar con qué amigos compartes tu calendario (solo lectura para
+    ellos) — mismo patrón que el tablón de fotos y tu lista propia."""
+    members = CalendarShareMember.objects.filter(owner=request.user).select_related("member")
+    member_ids = {m.member_id for m in members}
+    invitable_friends = [f for f in friends_of(request.user) if f.pk not in member_ids]
+    shared_with_me = CalendarShareMember.objects.filter(member=request.user).select_related("owner")
+    return render(request, "secret/calendar_share.html", {
+        "members": members, "invitable_friends": invitable_friends, "shared_with_me": shared_with_me,
+    })
+
+
+@secret_required
+@login_required
+def calendar_share_invite(request, username):
+    friend = get_object_or_404(User, username=username)
+    if request.method == "POST" and are_friends(request.user, friend):
+        CalendarShareMember.objects.get_or_create(owner=request.user, member=friend)
+        messages.success(request, f"{friend} ya puede ver tu calendario.")
+    return redirect("secret:calendar-share")
+
+
+@secret_required
+@login_required
+def calendar_share_kick(request, pk):
+    member = get_object_or_404(CalendarShareMember, pk=pk, owner=request.user)
+    if request.method == "POST":
+        member.delete()
+        messages.success(request, f"{member.member} ya no puede ver tu calendario.")
+    return redirect("secret:calendar-share")
 
 
 def _ascii_safe(text, fallback="(titulo no compatible)"):

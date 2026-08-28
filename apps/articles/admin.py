@@ -80,6 +80,8 @@ class ArticleCommentAdmin(admin.ModelAdmin):
     list_display = ("article", "author", "created_at")
     list_filter = ("created_at",)
     search_fields = ("body", "author__email")
+    autocomplete_fields = ("article", "author")
+    date_hierarchy = "created_at"
 
 
 @admin.register(ArticleIdea)

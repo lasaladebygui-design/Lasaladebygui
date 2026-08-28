@@ -3,11 +3,10 @@
 // parada) hasta encajar en el cartel final — paran en momentos distintos
 // (la de la izquierda antes, la de la derecha la última) para que se note
 // la expectativa, como en una tragaperras de verdad. Cuando las tres han
-// parado, aparece la ficha de la película.
-// A los 5s de parar, el panel entero se oculta y vuelve a como estaba
-// antes de girar (solo el botón "Girar la ruleta"), listo para otra
-// tirada sin que la ficha anterior se quede estorbando.
-const RESET_AFTER_MS = 5000;
+// parado, aparece la ficha de la película y se queda ahí: no desaparece
+// sola. El usuario decide cuándo dejarla atrás, pulsando "Ver ficha" (te
+// lleva a la película) o "Girar de nuevo" (el botón de arriba, siempre
+// visible, para repetir sin esperar a nada).
 
 function slotSpin(reels) {
     return {
@@ -15,7 +14,6 @@ function slotSpin(reels) {
         indices: reels.map(() => 0),
         spinning: reels.map(() => true),
         allStopped: false,
-        hidden: false,
 
         init() {
             this.playTick();
@@ -37,7 +35,6 @@ function slotSpin(reels) {
                     if (this.spinning.every((s) => !s)) {
                         this.allStopped = true;
                         this.playJackpot();
-                        setTimeout(() => { this.hidden = true; }, RESET_AFTER_MS);
                     }
                     return;
                 }

@@ -64,17 +64,27 @@ class VoteAdmin(admin.ModelAdmin):
 @admin.register(RouletteRatingSeen)
 class RouletteRatingSeenAdmin(admin.ModelAdmin):
     list_display = ("user", "movie", "seen_at")
+    list_filter = ("user",)
+    search_fields = ("user__username", "movie__title")
+    autocomplete_fields = ("movie",)
+    date_hierarchy = "seen_at"
 
 
 @admin.register(RouletteSavedSeen)
 class RouletteSavedSeenAdmin(admin.ModelAdmin):
     list_display = ("user", "movie", "seen_at")
+    list_filter = ("user",)
+    search_fields = ("user__username", "movie__title")
+    autocomplete_fields = ("movie",)
+    date_hierarchy = "seen_at"
 
 
 @admin.register(SavedMovie)
 class SavedMovieAdmin(admin.ModelAdmin):
     list_display = ("user", "movie", "saved_at")
     list_filter = ("sublists",)
+    search_fields = ("user__username", "movie__title")
+    autocomplete_fields = ("movie",)
     filter_horizontal = ("sublists",)
 
 

@@ -25,6 +25,8 @@ class ThreadCommentAdmin(admin.ModelAdmin):
     list_display = ("thread", "author", "parent", "is_deleted", "created_at")
     list_filter = ("is_deleted",)
     search_fields = ("body", "author__email")
+    autocomplete_fields = ("thread", "author", "parent")
+    date_hierarchy = "created_at"
 
 
 @admin.register(ThreadRead)

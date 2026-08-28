@@ -1,5 +1,5 @@
 {% if reel_json %}
-<div class="slot-machine" x-data='slotSpin({{ reel_json|safe }})' x-init="init()" x-show="!hidden" x-transition>
+<div class="slot-machine" x-data='slotSpin({{ reel_json|safe }})' x-init="init()">
     <div class="slot-machine__lights">
         <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
     </div>
@@ -23,6 +23,10 @@
                 <h3><a href="{% url 'movies:detail' result.pk %}">{{ result.title }}</a></h3>
                 <p class="muted">{{ result.year }}{% if result.imdb_rating %} · IMDb {{ result.imdb_rating }}{% endif %}</p>
                 <p>{{ result.overview|truncatewords:25 }}</p>
+                <div class="roulette-result__actions">
+                    <a href="{% url 'movies:detail' result.pk %}" class="btn btn--accent">Ver ficha</a>
+                    <span class="muted roulette-result__hint">o gira otra vez arriba ↑</span>
+                </div>
             </div>
         </div>
     </div>

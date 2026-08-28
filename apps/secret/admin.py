@@ -9,10 +9,12 @@ from apps.movies.models import Movie
 from .forms import SecretMovieForm
 from .models import (
     CalendarDayNote,
+    CalendarShareMember,
     Genre,
     PhotoBoardMember,
     RatingColorBand,
     ReleaseEvent,
+    SecretListMember,
     SecretMovie,
     SecretPhoto,
     TierLevel,
@@ -81,26 +83,48 @@ class TopSecretConfigAdmin(SingletonAdmin):
 
 @admin.register(Genre)
 class GenreAdmin(SortableAdminMixin, admin.ModelAdmin):
-    list_display = ("name", "admin_only")
+    # Se ve TODO -- la de Bygui (owner vacío) y la de cada usuario -- para
+    # que el Admin pueda moderar cualquier lista propia si hace falta
+    # (borrar algo inapropiado, etc.), aunque el alta normal de las
+    # propias se siga haciendo desde la web (Top Secret → tu lista).
+    list_display = ("name", "owner", "admin_only")
     list_display_links = ("name",)
     list_editable = ("admin_only",)
-    list_filter = ("admin_only",)
+    list_filter = ("admin_only", "owner")
     exclude = ("slug", "order")
-    search_fields = ("name",)
+    search_fields = ("name", "owner__username")
+    autocomplete_fields = ("owner",)
 
 
 @admin.register(SecretMovie)
 class SecretMovieAdmin(admin.ModelAdmin):
+    # Se ve TODO -- la lista de Bygui (owner vacío) y la propia de cada
+    # usuario -- para poder moderar cualquiera desde aquí si hace falta,
+    # aunque el alta normal de las propias se siga haciendo desde la web.
     form = SecretMovieForm
-    list_display = ("number", "title", "personal_rating", "tie_break", "genre_list", "admin_only")
+    list_display = ("number", "title", "owner", "personal_rating", "tie_break", "genre_list", "admin_only")
     # Por defecto Django solo deja clicable la primera columna (number) —
     # aquí cualquiera de las columnas visibles lleva a la ficha de edición.
     list_display_links = ("number", "title", "personal_rating", "tie_break", "genre_list")
     list_editable = ("admin_only",)
-    list_filter = ("admin_only",)
-    search_fields = ("title",)
-    autocomplete_fields = ("movie",)
-    ordering = ("number",)
+    list_filter = ("admin_only", "owner")
+    search_fields = ("title", "owner__username")
+    autocomplete_fields = ("movie", "owner")
+    ordering = ("owner", "number")
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            # Solo al crear una nueva desde aquí: por defecto es de Bygui,
+            # igual que siempre (crear a nombre de otro usuario se hace
+            # desde su propia lista en la web, no desde aquí).
+            obj.owner = None
+        super().save_model(request, obj, form, change)
+        # Igual que al enlazar portada desde la web (movie_poster_set): si
+        # acabas de catalogar la película aquí, ya no hace falta que siga
+        # en tus propias Guardadas de "quiero verla".
+        if obj.movie_id:
+            from apps.movies.models import SavedMovie
+            SavedMovie.objects.filter(user=request.user, movie_id=obj.movie_id).delete()
 
     class Media:
         js = ("js/admin_secret_movie_watch_status.js",)
@@ -140,6 +164,24 @@ class SecretPhotoAdmin(admin.ModelAdmin):
 
 @admin.register(PhotoBoardMember)
 class PhotoBoardMemberAdmin(admin.ModelAdmin):
+    list_display = ("owner", "member", "invited_at")
+    search_fields = ("owner__username", "member__username")
+    autocomplete_fields = ("owner", "member")
+
+
+@admin.register(SecretListMember)
+class SecretListMemberAdmin(admin.ModelAdmin):
+    # Gestión normal: desde la propia web (Top Secret → tu lista →
+    # compartir). Esto es solo para verlo/depurarlo desde el admin.
+    list_display = ("owner", "member", "invited_at")
+    search_fields = ("owner__username", "member__username")
+    autocomplete_fields = ("owner", "member")
+
+
+@admin.register(CalendarShareMember)
+class CalendarShareMemberAdmin(admin.ModelAdmin):
+    # Gestión normal: desde la propia web (Top Secret → calendario →
+    # compartir). Esto es solo para verlo/depurarlo desde el admin.
     list_display = ("owner", "member", "invited_at")
     search_fields = ("owner__username", "member__username")
     autocomplete_fields = ("owner", "member")

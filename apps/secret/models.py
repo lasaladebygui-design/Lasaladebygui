@@ -2,6 +2,7 @@ from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.files.storage import storages
 from django.db import models
+from django.db.models import Q
 from django.utils.text import slugify
 
 from apps.core.models import SingletonModel, hex_field
@@ -82,13 +83,23 @@ class Genre(models.Model):
     """Lista temática de una película secreta (terror, slasher, años 80...),
     lo que antes se llamaba género/subgénero. Igual que las listas de
     Artículos o de Guardadas: texto libre, se crea sobre la marcha al
-    escribirla en el admin — no es una lista cerrada."""
+    escribirla — no es una lista cerrada.
 
-    name = models.CharField("nombre", max_length=50, unique=True)
-    slug = models.SlugField("slug", max_length=60, unique=True, blank=True)
+    `owner=None` es la lista de listas de Bygui (la original, gestionada
+    desde el admin); `owner=<usuario>` son las listas propias de la lista
+    personal de ese usuario dentro de Top Secret — cada cual con sus
+    propios nombres, sin compartir espacio de nombres con nadie más (dos
+    personas pueden tener cada una una lista llamada "Terror" sin chocar)."""
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="dueño (vacío = lista de Bygui)",
+        on_delete=models.CASCADE, null=True, blank=True, related_name="own_secret_genres",
+    )
+    name = models.CharField("nombre", max_length=50)
+    slug = models.SlugField("slug", max_length=60, blank=True)
     admin_only = models.BooleanField(
         "solo para admins", default=False,
-        help_text="Ni esta lista ni ninguna película marcada con ella las ve nadie más, aunque tenga el código.",
+        help_text="Ni esta lista ni ninguna película marcada con ella las ve nadie más, aunque tenga el código. Solo aplica a las listas de Bygui.",
     )
     order = models.PositiveIntegerField("orden", default=0)
 
@@ -96,6 +107,12 @@ class Genre(models.Model):
         verbose_name = "lista"
         verbose_name_plural = "listas"
         ordering = ["order", "name"]
+        constraints = [
+            models.UniqueConstraint(fields=["name"], condition=Q(owner__isnull=True), name="nombre_unico_listas_bygui"),
+            models.UniqueConstraint(fields=["owner", "name"], condition=Q(owner__isnull=False), name="nombre_unico_por_dueno"),
+            models.UniqueConstraint(fields=["slug"], condition=Q(owner__isnull=True), name="slug_unico_listas_bygui"),
+            models.UniqueConstraint(fields=["owner", "slug"], condition=Q(owner__isnull=False), name="slug_unico_por_dueno"),
+        ]
 
     def __str__(self):
         return self.name
@@ -107,16 +124,27 @@ class Genre(models.Model):
 
 
 class SecretMovie(models.Model):
-    """Entrada de la lista personal de Quentin: un número (para el selector),
-    su propia nota (distinta de la media de votos o de IMDb) y un comentario.
-    Puede enlazar opcionalmente a una película del catálogo (apps.movies)
-    para reutilizar su portada."""
+    """Entrada de una lista completa de Top Secret: un número (para el
+    selector), su propia nota (distinta de la media de votos o de IMDb) y
+    un comentario. Puede enlazar opcionalmente a una película del catálogo
+    (apps.movies) para reutilizar su portada.
 
+    `owner=None` es la lista original de Bygui (gestionada desde el admin,
+    como siempre). `owner=<usuario>` es la lista propia de ESE usuario:
+    cualquiera con cuenta tiene la suya, la gestiona entera desde la web
+    (sin pasar por el admin) y decide con quién compartirla en modo lectura
+    (ver `SecretListMember`). Cada dueño numera y ordena su lista aparte —
+    dos personas pueden tener cada una una película con el número 1."""
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="dueño (vacío = lista de Bygui)",
+        on_delete=models.CASCADE, null=True, blank=True, related_name="own_secret_movies",
+    )
     # No se elige a mano: se recalcula solo en cada guardado/borrado según la
     # nota (ver `_renumber_all`), así que no es editable desde el
     # formulario/admin — lo único editable para influir en el número es la
     # nota misma, o `tie_break` cuando dos tienen la misma nota.
-    number = models.PositiveIntegerField("número", unique=True, editable=False, default=0)
+    number = models.PositiveIntegerField("número", editable=False, default=0)
     title = models.CharField("título", max_length=255)
     personal_rating = models.DecimalField("nota personal", max_digits=3, decimal_places=1)
     tie_break = models.PositiveIntegerField(
@@ -156,6 +184,10 @@ class SecretMovie(models.Model):
         verbose_name = "entrada a la lista completa"
         verbose_name_plural = "películas secretas"
         ordering = ["number"]
+        constraints = [
+            models.UniqueConstraint(fields=["number"], condition=Q(owner__isnull=True), name="numero_unico_lista_bygui"),
+            models.UniqueConstraint(fields=["owner", "number"], condition=Q(owner__isnull=False), name="numero_unico_por_dueno"),
+        ]
 
     def __str__(self):
         return f"#{self.number} — {self.title}"
@@ -174,7 +206,7 @@ class SecretMovie(models.Model):
             if current_number is not None:
                 self.number = current_number
         super().save(*args, **kwargs)
-        type(self)._renumber_all()
+        type(self)._renumber_all(self.owner_id)
         # `_renumber_all` opera sobre copias propias leídas de la base de
         # datos, así que no toca este `self` — sin este refresco, quien
         # acaba de guardar vería `number` desactualizado (p. ej. 0 para una
@@ -182,15 +214,18 @@ class SecretMovie(models.Model):
         self.refresh_from_db(fields=["number"])
 
     def delete(self, *args, **kwargs):
+        owner_id = self.owner_id
         super().delete(*args, **kwargs)
-        type(self)._renumber_all()
+        type(self)._renumber_all(owner_id)
 
     @classmethod
-    def _renumber_all(cls):
-        """El número de cada película es su posición al ordenar todas por
-        nota (de mayor a menor); `tie_break` solo decide el orden entre dos
-        con la misma nota. Se recalcula entero cada vez porque añadir/borrar
-        o cambiar una nota puede desplazar a todas las demás.
+    def _renumber_all(cls, owner_id=None):
+        """El número de cada película es su posición al ordenar todas las
+        de UN MISMO dueño por nota (de mayor a menor); `tie_break` solo
+        decide el orden entre dos con la misma nota. Cada lista (la de
+        Bygui, la de cada usuario) se numera de forma independiente — se
+        recalcula entera cada vez porque añadir/borrar o cambiar una nota
+        puede desplazar a todas las demás DE ESE MISMO DUEÑO.
 
         Se hace en dos pasadas (primero a valores temporales muy por encima
         de cualquier posición real, luego a su posición definitiva) para no
@@ -200,7 +235,7 @@ class SecretMovie(models.Model):
         con dos filas repitiendo el mismo número. `number` es un
         PositiveIntegerField, así que el valor temporal tiene que ser
         positivo (no vale usar negativos)."""
-        ordered = list(cls.objects.order_by("-personal_rating", "-tie_break", "pk"))
+        ordered = list(cls.objects.filter(owner_id=owner_id).order_by("-personal_rating", "-tie_break", "pk"))
         targets = [
             (movie, position) for position, movie in enumerate(ordered, start=1)
             if movie.number != position
@@ -281,6 +316,64 @@ class TierListEntry(models.Model):
     @property
     def poster_url(self):
         return self.movie.poster_url if self.movie else ""
+
+
+class SecretListMember(models.Model):
+    """Acceso de un amigo a tu lista propia de Top Secret: la ve entera
+    (número, notas, comentarios, listas) pero de solo lectura — no puede
+    añadir, puntuar ni tocar nada, eso solo tú. Mismo patrón que
+    `PhotoBoardMember` para el tablón de fotos: das y quitas acceso cuando
+    quieras desde la propia lista, sin pasar por el admin, y quitarle el
+    acceso a alguien no borra nada de tu lista."""
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="dueño de la lista",
+        on_delete=models.CASCADE, related_name="secret_list_members",
+    )
+    member = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="invitado",
+        on_delete=models.CASCADE, related_name="shared_secret_lists",
+    )
+    invited_at = models.DateTimeField("invitado", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "permiso a la lista propia"
+        verbose_name_plural = "permisos a la lista propia"
+        constraints = [
+            models.UniqueConstraint(fields=["owner", "member"], name="un_acceso_por_dueno_y_miembro_lista"),
+        ]
+
+    def __str__(self):
+        return f"{self.member} ve la lista de {self.owner}"
+
+
+class CalendarShareMember(models.Model):
+    """Acceso de un amigo a TU calendario personal de Top Secret (ver
+    ReleaseEvent/CalendarDayNote) -- de solo lectura: ve tus estrenos y
+    tus notas, no puede añadir ni tocar nada. El calendario sigue siendo
+    privado por defecto (nadie lo ve sin que tú se lo des), pero ya no es
+    imposible compartirlo -- mismo patrón que la lista propia
+    (SecretListMember) y el tablón de fotos (PhotoBoardMember)."""
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="dueño del calendario",
+        on_delete=models.CASCADE, related_name="calendar_share_members",
+    )
+    member = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="invitado",
+        on_delete=models.CASCADE, related_name="shared_calendars",
+    )
+    invited_at = models.DateTimeField("invitado", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "permiso al calendario"
+        verbose_name_plural = "permisos al calendario"
+        constraints = [
+            models.UniqueConstraint(fields=["owner", "member"], name="un_acceso_por_dueno_y_miembro_calendario"),
+        ]
+
+    def __str__(self):
+        return f"{self.member} ve el calendario de {self.owner}"
 
 
 class PhotoBoardMember(models.Model):

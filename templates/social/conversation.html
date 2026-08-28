@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load accounts_extras %}
+{% load accounts_extras social_extras %}
 
 {% block title %}Conversación con {{ other.get_full_name|default:other.username }}{% endblock %}
 
@@ -16,14 +16,35 @@
             <a href="{% url 'social:home' %}" class="btn btn--ghost">Volver a Social</a>
         </div>
 
+        {% if is_contact_bot %}
+        <p class="muted">Mensajes de quien escribe desde «Escríbenos» sin tener cuenta — no puedes responderles desde aquí, solo si dejaron un email de contacto.</p>
+        {% if senders %}
+        <div class="contact-inbox-senders">
+            <a href="?" class="contact-inbox-sender{% if not selected_sender %} contact-inbox-sender--active{% endif %}">
+                <span class="contact-avatar contact-avatar--all">☰</span>
+                <span>Todos <span class="muted">({{ senders|length }})</span></span>
+            </a>
+            {% for sender in senders %}
+            <a href="?de={{ sender.key|urlencode }}" class="contact-inbox-sender{% if selected_sender == sender.key %} contact-inbox-sender--active{% endif %}">
+                {% contact_avatar sender.name %}
+                <span>{{ sender.name }}{% if sender.email %} <span class="muted">&lt;{{ sender.email }}&gt;</span>{% endif %} <span class="muted">({{ sender.count }})</span></span>
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endif %}
+
         <div class="conversation-thread">
             {% for msg in thread %}
                 <div class="conversation-message{% if msg.sender_id == user.pk %} conversation-message--mine{% endif %}">
+                    {% if is_contact_bot and msg.is_contact and msg.contact_name %}
+                    <div class="conversation-message__sender">
+                        {% contact_avatar msg.contact_name %}
+                        <strong>{{ msg.contact_name }}</strong>{% if msg.contact_email %} <span class="muted">&lt;{{ msg.contact_email }}&gt;</span>{% endif %}
+                    </div>
+                    {% endif %}
                     <p>
                         <span class="muted">{{ msg.created_at|date:"d/m/Y H:i" }}</span><br>
-                        {% if msg.is_contact and msg.contact_name %}
-                        <strong>{{ msg.contact_name }}</strong>{% if msg.contact_email %} <span class="muted">&lt;{{ msg.contact_email }}&gt;</span>{% endif %}<br>
-                        {% endif %}
                         {{ msg.body|urlize|linebreaksbr }}
                     </p>
                     {% if msg.sender_id == user.pk %}

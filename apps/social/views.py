@@ -171,22 +171,59 @@ def conversation(request, username):
     if friendship_status(request.user, other) != "friends":
         raise Http404
 
+    is_contact_bot = other.email == CONTACT_BOT_EMAIL
+
     if request.method == "POST":
         body = request.POST.get("body", "").strip()
         if body:
             Message.objects.create(sender=request.user, recipient=other, body=body)
-            send_push_to_user(
-                other,
-                title="Nuevo mensaje",
-                body=f"{request.user}: {body[:80]}",
-                url=reverse("social:conversation", args=[request.user.username]),
-            )
+            if not is_contact_bot:
+                # El buzón de contacto es una cuenta ficticia -- avisarla
+                # por push no llega a nadie real, así que se salta.
+                send_push_to_user(
+                    other,
+                    title="Nuevo mensaje",
+                    body=f"{request.user}: {body[:80]}",
+                    url=reverse("social:conversation", args=[request.user.username]),
+                )
         return redirect("social:conversation", username=username)
 
     Message.objects.filter(sender=other, recipient=request.user, read_at__isnull=True).update(read_at=timezone.now())
 
     thread = Message.objects.filter(
         Q(sender=request.user, recipient=other) | Q(sender=other, recipient=request.user)
-    )
+    ).order_by("created_at")
 
-    return render(request, "social/conversation.html", {"other": other, "thread": thread})
+    context = {"other": other, "thread": thread, "is_contact_bot": is_contact_bot}
+
+    if is_contact_bot:
+        # El buzón agrupa a cualquiera que escriba desde /contacto/ sin
+        # cuenta bajo una única cuenta ficticia (ver get_contact_bot_user)
+        # -- antes se veían todos sus mensajes mezclados en un solo hilo,
+        # sin forma de saber de un vistazo quién escribió qué. Aquí se
+        # agrupan por remitente (email si lo dejó, si no su nombre) para
+        # poder elegir "de quién" quieres ver solo lo suyo.
+        senders = {}
+        for msg in thread:
+            if msg.sender_id == other.pk:
+                key = msg.contact_email or msg.contact_name or "Anónimo"
+                entry = senders.setdefault(key, {
+                    "key": key, "name": msg.contact_name or "Anónimo", "email": msg.contact_email,
+                    "count": 0, "last_at": msg.created_at,
+                })
+                entry["count"] += 1
+                entry["last_at"] = max(entry["last_at"], msg.created_at)
+
+        selected = request.GET.get("de", "")
+        if selected and selected in senders:
+            thread = [
+                msg for msg in thread
+                if msg.sender_id != other.pk or (msg.contact_email or msg.contact_name or "Anónimo") == selected
+            ]
+
+        context.update({
+            "senders": sorted(senders.values(), key=lambda entry: entry["last_at"], reverse=True),
+            "selected_sender": selected,
+        })
+
+    return render(request, "social/conversation.html", context)

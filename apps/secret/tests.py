@@ -276,10 +276,12 @@ class SecretMovieViewTests(TestCase):
 
     def test_click_en_el_cuadradito_va_pasando_de_estado(self):
         serie = Movie.objects.create(tmdb_id=11, title="Dark", media_type="tv")
-        c = SecretMovie.objects.create(title="Dark", personal_rating="7.0", movie=serie)
         user = User.objects.create(email="visto_test@test.local", role=User.Role.LECTOR, username="visto_test")
         user.set_password("Testpass123!")
         user.save()
+        # Propia (owner=user): siempre editable por su dueño, sin
+        # depender de ningún interruptor -- distinto de la de Bygui.
+        c = SecretMovie.objects.create(owner=user, title="Dark", personal_rating="7.0", movie=serie)
         self.client.login(username=user.email, password="Testpass123!")
 
         response = self.client.post(reverse("secret:movie-watch-cycle", args=[c.pk]))
@@ -303,17 +305,29 @@ class SecretMovieViewTests(TestCase):
 
     def test_el_cuadradito_no_cambia_nada_si_la_portada_es_una_pelicula(self):
         peli = Movie.objects.create(tmdb_id=13, title="Reservoir Dogs", media_type="movie")
-        self.a.movie = peli
-        self.a.save()
         user = User.objects.create(email="visto_test2@test.local", role=User.Role.LECTOR, username="visto_test2")
+        user.set_password("Testpass123!")
+        user.save()
+        propia = SecretMovie.objects.create(owner=user, title="Reservoir Dogs", personal_rating="9.0", movie=peli)
+        self.client.login(username=user.email, password="Testpass123!")
+
+        response = self.client.post(reverse("secret:movie-watch-cycle", args=[propia.pk]))
+        self.assertEqual(response.status_code, 200)
+        propia.refresh_from_db()
+        self.assertEqual(propia.series_watch_status, SecretMovie.SeriesWatchStatus.NOT_WATCHED)
+
+    def test_no_puedes_cambiar_el_estado_de_la_lista_de_bygui_sin_ser_admin(self):
+        serie = Movie.objects.create(tmdb_id=14, title="Dark", media_type="tv")
+        c = SecretMovie.objects.create(title="Dark", personal_rating="7.0", movie=serie)
+        user = User.objects.create(email="visto_test3@test.local", role=User.Role.LECTOR, username="visto_test3")
         user.set_password("Testpass123!")
         user.save()
         self.client.login(username=user.email, password="Testpass123!")
 
-        response = self.client.post(reverse("secret:movie-watch-cycle", args=[self.a.pk]))
+        response = self.client.post(f"{reverse('secret:movie-watch-cycle', args=[c.pk])}?scope=bygui")
         self.assertEqual(response.status_code, 200)
-        self.a.refresh_from_db()
-        self.assertEqual(self.a.series_watch_status, SecretMovie.SeriesWatchStatus.NOT_WATCHED)
+        c.refresh_from_db()
+        self.assertEqual(c.series_watch_status, SecretMovie.SeriesWatchStatus.NOT_WATCHED)
 
     def test_lista_completa_filtra_por_lista(self):
         terror = Genre.objects.create(name="Terror")
@@ -457,10 +471,10 @@ class SecretMovieViewTests(TestCase):
 
     def test_click_en_el_cuadradito_desde_la_ficha_completa_devuelve_su_propio_fragmento(self):
         serie = Movie.objects.create(tmdb_id=22, title="Dark", media_type="tv")
-        c = SecretMovie.objects.create(title="Dark", personal_rating="7.0", movie=serie)
         user = User.objects.create(email="visto_ficha@test.local", role=User.Role.LECTOR, username="visto_ficha")
         user.set_password("Testpass123!")
         user.save()
+        c = SecretMovie.objects.create(owner=user, title="Dark", personal_rating="7.0", movie=serie)
         self.client.login(username=user.email, password="Testpass123!")
 
         response = self.client.post(reverse("secret:movie-watch-cycle", args=[c.pk]) + "?context=detail")
@@ -488,13 +502,18 @@ class SecretMovieViewTests(TestCase):
 
 
 class SecretMovieQuickEditTests(TestCase):
-    """Edición temporal de nota/desempate/listas desde Lista completa (no el
-    admin) -- solo mientras TopSecretConfig.allow_web_editing esté activo,
-    y solo con sesión iniciada (igual que movie_watch_cycle)."""
+    """Edición desde una lista completa (no el admin). Para la lista de
+    Bygui (owner=None) sigue haciendo falta ser Admin y que
+    TopSecretConfig.allow_web_editing esté activo, igual que antes de que
+    existieran las listas propias. Para tu propia lista (owner=tú) es
+    siempre editable, sin ningún interruptor de por medio."""
 
     def setUp(self):
         self.client.post(reverse("secret:gate"), {"code": "8888"})
         self.movie = SecretMovie.objects.create(title="Reservoir Dogs", personal_rating="9.0")
+        self.admin = User.objects.create(email="edit_admin@test.local", role=User.Role.ADMIN, username="edit_admin")
+        self.admin.set_password("Testpass123!")
+        self.admin.save()
         self.user = User.objects.create(email="edit_test@test.local", role=User.Role.LECTOR, username="edit_test")
         self.user.set_password("Testpass123!")
         self.user.save()
@@ -505,7 +524,7 @@ class SecretMovieQuickEditTests(TestCase):
         config.save()
 
     def test_editar_da_404_si_el_interruptor_esta_apagado(self):
-        self.client.login(username=self.user.email, password="Testpass123!")
+        self.client.login(username=self.admin.email, password="Testpass123!")
         response = self.client.post(reverse("secret:movie-quick-edit", args=[self.movie.pk]), {
             "personal_rating": "7.5", "tie_break": "0",
         })
@@ -522,9 +541,19 @@ class SecretMovieQuickEditTests(TestCase):
         self.movie.refresh_from_db()
         self.assertEqual(self.movie.personal_rating, Decimal("9.0"))
 
-    def test_editar_nota_y_listas_con_el_interruptor_encendido(self):
+    def test_un_lector_no_puede_editar_la_lista_de_bygui_ni_con_el_interruptor_encendido(self):
         self._enable_web_editing()
         self.client.login(username=self.user.email, password="Testpass123!")
+        response = self.client.post(f"{reverse('secret:movie-quick-edit', args=[self.movie.pk])}", {
+            "scope": "bygui", "personal_rating": "7.5", "tie_break": "0",
+        })
+        self.assertEqual(response.status_code, 404)
+        self.movie.refresh_from_db()
+        self.assertEqual(self.movie.personal_rating, Decimal("9.0"))
+
+    def test_editar_nota_y_listas_con_el_interruptor_encendido(self):
+        self._enable_web_editing()
+        self.client.login(username=self.admin.email, password="Testpass123!")
         terror = Genre.objects.create(name="Terror")
 
         response = self.client.post(reverse("secret:movie-quick-edit", args=[self.movie.pk]), {
@@ -539,7 +568,7 @@ class SecretMovieQuickEditTests(TestCase):
 
     def test_editar_titulo_con_el_interruptor_encendido(self):
         self._enable_web_editing()
-        self.client.login(username=self.user.email, password="Testpass123!")
+        self.client.login(username=self.admin.email, password="Testpass123!")
 
         self.client.post(reverse("secret:movie-quick-edit", args=[self.movie.pk]), {
             "title": "Reservoir Dogs (1992)", "personal_rating": "9.0", "tie_break": "0",
@@ -547,12 +576,38 @@ class SecretMovieQuickEditTests(TestCase):
         self.movie.refresh_from_db()
         self.assertEqual(self.movie.title, "Reservoir Dogs (1992)")
 
+    def test_un_lector_puede_editar_su_propia_lista_sin_interruptor(self):
+        propia = SecretMovie.objects.create(owner=self.user, title="Kill Bill", personal_rating="8.0")
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+        response = self.client.post(reverse("secret:movie-quick-edit", args=[propia.pk]), {
+            "title": "Kill Bill Vol. 1", "personal_rating": "9.0", "tie_break": "0", "comment": "Genial",
+        })
+        self.assertRedirects(response, reverse("secret:list"))
+        propia.refresh_from_db()
+        self.assertEqual(propia.title, "Kill Bill Vol. 1")
+        self.assertEqual(propia.personal_rating, Decimal("9.0"))
+        self.assertEqual(propia.comment, "Genial")
+
+    def test_un_lector_no_puede_editar_la_lista_propia_de_otro(self):
+        other = User.objects.create(email="otra_lista@test.local", role=User.Role.LECTOR, username="otra_lista")
+        ajena = SecretMovie.objects.create(owner=other, title="Ajena", personal_rating="7.0")
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+        response = self.client.post(reverse("secret:movie-quick-edit", args=[ajena.pk]), {
+            "title": "Hackeada", "personal_rating": "1.0", "tie_break": "0",
+        })
+        self.assertEqual(response.status_code, 404)
+        ajena.refresh_from_db()
+        self.assertEqual(ajena.title, "Ajena")
+
     def test_lista_completa_no_enseña_el_formulario_de_edicion_sin_el_interruptor(self):
         response = self.client.get(reverse("secret:list"))
         self.assertNotContains(response, "secret-movie__edit-form")
 
     def test_lista_completa_enseña_el_formulario_de_edicion_con_el_interruptor(self):
         self._enable_web_editing()
+        self.client.login(username=self.admin.email, password="Testpass123!")
         response = self.client.get(reverse("secret:list"))
         self.assertContains(response, "secret-movie__edit-form")
 
@@ -597,7 +652,7 @@ class MoviePosterEditTests(TestCase):
     def setUp(self):
         self.client.post(reverse("secret:gate"), {"code": "8888"})
         self.movie = SecretMovie.objects.create(title="Drive", personal_rating="8.0")
-        self.user = User.objects.create(email="poster_test@test.local", role=User.Role.LECTOR, username="poster_test")
+        self.user = User.objects.create(email="poster_test@test.local", role=User.Role.ADMIN, username="poster_test")
         self.user.set_password("Testpass123!")
         self.user.save()
 
@@ -627,7 +682,7 @@ class MoviePosterEditTests(TestCase):
         mock_get_or_create.return_value = Movie.objects.create(tmdb_id=55, title="Drive", media_type="movie")
 
         response = self.client.post(reverse("secret:movie-poster-set", args=[self.movie.pk, 55]))
-        self.assertRedirects(response, reverse("secret:list"))
+        self.assertRedirects(response, f"{reverse('secret:list')}?scope=own")
         self.movie.refresh_from_db()
         self.assertEqual(self.movie.movie.tmdb_id, 55)
 
@@ -652,7 +707,7 @@ class MoviePosterEditTests(TestCase):
 class GenreManageTests(TestCase):
     def setUp(self):
         self.client.post(reverse("secret:gate"), {"code": "8888"})
-        self.user = User.objects.create(email="genre_manage_test@test.local", role=User.Role.LECTOR, username="genre_manage_test")
+        self.user = User.objects.create(email="genre_manage_test@test.local", role=User.Role.ADMIN, username="genre_manage_test")
         self.user.set_password("Testpass123!")
         self.user.save()
         config = TopSecretConfig.load()
@@ -670,14 +725,14 @@ class GenreManageTests(TestCase):
     def test_crear_lista(self):
         self.client.login(username=self.user.email, password="Testpass123!")
         response = self.client.post(reverse("secret:genre-manage"), {"name": "Infravaloradas"})
-        self.assertRedirects(response, reverse("secret:genre-manage"))
+        self.assertRedirects(response, f"{reverse('secret:genre-manage')}?scope=own")
         self.assertTrue(Genre.objects.filter(name="Infravaloradas").exists())
 
     def test_borrar_lista(self):
         self.client.login(username=self.user.email, password="Testpass123!")
         genre = Genre.objects.create(name="Terror")
         response = self.client.post(reverse("secret:genre-delete", args=[genre.pk]))
-        self.assertRedirects(response, reverse("secret:genre-manage"))
+        self.assertRedirects(response, f"{reverse('secret:genre-manage')}?scope=own")
         self.assertFalse(Genre.objects.filter(pk=genre.pk).exists())
 
 

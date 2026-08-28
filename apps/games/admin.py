@@ -82,6 +82,7 @@ class OscarVoteAdmin(admin.ModelAdmin):
     list_display = ("user", "category", "candidate")
     list_filter = ("category",)
     search_fields = ("user__username",)
+    autocomplete_fields = ("user",)
 
 
 @admin.register(Duel)
@@ -89,18 +90,22 @@ class DuelAdmin(admin.ModelAdmin):
     list_display = ("challenger", "opponent", "game", "status", "challenger_streak", "opponent_streak", "created_at")
     list_filter = ("game", "status")
     search_fields = ("challenger__username", "opponent__username")
+    autocomplete_fields = ("challenger", "opponent")
+    date_hierarchy = "created_at"
 
 
 @admin.register(DuelRecord)
 class DuelRecordAdmin(admin.ModelAdmin):
     list_display = ("player_low", "player_high", "player_low_wins", "player_high_wins", "draws")
     search_fields = ("player_low__username", "player_high__username")
+    autocomplete_fields = ("player_low", "player_high")
 
 
 @admin.register(GameTierLevel)
 class GameTierLevelAdmin(admin.ModelAdmin):
     list_display = ("user", "name", "color", "order")
     search_fields = ("user__username", "name")
+    autocomplete_fields = ("user",)
 
 
 @admin.register(GameTierEntry)
@@ -108,4 +113,4 @@ class GameTierEntryAdmin(admin.ModelAdmin):
     list_display = ("user", "movie", "tier", "order")
     list_filter = ("tier",)
     search_fields = ("user__username", "movie__title")
-    autocomplete_fields = ("movie",)
+    autocomplete_fields = ("user", "movie")

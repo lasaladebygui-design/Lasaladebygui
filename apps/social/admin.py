@@ -8,10 +8,13 @@ class FriendRequestAdmin(admin.ModelAdmin):
     list_display = ("from_user", "to_user", "accepted", "created_at")
     list_filter = ("accepted",)
     search_fields = ("from_user__username", "to_user__username", "from_user__email", "to_user__email")
+    autocomplete_fields = ("from_user", "to_user")
 
 
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
     list_display = ("sender", "recipient", "is_contact", "created_at", "read_at")
     list_filter = ("is_contact",)
-    search_fields = ("sender__username", "recipient__username", "body")
+    search_fields = ("sender__username", "recipient__username", "body", "contact_name", "contact_email")
+    autocomplete_fields = ("sender", "recipient")
+    date_hierarchy = "created_at"

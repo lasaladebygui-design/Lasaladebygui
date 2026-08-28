@@ -501,6 +501,7 @@ main { flex: 1; }
 .card--product__detail {
     padding: 0 calc(var(--space-unit) * 6) calc(var(--space-unit) * 6);
 }
+.card--product__detail .btn { margin-top: calc(var(--space-unit) * 3); }
 .card h3 { color: var(--color-accent); font-size: 1.1rem; }
 .card--accent { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); }
 .card p { color: var(--color-text-muted); margin-bottom: 0; }
@@ -1362,6 +1363,50 @@ main { flex: 1; }
     gap: 0.5rem;
 }
 .list-manage__row .inline-form { margin-left: auto; }
+
+/* --- Compartidos: panel único para lista/tablón/calendario (ver
+   templates/secret/shared_hub.html). --------------------------------- */
+.shared-hub {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--space-unit) * 1);
+    margin-bottom: calc(var(--space-unit) * 6);
+}
+.shared-hub__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: calc(var(--space-unit) * 2);
+    padding: calc(var(--space-unit) * 3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+}
+.shared-hub__name { font-weight: 600; }
+.shared-hub__toggles { display: flex; gap: calc(var(--space-unit) * 2); flex-wrap: wrap; }
+.share-toggle {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: calc(var(--space-unit) * 1) calc(var(--space-unit) * 3);
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+.share-toggle--on {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-on-accent);
+    font-weight: 600;
+}
+.shared-hub-mine { display: flex; flex-direction: column; gap: calc(var(--space-unit) * 2); }
+
+@media (max-width: 640px) {
+    .shared-hub__row { flex-direction: column; align-items: flex-start; }
+    .shared-hub__toggles { width: 100%; }
+    .share-toggle { flex: 1; min-width: 0; text-align: center; }
+}
 .saved-lists-manage { margin-bottom: calc(var(--space-unit) * 6); }
 .saved-lists-manage__hint { font-size: 0.85rem; margin: 0.6rem 0 0.3rem; }
 .list-picker summary {
@@ -1580,6 +1625,8 @@ main { flex: 1; }
 }
 .movie-card--result .movie-card__poster { width: 170px; aspect-ratio: 2/3; flex-shrink: 0; }
 .movie-card--result .movie-card__body { padding: calc(var(--space-unit) * 5); }
+.roulette-result__actions { display: flex; align-items: center; gap: calc(var(--space-unit) * 4); margin-top: calc(var(--space-unit) * 4); flex-wrap: wrap; }
+.roulette-result__hint { font-size: 0.85rem; }
 
 .roulette-controls {
     display: flex;
@@ -1600,6 +1647,17 @@ main { flex: 1; }
 .search-result__poster { width: 46px; aspect-ratio: 2/3; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
 .search-result__body { flex: 1; }
 .search-result__overview { font-size: 0.85rem; margin: 0.2rem 0 0; }
+
+.own-add-form { display: flex; align-items: flex-end; gap: calc(var(--space-unit) * 2); flex-wrap: wrap; }
+.own-add-form__field { display: flex; flex-direction: column; gap: calc(var(--space-unit) * 1); font-size: 0.8rem; }
+.own-add-form__field input { width: 70px; }
+.own-add-form__field--grow { flex: 1; min-width: 140px; }
+.own-add-form__field--grow input { width: 100%; }
+@media (max-width: 640px) {
+    .search-result { flex-wrap: wrap; }
+    .own-add-form { width: 100%; }
+    .own-add-form__field--grow { order: 1; }
+}
 
 .candidate-list { list-style: none; margin: calc(var(--space-unit) * 4) 0 0; padding: 0; }
 .candidate-row {
@@ -1948,6 +2006,47 @@ main { flex: 1; }
     padding: 0.5rem calc(var(--space-unit) * 2) calc(var(--space-unit) * 4);
 }
 
+/* Antes el comentario se expandía dentro de la propia fila de la lista:
+   con un comentario largo, el bloque empujaba el resto de la lista muy
+   abajo y perdías de vista el botón para cerrarlo. Ahora es un modal
+   flotante de verdad — texto largo con scroll propio, y siempre visible
+   el botón de cerrar (además de click fuera y Escape). */
+.secret-movie-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: calc(var(--space-unit) * 4);
+}
+.secret-movie-modal__card.secret-movie__detail {
+    position: relative;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    padding: calc(var(--space-unit) * 6);
+    max-width: 560px;
+    width: 100%;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+.secret-movie-modal__close {
+    position: absolute;
+    top: calc(var(--space-unit) * 3);
+    right: calc(var(--space-unit) * 3);
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    padding: calc(var(--space-unit) * 1);
+}
+.secret-movie-modal__close:hover { color: var(--color-text); }
+.secret-movie-modal__title { font-family: var(--font-heading); font-size: 1.2rem; padding-right: calc(var(--space-unit) * 6); }
+
 @media (max-width: 560px) {
     .secret-movie__row { gap: calc(var(--space-unit) * 2); padding-inline: calc(var(--space-unit) * 1); }
     .secret-movie__poster { width: 56px; }
@@ -1980,6 +2079,46 @@ main { flex: 1; }
 .rating-guide__text { color: var(--color-text-muted); }
 .rating-guide__text p { margin-bottom: calc(var(--space-unit) * 3); }
 .rating-guide__text p:last-child { margin-bottom: 0; }
+
+/* --- Top Secret: selector de lista (la tuya / la de Bygui / la de un
+   amigo que te la haya compartido) — ver templates/secret/_scope_banner.html,
+   se reutiliza en home/by_number/by_rating/list. -------------------------- */
+
+.scope-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: calc(var(--space-unit) * 3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    padding: calc(var(--space-unit) * 3) calc(var(--space-unit) * 4);
+    margin-bottom: calc(var(--space-unit) * 5);
+}
+.scope-banner__current { display: flex; align-items: center; gap: calc(var(--space-unit) * 3); }
+.scope-banner__icon { font-size: 1.4rem; line-height: 1; }
+.scope-banner__current strong { display: block; }
+.scope-banner__current .tag-pill { margin-top: calc(var(--space-unit) * 1); }
+.scope-banner__switch { display: flex; align-items: center; gap: calc(var(--space-unit) * 2); flex-wrap: wrap; }
+
+.secret-add-movie { margin-bottom: calc(var(--space-unit) * 5); }
+.secret-add-movie__panel {
+    margin-top: calc(var(--space-unit) * 3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    padding: calc(var(--space-unit) * 4);
+}
+.secret-add-movie__panel input[type="text"] {
+    width: 100%;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm, 8px);
+    padding: calc(var(--space-unit) * 2) calc(var(--space-unit) * 3);
+    color: var(--color-text);
+    margin-bottom: calc(var(--space-unit) * 3);
+}
 
 /* --- Top Secret: lista completa — desplegables de orden/filtro y
    alternar entre fila/cuadrícula (ver templates/secret/list.html). Sin
@@ -3075,6 +3214,49 @@ main { flex: 1; }
     display: flex;
     gap: calc(var(--space-unit) * 1);
     margin-top: calc(var(--space-unit) * 1);
+}
+
+/* --- Buzón de contacto: selector de remitente (ver conversation.html,
+   solo cuando la conversación es con la cuenta ficticia del buzón). ---- */
+.contact-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    flex-shrink: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #fff;
+}
+.contact-avatar--all { background: var(--color-text-muted); }
+
+.contact-inbox-senders {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--space-unit) * 1);
+    margin-bottom: calc(var(--space-unit) * 5);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    padding: calc(var(--space-unit) * 2);
+}
+.contact-inbox-sender {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--space-unit) * 2);
+    padding: calc(var(--space-unit) * 2);
+    border-radius: var(--radius-sm, 8px);
+}
+.contact-inbox-sender:hover { background: var(--color-bg); }
+.contact-inbox-sender--active { background: var(--color-bg); outline: 1px solid var(--color-accent); }
+
+.conversation-message__sender {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--space-unit) * 2);
+    margin-bottom: calc(var(--space-unit) * 2);
 }
 
 .conversation-message__actions textarea {
