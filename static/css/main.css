@@ -433,6 +433,31 @@ main { flex: 1; }
     .card-grid--topsecret__list { grid-column: 1 / -1; }
 }
 
+/* "Lista completa" es lo que se usa la mayoría de las veces -- antes solo
+   se distinguía del resto por ser más ancha; ahora tiene color propio
+   (el acento del tema) para que destaque de un vistazo, no solo ocupe
+   más sitio. */
+.card--hero {
+    background: linear-gradient(135deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 70%, var(--color-accent-secondary)));
+    border-color: transparent;
+    color: var(--color-on-accent);
+}
+.card--hero:hover { color: var(--color-on-accent); filter: brightness(1.05); }
+.card--hero h3 { font-size: 1.15rem; }
+.card--hero__sub { margin: 4px 0 0; font-size: .82rem; opacity: .85; }
+
+/* Botón "Compartidos": misma pinta que el resto de cards, pero es un
+   <button> que despliega el panel debajo en la misma pantalla (ver
+   .shared-hub-inline) en vez de llevarte a otra página. */
+.card--toggle { width: 100%; text-align: left; background: var(--color-surface); border: 1px solid var(--color-border); cursor: pointer; }
+.card--toggle:hover { border-color: var(--color-accent); color: var(--color-accent); }
+
+.shared-hub-inline {
+    margin-top: calc(var(--space-unit) * 6);
+    padding-top: calc(var(--space-unit) * 6);
+    border-top: 1px solid var(--color-border);
+}
+
 /* Escaparate: número fijo de columnas (como .card-grid--oscars) en vez de
    auto-fit/auto-fill con tope de ancho — así las fichas siempre ocupan su
    parte proporcional del ancho disponible, haya las que haya, en vez de
@@ -1421,6 +1446,23 @@ main { flex: 1; }
 }
 .compare-grid .movie-card--result { flex-direction: column; max-width: none; }
 .compare-grid .movie-card--result .movie-card__poster { width: 100%; aspect-ratio: 2/3; }
+
+/* --- Pestañas Número/Nota (ver templates/secret/_search_tabs.html) y
+   casilla "comparar con amigos" dentro del propio formulario. --------- */
+.search-tabs { display: flex; gap: calc(var(--space-unit) * 2); margin-bottom: calc(var(--space-unit) * 5); }
+.search-tabs__item {
+    padding: calc(var(--space-unit) * 2) calc(var(--space-unit) * 4);
+    border-radius: 999px; border: 1px solid var(--color-border);
+    font-size: .84rem; font-weight: 600; color: var(--color-text-muted);
+}
+.search-tabs__item:hover { color: var(--color-text); }
+.search-tabs__item--active { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent); }
+
+.compare-checkbox {
+    display: flex; align-items: center; gap: calc(var(--space-unit) * 2);
+    font-size: .84rem; color: var(--color-text-muted); margin-top: calc(var(--space-unit) * 1);
+}
+.compare-checkbox input { width: auto; }
 
 @media (max-width: 640px) {
     .shared-hub__row { flex-direction: column; align-items: flex-start; }

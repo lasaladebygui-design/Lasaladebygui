@@ -180,10 +180,14 @@ def lock(request):
 @secret_required
 def home(request):
     owner, editable, scope = _resolve_scope(request)
-    return render(request, "secret/home.html", {
+    context = {
         "scope": scope, "editable": editable, "list_owner": owner,
         **_scope_context(request),
-    })
+    }
+    if request.user.is_authenticated:
+        rows, shared_with_me = _shared_hub_data(request.user)
+        context.update({"share_rows": rows, "shared_with_me_hub": shared_with_me})
+    return render(request, "secret/home.html", context)
 
 
 def _scope_context(request):
@@ -219,9 +223,18 @@ def by_number(request):
         result = _visible_movies(request.user, owner).filter(number=number).first()
         if result is None and SecretMovie.objects.filter(owner=owner, number=number).exists():
             raise Http404
+
+    compare = request.GET.get("compare") == "1"
+    rows = []
+    if compare and searched:
+        for label, o in _comparable_owners(request.user):
+            rows.append({"label": label, "movie": _visible_movies(request.user, o).filter(number=number).first()})
+
     return render(request, "secret/by_number.html", {
         "form": form, "result": result, "searched": searched,
         "scope": scope, "editable": editable, "list_owner": owner,
+        "active_tab": "number", "can_add": scope == "own",
+        "compare": compare, "rows": rows,
         **_scope_context(request),
     })
 
@@ -248,10 +261,22 @@ def by_rating(request):
         if matches:
             result = random.choice(matches)
 
+    compare = request.GET.get("compare") == "1"
+    rows = []
+    if compare and searched:
+        for label, o in _comparable_owners(request.user):
+            owner_matches = list(
+                _visible_movies(request.user, o).filter(personal_rating__gte=min_r, personal_rating__lte=max_r)
+                .order_by("-personal_rating")
+            )
+            rows.append({"label": label, "movies": owner_matches})
+
     return render(request, "secret/by_rating.html", {
         "form": form, "result": result, "searched": searched,
         "genres": genres, "selected_genre": genre_slug, "selected_genre_name": selected_genre_name,
         "scope": scope, "editable": editable, "list_owner": owner,
+        "active_tab": "rating", "can_add": scope == "own",
+        "compare": compare, "rows": rows,
         **_scope_context(request),
     })
 
@@ -623,22 +648,19 @@ def compare_lists(request):
     return render(request, "secret/compare.html", {
         "mode": mode, "number_form": number_form, "rating_form": rating_form,
         "searched": searched, "rows": rows, "owners": owners,
+        "active_tab": "compare", "scope": request.GET.get("scope") or "own",
     })
 
 
-@secret_required
-@login_required
-def shared_hub(request):
-    """Un único sitio para ver y gestionar qué compartes de tu Top Secret
-    (lista, tablón de fotos, calendario) con cada amigo, y qué te han
-    compartido a ti -- antes había que entrar a cada apartado por
-    separado para gestionar su propio "compartir". Los interruptores de
-    aquí reutilizan las mismas invitar/expulsar de cada apartado, así que
-    activarlos ahí o desde aquí es exactamente lo mismo."""
-    friends = friends_of(request.user)
-    list_members = {m.member_id: m for m in SecretListMember.objects.filter(owner=request.user)}
-    photo_members = {m.member_id: m for m in PhotoBoardMember.objects.filter(owner=request.user)}
-    calendar_members = {m.member_id: m for m in CalendarShareMember.objects.filter(owner=request.user)}
+def _shared_hub_data(user):
+    """Qué comparte `user` de su Top Secret (lista, tablón, calendario)
+    con cada amigo, y qué le han compartido a él -- una sola función
+    porque el panel se pinta en dos sitios: la propia pantalla de
+    Compartidos y, embebido, la home de Top Secret (ver `home`)."""
+    friends = friends_of(user)
+    list_members = {m.member_id: m for m in SecretListMember.objects.filter(owner=user)}
+    photo_members = {m.member_id: m for m in PhotoBoardMember.objects.filter(owner=user)}
+    calendar_members = {m.member_id: m for m in CalendarShareMember.objects.filter(owner=user)}
 
     rows = [
         {
@@ -651,11 +673,23 @@ def shared_hub(request):
     ]
 
     shared_with_me = {
-        "list": [m.owner for m in SecretListMember.objects.filter(member=request.user).select_related("owner")],
-        "photos": [m.owner for m in PhotoBoardMember.objects.filter(member=request.user).select_related("owner")],
-        "calendar": [m.owner for m in CalendarShareMember.objects.filter(member=request.user).select_related("owner")],
+        "list": [m.owner for m in SecretListMember.objects.filter(member=user).select_related("owner")],
+        "photos": [m.owner for m in PhotoBoardMember.objects.filter(member=user).select_related("owner")],
+        "calendar": [m.owner for m in CalendarShareMember.objects.filter(member=user).select_related("owner")],
     }
+    return rows, shared_with_me
 
+
+@secret_required
+@login_required
+def shared_hub(request):
+    """Un único sitio para ver y gestionar qué compartes de tu Top Secret
+    (lista, tablón de fotos, calendario) con cada amigo, y qué te han
+    compartido a ti -- antes había que entrar a cada apartado por
+    separado para gestionar su propio "compartir". Los interruptores de
+    aquí reutilizan las mismas invitar/expulsar de cada apartado, así que
+    activarlos ahí o desde aquí es exactamente lo mismo."""
+    rows, shared_with_me = _shared_hub_data(request.user)
     return render(request, "secret/shared_hub.html", {"rows": rows, "shared_with_me": shared_with_me})
 
 
@@ -677,9 +711,12 @@ def own_list_share(request):
 @login_required
 def own_list_share_invite(request, username):
     friend = get_object_or_404(User, username=username)
+    member = None
     if request.method == "POST" and are_friends(request.user, friend):
-        SecretListMember.objects.get_or_create(owner=request.user, member=friend)
+        member, _ = SecretListMember.objects.get_or_create(owner=request.user, member=friend)
         messages.success(request, f"{friend} ya puede ver tu lista.")
+    if _is_htmx(request):
+        return render(request, "secret/_share_toggle_list.html", {"friend": friend, "member": member})
     return redirect("secret:own-list-share")
 
 
@@ -687,9 +724,12 @@ def own_list_share_invite(request, username):
 @login_required
 def own_list_share_kick(request, pk):
     member = get_object_or_404(SecretListMember, pk=pk, owner=request.user)
+    friend = member.member
     if request.method == "POST":
         member.delete()
-        messages.success(request, f"{member.member} ya no puede ver tu lista.")
+        messages.success(request, f"{friend} ya no puede ver tu lista.")
+        if _is_htmx(request):
+            return render(request, "secret/_share_toggle_list.html", {"friend": friend, "member": None})
     return redirect("secret:own-list-share")
 
 
@@ -1001,9 +1041,12 @@ def photo_board_upload(request, username=None):
 @login_required
 def photo_board_invite(request, username):
     friend = get_object_or_404(User, username=username)
+    member = None
     if request.method == "POST" and are_friends(request.user, friend):
-        PhotoBoardMember.objects.get_or_create(owner=request.user, member=friend)
+        member, _ = PhotoBoardMember.objects.get_or_create(owner=request.user, member=friend)
         messages.success(request, f"{friend} ya puede ver y subir fotos a tu tablón.")
+    if _is_htmx(request):
+        return render(request, "secret/_share_toggle_photos.html", {"friend": friend, "member": member})
     return redirect("secret:photo-board")
 
 
@@ -1011,9 +1054,12 @@ def photo_board_invite(request, username):
 @login_required
 def photo_board_kick(request, pk):
     member = get_object_or_404(PhotoBoardMember, pk=pk, owner=request.user)
+    friend = member.member
     if request.method == "POST":
         member.delete()
-        messages.success(request, f"{member.member} ya no tiene acceso a tu tablón.")
+        messages.success(request, f"{friend} ya no tiene acceso a tu tablón.")
+        if _is_htmx(request):
+            return render(request, "secret/_share_toggle_photos.html", {"friend": friend, "member": None})
     return redirect("secret:photo-board")
 
 
@@ -1165,9 +1211,12 @@ def calendar_share(request):
 @login_required
 def calendar_share_invite(request, username):
     friend = get_object_or_404(User, username=username)
+    member = None
     if request.method == "POST" and are_friends(request.user, friend):
-        CalendarShareMember.objects.get_or_create(owner=request.user, member=friend)
+        member, _ = CalendarShareMember.objects.get_or_create(owner=request.user, member=friend)
         messages.success(request, f"{friend} ya puede ver tu calendario.")
+    if _is_htmx(request):
+        return render(request, "secret/_share_toggle_calendar.html", {"friend": friend, "member": member})
     return redirect("secret:calendar-share")
 
 
@@ -1175,9 +1224,12 @@ def calendar_share_invite(request, username):
 @login_required
 def calendar_share_kick(request, pk):
     member = get_object_or_404(CalendarShareMember, pk=pk, owner=request.user)
+    friend = member.member
     if request.method == "POST":
         member.delete()
-        messages.success(request, f"{member.member} ya no puede ver tu calendario.")
+        messages.success(request, f"{friend} ya no puede ver tu calendario.")
+        if _is_htmx(request):
+            return render(request, "secret/_share_toggle_calendar.html", {"friend": friend, "member": None})
     return redirect("secret:calendar-share")
 
 
