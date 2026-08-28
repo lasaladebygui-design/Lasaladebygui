@@ -572,6 +572,60 @@ def own_movie_delete(request, pk):
     return redirect(f"{reverse('secret:list')}?scope=own")
 
 
+def _comparable_owners(user):
+    """Las listas que `user` puede comparar entre sí: la suya propia, la
+    de Bygui (siempre visible, como en cualquier otro sitio de Top
+    Secret) y la de cada amigo que se la haya compartido. Devuelve una
+    lista de (etiqueta, owner) — owner=None es Bygui."""
+    owners = [("Tú", user), ("Bygui", None)]
+    shared = SecretListMember.objects.filter(member=user).select_related("owner")
+    for member in shared:
+        owners.append((member.owner.username, member.owner))
+    return owners
+
+
+@secret_required
+@login_required
+def compare_lists(request):
+    """Comparar la misma posición o el mismo intervalo de nota entre tu
+    lista, la de Bygui y las que te hayan compartido tus amigos --
+    integra el selector numérico y el buscador por nota (que ya existen
+    para una sola lista) pero aplicados a la vez sobre varias listas en
+    paralelo, para ver de un vistazo qué puso cada uno en ese hueco."""
+    owners = _comparable_owners(request.user)
+    mode = request.GET.get("mode", "number")
+    if mode not in ("number", "rating"):
+        mode = "number"
+
+    number_form = NumberSelectForm(request.GET or None)
+    rating_form = RatingSearchForm(request.GET or None, initial={"min_rating": 7, "max_rating": 9})
+    searched = False
+    rows = []
+
+    if mode == "number" and "number" in request.GET and number_form.is_valid():
+        searched = True
+        number = number_form.cleaned_data["number"]
+        for label, owner in owners:
+            movie = _visible_movies(request.user, owner).filter(number=number).first()
+            rows.append({"label": label, "owner": owner, "movie": movie, "movies": None})
+    elif mode == "rating" and "min_rating" in request.GET and rating_form.is_valid():
+        searched = True
+        min_r = int(rating_form.cleaned_data["min_rating"])
+        max_r = int(rating_form.cleaned_data["max_rating"])
+        for label, owner in owners:
+            matches = list(
+                _visible_movies(request.user, owner)
+                .filter(personal_rating__gte=min_r, personal_rating__lte=max_r)
+                .order_by("-personal_rating")
+            )
+            rows.append({"label": label, "owner": owner, "movie": None, "movies": matches})
+
+    return render(request, "secret/compare.html", {
+        "mode": mode, "number_form": number_form, "rating_form": rating_form,
+        "searched": searched, "rows": rows, "owners": owners,
+    })
+
+
 @secret_required
 @login_required
 def shared_hub(request):

@@ -66,23 +66,28 @@ def tmdb_search(query, media_type="movie"):
     revés con un título traducido). Por eso se busca en los dos idiomas a
     la vez y se combina sin duplicar la misma película/serie (misma id de
     TMDb) — quedándose con la versión en español cuando aparece en ambas,
-    ya que el resto del sitio está en ese idioma. Si ninguna de las dos
-    devuelve nada, se reintenta sin acentos antes de rendirse."""
+    ya que el resto del sitio está en ese idioma.
+
+    También se busca SIEMPRE (no solo si la primera pasada no encuentra
+    nada) con la consulta sin acentos, y se combina con la original: si
+    escribes con la tilde en el sitio equivocado (o sin ella donde
+    haría falta), TMDb puede devolver algún resultado igualmente pero no
+    el que buscas — quedarse solo con "hubo resultados, ya vale" dejaba
+    fuera justo la coincidencia deseada."""
     endpoint = "tv" if media_type == "tv" else "movie"
 
     def _search(q):
-        results_es = _tmdb_search_raw(q, endpoint, "es-ES")
-        results_en = _tmdb_search_raw(q, endpoint, "en-US")
-        by_id = {}
-        for item in results_es + results_en:
-            by_id.setdefault(item["id"], item)
-        return list(by_id.values())
+        return _tmdb_search_raw(q, endpoint, "es-ES") + _tmdb_search_raw(q, endpoint, "en-US")
 
-    items = _search(query)
-    if not items:
-        stripped = _strip_accents(query)
-        if stripped != query:
-            items = _search(stripped)
+    raw_items = _search(query)
+    stripped = _strip_accents(query)
+    if stripped != query:
+        raw_items += _search(stripped)
+
+    by_id = {}
+    for item in raw_items:
+        by_id.setdefault(item["id"], item)
+    items = list(by_id.values())
 
     results = []
     for item in items:

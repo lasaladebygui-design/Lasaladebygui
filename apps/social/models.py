@@ -99,10 +99,14 @@ def _generate_contact_bot_avatar():
     size = 256
     img = Image.new("RGB", (size, size), "#2DD4BF")
     draw = ImageDraw.Draw(img)
-    pad = 56
-    draw.rectangle([pad, pad + 20, size - pad, size - pad], outline="#0B1416", width=10, fill="#E5E7EB")
+    # El icono se dibuja bien dentro del radio del recorte circular que
+    # aplica .profile-avatar (border-radius: 50%) -- antes llegaba casi
+    # hasta las esquinas y el recorte se comía media solapa, quedando
+    # irreconocible sobre todo en tamaño pequeño (32px, en las cabeceras).
+    left, top, right, bottom = 48, 92, 208, 176
+    draw.rectangle([left, top, right, bottom], outline="#0B1416", width=10, fill="#E5E7EB")
     draw.line(
-        [(pad, pad + 20), (size / 2, size / 2 + 10), (size - pad, pad + 20)],
+        [(left, top), ((left + right) / 2, (top + bottom) / 2 + 6), (right, top)],
         fill="#0B1416", width=10, joint="curve",
     )
 

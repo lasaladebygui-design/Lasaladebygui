@@ -23,6 +23,7 @@ urlpatterns = [
     path("dentro/lista/mia/anadir/<int:tmdb_id>/", views.own_movie_add, name="own-movie-add"),
     path("dentro/lista/mia/<int:pk>/borrar/", views.own_movie_delete, name="own-movie-delete"),
     path("dentro/compartidos/", views.shared_hub, name="shared-hub"),
+    path("dentro/comparar/", views.compare_lists, name="compare"),
     path("dentro/lista/compartir/", views.own_list_share, name="own-list-share"),
     path("dentro/lista/compartir/invitar/<str:username>/", views.own_list_share_invite, name="own-list-share-invite"),
     path("dentro/lista/compartir/expulsar/<int:pk>/", views.own_list_share_kick, name="own-list-share-kick"),

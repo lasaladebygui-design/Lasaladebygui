@@ -300,6 +300,29 @@ def _default_sections():
     return sections
 
 
+def _fill_missing_models(sections):
+    """Añade al final (agrupados por su app real, en una sección nueva si
+    hace falta) cualquier modelo registrado en el admin que no esté ya en
+    NINGUNA sección guardada -- sin esto, un modelo nuevo (de una app ya
+    existente o no) se quedaba invisible en la página de reordenar
+    "bloques que no se ven" aunque SÍ apareciera en el menú real de todas
+    formas (ese tiene su propio relleno de huecos, ver get_app_list más
+    abajo) -- aquí hacía falta el mismo relleno, pero sin dar por hecho
+    que cada sección es una app entera (una sección guardada puede
+    mezclar modelos de varias apps, así que no vale el mismo atajo por
+    app_label que usa _default_sections)."""
+    seen = {token.lower() for section in sections for token in section["items"]}
+    leftovers = {}
+    for model in admin.site._registry:
+        token = f"{model._meta.app_label}.{model._meta.object_name}"
+        if token.lower() not in seen:
+            leftovers.setdefault(model._meta.app_label, []).append(token)
+            seen.add(token.lower())
+    for app_label, tokens in leftovers.items():
+        sections.append({"name": _app_display_name(app_label), "items": sorted(tokens, key=str.lower)})
+    return sections
+
+
 def _valid_sections_payload(sections):
     if not isinstance(sections, list):
         return False
@@ -331,6 +354,7 @@ class AdminMenuOrderAdmin(admin.ModelAdmin):
     def changelist_view(self, request, extra_context=None):
         obj = self.model.load()
         sections = obj.sections or _default_sections()
+        sections = _fill_missing_models(sections)
         view_sections = [
             {
                 "name": section["name"],

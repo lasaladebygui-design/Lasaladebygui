@@ -1402,6 +1402,26 @@ main { flex: 1; }
 }
 .shared-hub-mine { display: flex; flex-direction: column; gap: calc(var(--space-unit) * 2); }
 
+/* --- Comparar con amigos (ver templates/secret/compare.html): una
+   columna por lista comparada, en fila en escritorio y apiladas en
+   movil. -------------------------------------------------------------- */
+.compare-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: calc(var(--space-unit) * 5);
+    margin-top: calc(var(--space-unit) * 6);
+    align-items: start;
+}
+.compare-grid__label {
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    margin-bottom: calc(var(--space-unit) * 3);
+    padding-bottom: calc(var(--space-unit) * 2);
+    border-bottom: 1px solid var(--color-border);
+}
+.compare-grid .movie-card--result { flex-direction: column; max-width: none; }
+.compare-grid .movie-card--result .movie-card__poster { width: 100%; aspect-ratio: 2/3; }
+
 @media (max-width: 640px) {
     .shared-hub__row { flex-direction: column; align-items: flex-start; }
     .shared-hub__toggles { width: 100%; }
