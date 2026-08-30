@@ -224,17 +224,21 @@ def by_number(request):
         if result is None and SecretMovie.objects.filter(owner=owner, number=number).exists():
             raise Http404
 
+    comparable_owners = _comparable_owners(request.user) if request.user.is_authenticated else []
     compare = request.GET.get("compare") == "1"
+    selected_with = request.GET.getlist("with")
     rows = []
-    if compare and searched:
-        for label, o in _comparable_owners(request.user):
-            rows.append({"label": label, "movie": _visible_movies(request.user, o).filter(number=number).first()})
+    if compare and searched and selected_with:
+        for key, label, o in comparable_owners:
+            if key in selected_with:
+                rows.append({"label": label, "movie": _visible_movies(request.user, o).filter(number=number).first()})
 
     return render(request, "secret/by_number.html", {
         "form": form, "result": result, "searched": searched,
         "scope": scope, "editable": editable, "list_owner": owner,
         "active_tab": "number", "can_add": scope == "own",
         "compare": compare, "rows": rows,
+        "comparable_owners": comparable_owners, "selected_with": selected_with,
         **_scope_context(request),
     })
 
@@ -261,10 +265,14 @@ def by_rating(request):
         if matches:
             result = random.choice(matches)
 
+    comparable_owners = _comparable_owners(request.user) if request.user.is_authenticated else []
     compare = request.GET.get("compare") == "1"
+    selected_with = request.GET.getlist("with")
     rows = []
-    if compare and searched:
-        for label, o in _comparable_owners(request.user):
+    if compare and searched and selected_with:
+        for key, label, o in comparable_owners:
+            if key not in selected_with:
+                continue
             owner_matches = list(
                 _visible_movies(request.user, o).filter(personal_rating__gte=min_r, personal_rating__lte=max_r)
                 .order_by("-personal_rating")
@@ -277,6 +285,7 @@ def by_rating(request):
         "scope": scope, "editable": editable, "list_owner": owner,
         "active_tab": "rating", "can_add": scope == "own",
         "compare": compare, "rows": rows,
+        "comparable_owners": comparable_owners, "selected_with": selected_with,
         **_scope_context(request),
     })
 
@@ -544,33 +553,42 @@ def genre_delete(request, pk):
 @secret_required
 @login_required
 def own_movie_add_search(request):
-    """Buscar en TMDb para añadir una película nueva a tu propia lista —
-    a diferencia de la de Bygui (gestionada desde el admin), tu lista no
-    tiene equivalente en /admin/: todo el alta se hace desde aquí."""
+    """Buscar en TMDb (películas Y series) para añadir algo nuevo a tu
+    propia lista — a diferencia de la de Bygui (gestionada desde el
+    admin), tu lista no tiene equivalente en /admin/: todo el alta se
+    hace desde aquí."""
     query = request.GET.get("query", "").strip()
     results = []
     error = None
     if query:
         try:
-            results = tmdb_search(query)[:8]
+            results = tmdb_search(query, media_type="movie")[:6] + tmdb_search(query, media_type="tv")[:6]
         except MovieAPIError as exc:
             error = str(exc)
-    return render(request, "secret/_own_add_results.html", {"results": results, "error": error, "query": query})
+    genres = Genre.objects.filter(owner=request.user)
+    return render(request, "secret/_own_add_results.html", {
+        "results": results, "error": error, "query": query, "genres": genres,
+    })
 
 
 @secret_required
 @login_required
-def own_movie_add(request, tmdb_id):
-    if request.method == "POST":
+def own_movie_add(request, media_type, tmdb_id):
+    if request.method == "POST" and media_type in ("movie", "tv"):
         try:
             rating = Decimal(request.POST.get("personal_rating", "5")).quantize(Decimal("0.1"))
         except (InvalidOperation, TypeError):
             rating = Decimal("5")
         rating = min(max(rating, Decimal("1")), Decimal("10"))
         comment = request.POST.get("comment", "").strip()
+        watch_status = request.POST.get("series_watch_status", "")
+        if watch_status not in SecretMovie.SeriesWatchStatus.values:
+            watch_status = SecretMovie.SeriesWatchStatus.NOT_WATCHED
+        genre_ids = request.POST.getlist("genres")
+        genres = Genre.objects.filter(owner=request.user, pk__in=genre_ids)
 
         try:
-            catalog_movie = Movie.get_or_create_from_tmdb(tmdb_id)
+            catalog_movie = Movie.get_or_create_from_tmdb(tmdb_id, media_type=media_type)
         except MovieAPIError as exc:
             messages.error(request, str(exc))
         else:
@@ -578,10 +596,13 @@ def own_movie_add(request, tmdb_id):
             if existing:
                 messages.info(request, f"«{catalog_movie.title}» ya está en tu lista.")
             else:
-                SecretMovie.objects.create(
+                entry = SecretMovie.objects.create(
                     owner=request.user, movie=catalog_movie, title=catalog_movie.title,
                     personal_rating=rating, comment=comment,
+                    series_watch_status=watch_status if media_type == "tv" else SecretMovie.SeriesWatchStatus.NOT_WATCHED,
                 )
+                if genres:
+                    entry.genres.set(genres)
                 _drop_from_saved(request.user, catalog_movie)
                 messages.success(request, f"«{catalog_movie.title}» añadida a tu lista.")
     return redirect(f"{reverse('secret:list')}?scope=own")
@@ -601,11 +622,13 @@ def _comparable_owners(user):
     """Las listas que `user` puede comparar entre sí: la suya propia, la
     de Bygui (siempre visible, como en cualquier otro sitio de Top
     Secret) y la de cada amigo que se la haya compartido. Devuelve una
-    lista de (etiqueta, owner) — owner=None es Bygui."""
-    owners = [("Tú", user), ("Bygui", None)]
+    lista de (clave, etiqueta, owner) — owner=None es Bygui. `clave` es
+    lo que viaja en la URL (?with=...) para elegir con quién comparar;
+    ninguna va marcada por defecto, ni siquiera la propia."""
+    owners = [("own", "Tú", user), ("bygui", "Bygui", None)]
     shared = SecretListMember.objects.filter(member=user).select_related("owner")
     for member in shared:
-        owners.append((member.owner.username, member.owner))
+        owners.append((member.owner.username, member.owner.username, member.owner))
     return owners
 
 
@@ -630,14 +653,14 @@ def compare_lists(request):
     if mode == "number" and "number" in request.GET and number_form.is_valid():
         searched = True
         number = number_form.cleaned_data["number"]
-        for label, owner in owners:
+        for key, label, owner in owners:
             movie = _visible_movies(request.user, owner).filter(number=number).first()
             rows.append({"label": label, "owner": owner, "movie": movie, "movies": None})
     elif mode == "rating" and "min_rating" in request.GET and rating_form.is_valid():
         searched = True
         min_r = int(rating_form.cleaned_data["min_rating"])
         max_r = int(rating_form.cleaned_data["max_rating"])
-        for label, owner in owners:
+        for key, label, owner in owners:
             matches = list(
                 _visible_movies(request.user, owner)
                 .filter(personal_rating__gte=min_r, personal_rating__lte=max_r)

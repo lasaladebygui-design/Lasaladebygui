@@ -447,8 +447,14 @@ main { flex: 1; }
     color: var(--color-on-accent);
 }
 .card.card--hero:hover { color: var(--color-on-accent); filter: brightness(1.05); }
+/* .card h3/.card p (más abajo en esta hoja) fijan su propio color para el
+   resto de cards -- sin este override el título y el subtítulo heredarían
+   ese color en vez del de esta card, quedando casi invisibles sobre el
+   degradado (justo el bug que hacía "Lista completa" ilegible). */
+.card.card--hero h3,
+.card.card--hero .card--hero__sub { color: var(--color-on-accent); }
 .card--hero h3 { font-size: 1.15rem; }
-.card--hero__sub { margin: 4px 0 0; font-size: .82rem; opacity: .85; }
+.card--hero__sub { margin: 4px 0 0; font-size: .82rem; opacity: .92; }
 
 /* Botón "Compartidos": misma pinta que el resto de cards, pero es un
    <button> que despliega el panel debajo en la misma pantalla (ver
@@ -1489,6 +1495,17 @@ main { flex: 1; }
 .compare-toggle__label--active,
 .compare-toggle:has(input:checked) .compare-toggle__label { color: var(--color-text); font-weight: 600; }
 
+/* Con quién comparar: casillas normales, ninguna marcada por defecto --
+   antes se comparaba siempre contra "Tú" sin preguntar. */
+.compare-picker {
+    display: flex; align-items: center; gap: calc(var(--space-unit) * 3); flex-wrap: wrap;
+    margin-top: calc(var(--space-unit) * 2);
+    padding: calc(var(--space-unit) * 3);
+    background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-base);
+}
+.compare-picker__hint { margin: 0; width: 100%; font-size: .82rem; }
+.compare-picker__item { display: inline-flex; align-items: center; gap: calc(var(--space-unit) * 1); font-size: .86rem; cursor: pointer; }
+
 @media (max-width: 640px) {
     .shared-hub__row { flex-direction: column; align-items: flex-start; }
     .shared-hub__toggles { width: 100%; }
@@ -1735,16 +1752,44 @@ main { flex: 1; }
 .search-result__body { flex: 1; }
 .search-result__overview { font-size: 0.85rem; margin: 0.2rem 0 0; }
 
-.own-add-form { display: flex; align-items: flex-end; gap: calc(var(--space-unit) * 2); flex-wrap: wrap; }
-.own-add-form__field { display: flex; flex-direction: column; gap: calc(var(--space-unit) * 1); font-size: 0.8rem; }
-.own-add-form__field input { width: 70px; }
-.own-add-form__field--grow { flex: 1; min-width: 140px; }
-.own-add-form__field--grow input { width: 100%; }
-@media (max-width: 640px) {
-    .search-result { flex-wrap: wrap; }
-    .own-add-form { width: 100%; }
-    .own-add-form__field--grow { order: 1; }
+/* Resultados de "+ Añadir película o serie a mi lista" -- cuadrícula de
+   cards (no una lista de filas apretadas) porque cada resultado ya trae
+   varios campos (nota, comentario, listas, estado de visionado). */
+.own-add-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: calc(var(--space-unit) * 4);
+    list-style: none;
+    margin: 0 0 calc(var(--space-unit) * 6);
+    padding: 0;
 }
+.own-add-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    overflow: hidden;
+}
+.own-add-card__poster-wrap { position: relative; aspect-ratio: 2/3; background: var(--color-surface-2, var(--color-surface)); }
+.own-add-card__poster { width: 100%; height: 100%; object-fit: cover; display: block; }
+.own-add-card__badge {
+    position: absolute; top: calc(var(--space-unit) * 2); left: calc(var(--space-unit) * 2);
+    background: rgba(0, 0, 0, .65); color: #fff;
+    font-size: .72rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+}
+.own-add-card__body { display: flex; flex-direction: column; gap: calc(var(--space-unit) * 2); padding: calc(var(--space-unit) * 3); flex: 1; }
+.own-add-card__title { margin: 0; font-size: .95rem; line-height: 1.25; }
+.own-add-card__row { display: flex; gap: calc(var(--space-unit) * 2); }
+.own-add-card__field { display: flex; flex-direction: column; gap: calc(var(--space-unit) * 1); font-size: 0.78rem; flex: 1; }
+.own-add-card__field input,
+.own-add-card__field select { width: 100%; }
+.own-add-card__genres {
+    display: flex; flex-wrap: wrap; gap: calc(var(--space-unit) * 1) calc(var(--space-unit) * 2);
+    font-size: .78rem;
+}
+.own-add-card__genres label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.own-add-card__submit { margin-top: auto; width: 100%; }
 
 .candidate-list { list-style: none; margin: calc(var(--space-unit) * 4) 0 0; padding: 0; }
 .candidate-row {
@@ -2171,7 +2216,13 @@ main { flex: 1; }
    amigo que te la haya compartido) — ver templates/secret/_scope_banner.html,
    se reutiliza en home/by_number/by_rating/list. -------------------------- */
 
-.scope-banner {
+.scope-banner { margin-bottom: calc(var(--space-unit) * 5); }
+/* Viendo tu propia lista (el caso normal): nada de "current"/insignia
+   anunciando que es tuya -- solo enlaces discretos para saltar a otra. */
+.scope-banner__links { display: flex; align-items: center; gap: calc(var(--space-unit) * 3); flex-wrap: wrap; }
+/* Viendo la lista de otra persona: sí hace falta dejarlo claro (es de
+   solo lectura) y ofrecer la vuelta a la tuya. */
+.scope-banner__readonly {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -2181,13 +2232,7 @@ main { flex: 1; }
     border: 1px solid var(--color-border);
     border-radius: var(--radius-base);
     padding: calc(var(--space-unit) * 3) calc(var(--space-unit) * 4);
-    margin-bottom: calc(var(--space-unit) * 5);
 }
-.scope-banner__current { display: flex; align-items: center; gap: calc(var(--space-unit) * 3); }
-.scope-banner__icon { font-size: 1.4rem; line-height: 1; }
-.scope-banner__current strong { display: block; }
-.scope-banner__current .tag-pill { margin-top: calc(var(--space-unit) * 1); }
-.scope-banner__switch { display: flex; align-items: center; gap: calc(var(--space-unit) * 2); flex-wrap: wrap; }
 
 .secret-add-movie { margin-bottom: calc(var(--space-unit) * 5); }
 .secret-add-movie__panel {
