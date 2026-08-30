@@ -2,7 +2,7 @@ import calendar as calendar_module
 import random
 import unicodedata
 from datetime import date, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from functools import wraps
 
 import requests
@@ -386,6 +386,8 @@ def movie_detail(request, pk):
     return render(request, "secret/movie_detail.html", {
         "movie": movie, "rating_config": TopSecretConfig.load(),
         "scope": scope, "editable": editable, "list_owner": owner,
+        "can_add": scope == "own",
+        "all_genres": Genre.objects.filter(owner=owner) if editable else Genre.objects.none(),
     })
 
 
@@ -556,7 +558,10 @@ def own_movie_add_search(request):
     """Buscar en TMDb (películas Y series) para añadir algo nuevo a tu
     propia lista — a diferencia de la de Bygui (gestionada desde el
     admin), tu lista no tiene equivalente en /admin/: todo el alta se
-    hace desde aquí."""
+    hace desde aquí. Solo se elige aquí -- nota, comentario, listas y
+    estado de visionado se rellenan justo después, en la propia ficha de
+    la película (ver own_movie_add / movie_detail), igual que hace
+    Admin al dar de alta una nueva entrada."""
     query = request.GET.get("query", "").strip()
     results = []
     error = None
@@ -565,47 +570,36 @@ def own_movie_add_search(request):
             results = tmdb_search(query, media_type="movie")[:6] + tmdb_search(query, media_type="tv")[:6]
         except MovieAPIError as exc:
             error = str(exc)
-    genres = Genre.objects.filter(owner=request.user)
-    return render(request, "secret/_own_add_results.html", {
-        "results": results, "error": error, "query": query, "genres": genres,
-    })
+    return render(request, "secret/_own_add_results.html", {"results": results, "error": error, "query": query})
 
 
 @secret_required
 @login_required
 def own_movie_add(request, media_type, tmdb_id):
-    if request.method == "POST" and media_type in ("movie", "tv"):
-        try:
-            rating = Decimal(request.POST.get("personal_rating", "5")).quantize(Decimal("0.1"))
-        except (InvalidOperation, TypeError):
-            rating = Decimal("5")
-        rating = min(max(rating, Decimal("1")), Decimal("10"))
-        comment = request.POST.get("comment", "").strip()
-        watch_status = request.POST.get("series_watch_status", "")
-        if watch_status not in SecretMovie.SeriesWatchStatus.values:
-            watch_status = SecretMovie.SeriesWatchStatus.NOT_WATCHED
-        genre_ids = request.POST.getlist("genres")
-        genres = Genre.objects.filter(owner=request.user, pk__in=genre_ids)
+    """Elegida en la búsqueda, se da de alta con una nota provisional --
+    el siguiente paso es su propia ficha (con ?edit=1, ya abierta en modo
+    edición) para ponerle la nota de verdad, comentario, listas y estado
+    de visionado si es serie, exactamente como se editaría cualquier otra
+    entrada ya existente."""
+    if request.method != "POST" or media_type not in ("movie", "tv"):
+        return redirect(f"{reverse('secret:list')}?scope=own")
 
-        try:
-            catalog_movie = Movie.get_or_create_from_tmdb(tmdb_id, media_type=media_type)
-        except MovieAPIError as exc:
-            messages.error(request, str(exc))
-        else:
-            existing = SecretMovie.objects.filter(owner=request.user, movie=catalog_movie).first()
-            if existing:
-                messages.info(request, f"«{catalog_movie.title}» ya está en tu lista.")
-            else:
-                entry = SecretMovie.objects.create(
-                    owner=request.user, movie=catalog_movie, title=catalog_movie.title,
-                    personal_rating=rating, comment=comment,
-                    series_watch_status=watch_status if media_type == "tv" else SecretMovie.SeriesWatchStatus.NOT_WATCHED,
-                )
-                if genres:
-                    entry.genres.set(genres)
-                _drop_from_saved(request.user, catalog_movie)
-                messages.success(request, f"«{catalog_movie.title}» añadida a tu lista.")
-    return redirect(f"{reverse('secret:list')}?scope=own")
+    try:
+        catalog_movie = Movie.get_or_create_from_tmdb(tmdb_id, media_type=media_type)
+    except MovieAPIError as exc:
+        messages.error(request, str(exc))
+        return redirect(f"{reverse('secret:list')}?scope=own")
+
+    existing = SecretMovie.objects.filter(owner=request.user, movie=catalog_movie).first()
+    if existing:
+        messages.info(request, f"«{catalog_movie.title}» ya está en tu lista.")
+        return redirect(f"{reverse('secret:movie-detail', args=[existing.pk])}?scope=own")
+
+    entry = SecretMovie.objects.create(
+        owner=request.user, movie=catalog_movie, title=catalog_movie.title, personal_rating=Decimal("5"),
+    )
+    _drop_from_saved(request.user, catalog_movie)
+    return redirect(f"{reverse('secret:movie-detail', args=[entry.pk])}?scope=own&edit=1")
 
 
 @secret_required
@@ -733,11 +727,18 @@ def own_list_share(request):
 @secret_required
 @login_required
 def own_list_share_invite(request, username):
+    """El propio interruptor (visible sea cual sea el resultado) ya deja
+    claro que la invitación se aplicó -- el mensaje de confirmación solo
+    hace falta cuando la petición viene de fuera de HTMX, si no se queda
+    en cola sin mostrarse nunca (el parcial no pinta `messages`) y acaba
+    reapareciendo de golpe, fuera de contexto, en la próxima página
+    completa que se cargue -- fue justo el bug reportado."""
     friend = get_object_or_404(User, username=username)
     member = None
     if request.method == "POST" and are_friends(request.user, friend):
         member, _ = SecretListMember.objects.get_or_create(owner=request.user, member=friend)
-        messages.success(request, f"{friend} ya puede ver tu lista.")
+        if not _is_htmx(request):
+            messages.success(request, f"{friend} ya puede ver tu lista.")
     if _is_htmx(request):
         return render(request, "secret/_share_toggle_list.html", {"friend": friend, "member": member})
     return redirect("secret:own-list-share")
@@ -750,9 +751,9 @@ def own_list_share_kick(request, pk):
     friend = member.member
     if request.method == "POST":
         member.delete()
-        messages.success(request, f"{friend} ya no puede ver tu lista.")
         if _is_htmx(request):
             return render(request, "secret/_share_toggle_list.html", {"friend": friend, "member": None})
+        messages.success(request, f"{friend} ya no puede ver tu lista.")
     return redirect("secret:own-list-share")
 
 
@@ -1067,7 +1068,8 @@ def photo_board_invite(request, username):
     member = None
     if request.method == "POST" and are_friends(request.user, friend):
         member, _ = PhotoBoardMember.objects.get_or_create(owner=request.user, member=friend)
-        messages.success(request, f"{friend} ya puede ver y subir fotos a tu tablón.")
+        if not _is_htmx(request):
+            messages.success(request, f"{friend} ya puede ver y subir fotos a tu tablón.")
     if _is_htmx(request):
         return render(request, "secret/_share_toggle_photos.html", {"friend": friend, "member": member})
     return redirect("secret:photo-board")
@@ -1080,9 +1082,9 @@ def photo_board_kick(request, pk):
     friend = member.member
     if request.method == "POST":
         member.delete()
-        messages.success(request, f"{friend} ya no tiene acceso a tu tablón.")
         if _is_htmx(request):
             return render(request, "secret/_share_toggle_photos.html", {"friend": friend, "member": None})
+        messages.success(request, f"{friend} ya no tiene acceso a tu tablón.")
     return redirect("secret:photo-board")
 
 
@@ -1237,7 +1239,8 @@ def calendar_share_invite(request, username):
     member = None
     if request.method == "POST" and are_friends(request.user, friend):
         member, _ = CalendarShareMember.objects.get_or_create(owner=request.user, member=friend)
-        messages.success(request, f"{friend} ya puede ver tu calendario.")
+        if not _is_htmx(request):
+            messages.success(request, f"{friend} ya puede ver tu calendario.")
     if _is_htmx(request):
         return render(request, "secret/_share_toggle_calendar.html", {"friend": friend, "member": member})
     return redirect("secret:calendar-share")
@@ -1250,9 +1253,9 @@ def calendar_share_kick(request, pk):
     friend = member.member
     if request.method == "POST":
         member.delete()
-        messages.success(request, f"{friend} ya no puede ver tu calendario.")
         if _is_htmx(request):
             return render(request, "secret/_share_toggle_calendar.html", {"friend": friend, "member": None})
+        messages.success(request, f"{friend} ya no puede ver tu calendario.")
     return redirect("secret:calendar-share")
 
 

@@ -1753,8 +1753,9 @@ main { flex: 1; }
 .search-result__overview { font-size: 0.85rem; margin: 0.2rem 0 0; }
 
 /* Resultados de "+ Añadir película o serie a mi lista" -- cuadrícula de
-   cards (no una lista de filas apretadas) porque cada resultado ya trae
-   varios campos (nota, comentario, listas, estado de visionado). */
+   cards (no una lista de filas apretadas): solo para elegir cuál es --
+   nota, comentario, listas y estado de visionado se rellenan justo
+   después, en la propia ficha de la película recién creada. */
 .own-add-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -1779,17 +1780,8 @@ main { flex: 1; }
     font-size: .72rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
 }
 .own-add-card__body { display: flex; flex-direction: column; gap: calc(var(--space-unit) * 2); padding: calc(var(--space-unit) * 3); flex: 1; }
-.own-add-card__title { margin: 0; font-size: .95rem; line-height: 1.25; }
-.own-add-card__row { display: flex; gap: calc(var(--space-unit) * 2); }
-.own-add-card__field { display: flex; flex-direction: column; gap: calc(var(--space-unit) * 1); font-size: 0.78rem; flex: 1; }
-.own-add-card__field input,
-.own-add-card__field select { width: 100%; }
-.own-add-card__genres {
-    display: flex; flex-wrap: wrap; gap: calc(var(--space-unit) * 1) calc(var(--space-unit) * 2);
-    font-size: .78rem;
-}
-.own-add-card__genres label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
-.own-add-card__submit { margin-top: auto; width: 100%; }
+.own-add-card__title { margin: 0 0 auto; font-size: .95rem; line-height: 1.25; }
+.own-add-card__submit { width: 100%; }
 
 .candidate-list { list-style: none; margin: calc(var(--space-unit) * 4) 0 0; padding: 0; }
 .candidate-row {
