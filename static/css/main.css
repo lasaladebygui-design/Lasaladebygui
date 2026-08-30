@@ -426,47 +426,98 @@ main { flex: 1; }
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: calc(var(--space-unit) * 5);
 }
-/* Top Secret (home): "Lista completa" ya va primero en el DOM (así sale
-   arriba también en móvil, que solo apila); aquí solo se le da el ancho
-   completo cuando el grid pasa a tener más de una columna. */
-@media (min-width: 641px) {
-    .card-grid--topsecret__list { grid-column: 1 / -1; }
+/* --- Top Secret: el maletín fusionado -----------------------------------
+   Lista/Calendario/Tablón/Buscar/Compartidos ya no son cinco pantallas
+   sueltas enlazadas desde una de tarjetas -- comparten esta barra lateral
+   persistente (ver secret/_shell.html). Cambiar de pestaña navega de
+   verdad (cada una sigue siendo su propia URL/vista/permiso de siempre)
+   pero htmx solo reemplaza #ts-content, así que la barra lateral -- y si
+   está plegada o no -- no se vuelve a pintar en cada cambio. */
+.ts-shell {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    align-items: start;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    overflow: hidden;
 }
+@media (max-width: 860px) { .ts-shell { grid-template-columns: 1fr; } }
 
-/* "Lista completa" es lo que se usa la mayoría de las veces -- antes solo
-   se distinguía del resto por ser más ancha; ahora tiene color propio
-   (el acento del tema) para que destaque de un vistazo, no solo ocupe
-   más sitio. */
-/* .card.card--hero (en vez de .card--hero a secas): la regla base .card
-   fija su propio background más abajo en esta misma hoja, y con la misma
-   especificidad gana la que esté después en el archivo -- así, sea cual
-   sea el orden, esta gana siempre. */
-.card.card--hero {
-    background: linear-gradient(135deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 70%, var(--color-accent-secondary)));
-    border-color: transparent;
-    color: var(--color-on-accent);
+.ts-rail {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--space-unit) * 1);
+    padding: calc(var(--space-unit) * 5) calc(var(--space-unit) * 3);
+    border-right: 1px solid var(--color-border);
+    background: var(--color-bg);
+    position: sticky;
+    top: calc(var(--space-unit) * 4);
 }
-.card.card--hero:hover { color: var(--color-on-accent); filter: brightness(1.05); }
-/* .card h3/.card p (más abajo en esta hoja) fijan su propio color para el
-   resto de cards -- sin este override el título y el subtítulo heredarían
-   ese color en vez del de esta card, quedando casi invisibles sobre el
-   degradado (justo el bug que hacía "Lista completa" ilegible). */
-.card.card--hero h3,
-.card.card--hero .card--hero__sub { color: var(--color-on-accent); }
-.card--hero h3 { font-size: 1.15rem; }
-.card--hero__sub { margin: 4px 0 0; font-size: .82rem; opacity: .92; }
+@media (max-width: 860px) {
+    .ts-rail {
+        flex-direction: row;
+        overflow-x: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--color-border);
+        position: static;
+        padding: calc(var(--space-unit) * 3);
+    }
+}
+.ts-rail__brand {
+    font-family: var(--font-heading);
+    font-size: .8rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    padding: 0 calc(var(--space-unit) * 2) calc(var(--space-unit) * 3);
+}
+@media (max-width: 860px) { .ts-rail__brand { display: none; } }
 
-/* Botón "Compartidos": misma pinta que el resto de cards, pero es un
-   <button> que despliega el panel debajo en la misma pantalla (ver
-   .shared-hub-inline) en vez de llevarte a otra página. */
-.card.card--toggle { width: 100%; text-align: left; background: var(--color-surface); border: 1px solid var(--color-border); cursor: pointer; }
-.card--toggle:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.ts-rail__tab {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--space-unit) * 2);
+    width: 100%;
+    padding: calc(var(--space-unit) * 2);
+    border: none;
+    border-radius: calc(var(--radius-base) - 2px);
+    background: transparent;
+    color: var(--color-text-muted);
+    font-weight: 600;
+    font-size: .9rem;
+    white-space: nowrap;
+    text-align: left;
+    cursor: pointer;
+}
+.ts-rail__tab:hover { color: var(--color-text); background: var(--color-surface); }
+.ts-rail__tab.is-active { background: var(--color-accent); color: var(--color-on-accent); }
+.ts-rail__tab .ic { font-size: 1rem; flex-shrink: 0; }
+.ts-rail__lock-form { margin-top: calc(var(--space-unit) * 3); }
 
-.shared-hub-inline {
-    margin-top: calc(var(--space-unit) * 6);
-    padding-top: calc(var(--space-unit) * 6);
+.ts-rail__toggle {
+    margin-top: auto;
     border-top: 1px solid var(--color-border);
+    padding-top: calc(var(--space-unit) * 3) !important;
+    color: var(--color-text-muted);
 }
+.ts-rail__toggle-icon { transition: transform .15s ease; }
+@media (max-width: 860px) { .ts-rail__toggle { display: none; } }
+
+/* Barra lateral plegada (botón "Ocultar"): solo iconos, con su título
+   como tooltip -- el contenido gana el ancho que deja libre. */
+.ts-shell.ts-shell--collapsed { grid-template-columns: 60px 1fr; }
+.ts-shell.ts-shell--collapsed .ts-rail { padding-left: calc(var(--space-unit) * 2); padding-right: calc(var(--space-unit) * 2); }
+.ts-shell.ts-shell--collapsed .ts-rail__tab { justify-content: center; }
+.ts-shell.ts-shell--collapsed .ts-rail__tab .lbl,
+.ts-shell.ts-shell--collapsed .ts-rail__brand .lbl { display: none; }
+.ts-shell.ts-shell--collapsed .ts-rail__toggle-icon { transform: rotate(180deg); }
+
+.ts-content { padding: calc(var(--space-unit) * 5); min-width: 0; }
+@media (max-width: 640px) { .ts-content { padding: calc(var(--space-unit) * 4) calc(var(--space-unit) * 3); } }
+/* Pestañas de contenido más corto (Buscar) -- .wrap--narrow no vale aquí
+   porque ya está dentro de .ts-content, no de la página entera. */
+.ts-panel--narrow { max-width: 560px; }
 
 /* Escaparate: número fijo de columnas (como .card-grid--oscars) en vez de
    auto-fit/auto-fill con tope de ancho — así las fichas siempre ocupan su

@@ -177,19 +177,6 @@ def lock(request):
     return redirect("secret:gate")
 
 
-@secret_required
-def home(request):
-    owner, editable, scope = _resolve_scope(request)
-    context = {
-        "scope": scope, "editable": editable, "list_owner": owner,
-        **_scope_context(request),
-    }
-    if request.user.is_authenticated:
-        rows, shared_with_me = _shared_hub_data(request.user)
-        context.update({"share_rows": rows, "shared_with_me_hub": shared_with_me})
-    return render(request, "secret/home.html", context)
-
-
 def _scope_context(request):
     """Contexto común de selector de lista para by_number/by_rating/list:
     tu propia lista, la de Bygui y las que te hayan compartido (ver
@@ -236,7 +223,7 @@ def by_number(request):
     return render(request, "secret/by_number.html", {
         "form": form, "result": result, "searched": searched,
         "scope": scope, "editable": editable, "list_owner": owner,
-        "active_tab": "number", "can_add": scope == "own",
+        "active_tab": "number", "shell_tab": "buscar", "can_add": scope == "own",
         "compare": compare, "rows": rows,
         "comparable_owners": comparable_owners, "selected_with": selected_with,
         **_scope_context(request),
@@ -283,7 +270,7 @@ def by_rating(request):
         "form": form, "result": result, "searched": searched,
         "genres": genres, "selected_genre": genre_slug, "selected_genre_name": selected_genre_name,
         "scope": scope, "editable": editable, "list_owner": owner,
-        "active_tab": "rating", "can_add": scope == "own",
+        "active_tab": "rating", "shell_tab": "buscar", "can_add": scope == "own",
         "compare": compare, "rows": rows,
         "comparable_owners": comparable_owners, "selected_with": selected_with,
         **_scope_context(request),
@@ -371,10 +358,16 @@ def full_list(request):
         "media_type": media_type,
         "all_genres": Genre.objects.filter(owner=owner) if editable else Genre.objects.none(),
         "scope": scope, "editable": editable, "list_owner": owner,
-        "can_add": scope == "own",
+        "can_add": scope == "own", "shell_tab": "lista",
         **_scope_context(request),
     }
-    if _is_htmx(request):
+    # El scroll infinito (_secret_list_sentinel.html) pide más páginas por
+    # HTMX a esta misma URL, esperando solo las filas nuevas -- pero la
+    # pestaña "Lista" de la barra lateral del maletín (ver secret/_shell.html)
+    # TAMBIÉN pide esta URL por HTMX, y esa sí necesita la página completa
+    # (usa hx-select para quedarse solo con #ts-content). Ambas llegan con
+    # HX-Request, así que hace falta esta cabecera de más para distinguirlas.
+    if _is_htmx(request) and not request.headers.get("HX-Shell-Nav"):
         return render(request, "secret/_list_items.html", context)
     return render(request, "secret/list.html", context)
 
@@ -707,7 +700,9 @@ def shared_hub(request):
     aquí reutilizan las mismas invitar/expulsar de cada apartado, así que
     activarlos ahí o desde aquí es exactamente lo mismo."""
     rows, shared_with_me = _shared_hub_data(request.user)
-    return render(request, "secret/shared_hub.html", {"rows": rows, "shared_with_me": shared_with_me})
+    return render(request, "secret/shared_hub.html", {
+        "rows": rows, "shared_with_me": shared_with_me, "shell_tab": "compartidos",
+    })
 
 
 @secret_required
@@ -1012,7 +1007,7 @@ def photo_board(request, username=None):
     is_owner = owner.pk == request.user.pk
 
     photos = SecretPhoto.objects.filter(board_owner=owner).select_related("uploaded_by")
-    context = {"photos": photos, "board_owner": owner, "is_owner": is_owner}
+    context = {"photos": photos, "board_owner": owner, "is_owner": is_owner, "shell_tab": "tablon"}
 
     if is_owner:
         members = PhotoBoardMember.objects.filter(owner=request.user).select_related("member")
@@ -1215,6 +1210,7 @@ def calendar_view(request, username=None):
         "google_calendar_connected": is_owner and hasattr(request.user, "google_calendar_connection"),
         "calendar_owner": owner,
         "is_owner": is_owner,
+        "shell_tab": "calendario",
     })
 
 

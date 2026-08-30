@@ -7,7 +7,12 @@ app_name = "secret"
 urlpatterns = [
     path("", views.gate, name="gate"),
     path("cerrar/", views.lock, name="lock"),
-    path("dentro/", views.home, name="home"),
+    # "home" es simplemente un alias de "list" (con este nombre desde antes
+    # de que Lista completa fuera la pestaña por defecto del maletín
+    # fusionado, ver secret/_shell.html) -- ambas apuntan a la misma vista
+    # para que "Volver a Top Secret" y el destino tras desbloquear sigan
+    # llevando exactamente al mismo sitio de siempre.
+    path("dentro/", views.full_list, name="home"),
     path("dentro/numero/", views.by_number, name="by-number"),
     path("dentro/nota/", views.by_rating, name="by-rating"),
     path("dentro/lista/", views.full_list, name="list"),
