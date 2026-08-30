@@ -1478,7 +1478,24 @@ main { flex: 1; }
     color: var(--color-on-accent);
     font-weight: 600;
 }
-.shared-hub-mine { display: flex; flex-direction: column; gap: calc(var(--space-unit) * 2); }
+/* Compartidos: "Lo que te han compartido" -- una tarjeta por amigo con
+   sus apartados (los que te haya dado) como botones, en vez de una
+   lista plana de enlaces separados por apartado. Es el sitio único
+   pensado para entrar cómodamente a la lista/tablón/calendario de un
+   amigo, sin depender de un enlace suelto dentro de cada pantalla. */
+.shared-with-me-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: calc(var(--space-unit) * 3);
+}
+.shared-with-me-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    padding: calc(var(--space-unit) * 3);
+}
+.shared-with-me-card__name { display: block; font-weight: 600; margin-bottom: calc(var(--space-unit) * 2); }
+.shared-with-me-card__links { display: flex; flex-wrap: wrap; gap: calc(var(--space-unit) * 2); }
 
 /* --- Comparar con amigos (ver templates/secret/compare.html): una
    columna por lista comparada, en fila en escritorio y apiladas en
@@ -1807,14 +1824,27 @@ main { flex: 1; }
     margin: 0 0 calc(var(--space-unit) * 6);
     padding: 0;
 }
-.own-add-card {
+.own-add-card form { height: 100%; }
+/* Toda la tarjeta es el botón (no solo "+ Elegir" al fondo) -- clicar la
+   portada o el título antes no hacía nada, y con 100+ resultados en
+   pantalla eso se sentía como que "añadir" estaba roto. */
+.own-add-card__hit {
     display: flex;
     flex-direction: column;
+    width: 100%;
+    height: 100%;
+    text-align: left;
+    cursor: pointer;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-base);
     overflow: hidden;
+    padding: 0;
+    font: inherit;
+    color: inherit;
 }
+.own-add-card__hit:hover, .own-add-card__hit:focus-visible { border-color: var(--color-accent); }
+.own-add-card__hit:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .own-add-card__poster-wrap { position: relative; aspect-ratio: 2/3; background: var(--color-surface-2, var(--color-surface)); }
 .own-add-card__poster { width: 100%; height: 100%; object-fit: cover; display: block; }
 .own-add-card__badge {
@@ -1824,7 +1854,12 @@ main { flex: 1; }
 }
 .own-add-card__body { display: flex; flex-direction: column; gap: calc(var(--space-unit) * 2); padding: calc(var(--space-unit) * 3); flex: 1; }
 .own-add-card__title { margin: 0 0 auto; font-size: .95rem; line-height: 1.25; }
-.own-add-card__submit { width: 100%; }
+.own-add-card__cta {
+    display: block; width: 100%; text-align: center;
+    background: var(--color-accent); color: var(--color-on-accent);
+    border-radius: calc(var(--radius-base) - 4px); padding: calc(var(--space-unit) * 2);
+    font-size: .82rem; font-weight: 600;
+}
 
 .candidate-list { list-style: none; margin: calc(var(--space-unit) * 4) 0 0; padding: 0; }
 .candidate-row {

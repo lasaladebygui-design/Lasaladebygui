@@ -177,20 +177,6 @@ def lock(request):
     return redirect("secret:gate")
 
 
-def _scope_context(request):
-    """Contexto común de selector de lista para by_number/by_rating/list:
-    tu propia lista, la de Bygui y las que te hayan compartido (ver
-    SecretListMember) — para pintar el botón/desplegable "qué lista
-    estás viendo" en las tres pantallas."""
-    user = request.user
-    shared_with_me = []
-    if user.is_authenticated:
-        shared_with_me = [
-            m.owner for m in SecretListMember.objects.filter(member=user).select_related("owner")
-        ]
-    return {"shared_with_me": shared_with_me}
-
-
 @secret_required
 def by_number(request):
     owner, editable, scope = _resolve_scope(request)
@@ -226,7 +212,6 @@ def by_number(request):
         "active_tab": "number", "shell_tab": "buscar", "can_add": scope == "own",
         "compare": compare, "rows": rows,
         "comparable_owners": comparable_owners, "selected_with": selected_with,
-        **_scope_context(request),
     })
 
 
@@ -273,7 +258,6 @@ def by_rating(request):
         "active_tab": "rating", "shell_tab": "buscar", "can_add": scope == "own",
         "compare": compare, "rows": rows,
         "comparable_owners": comparable_owners, "selected_with": selected_with,
-        **_scope_context(request),
     })
 
 
@@ -359,7 +343,6 @@ def full_list(request):
         "all_genres": Genre.objects.filter(owner=owner) if editable else Genre.objects.none(),
         "scope": scope, "editable": editable, "list_owner": owner,
         "can_add": scope == "own", "shell_tab": "lista",
-        **_scope_context(request),
     }
     # El scroll infinito (_secret_list_sentinel.html) pide más páginas por
     # HTMX a esta misma URL, esperando solo las filas nuevas -- pero la
@@ -682,11 +665,24 @@ def _shared_hub_data(user):
         for friend in friends
     ]
 
-    shared_with_me = {
-        "list": [m.owner for m in SecretListMember.objects.filter(member=user).select_related("owner")],
-        "photos": [m.owner for m in PhotoBoardMember.objects.filter(member=user).select_related("owner")],
-        "calendar": [m.owner for m in CalendarShareMember.objects.filter(member=user).select_related("owner")],
-    }
+    # Agrupado por amigo (no por apartado) para poder enseñar, de un
+    # vistazo en Compartidos, todo lo que te ha compartido cada uno --
+    # antes eran tres listas sueltas de nombres, una por apartado.
+    shared_list_owners = {m.owner_id: m.owner for m in SecretListMember.objects.filter(member=user).select_related("owner")}
+    shared_photo_owners = {m.owner_id: m.owner for m in PhotoBoardMember.objects.filter(member=user).select_related("owner")}
+    shared_calendar_owners = {m.owner_id: m.owner for m in CalendarShareMember.objects.filter(member=user).select_related("owner")}
+    all_sharer_ids = set(shared_list_owners) | set(shared_photo_owners) | set(shared_calendar_owners)
+    all_sharers = {**shared_list_owners, **shared_photo_owners, **shared_calendar_owners}
+    shared_with_me = [
+        {
+            "owner": all_sharers[owner_id],
+            "has_list": owner_id in shared_list_owners,
+            "has_photos": owner_id in shared_photo_owners,
+            "has_calendar": owner_id in shared_calendar_owners,
+        }
+        for owner_id in all_sharer_ids
+    ]
+    shared_with_me.sort(key=lambda row: row["owner"].username.lower())
     return rows, shared_with_me
 
 

@@ -704,6 +704,73 @@ class MoviePosterEditTests(TestCase):
         self.assertIsNone(self.movie.movie)
 
 
+class OwnMovieAddTests(TestCase):
+    """El flujo de "+ Añadir película o serie a mi lista": elegir un
+    resultado de búsqueda debe crear la entrada en tu lista propia y
+    llevarte a su ficha ya en modo edición -- sin quedarse a medias."""
+
+    def setUp(self):
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.user = User.objects.create(email="own_movie_add@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+    @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
+    def test_elegir_una_pelicula_la_anade_y_lleva_a_su_ficha_en_edicion(self, mock_get_or_create):
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=42, title="Alien", media_type="movie")
+        response = self.client.post(reverse("secret:own-movie-add", args=["movie", 42]))
+
+        entry = SecretMovie.objects.get(owner=self.user, movie__tmdb_id=42)
+        self.assertRedirects(response, f"{reverse('secret:movie-detail', args=[entry.pk])}?scope=own&edit=1")
+        mock_get_or_create.assert_called_once_with(42, media_type="movie")
+
+        # La ficha en sí carga bien y ya sale en modo edición.
+        response = self.client.get(response.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Alien")
+        self.assertContains(response, "editing: true")
+
+    @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
+    def test_elegir_una_serie_la_anade_con_su_media_type(self, mock_get_or_create):
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=43, title="The Wire", media_type="tv")
+        self.client.post(reverse("secret:own-movie-add", args=["tv", 43]))
+        mock_get_or_create.assert_called_once_with(43, media_type="tv")
+        self.assertTrue(SecretMovie.objects.filter(owner=self.user, movie__tmdb_id=43).exists())
+
+    @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
+    def test_elegir_la_misma_pelicula_dos_veces_no_la_duplica(self, mock_get_or_create):
+        movie = Movie.objects.create(tmdb_id=44, title="Dupe", media_type="movie")
+        mock_get_or_create.return_value = movie
+        self.client.post(reverse("secret:own-movie-add", args=["movie", 44]))
+        self.client.post(reverse("secret:own-movie-add", args=["movie", 44]))
+        self.assertEqual(SecretMovie.objects.filter(owner=self.user, movie=movie).count(), 1)
+
+    @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
+    def test_si_tmdb_falla_no_rompe_solo_avisa_y_vuelve_a_la_lista(self, mock_get_or_create):
+        mock_get_or_create.side_effect = MovieAPIError("fallo de TMDb")
+        response = self.client.post(reverse("secret:own-movie-add", args=["movie", 45]))
+        self.assertRedirects(response, f"{reverse('secret:list')}?scope=own")
+        self.assertFalse(SecretMovie.objects.filter(owner=self.user).exists())
+
+    def test_get_no_anade_nada_solo_redirige(self):
+        # El botón "+ Elegir" es un <form method="post">; una petición GET
+        # a la misma URL (ej. si algo la enlazase mal) no debe dar de alta.
+        response = self.client.get(reverse("secret:own-movie-add", args=["movie", 46]))
+        self.assertRedirects(response, f"{reverse('secret:list')}?scope=own")
+        self.assertFalse(SecretMovie.objects.filter(owner=self.user).exists())
+
+    def test_boton_elegir_esta_en_los_resultados_de_busqueda(self):
+        with patch("apps.secret.views.tmdb_search") as mock_search:
+            from apps.movies.services import TMDbResult
+            mock_search.return_value = [
+                TMDbResult(tmdb_id=47, title="Encontrada", year="2024", poster_path="", overview="", media_type="movie"),
+            ]
+            response = self.client.get(reverse("secret:own-movie-add-search"), {"query": "encontrada"})
+        self.assertContains(response, reverse("secret:own-movie-add", args=["movie", 47]))
+        self.assertContains(response, "+ Elegir")
+
+
 class GenreManageTests(TestCase):
     def setUp(self):
         self.client.post(reverse("secret:gate"), {"code": "8888"})
