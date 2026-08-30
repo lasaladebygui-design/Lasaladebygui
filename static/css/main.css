@@ -437,19 +437,23 @@ main { flex: 1; }
    se distinguía del resto por ser más ancha; ahora tiene color propio
    (el acento del tema) para que destaque de un vistazo, no solo ocupe
    más sitio. */
-.card--hero {
+/* .card.card--hero (en vez de .card--hero a secas): la regla base .card
+   fija su propio background más abajo en esta misma hoja, y con la misma
+   especificidad gana la que esté después en el archivo -- así, sea cual
+   sea el orden, esta gana siempre. */
+.card.card--hero {
     background: linear-gradient(135deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 70%, var(--color-accent-secondary)));
     border-color: transparent;
     color: var(--color-on-accent);
 }
-.card--hero:hover { color: var(--color-on-accent); filter: brightness(1.05); }
+.card.card--hero:hover { color: var(--color-on-accent); filter: brightness(1.05); }
 .card--hero h3 { font-size: 1.15rem; }
 .card--hero__sub { margin: 4px 0 0; font-size: .82rem; opacity: .85; }
 
 /* Botón "Compartidos": misma pinta que el resto de cards, pero es un
    <button> que despliega el panel debajo en la misma pantalla (ver
    .shared-hub-inline) en vez de llevarte a otra página. */
-.card--toggle { width: 100%; text-align: left; background: var(--color-surface); border: 1px solid var(--color-border); cursor: pointer; }
+.card.card--toggle { width: 100%; text-align: left; background: var(--color-surface); border: 1px solid var(--color-border); cursor: pointer; }
 .card--toggle:hover { border-color: var(--color-accent); color: var(--color-accent); }
 
 .shared-hub-inline {
@@ -1458,11 +1462,32 @@ main { flex: 1; }
 .search-tabs__item:hover { color: var(--color-text); }
 .search-tabs__item--active { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent); }
 
-.compare-checkbox {
-    display: flex; align-items: center; gap: calc(var(--space-unit) * 2);
-    font-size: .84rem; color: var(--color-text-muted); margin-top: calc(var(--space-unit) * 1);
+.search-form { margin-bottom: calc(var(--space-unit) * 6); }
+.search-form__row { display: flex; align-items: flex-end; gap: calc(var(--space-unit) * 3); flex-wrap: wrap; margin-bottom: calc(var(--space-unit) * 3); }
+.search-form__field { flex: 1; min-width: 120px; margin-bottom: 0; }
+
+/* Interruptor real (no una casilla suelta) para "comparar con amigos" --
+   se envía igual que una checkbox normal, solo cambia cómo se ve. */
+.compare-toggle {
+    display: inline-flex; align-items: center; gap: calc(var(--space-unit) * 2);
+    cursor: pointer; font-size: .86rem; color: var(--color-text-muted);
 }
-.compare-checkbox input { width: auto; }
+.compare-toggle input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.compare-toggle__switch {
+    position: relative; width: 38px; height: 22px; border-radius: 999px;
+    background: var(--color-surface-2, var(--color-surface)); border: 1px solid var(--color-border);
+    transition: background-color .15s ease;
+    flex-shrink: 0;
+}
+.compare-toggle__switch::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+    border-radius: 50%; background: var(--color-text-muted); transition: transform .15s ease, background-color .15s ease;
+}
+.compare-toggle input:checked + .compare-toggle__switch { background: var(--color-accent); border-color: var(--color-accent); }
+.compare-toggle input:checked + .compare-toggle__switch::after { transform: translateX(16px); background: var(--color-on-accent); }
+.compare-toggle input:focus-visible + .compare-toggle__switch { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.compare-toggle__label--active,
+.compare-toggle:has(input:checked) .compare-toggle__label { color: var(--color-text); font-weight: 600; }
 
 @media (max-width: 640px) {
     .shared-hub__row { flex-direction: column; align-items: flex-start; }
