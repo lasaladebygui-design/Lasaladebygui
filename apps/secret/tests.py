@@ -28,6 +28,7 @@ from .models import (
     TierLevel,
     TierListEntry,
     TopSecretConfig,
+    TopSecretTab,
 )
 
 try:
@@ -771,6 +772,69 @@ class OwnMovieAddTests(TestCase):
             response = self.client.get(reverse("secret:own-movie-add-search"), {"query": "encontrada"})
         self.assertContains(response, reverse("secret:own-movie-add", args=["movie", 47]))
         self.assertContains(response, "+ Elegir")
+
+
+class OwnMovieAddAsAdminTests(TestCase):
+    """Para Admin, "tu propia lista" es la lista de Bygui: owner=None
+    (ver _resolve_scope). own_movie_add/own_movie_delete tenían un fallo
+    -- guardaban/buscaban con owner=request.user (su usuario real) en vez
+    de owner=None, así que lo que Admin añadía se volvía invisible (404)
+    en cuanto lo miraba con scope=own. Repro exacta del bug reportado:
+    "al añadir película, ahora te dice que no está"."""
+
+    def setUp(self):
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.admin = User.objects.create(email="own_movie_add_admin@test.local", role=User.Role.ADMIN)
+        self.admin.set_password("Testpass123!")
+        self.admin.save()
+        self.client.login(username=self.admin.email, password="Testpass123!")
+
+    @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
+    def test_admin_anade_una_pelicula_y_la_encuentra_en_su_propia_lista(self, mock_get_or_create):
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=42, title="Alien", media_type="movie")
+        response = self.client.post(reverse("secret:own-movie-add", args=["movie", 42]))
+
+        entry = SecretMovie.objects.get(movie__tmdb_id=42)
+        self.assertIsNone(entry.owner)  # guardada como la de Bygui, no bajo el usuario real de Admin
+        self.assertRedirects(response, f"{reverse('secret:movie-detail', args=[entry.pk])}?scope=own&edit=1")
+
+        # La ficha se ve de verdad con scope=own -- antes daba 404 aquí.
+        response = self.client.get(response.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Alien")
+
+    @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
+    def test_admin_anade_la_misma_pelicula_dos_veces_no_la_duplica_ni_da_404(self, mock_get_or_create):
+        movie = Movie.objects.create(tmdb_id=44, title="Dupe", media_type="movie")
+        mock_get_or_create.return_value = movie
+        self.client.post(reverse("secret:own-movie-add", args=["movie", 44]))
+        response = self.client.post(reverse("secret:own-movie-add", args=["movie", 44]))
+
+        self.assertEqual(SecretMovie.objects.filter(movie=movie, owner=None).count(), 1)
+        self.assertEqual(response.status_code, 302)
+        detail_response = self.client.get(response.url)
+        self.assertEqual(detail_response.status_code, 200)
+
+    @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
+    def test_con_la_edicion_desactivada_se_explica_por_que_en_vez_de_no_decir_nada(self, mock_get_or_create):
+        # allow_web_editing es False por defecto -- antes, con esto
+        # apagado, la ficha recién creada no mostraba ni el formulario ni
+        # ninguna pista de por qué no se podía editar/borrar nada.
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=46, title="Sin editar", media_type="movie")
+        response = self.client.post(reverse("secret:own-movie-add", args=["movie", 46]))
+        detail_response = self.client.get(response.url)
+        self.assertContains(detail_response, "La edición desde la web está desactivada")
+        self.assertNotContains(detail_response, "Editar título, nota, comentario, listas y portada")
+
+    @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
+    def test_admin_borra_una_pelicula_de_su_propia_lista(self, mock_get_or_create):
+        mock_get_or_create.return_value = Movie.objects.create(tmdb_id=45, title="A borrar", media_type="movie")
+        self.client.post(reverse("secret:own-movie-add", args=["movie", 45]))
+        entry = SecretMovie.objects.get(movie__tmdb_id=45)
+
+        response = self.client.post(reverse("secret:own-movie-delete", args=[entry.pk]))
+        self.assertRedirects(response, f"{reverse('secret:list')}?scope=own")
+        self.assertFalse(SecretMovie.objects.filter(pk=entry.pk).exists())
 
 
 class GenreManageTests(TestCase):
@@ -1925,3 +1989,50 @@ class AmigosHubTests(TestCase):
         response = self.client.get(reverse("secret:shared-hub"))
         self.assertContains(response, "Con quién compartes")
         self.assertContains(response, "marta")
+
+
+class TopSecretTabOrderTests(TestCase):
+    """Orden de las pestañas de arriba del maletín (TopSecretTab,
+    reordenable arrastrando desde el admin) -- ver
+    templates/secret/_shell.html y secret_extras.topsecret_tab_order."""
+
+    def setUp(self):
+        self.user = User.objects.create(email="tab_order@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+
+    def test_sin_filas_sembradas_usa_el_orden_por_defecto(self):
+        # La migración de datos siembra las 6 filas, pero ordered_keys()
+        # no debe reventar ni perder pestañas si por lo que sea faltan.
+        TopSecretTab.objects.all().delete()
+        self.assertEqual(
+            TopSecretTab.ordered_keys(),
+            ["lista", "calendario", "tablon", "buscar", "amigos", "guardados"],
+        )
+
+    def test_reordenar_desde_el_admin_cambia_el_orden_de_la_barra(self):
+        TopSecretTab.objects.filter(key="lista").update(order=10)
+        TopSecretTab.objects.filter(key="buscar").update(order=0)
+
+        response = self.client.get(reverse("secret:list"))
+        content = response.content.decode()
+        pos_buscar = content.index(">Buscar<")
+        pos_lista = content.index(">Lista<")
+        self.assertLess(pos_buscar, pos_lista)
+
+    def test_una_pestana_nueva_sin_fila_todavia_no_desaparece(self):
+        TopSecretTab.objects.filter(key="guardados").delete()
+        self.assertIn("guardados", TopSecretTab.ordered_keys())
+
+    def test_reordenar_no_hace_salir_amigos_ni_guardados_sin_login(self):
+        # Sin sesión iniciada, esas dos pestañas siguen sin salir en la
+        # barra pase lo que pase con el orden (ver _shell.html). logout()
+        # vacía también la sesión del maletín (secret_required la exige
+        # aparte del login), así que hay que volver a abrirlo.
+        self.client.logout()
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+        response = self.client.get(f"{reverse('secret:list')}?scope=bygui")
+        self.assertNotContains(response, ">Amigos<")
+        self.assertNotContains(response, ">Guardados<")

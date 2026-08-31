@@ -20,6 +20,7 @@ from .models import (
     TierLevel,
     TierListEntry,
     TopSecretConfig,
+    TopSecretTab,
 )
 
 
@@ -81,6 +82,23 @@ class TopSecretConfigAdmin(SingletonAdmin):
     )
 
 
+@admin.register(TopSecretTab)
+class TopSecretTabAdmin(SortableAdminMixin, admin.ModelAdmin):
+    """Arrastra las filas para decidir en qué orden salen las pestañas de
+    arriba del maletín (Lista, Calendario, Tablón...) -- para todo el
+    mundo por igual, ver templates/secret/_shell.html. Es un conjunto
+    fijo: no se puede añadir ni borrar desde aquí, solo reordenar."""
+
+    list_display = ("__str__",)
+    list_display_links = None
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Genre)
 class GenreAdmin(SortableAdminMixin, admin.ModelAdmin):
     # Se ve TODO -- la de Bygui (owner vacío) y la de cada usuario -- para
@@ -105,9 +123,17 @@ class SecretMovieAdmin(admin.ModelAdmin):
     list_display = ("number", "title", "owner", "personal_rating", "tie_break", "genre_list", "admin_only")
     # Por defecto Django solo deja clicable la primera columna (number) —
     # aquí cualquiera de las columnas visibles lleva a la ficha de edición.
+    # `owner` NO está aquí para poder tenerlo en list_editable (Django no
+    # permite que una columna sea link Y editable a la vez) -- así se
+    # puede reasignar de quién es una entrada directamente desde el
+    # listado, sin abrir cada una, con el mismo desplegable de siempre.
     list_display_links = ("number", "title", "personal_rating", "tie_break", "genre_list")
-    list_editable = ("admin_only",)
-    list_filter = ("admin_only", "owner")
+    list_editable = ("admin_only", "owner")
+    # RelatedOnlyFieldListFilter: solo enseña en el filtro a quien de
+    # verdad tiene alguna entrada, en vez de listar a todos los usuarios
+    # del sitio tengan o no película alguna -- mucho más corto y directo
+    # para encontrar la lista de alguien en concreto.
+    list_filter = ("admin_only", ("owner", admin.RelatedOnlyFieldListFilter))
     search_fields = ("title", "owner__username")
     autocomplete_fields = ("movie", "owner")
     ordering = ("owner", "number")

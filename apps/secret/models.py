@@ -79,6 +79,43 @@ class RatingColorBand(models.Model):
         return f"{self.min_rating}–{self.max_rating}: {self.color}"
 
 
+class TopSecretTab(models.Model):
+    """Orden de las pestañas de la barra de arriba del maletín (ver
+    templates/secret/_shell.html) — un conjunto fijo, no se crean ni
+    borran filas desde aquí, solo se arrastran para reordenarlas (ver
+    TopSecretTabAdmin, con SortableAdminMixin). El orden es uno solo
+    para todo el mundo, no un ajuste por persona."""
+
+    class Key(models.TextChoices):
+        LISTA = "lista", "Lista"
+        CALENDARIO = "calendario", "Calendario"
+        TABLON = "tablon", "Tablón"
+        BUSCAR = "buscar", "Buscar"
+        AMIGOS = "amigos", "Amigos"
+        GUARDADOS = "guardados", "Guardados"
+
+    key = models.CharField("pestaña", max_length=20, choices=Key.choices, unique=True, editable=False)
+    order = models.PositiveIntegerField("orden", default=0)
+
+    class Meta:
+        verbose_name = "orden de pestaña"
+        verbose_name_plural = "orden de las pestañas de arriba"
+        ordering = ["order"]
+
+    def __str__(self):
+        return self.get_key_display()
+
+    @classmethod
+    def ordered_keys(cls):
+        """Las claves de pestaña en el orden configurado -- si falta
+        seedear alguna (una pestaña nueva en el código sin fila todavía,
+        o una fila borrada a mano) sale al final, en vez de desaparecer
+        de la barra."""
+        keys = list(cls.objects.values_list("key", flat=True))
+        missing = [key for key, _ in cls.Key.choices if key not in keys]
+        return keys + missing
+
+
 class Genre(models.Model):
     """Lista temática de una película secreta (terror, slasher, años 80...),
     lo que antes se llamaba género/subgénero. Igual que las listas de
@@ -178,11 +215,10 @@ class SecretMovie(models.Model):
 
     class Meta:
         # Solo el singular cambia (Django arma "Añadir {verbose_name}",
-        # "¿Eliminar la {verbose_name} X?", etc. con esto) — el plural se
-        # deja igual a propósito, así el menú lateral sigue diciendo
-        # "Películas secretas", que es donde sí tiene sentido ese nombre.
+        # "¿Eliminar la {verbose_name} X?", etc. con esto) — el plural es
+        # lo que sale en el menú lateral del admin.
         verbose_name = "entrada a la lista completa"
-        verbose_name_plural = "películas secretas"
+        verbose_name_plural = "películas enlistadas"
         ordering = ["number"]
         constraints = [
             models.UniqueConstraint(fields=["number"], condition=Q(owner__isnull=True), name="numero_unico_lista_bygui"),

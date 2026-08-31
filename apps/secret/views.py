@@ -77,6 +77,17 @@ def _is_admin(user):
     return user.is_authenticated and user.role == User.Role.ADMIN
 
 
+def _own_list_owner(user):
+    """El `owner` con el que se guarda/consulta "tu propia lista" -- para
+    Admin es None (la lista de Bygui: "mi lista" y "la lista de Bygui"
+    son la misma cosa, ver _resolve_scope), para cualquier otra cuenta es
+    ella misma. own_movie_add/own_movie_delete tienen que usar este
+    mismo valor al crear/buscar, o lo que Admin añade a "su" lista queda
+    guardado bajo su usuario real y se vuelve invisible (404) en cuanto
+    lo mira con scope=own, que para ella resuelve a owner=None."""
+    return None if _is_admin(user) else user
+
+
 def _shareable_friends(user):
     """`friends_of(user)` sin el Buzón de contacto -- `ensure_friends` os
     hace "amigos" en cuanto escribís por Escríbenos para que podáis
@@ -575,13 +586,14 @@ def own_movie_add(request, media_type, tmdb_id):
         messages.error(request, str(exc))
         return redirect(f"{reverse('secret:list')}?scope=own")
 
-    existing = SecretMovie.objects.filter(owner=request.user, movie=catalog_movie).first()
+    owner = _own_list_owner(request.user)
+    existing = SecretMovie.objects.filter(owner=owner, movie=catalog_movie).first()
     if existing:
         messages.info(request, f"«{catalog_movie.title}» ya está en tu lista.")
         return redirect(f"{reverse('secret:movie-detail', args=[existing.pk])}?scope=own")
 
     entry = SecretMovie.objects.create(
-        owner=request.user, movie=catalog_movie, title=catalog_movie.title, personal_rating=Decimal("5"),
+        owner=owner, movie=catalog_movie, title=catalog_movie.title, personal_rating=Decimal("5"),
     )
     _drop_from_saved(request.user, catalog_movie)
     return redirect(f"{reverse('secret:movie-detail', args=[entry.pk])}?scope=own&edit=1")
@@ -590,7 +602,7 @@ def own_movie_add(request, media_type, tmdb_id):
 @secret_required
 @login_required
 def own_movie_delete(request, pk):
-    movie = get_object_or_404(SecretMovie, pk=pk, owner=request.user)
+    movie = get_object_or_404(SecretMovie, pk=pk, owner=_own_list_owner(request.user))
     if request.method == "POST":
         movie.delete()
         messages.success(request, f"«{movie.title}» eliminada de tu lista.")
