@@ -2,7 +2,11 @@
 existían repartidos por la web (mensajes sin leer, solicitudes de amistad,
 artículos nuevos que no has visto) más los avisos que publique el equipo
 (Announcement) — sin duplicar ningún dato, cada cosa sigue viviendo donde
-ya vivía, esto solo la reúne para enseñarla junta."""
+ya vivía, esto solo la reúne para enseñarla junta.
+
+Abrir la campanita resetea el número entero de golpe (ver
+`_after_last_seen` y `User.notifications_seen_at`): no hace falta entrar
+uno a uno en cada aviso para que deje de contar."""
 
 from datetime import timedelta
 
@@ -45,6 +49,16 @@ def _unseen_products(user):
     return products.filter(created_at__gte=_joined_cutoff(user, RECENT_PRODUCTS_DAYS))
 
 
+def _after_last_seen(queryset, user):
+    """Además de "sin leer/sin visitar" tal cual ya se filtraba, ignora lo
+    que ya existía la última vez que se abrió la campanita — así abrirla
+    resetea el número entero de golpe, sin tener que entrar uno a uno en
+    cada aviso para que deje de contar."""
+    if user.notifications_seen_at:
+        return queryset.filter(created_at__gt=user.notifications_seen_at)
+    return queryset
+
+
 def unread_notifications_count(user):
     if user is None or not user.is_authenticated:
         return 0
@@ -54,11 +68,11 @@ def unread_notifications_count(user):
     from apps.social.models import FriendRequest, Message
 
     count = 0
-    count += Message.objects.filter(recipient=user, read_at__isnull=True).count()
-    count += FriendRequest.objects.filter(to_user=user, accepted=False).count()
+    count += _after_last_seen(Message.objects.filter(recipient=user, read_at__isnull=True), user).count()
+    count += _after_last_seen(FriendRequest.objects.filter(to_user=user, accepted=False), user).count()
     count += Announcement.objects.exclude(read_by=user).filter(created_at__gte=user.date_joined).count()
-    count += _unseen_articles(user).count()
-    count += _unseen_products(user).count()
+    count += _after_last_seen(_unseen_articles(user), user).count()
+    count += _after_last_seen(_unseen_products(user), user).count()
     return count
 
 
@@ -73,7 +87,7 @@ def notifications_feed(user, limit_per_category=5):
     items = []
 
     unread_messages = (
-        Message.objects.filter(recipient=user, read_at__isnull=True)
+        _after_last_seen(Message.objects.filter(recipient=user, read_at__isnull=True), user)
         .select_related("sender").order_by("-created_at")[:limit_per_category]
     )
     for msg in unread_messages:
@@ -90,7 +104,7 @@ def notifications_feed(user, limit_per_category=5):
         })
 
     pending_requests = (
-        FriendRequest.objects.filter(to_user=user, accepted=False)
+        _after_last_seen(FriendRequest.objects.filter(to_user=user, accepted=False), user)
         .select_related("from_user").order_by("-created_at")[:limit_per_category]
     )
     for fr in pending_requests:
@@ -115,7 +129,7 @@ def notifications_feed(user, limit_per_category=5):
             "created_at": ann.created_at,
         })
 
-    for article in _unseen_articles(user).order_by("-created_at")[:limit_per_category]:
+    for article in _after_last_seen(_unseen_articles(user), user).order_by("-created_at")[:limit_per_category]:
         items.append({
             "kind": "article", "icon": "📰",
             "text": f"Nuevo artículo: {article.title}",
@@ -124,7 +138,7 @@ def notifications_feed(user, limit_per_category=5):
             "created_at": article.created_at,
         })
 
-    for product in _unseen_products(user).order_by("-created_at")[:limit_per_category]:
+    for product in _after_last_seen(_unseen_products(user), user).order_by("-created_at")[:limit_per_category]:
         items.append({
             "kind": "product", "icon": "🛒",
             "text": f"Nuevo en la tienda: {product.name}",

@@ -16,6 +16,7 @@ urlpatterns = [
     path("dentro/numero/", views.by_number, name="by-number"),
     path("dentro/nota/", views.by_rating, name="by-rating"),
     path("dentro/lista/", views.full_list, name="list"),
+    path("dentro/guardados/", views.saved_movies, name="saved-movies"),
     path("dentro/lista/<int:pk>/", views.movie_detail, name="movie-detail"),
     path("dentro/lista/<int:pk>/visto/", views.movie_watch_cycle, name="movie-watch-cycle"),
     path("dentro/lista/<int:pk>/editar/", views.movie_quick_edit, name="movie-quick-edit"),

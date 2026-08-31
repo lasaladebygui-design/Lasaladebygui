@@ -25,7 +25,8 @@ from apps.core.google_calendar import google_calendar_enabled
 from apps.core.models import get_effective_theme
 from apps.movies.models import Movie, SavedMovie
 from apps.movies.services import MovieAPIError, tmdb_search
-from apps.social.models import are_friends, friends_of
+from apps.movies.views import build_saved_movies_context
+from apps.social.models import CONTACT_BOT_EMAIL, are_friends, friends_of
 
 from .forms import (
     CodeForm,
@@ -74,6 +75,14 @@ def _is_htmx(request):
 
 def _is_admin(user):
     return user.is_authenticated and user.role == User.Role.ADMIN
+
+
+def _shareable_friends(user):
+    """`friends_of(user)` sin el Buzón de contacto -- `ensure_friends` os
+    hace "amigos" en cuanto escribís por Escríbenos para que podáis
+    chatear, pero no es una persona con la que compartir listas/tablón/
+    calendario de Top Secret."""
+    return [f for f in friends_of(user) if f.email != CONTACT_BOT_EMAIL]
 
 
 def _visible_movies(user, owner):
@@ -588,6 +597,18 @@ def own_movie_delete(request, pk):
     return redirect(f"{reverse('secret:list')}?scope=own")
 
 
+@secret_required
+@login_required
+def saved_movies(request):
+    """Guardados dentro del maletín -- mismos datos que Guardadas en
+    Películas (ver `build_saved_movies_context`), pero sin salir de Top
+    Secret: es la lista de "quiero verla" de siempre, solo que vivida
+    como un espacio más de aquí en vez de un salto a otra sección."""
+    context = build_saved_movies_context(request)
+    context["shell_tab"] = "guardados"
+    return render(request, "secret/saved_movies.html", context)
+
+
 def _comparable_owners(user):
     """Las listas que `user` puede comparar entre sí: la suya propia, la
     de Bygui (siempre visible, como en cualquier otro sitio de Top
@@ -595,7 +616,7 @@ def _comparable_owners(user):
     lista de (clave, etiqueta, owner) — owner=None es Bygui. `clave` es
     lo que viaja en la URL (?with=...) para elegir con quién comparar;
     ninguna va marcada por defecto, ni siquiera la propia."""
-    owners = [("own", "Tú", user), ("bygui", "Bygui", None)]
+    owners = [("own", "Tú", user), ("bygui", "Admin", None)]
     shared = SecretListMember.objects.filter(member=user).select_related("owner")
     for member in shared:
         owners.append((member.owner.username, member.owner.username, member.owner))
@@ -650,7 +671,7 @@ def _shared_hub_data(user):
     con cada amigo, y qué le han compartido a él -- una sola función
     porque el panel se pinta en dos sitios: la propia pantalla de
     Compartidos y, embebido, la home de Top Secret (ver `home`)."""
-    friends = friends_of(user)
+    friends = _shareable_friends(user)
     list_members = {m.member_id: m for m in SecretListMember.objects.filter(owner=user)}
     photo_members = {m.member_id: m for m in PhotoBoardMember.objects.filter(owner=user)}
     calendar_members = {m.member_id: m for m in CalendarShareMember.objects.filter(owner=user)}
@@ -686,19 +707,67 @@ def _shared_hub_data(user):
     return rows, shared_with_me
 
 
+def _amigos_preview(request_user, friend, tab):
+    """Adelanto de lo que `friend` te ha compartido, para verlo sin salir
+    de Amigos -- unas pocas filas de cada cosa (no toda la lista/tablón/
+    calendario entero: para eso está el enlace "Ver completo" a la
+    página de siempre, con toda su paginación/filtros/edición)."""
+    if tab == "tablon":
+        return list(
+            SecretPhoto.objects.filter(board_owner=friend).select_related("uploaded_by")[:8]
+        )
+    if tab == "calendario":
+        today = timezone.localdate()
+        return list(
+            ReleaseEvent.objects.filter(user=friend, date__gte=today)
+            .select_related("movie").order_by("date")[:6]
+        )
+    return list(_visible_movies(request_user, friend).order_by("number")[:12])
+
+
 @secret_required
 @login_required
 def shared_hub(request):
-    """Un único sitio para ver y gestionar qué compartes de tu Top Secret
-    (lista, tablón de fotos, calendario) con cada amigo, y qué te han
-    compartido a ti -- antes había que entrar a cada apartado por
-    separado para gestionar su propio "compartir". Los interruptores de
-    aquí reutilizan las mismas invitar/expulsar de cada apartado, así que
-    activarlos ahí o desde aquí es exactamente lo mismo."""
+    """Amigos: a la izquierda quién te comparte algo, a la derecha un
+    adelanto de su Lista/Tablón/Calendario (según lo que te haya
+    compartido) con pestañas para moverte entre ellas -- sin salir de
+    aquí ni pasar por una página nueva por cada amigo. Debajo sigue "Con
+    quién compartes", para decidir qué le enseñas tú a cada uno (los
+    interruptores reutilizan las mismas invitar/expulsar de cada
+    apartado, así que activarlos ahí o desde aquí es exactamente lo
+    mismo)."""
     rows, shared_with_me = _shared_hub_data(request.user)
-    return render(request, "secret/shared_hub.html", {
+
+    by_username = {row["owner"].username: row for row in shared_with_me}
+    selected_username = request.GET.get("friend") or (shared_with_me[0]["owner"].username if shared_with_me else None)
+    selected_row = by_username.get(selected_username)
+
+    selected_tab = request.GET.get("tab", "lista")
+    tab_available = {
+        "lista": selected_row and selected_row["has_list"],
+        "tablon": selected_row and selected_row["has_photos"],
+        "calendario": selected_row and selected_row["has_calendar"],
+    }
+    if not tab_available.get(selected_tab):
+        selected_tab = next((tab for tab, available in tab_available.items() if available), "lista")
+
+    preview = None
+    if selected_row and tab_available.get(selected_tab):
+        preview = _amigos_preview(request.user, selected_row["owner"], selected_tab)
+
+    context = {
         "rows": rows, "shared_with_me": shared_with_me, "shell_tab": "compartidos",
-    })
+        "selected_row": selected_row,
+        "selected_tab": selected_tab,
+        "preview": preview,
+    }
+    # Igual que en full_list: cambiar de amigo/pestaña pide esta misma URL
+    # por HTMX y solo necesita el hueco de la derecha, pero la navegación
+    # del maletín (hx-select sobre la página entera) TAMBIÉN pide esta URL
+    # por HTMX -- la cabecera de más distingue una cosa de la otra.
+    if _is_htmx(request) and not request.headers.get("HX-Shell-Nav"):
+        return render(request, "secret/_amigos_panel.html", context)
+    return render(request, "secret/shared_hub.html", context)
 
 
 @secret_required
@@ -708,7 +777,7 @@ def own_list_share(request):
     para ellos) — mismo patrón que el tablón de fotos (PhotoBoardMember)."""
     members = SecretListMember.objects.filter(owner=request.user).select_related("member")
     member_ids = {m.member_id for m in members}
-    invitable_friends = [f for f in friends_of(request.user) if f.pk not in member_ids]
+    invitable_friends = [f for f in _shareable_friends(request.user) if f.pk not in member_ids]
     shared_with_me = SecretListMember.objects.filter(member=request.user).select_related("owner")
     return render(request, "secret/own_list_share.html", {
         "members": members, "invitable_friends": invitable_friends, "shared_with_me": shared_with_me,
@@ -1008,7 +1077,7 @@ def photo_board(request, username=None):
     if is_owner:
         members = PhotoBoardMember.objects.filter(owner=request.user).select_related("member")
         member_ids = {m.member_id for m in members}
-        invitable_friends = [f for f in friends_of(request.user) if f.pk not in member_ids]
+        invitable_friends = [f for f in _shareable_friends(request.user) if f.pk not in member_ids]
         shared_with_me = PhotoBoardMember.objects.filter(member=request.user).select_related("owner")
         context.update({
             "members": members,
@@ -1217,7 +1286,7 @@ def calendar_share(request):
     ellos) — mismo patrón que el tablón de fotos y tu lista propia."""
     members = CalendarShareMember.objects.filter(owner=request.user).select_related("member")
     member_ids = {m.member_id for m in members}
-    invitable_friends = [f for f in friends_of(request.user) if f.pk not in member_ids]
+    invitable_friends = [f for f in _shareable_friends(request.user) if f.pk not in member_ids]
     shared_with_me = CalendarShareMember.objects.filter(member=request.user).select_related("owner")
     return render(request, "secret/calendar_share.html", {
         "members": members, "invitable_friends": invitable_friends, "shared_with_me": shared_with_me,

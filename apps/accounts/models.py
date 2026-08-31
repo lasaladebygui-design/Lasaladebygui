@@ -85,6 +85,10 @@ class User(AbstractUser):
         "por qué las recomiendas", blank=True,
         help_text="Un único texto para todo el apartado (no por película). Visible para cualquiera que vea tu perfil.",
     )
+    notifications_seen_at = models.DateTimeField(
+        "campanita abierta por última vez", null=True, blank=True,
+        help_text="Se actualiza cada vez que abres la campanita de avisos — todo lo anterior a este momento deja de contar en el número, aunque no hayas entrado uno a uno en cada aviso.",
+    )
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []

@@ -18,13 +18,10 @@ function notifBell() {
                 .then(({ text, remaining }) => {
                     this.html = text;
                     this.loaded = true;
-                    // Abrir el panel solo marca como leídos los avisos del
-                    // equipo — mensajes/solicitudes/artículos/tienda siguen
-                    // sin leer hasta que se visita su propia página, así que
-                    // el globo no se quita sin más: se deja con lo que de
-                    // verdad queda pendiente (o se quita si ya no queda
-                    // nada), para que no reaparezca igual en la siguiente
-                    // recarga como si abrir la campanita no hubiera servido.
+                    // Abrir el panel resetea el número entero de golpe (ver
+                    // apps.core.notifications._after_last_seen) — lo que
+                    // quede aquí ya es de verdad lo nuevo desde la última
+                    // vez que se abrió, no lo de siempre reapareciendo.
                     const badge = document.querySelector(".notif-bell__badge");
                     if (badge) {
                         if (remaining > 0) badge.textContent = remaining;

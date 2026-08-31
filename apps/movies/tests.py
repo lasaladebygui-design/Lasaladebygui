@@ -8,7 +8,7 @@ from django.urls import reverse
 from apps.accounts.models import User
 
 from .models import Movie, RouletteRatingSeen, RouletteSavedSeen, SavedMovie, SavedMovieList, Vote
-from .services import MovieAPIError, tmdb_search_person
+from .services import MovieAPIError, omdb_get_imdb_rating, tmdb_search_person
 
 
 def make_user(email):
@@ -57,6 +57,62 @@ class TmdbSearchPersonTests(TestCase):
         mock_get.side_effect = requests.RequestException("boom")
         with self.assertRaises(MovieAPIError):
             tmdb_search_person("lo que sea")
+
+
+class OmdbGetImdbRatingTests(TestCase):
+    """omdb_get_imdb_rating es un dato complementario (ver
+    Movie.get_or_create_from_tmdb) -- que OMDb esté caído, sin cuota o sin
+    clave configurada nunca debe romper el añadir una película/serie a
+    Top Secret, así que aquí solo debe devolver None, no MovieAPIError."""
+
+    @override_settings(OMDB_API_KEY="fake-omdb-key")
+    @patch("requests.get")
+    def test_fallo_de_red_devuelve_none_en_vez_de_lanzar(self, mock_get):
+        import requests
+        mock_get.side_effect = requests.RequestException("boom")
+        self.assertIsNone(omdb_get_imdb_rating("tt0000001"))
+
+    @override_settings(OMDB_API_KEY="fake-omdb-key")
+    @patch("requests.get")
+    def test_nota_disponible_se_devuelve_como_float(self, mock_get):
+        mock_get.return_value.raise_for_status.return_value = None
+        mock_get.return_value.json.return_value = {"imdbRating": "7.8"}
+        self.assertEqual(omdb_get_imdb_rating("tt0000001"), 7.8)
+
+
+class GetOrCreateFromTmdbTests(TestCase):
+    """Un fallo de OMDb al resolver la nota IMDb no debe impedir dar de
+    alta la película/serie -- solo un fallo de TMDb (los datos de
+    verdad) debe hacerlo. Repro del bug reportado: "al añadir película le
+    das pero no te lleva al sitio donde rellenar la ficha"."""
+
+    def _fake_tmdb_get(self, url, params=None, timeout=None):
+        response = type("Resp", (), {})()
+        response.raise_for_status = lambda: None
+        if "themoviedb.org" in url:
+            response.json = lambda: {
+                "title": "Vengadores", "release_date": "2012-05-04",
+                "poster_path": "/x.jpg", "overview": "x",
+                "external_ids": {"imdb_id": "tt0000001"},
+            }
+        else:
+            raise AssertionError(f"URL inesperada: {url}")
+        return response
+
+    @override_settings(TMDB_API_KEY="fake-tmdb-key", OMDB_API_KEY="fake-omdb-key")
+    @patch("requests.get")
+    def test_fallo_de_omdb_no_impide_crear_la_pelicula(self, mock_get):
+        import requests
+
+        def side_effect(url, params=None, timeout=None):
+            if "omdbapi.com" in url:
+                raise requests.RequestException("boom")
+            return self._fake_tmdb_get(url, params, timeout)
+
+        mock_get.side_effect = side_effect
+        movie = Movie.get_or_create_from_tmdb(24428, media_type="movie")
+        self.assertEqual(movie.title, "Vengadores")
+        self.assertIsNone(movie.imdb_rating)
 
 
 class VoteTests(TestCase):

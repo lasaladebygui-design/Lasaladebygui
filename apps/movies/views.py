@@ -9,6 +9,7 @@ from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from apps.core.models import get_effective_theme
 from apps.core.text import ascii_safe, flow_into_columns
@@ -229,8 +230,24 @@ def _filter_by_sublist(queryset, list_param):
     return queryset
 
 
-@login_required
-def saved_movies(request):
+def _saved_movies_redirect(request):
+    """A dónde volver tras crear/borrar una lista, mover una guardada o
+    cambiarle sus listas -- normalmente Guardadas, pero si se hizo desde
+    el "Guardados" de Top Secret (mismos datos, otro espacio) se vuelve
+    ahí en vez de sacar de golpe del maletín."""
+    next_url = request.POST.get("next", "")
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return redirect(next_url)
+    return redirect("movies:saved-movies")
+
+
+def build_saved_movies_context(request):
+    """Guardadas de `request.user`, filtradas por tipo/lista/búsqueda --
+    aparte para poder pintar exactamente lo mismo desde dos sitios (aquí y
+    en el "Guardados" de Top Secret, ver `apps.secret.views.saved_movies`)
+    sin duplicar la consulta ni el filtrado."""
     media_type = _media_type_from_request(request, default="all")
     list_param = request.GET.get("list", "")
     query = request.GET.get("q", "").strip()
@@ -247,13 +264,18 @@ def saved_movies(request):
     if list_param and list_param != "none":
         current_list = next((s for s in sublists if str(s.pk) == list_param), None)
 
-    return render(request, "movies/saved_movies.html", {
+    return {
         "saved": saved, "media_type": media_type,
         "sublists": sublists,
         "list_param": list_param,
         "current_list": current_list,
         "query": query,
-    })
+    }
+
+
+@login_required
+def saved_movies(request):
+    return render(request, "movies/saved_movies.html", build_saved_movies_context(request))
 
 
 def _wrap_text(draw, text, font, max_width):
@@ -363,7 +385,7 @@ def saved_list_create(request):
             )
             if not created:
                 messages.info(request, "Ya tenías una lista con ese nombre.")
-    return redirect("movies:saved-movies")
+    return _saved_movies_redirect(request)
 
 
 @login_required
@@ -397,7 +419,7 @@ def saved_list_delete(request, pk):
     if request.method == "POST":
         sublist.delete()
         messages.success(request, "Lista borrada. Sus películas siguen guardadas.")
-    return redirect("movies:saved-movies")
+    return _saved_movies_redirect(request)
 
 
 @login_required
@@ -409,7 +431,7 @@ def saved_movie_toggle_sublist(request, pk, list_id):
             saved.sublists.remove(sublist)
         else:
             saved.sublists.add(sublist)
-    return redirect("movies:saved-movies")
+    return _saved_movies_redirect(request)
 
 
 @login_required
@@ -420,7 +442,7 @@ def saved_movie_remove(request, pk):
         if _is_htmx(request):
             return HttpResponse(status=200)
         messages.success(request, "Quitada de tus películas guardadas.")
-    return redirect("movies:saved-movies")
+    return _saved_movies_redirect(request)
 
 
 @login_required
@@ -438,7 +460,7 @@ def saved_movie_move(request, pk, direction):
         other = ordered[swap_index]
         saved.order, other.order = swap_index, index
         SavedMovie.objects.bulk_update([saved, other], ["order"])
-    return redirect("movies:saved-movies")
+    return _saved_movies_redirect(request)
 
 
 @login_required

@@ -166,7 +166,10 @@ def tmdb_get_details(tmdb_id, media_type="movie"):
 
 def omdb_get_imdb_rating(imdb_id):
     """Nota IMDb (0-10) de una película a partir de su imdb_id, vía OMDb.
-    Devuelve None si OMDb no tiene nota (p.ej. "N/A") o no encuentra el título."""
+    Devuelve None si OMDb no tiene nota (p.ej. "N/A"), no encuentra el
+    título, o directamente falla la petición — a diferencia de TMDb, esto
+    es un dato complementario (ver `Movie.get_or_create_from_tmdb`): que
+    OMDb esté caído o sin cuota nunca debe impedir añadir la película."""
     if not imdb_id:
         return None
     try:
@@ -176,8 +179,8 @@ def omdb_get_imdb_rating(imdb_id):
             timeout=REQUEST_TIMEOUT,
         )
         response.raise_for_status()
-    except requests.RequestException as exc:
-        raise MovieAPIError("No se pudo contactar con OMDb.") from exc
+    except requests.RequestException:
+        return None
 
     data = response.json()
     rating = data.get("imdbRating")

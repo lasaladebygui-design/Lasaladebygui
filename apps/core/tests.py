@@ -1056,8 +1056,9 @@ def _make_user(email, role=None):
 class NotificationsBellTests(TestCase):
     """Campanita de la cabecera: agrega mensajes sin leer, solicitudes de
     amistad, avisos del equipo (Announcement) y artículos nuevos que no has
-    visto — sin duplicar datos, cada cosa se sigue marcando como leída donde
-    ya se marcaba (menos Announcement, que es nuevo y se marca al abrir)."""
+    visto — sin duplicar datos. Abrir la campanita resetea el número
+    entero de golpe (no hace falta entrar uno a uno en cada aviso); lo que
+    llegue después de abrirla vuelve a contar con normalidad."""
 
     def setUp(self):
         self.user = _make_user("campana@test.local")
@@ -1106,19 +1107,31 @@ class NotificationsBellTests(TestCase):
 
         self.assertEqual(unread_notifications_count(self.user), 0)
 
-    def test_el_panel_de_avisos_devuelve_lo_que_de_verdad_queda_pendiente(self):
-        # Abrir la campanita solo marca leídos los avisos del equipo — un
-        # artículo sin visitar sigue contando. Antes el JS quitaba el globo
-        # entero igualmente, así que en la siguiente recarga volvía a
-        # aparecer con el mismo número, como si abrir no hubiera servido de
-        # nada; la cabecera X-Notif-Remaining es lo que el JS usa para saber
-        # cuánto queda de verdad.
+    def test_abrir_el_panel_resetea_todo_el_contador_de_golpe(self):
+        # Abrir la campanita ya no exige entrar uno a uno en cada aviso
+        # para que deje de contar: un mensaje, una solicitud y un artículo
+        # sin visitar, todos pendientes a la vez, quedan a cero solo con
+        # abrir — la cabecera X-Notif-Remaining es lo que el JS usa para
+        # saber cuánto queda de verdad tras esa misma petición.
+        from apps.social.models import FriendRequest, Message
+
         Announcement.objects.create(title="Mantenimiento", body="El sábado a las 10.")
         Article.objects.create(title="Recién publicado", body="<p>x</p>", author=self.other)
-        self.assertEqual(unread_notifications_count(self.user), 2)
+        Message.objects.create(sender=self.other, recipient=self.user, body="Hola")
+        FriendRequest.objects.create(from_user=self.other, to_user=self.user)
+        self.assertEqual(unread_notifications_count(self.user), 4)
 
         response = self.client.get(reverse("core:notifications-panel"))
-        self.assertEqual(response["X-Notif-Remaining"], "1")
+        self.assertEqual(response["X-Notif-Remaining"], "0")
+        self.user.refresh_from_db()  # el panel guardó notifications_seen_at en la BD, no en este objeto en memoria
+        self.assertEqual(unread_notifications_count(self.user), 0)
+
+    def test_lo_que_llega_despues_de_abrir_la_campanita_vuelve_a_contar(self):
+        response = self.client.get(reverse("core:notifications-panel"))
+        self.assertEqual(response["X-Notif-Remaining"], "0")
+        self.user.refresh_from_db()
+
+        Article.objects.create(title="Publicado después", body="<p>x</p>", author=self.other)
         self.assertEqual(unread_notifications_count(self.user), 1)
 
     def test_el_panel_de_avisos_requiere_login(self):
@@ -1295,3 +1308,27 @@ class ExportExcelTests(TestCase):
 
         notes_rows = list(wb["Apuntes personales"].iter_rows(values_only=True))
         self.assertIn(("Recordatorio", "Revisar el catálogo cada mes"), [r[:2] for r in notes_rows])
+
+
+class CustomErrorPagesTests(TestCase):
+    """404/500 personalizados en vez de la pantalla técnica de Django (ver
+    templates/404.html y templates/500.html) — con DEBUG=False, que es lo
+    que hay tanto en producción como por defecto en los tests."""
+
+    def test_404_usa_la_plantilla_personalizada(self):
+        response = self.client.get("/esto-no-existe-de-verdad/")
+        self.assertEqual(response.status_code, 404)
+        self.assertContains(response, "Esta película no está en cartelera", status_code=404)
+        self.assertContains(response, "Volver a la Sala", status_code=404)
+
+    def test_500_usa_la_plantilla_personalizada(self):
+        # django.test.Client vuelve a lanzar la excepción de una vista rota
+        # por defecto -- con raise_request_exception=False se comporta como
+        # un navegador real y deja pasar la respuesta 500 ya renderizada.
+        from django.test import Client
+
+        broken_client = Client(raise_request_exception=False)
+        with patch("apps.core.activity.recent_activity", side_effect=Exception("boom")):
+            response = broken_client.get(reverse("core:home"))
+        self.assertEqual(response.status_code, 500)
+        self.assertContains(response, "Se nos ha fundido el proyector", status_code=500)

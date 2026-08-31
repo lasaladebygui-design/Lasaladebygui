@@ -10,17 +10,19 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from apps.accounts.models import GoogleCalendarConnection, User
-from apps.movies.models import Movie
+from apps.movies.models import Movie, SavedMovie
 from apps.movies.services import MovieAPIError
-from apps.social.models import FriendRequest
+from apps.social.models import FriendRequest, ensure_friends, get_contact_bot_user
 
 from .forms import SecretMovieForm
 from .models import (
     CalendarDayNote,
+    CalendarShareMember,
     Genre,
     PhotoBoardMember,
     RatingColorBand,
     ReleaseEvent,
+    SecretListMember,
     SecretMovie,
     SecretPhoto,
     TierLevel,
@@ -1758,3 +1760,168 @@ class CalendarGoogleSyncTests(TestCase):
         self.assertEqual(response.status_code, 302)
         mock_delete_event.assert_not_called()
 
+
+class ShareableFriendsExcludesContactBotTests(TestCase):
+    """El Buzón de contacto os hace "amigos" en cuanto alguien escribe por
+    Escríbenos (ver `ensure_friends`), pero no es una persona con la que
+    compartir listas/tablón/calendario -- no debe aparecer en ningún
+    "invitar a..." de Top Secret."""
+
+    def setUp(self):
+        self.user = User.objects.create(email="sin_buzon@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+
+    def test_el_buzon_no_sale_como_invitable_en_lista_propia(self):
+        bot = get_contact_bot_user()
+        ensure_friends(self.user, bot)
+        real_friend = User.objects.create(email="amigo_de_verdad@test.local", role=User.Role.LECTOR, username="amigo_de_verdad")
+        FriendRequest.objects.create(from_user=self.user, to_user=real_friend, accepted=True)
+
+        response = self.client.get(reverse("secret:own-list-share"))
+
+        invitable = list(response.context["invitable_friends"])
+        self.assertNotIn(bot, invitable)
+        self.assertIn(real_friend, invitable)
+
+
+class SavedMoviesInTopSecretTests(TestCase):
+    """Guardados dentro del maletín: mismos datos que Guardadas en
+    Películas, pero sin salir de Top Secret ni al listarlas ni al actuar
+    sobre ellas (crear/borrar listas, mover, quitar)."""
+
+    def setUp(self):
+        self.user = User.objects.create(email="guardados_ts@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.movie = Movie.objects.create(tmdb_id=1, title="Guardada de prueba", media_type="movie")
+        self.saved = SavedMovie.objects.create(user=self.user, movie=self.movie)
+
+    def test_lista_las_guardadas_dentro_del_maletin(self):
+        response = self.client.get(reverse("secret:saved-movies"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Guardada de prueba")
+        self.assertContains(response, "Top Secret")
+
+    def test_quitar_una_guardada_no_saca_del_maletin(self):
+        response = self.client.post(
+            reverse("movies:saved-movie-remove", args=[self.saved.pk]),
+            {"next": reverse("secret:saved-movies")},
+        )
+        self.assertRedirects(response, reverse("secret:saved-movies"))
+        self.assertFalse(SavedMovie.objects.filter(pk=self.saved.pk).exists())
+
+    def test_sin_next_la_accion_vuelve_a_guardadas_de_peliculas(self):
+        response = self.client.post(reverse("movies:saved-movie-remove", args=[self.saved.pk]))
+        self.assertRedirects(response, reverse("movies:saved-movies"))
+
+
+
+class AmigosHubTests(TestCase):
+    """Amigos (antes "Compartidos"): a la izquierda quién te comparte
+    algo, a la derecha un adelanto de su Lista/Tablón/Calendario con
+    pestañas internas -- sin salir de la página para ver a cada amigo."""
+
+    def setUp(self):
+        self.user = User.objects.create(email="amigos_hub@test.local", role=User.Role.LECTOR, username="yo_amigos")
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+
+        self.marta = User.objects.create(email="marta_amigos@test.local", role=User.Role.LECTOR, username="marta")
+        self.alex = User.objects.create(email="alex_amigos@test.local", role=User.Role.LECTOR, username="alex")
+        for friend in (self.marta, self.alex):
+            FriendRequest.objects.create(from_user=self.user, to_user=friend, accepted=True)
+
+    def test_sin_nadie_compartiendo_te_avisa(self):
+        response = self.client.get(reverse("secret:shared-hub"))
+        self.assertContains(response, "Todavía nadie te ha compartido nada")
+
+    def test_amigo_con_lista_compartida_aparece_y_se_previsualiza(self):
+        SecretListMember.objects.create(owner=self.marta, member=self.user)
+        SecretMovie.objects.create(owner=self.marta, title="La de Marta", personal_rating="8.0")
+
+        response = self.client.get(reverse("secret:shared-hub"))
+        self.assertContains(response, "marta")
+        self.assertContains(response, "La de Marta")
+        self.assertEqual(response.context["selected_tab"], "lista")
+        self.assertEqual(response.context["selected_row"]["owner"], self.marta)
+
+    def test_elegir_amigo_por_query_param_cambia_la_previsualizacion(self):
+        SecretListMember.objects.create(owner=self.marta, member=self.user)
+        SecretListMember.objects.create(owner=self.alex, member=self.user)
+        SecretMovie.objects.create(owner=self.marta, title="Solo de Marta", personal_rating="8.0")
+        SecretMovie.objects.create(owner=self.alex, title="Solo de Alex", personal_rating="7.0")
+
+        response = self.client.get(reverse("secret:shared-hub"), {"friend": "alex"})
+        self.assertEqual(response.context["selected_row"]["owner"], self.alex)
+        self.assertContains(response, "Solo de Alex")
+        self.assertNotContains(response, "Solo de Marta")
+
+    def test_amigo_sin_lista_compartida_pero_con_tablon_cae_en_tablon(self):
+        PhotoBoardMember.objects.create(owner=self.marta, member=self.user)
+        response = self.client.get(reverse("secret:shared-hub"))
+        self.assertEqual(response.context["selected_tab"], "tablon")
+
+    def test_no_se_puede_forzar_ver_a_alguien_que_no_te_comparte_nada(self):
+        # `alex` no comparte nada contigo -- pedirlo explícitamente por la
+        # URL no debe colar su contenido de matute.
+        SecretListMember.objects.create(owner=self.marta, member=self.user)
+        SecretMovie.objects.create(owner=self.alex, title="Privada de Alex", personal_rating="9.0")
+
+        response = self.client.get(reverse("secret:shared-hub"), {"friend": "alex"})
+        self.assertIsNone(response.context["selected_row"])
+        self.assertNotContains(response, "Privada de Alex")
+
+    def test_calendario_solo_ensena_estrenos_futuros(self):
+        CalendarShareMember.objects.create(owner=self.marta, member=self.user)
+        movie = Movie.objects.create(tmdb_id=1, title="Estreno", media_type="movie")
+        from datetime import timedelta
+
+        pasado = ReleaseEvent.objects.create(user=self.marta, movie=movie, date=date.today() - timedelta(days=5))
+        futuro = ReleaseEvent.objects.create(user=self.marta, movie=movie, date=date.today() + timedelta(days=5))
+
+        response = self.client.get(reverse("secret:shared-hub"), {"friend": "marta", "tab": "calendario"})
+        preview_ids = [e.pk for e in response.context["preview"]]
+        self.assertIn(futuro.pk, preview_ids)
+        self.assertNotIn(pasado.pk, preview_ids)
+
+    def test_peticion_htmx_normal_devuelve_solo_el_fragmento(self):
+        SecretListMember.objects.create(owner=self.marta, member=self.user)
+        response = self.client.get(reverse("secret:shared-hub"), {"friend": "marta"}, HTTP_HX_REQUEST="true")
+        self.assertContains(response, 'id="amigos-panel"')
+        self.assertNotContains(response, "ts-rail__brand")
+
+    def test_peticion_htmx_de_navegacion_del_maletin_devuelve_la_pagina_entera(self):
+        response = self.client.get(reverse("secret:shared-hub"), HTTP_HX_REQUEST="true", HTTP_HX_SHELL_NAV="1")
+        self.assertContains(response, "ts-rail__brand")
+
+    def test_cambiar_de_amigo_por_htmx_actualiza_el_resaltado_de_la_lista(self):
+        # El swap de HTMX repinta #amigos-panel entero (lista + panel a la
+        # derecha), no solo el panel -- si solo repintase el panel, la fila
+        # resaltada de la izquierda se quedaría marcando al amigo anterior.
+        import re
+
+        SecretListMember.objects.create(owner=self.marta, member=self.user)
+        CalendarShareMember.objects.create(owner=self.alex, member=self.user)
+
+        response = self.client.get(reverse("secret:shared-hub"), {"friend": "alex"}, HTTP_HX_REQUEST="true")
+        content = response.content.decode()
+
+        def friend_row_html(username):
+            match = re.search(rf'<a href="\?friend={username}"[^>]*>.*?</a>', content, re.DOTALL)
+            self.assertIsNotNone(match, f"no se encontró la fila de {username}")
+            return match.group(0)
+
+        self.assertIn("is-selected", friend_row_html("alex"))
+        self.assertNotIn("is-selected", friend_row_html("marta"))
+
+    def test_gestion_de_a_quien_compartes_sigue_disponible(self):
+        response = self.client.get(reverse("secret:shared-hub"))
+        self.assertContains(response, "Con quién compartes")
+        self.assertContains(response, "marta")

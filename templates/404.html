@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Página no encontrada{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="wrap error-page">
+        <span class="error-page__icon" aria-hidden="true">🎬</span>
+        <span class="card__tag">Error 404 · Guion no encontrado</span>
+        <h1>Esta película no está en cartelera</h1>
+        <p class="muted">Puede que se haya cancelado antes de estrenarse, que le hayan cambiado el nombre, o que directamente nunca haya existido — como esa tercera temporada que seguimos esperando. Prueba a volver a un sitio con guion.</p>
+        <a href="{% url 'core:home' %}" class="btn btn--accent">🎬 Volver a la Sala</a>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,48 @@
+<!-- Django renderiza este template SIN request ni context processors (a
+     propósito: un 500 puede venir de un fallo de base de datos, y
+     site_context/auth/etc. también consultan la base — usarlos aquí podría
+     encadenar otro error). Por eso va todo autocontenido, sin heredar de
+     base.html ni depender de ninguna etiqueta que consulte la base de
+     datos (ni estáticos gestionados, ni la hoja de tema dinámica): colores
+     del tema por defecto puestos a mano, tal cual están en el admin ahora
+     mismo. -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corte técnico — La Sala de Bygui</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+            background: #0B1416; color: #E5E7EB; font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            text-align: center; padding: 2rem;
+        }
+        .wrap { max-width: 32rem; }
+        .icon { font-size: 3rem; display: block; margin-bottom: 1rem; }
+        .tag {
+            display: inline-block; font-size: .75rem; letter-spacing: .04em; text-transform: uppercase;
+            color: #FFB347; margin-bottom: .75rem;
+        }
+        h1 { font-family: 'Playfair Display', Georgia, serif; font-size: 1.8rem; margin: 0 0 .9rem; }
+        p { color: #9CA3AF; line-height: 1.55; margin: 0 0 1.6rem; }
+        a {
+            display: inline-flex; align-items: center; gap: .4rem; border-radius: .6rem; padding: .65rem 1.3rem;
+            background: #FFB347; color: #241505; font-weight: 700; text-decoration: none;
+        }
+        a:hover { background: #FFDFAF; }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <span class="icon" aria-hidden="true">🎞️</span>
+        <span class="tag">Error 500 · Corte técnico</span>
+        <h1>Se nos ha fundido el proyector</h1>
+        <p>Ha pasado algo raro entre bambalinas y ya lo estamos mirando. Prueba a volver a intentarlo en un rato.</p>
+        <a href="/">🎬 Volver a la Sala</a>
+    </div>
+</body>
+</html>

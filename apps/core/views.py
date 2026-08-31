@@ -48,20 +48,17 @@ def home(request):
 @login_required
 def notifications_panel(request):
     """Contenido de la campanita — se pide por HTMX al abrir el
-    desplegable. Abrirlo ya marca como leídos los avisos del equipo
-    (Announcement, lo único que gestiona esta campanita de verdad); los
-    mensajes/solicitudes/artículos se marcan leídos donde ya se marcaban
-    antes (su propia página), esto solo enseña que los tienes pendientes.
-
-    El número que queda tras abrir (mensajes/solicitudes/artículos/
-    productos sin visitar todavía, que abrir la campanita no marca como
-    vistos) va en una cabecera aparte: antes el JS quitaba el globo entero
-    sin más al abrir, así que en la siguiente recarga volvía a aparecer con
-    el mismo número — parecía que "no se acordaba" de que ya lo habías
-    abierto."""
+    desplegable. Se calcula el contenido ANTES de marcar nada como visto
+    (para que enseñe todo lo acumulado hasta ahora), y luego abrir ya
+    resetea el número entero de golpe: no hace falta entrar uno a uno en
+    cada mensaje/solicitud/artículo/producto para que deje de contar, y la
+    próxima vez que se abra solo aparecerá lo que sea nuevo desde este
+    momento (ver `notifications_seen_at` en el modelo de usuario)."""
     feed = notifications_feed(request.user)
     for announcement in Announcement.objects.exclude(read_by=request.user):
         announcement.read_by.add(request.user)
+    request.user.notifications_seen_at = timezone.now()
+    request.user.save(update_fields=["notifications_seen_at"])
     response = render(request, "core/_notifications_panel.html", {"feed": feed})
     response["X-Notif-Remaining"] = str(unread_notifications_count(request.user))
     return response

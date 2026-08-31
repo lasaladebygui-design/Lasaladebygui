@@ -592,6 +592,21 @@ main { flex: 1; }
     margin-bottom: 0.5rem;
 }
 
+/* --- Página de error (404) ------------------------------------------ */
+
+.error-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    max-width: 32rem;
+    margin-inline: auto;
+    padding-block: calc(var(--space-unit) * 6);
+}
+.error-page__icon { font-size: 3rem; margin-bottom: calc(var(--space-unit) * 3); }
+.error-page h1 { margin-bottom: calc(var(--space-unit) * 3); }
+.error-page p { margin-bottom: calc(var(--space-unit) * 6); }
+
 /* --- Formularios ---------------------------------------------------- */
 
 .auth-page {
@@ -1478,24 +1493,95 @@ main { flex: 1; }
     color: var(--color-on-accent);
     font-weight: 600;
 }
-/* Compartidos: "Lo que te han compartido" -- una tarjeta por amigo con
-   sus apartados (los que te haya dado) como botones, en vez de una
-   lista plana de enlaces separados por apartado. Es el sitio único
-   pensado para entrar cómodamente a la lista/tablón/calendario de un
-   amigo, sin depender de un enlace suelto dentro de cada pantalla. */
-.shared-with-me-grid {
+/* Amigos: bandeja tipo buzón -- lista de amigos a la izquierda, un
+   adelanto de lo que te haya compartido (lista/tablón/calendario, con
+   pestañas internas) a la derecha. Pensado para entrar cómodamente al
+   contenido de un amigo sin ir a una página nueva por cada uno. */
+.amigos-layout {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: calc(var(--space-unit) * 3);
-}
-.shared-with-me-card {
+    grid-template-columns: 220px 1fr;
+    gap: calc(var(--space-unit) * 4);
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-base);
-    padding: calc(var(--space-unit) * 3);
+    overflow: hidden;
 }
-.shared-with-me-card__name { display: block; font-weight: 600; margin-bottom: calc(var(--space-unit) * 2); }
-.shared-with-me-card__links { display: flex; flex-wrap: wrap; gap: calc(var(--space-unit) * 2); }
+@media (max-width: 720px) { .amigos-layout { grid-template-columns: 1fr; } }
+
+.amigos-friend-list {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--space-unit) * 1);
+    padding: calc(var(--space-unit) * 3);
+    border-right: 1px solid var(--color-border);
+}
+@media (max-width: 720px) {
+    .amigos-friend-list { flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--color-border); }
+}
+
+.amigos-friend {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--space-unit) * 2);
+    padding: calc(var(--space-unit) * 2);
+    border-radius: calc(var(--radius-base) - 2px);
+    color: var(--color-text);
+    white-space: nowrap;
+}
+.amigos-friend:hover { background: var(--color-bg); color: var(--color-text); }
+.amigos-friend.is-selected { background: var(--color-accent); color: var(--color-on-accent); }
+.amigos-friend__avatar {
+    width: 2rem; height: 2rem; flex-shrink: 0; border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--color-accent-secondary); color: var(--color-on-accent-secondary);
+    font-weight: 700; font-size: .82rem;
+}
+.amigos-friend.is-selected .amigos-friend__avatar { background: var(--color-on-accent); color: var(--color-accent); }
+.amigos-friend__meta { display: flex; flex-direction: column; }
+.amigos-friend__name { font-weight: 600; font-size: .9rem; }
+.amigos-friend__icons { font-size: .75rem; opacity: .85; }
+
+.amigos-body { padding: calc(var(--space-unit) * 4); min-width: 0; }
+.amigos-body__head {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+    gap: calc(var(--space-unit) * 2); margin-bottom: calc(var(--space-unit) * 4);
+}
+.amigos-body__head h4 { margin: 0; font-family: var(--font-body); font-size: 1.05rem; }
+.amigos-inner-tabs { display: flex; gap: calc(var(--space-unit) * 1); flex-wrap: wrap; }
+.amigos-inner-tab {
+    padding: calc(var(--space-unit) * 1.5) calc(var(--space-unit) * 3);
+    border-radius: calc(var(--radius-base) - 2px);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted); font-weight: 600; font-size: .85rem;
+}
+.amigos-inner-tab:hover { color: var(--color-text); }
+.amigos-inner-tab.is-active { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent); }
+.amigos-body__full-link { display: inline-block; margin-top: calc(var(--space-unit) * 4); }
+
+.amigos-preview-movie {
+    display: flex; flex-direction: column; color: var(--color-text);
+    border: 1px solid var(--color-border); border-radius: calc(var(--radius-base) - 2px); overflow: hidden;
+}
+.amigos-preview-movie:hover { border-color: var(--color-accent); color: var(--color-text); }
+.amigos-preview-movie__poster { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; }
+.amigos-preview-movie__poster--placeholder {
+    display: flex; align-items: center; justify-content: center; background: var(--color-bg); font-size: 1.6rem;
+}
+.amigos-preview-movie__number { font-size: .7rem; color: var(--color-text-muted); padding: calc(var(--space-unit) * 1.5) calc(var(--space-unit) * 2) 0; }
+.amigos-preview-movie__title {
+    font-size: .82rem; font-weight: 600; padding: 0 calc(var(--space-unit) * 2) calc(var(--space-unit) * 2);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.amigos-preview-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: calc(var(--space-unit) * 3); }
+.amigos-preview-photo { aspect-ratio: 1; border-radius: calc(var(--radius-base) - 2px); overflow: hidden; border: 1px solid var(--color-border); }
+.amigos-preview-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.amigos-preview-calendar { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: calc(var(--space-unit) * 2); }
+.amigos-preview-calendar__date { font-weight: 700; color: var(--color-accent); margin-right: calc(var(--space-unit) * 2); }
+
+.amigos-manage { margin-top: calc(var(--space-unit) * 6); }
+.amigos-manage__panel { margin-top: calc(var(--space-unit) * 3); }
 
 /* --- Comparar con amigos (ver templates/secret/compare.html): una
    columna por lista comparada, en fila en escritorio y apiladas en
