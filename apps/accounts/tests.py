@@ -48,6 +48,29 @@ class RegisterFormTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(User.objects.filter(email="nuevo@test.local").exists())
 
+    def test_al_registrarte_ya_eres_amigo_de_lasaladebygui_sin_pedirlo(self):
+        from apps.social.models import are_friends
+
+        admin = User.objects.create(email="admin_befriend@test.local", role=User.Role.ADMIN, username="lasaladebygui")
+        self._post()
+        user = User.objects.get(email="nuevo@test.local")
+        self.assertTrue(are_friends(user, admin))
+
+    def test_al_registrarte_no_se_comparte_tablon_ni_calendario_de_golpe(self):
+        from apps.secret.models import CalendarShareMember, PhotoBoardMember
+
+        admin = User.objects.create(email="admin_befriend2@test.local", role=User.Role.ADMIN, username="lasaladebygui2")
+        self._post()
+        user = User.objects.get(email="nuevo@test.local")
+        self.assertFalse(PhotoBoardMember.objects.filter(owner=admin, member=user).exists())
+        self.assertFalse(CalendarShareMember.objects.filter(owner=admin, member=user).exists())
+
+    def test_sin_admin_todavia_el_registro_no_revienta(self):
+        # Instalación recién estrenada, sin Admin creado aún.
+        response = self._post()
+        self.assertRedirects(response, reverse("core:home"))
+        self.assertTrue(User.objects.filter(email="nuevo@test.local").exists())
+
 
 class GestorGroupSyncTests(TestCase):
     def test_gestor_se_anade_al_grupo_con_permisos_de_foro(self):

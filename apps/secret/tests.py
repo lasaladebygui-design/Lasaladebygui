@@ -725,7 +725,7 @@ class OwnMovieAddTests(TestCase):
         response = self.client.post(reverse("secret:own-movie-add", args=["movie", 42]))
 
         entry = SecretMovie.objects.get(owner=self.user, movie__tmdb_id=42)
-        self.assertRedirects(response, f"{reverse('secret:movie-detail', args=[entry.pk])}?scope=own&edit=1")
+        self.assertRedirects(response, f"{reverse('secret:movie-detail', args=[entry.pk])}?scope=own&edit=1&fresh=1")
         mock_get_or_create.assert_called_once_with(42, media_type="movie")
 
         # La ficha en sí carga bien y ya sale en modo edición.
@@ -733,6 +733,18 @@ class OwnMovieAddTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Alien")
         self.assertContains(response, "editing: true")
+
+        # El campo de nota sale vacío (con &fresh=1) en vez de mostrar la
+        # nota provisional "5" que el modelo exige internamente -- si no
+        # se tocara, se vería como si ya estuviera puntuada.
+        self.assertContains(response, 'placeholder="Pon tu nota (1-10)"')
+        self.assertNotContains(response, 'value="5.0"')
+        self.assertNotContains(response, 'value="5,0"')
+
+        # Sin &fresh=1 (una edición normal, no recién añadida) sí se ve
+        # la nota real.
+        response = self.client.get(f"{reverse('secret:movie-detail', args=[entry.pk])}?scope=own&edit=1")
+        self.assertNotContains(response, 'placeholder="Pon tu nota (1-10)"')
 
     @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
     def test_elegir_una_serie_la_anade_con_su_media_type(self, mock_get_or_create):
@@ -796,7 +808,7 @@ class OwnMovieAddAsAdminTests(TestCase):
 
         entry = SecretMovie.objects.get(movie__tmdb_id=42)
         self.assertIsNone(entry.owner)  # guardada como la de Bygui, no bajo el usuario real de Admin
-        self.assertRedirects(response, f"{reverse('secret:movie-detail', args=[entry.pk])}?scope=own&edit=1")
+        self.assertRedirects(response, f"{reverse('secret:movie-detail', args=[entry.pk])}?scope=own&edit=1&fresh=1")
 
         # La ficha se ve de verdad con scope=own -- antes daba 404 aquí.
         response = self.client.get(response.url)
@@ -942,6 +954,35 @@ class SecretMovieAdminWatchStatusTests(TestCase):
         html = response.content.decode()
         title_cell = html[html.index('class="field-title"'):]
         self.assertIn(f'href="{change_url}"', title_cell[:300])
+
+    def test_desplegable_ver_la_lista_de_incluye_bygui_y_cada_dueno_con_conteo(self):
+        friend = User.objects.create(email="owner_quick_nav@test.local", role=User.Role.LECTOR, username="marta_admin_nav")
+        SecretMovie.objects.create(title="De Bygui 1", personal_rating="9.0")
+        SecretMovie.objects.create(title="De Bygui 2", personal_rating="8.0")
+        SecretMovie.objects.create(owner=friend, title="De Marta", personal_rating="7.0")
+
+        response = self.client.get(reverse("admin:secret_secretmovie_changelist"))
+        self.assertContains(response, "Ver la lista de:")
+        self.assertContains(response, "🕶️ Bygui (sin dueño) (2)")
+        self.assertContains(response, "marta_admin_nav (1)")
+
+    def test_elegir_a_alguien_en_el_desplegable_filtra_solo_lo_suyo(self):
+        friend = User.objects.create(email="owner_quick_nav2@test.local", role=User.Role.LECTOR, username="alex_admin_nav")
+        SecretMovie.objects.create(title="De Bygui", personal_rating="9.0")
+        SecretMovie.objects.create(owner=friend, title="Solo de Alex", personal_rating="7.0")
+
+        response = self.client.get(reverse("admin:secret_secretmovie_changelist"), {"owner__id__exact": friend.pk})
+        self.assertContains(response, "Solo de Alex")
+        self.assertNotContains(response, "De Bygui")
+        # Esa misma opción debe salir marcada como seleccionada en el desplegable.
+        self.assertContains(response, f'value="?owner__id__exact={friend.pk}" selected')
+
+    def test_sin_ninguna_pelicula_todavia_el_desplegable_no_revienta(self):
+        # Siempre sale al menos la opción de Bygui (con 0), para que el
+        # desplegable exista igual en una instalación recién estrenada.
+        response = self.client.get(reverse("admin:secret_secretmovie_changelist"))
+        self.assertContains(response, "Ver la lista de:")
+        self.assertContains(response, "🕶️ Bygui (sin dueño) (0)")
 
 
 class AdminOnlyGenreTests(TestCase):
@@ -2036,3 +2077,95 @@ class TopSecretTabOrderTests(TestCase):
         response = self.client.get(f"{reverse('secret:list')}?scope=bygui")
         self.assertNotContains(response, ">Amigos<")
         self.assertNotContains(response, ">Guardados<")
+
+
+class CompareWithFriendsTests(TestCase):
+    """Comparar con amigos (por_number/by_rating): "Tú" ya va siempre
+    incluido en la comparación sin marcarlo a mano (antes era una
+    casilla más, redundante -- comparar sin uno mismo no tenía mucho
+    sentido). lasaladebygui (owner=None) no se ofrece como opción
+    aparte para el propio Admin, porque su "Tú" ya ES esa misma lista."""
+
+    def setUp(self):
+        self.user = User.objects.create(email="compare_friends@test.local", role=User.Role.LECTOR, username="yo_comparo")
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+
+        self.friend = User.objects.create(email="compare_friend2@test.local", role=User.Role.LECTOR, username="mi_amigo")
+        FriendRequest.objects.create(from_user=self.user, to_user=self.friend, accepted=True)
+        SecretListMember.objects.create(owner=self.friend, member=self.user)
+
+        SecretMovie.objects.create(owner=self.user, title="La mía", personal_rating="8.0")
+        SecretMovie.objects.create(owner=self.friend, title="La de mi amigo", personal_rating="7.0")
+
+    def test_tu_sale_siempre_incluido_sin_marcarlo(self):
+        SecretMovie.objects.filter(owner=self.user).update(number=1)
+        SecretMovie.objects.filter(owner=self.friend).update(number=1)
+
+        response = self.client.get(reverse("secret:by-number"), {
+            "number": 1, "compare": "1", "with": ["mi_amigo"],
+        })
+        labels = [row["label"] for row in response.context["rows"]]
+        self.assertEqual(labels[0], "Tú")
+        self.assertIn("mi_amigo", labels)
+
+    def test_lasaladebygui_no_sale_como_opcion_para_el_propio_admin(self):
+        admin = User.objects.create(email="compare_admin@test.local", role=User.Role.ADMIN)
+        admin.set_password("Testpass123!")
+        admin.save()
+        # login() con un usuario distinto al de setUp vacía la sesión
+        # (previene fijación de sesión) y con ella el código del maletín.
+        self.client.login(username=admin.email, password="Testpass123!")
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+
+        response = self.client.get(reverse("secret:by-number"), {"number": 1})
+        keys = [key for key, label, o in response.context["comparable_owners"]]
+        self.assertNotIn("bygui", keys)
+
+    def test_lasaladebygui_si_sale_como_opcion_para_un_usuario_normal(self):
+        response = self.client.get(reverse("secret:by-number"), {"number": 1})
+        labels = [label for key, label, o in response.context["comparable_owners"]]
+        self.assertIn("lasaladebygui", labels)
+
+    def test_boton_todos_aparece_cuando_hay_con_quien_comparar(self):
+        response = self.client.get(reverse("secret:by-number"), {"number": 1})
+        self.assertContains(response, 'class="compare-picker__all"')
+
+    def test_mas_de_tres_comparados_usa_layout_de_lista(self):
+        SecretMovie.objects.filter(owner=self.user).update(number=1)
+        SecretMovie.objects.filter(owner=self.friend).update(number=1)
+        other_friends = []
+        for i in range(3):
+            f = User.objects.create(email=f"compare_extra{i}@test.local", role=User.Role.LECTOR, username=f"extra{i}")
+            FriendRequest.objects.create(from_user=self.user, to_user=f, accepted=True)
+            SecretListMember.objects.create(owner=f, member=self.user)
+            SecretMovie.objects.create(owner=f, title=f"Extra {i}", personal_rating="6.0", number=1)
+            other_friends.append(f.username)
+
+        response = self.client.get(reverse("secret:by-number"), {
+            "number": 1, "compare": "1", "with": ["mi_amigo"] + other_friends,
+        })
+        self.assertGreater(len(response.context["rows"]), 3)
+        self.assertContains(response, "compare-grid--list")
+
+    def test_hasta_tres_comparados_no_usa_layout_de_lista(self):
+        SecretMovie.objects.filter(owner=self.user).update(number=1)
+        SecretMovie.objects.filter(owner=self.friend).update(number=1)
+
+        response = self.client.get(reverse("secret:by-number"), {
+            "number": 1, "compare": "1", "with": ["mi_amigo"],
+        })
+        self.assertLessEqual(len(response.context["rows"]), 3)
+        self.assertNotContains(response, "compare-grid--list")
+
+    def test_by_rating_tambien_incluye_tu_siempre(self):
+        SecretMovie.objects.filter(owner=self.user).update(personal_rating="8.0")
+        SecretMovie.objects.filter(owner=self.friend).update(personal_rating="7.0")
+
+        response = self.client.get(reverse("secret:by-rating"), {
+            "min_rating": 1, "max_rating": 10, "compare": "1", "with": ["mi_amigo"],
+        })
+        labels = [row["label"] for row in response.context["rows"]]
+        self.assertEqual(labels[0], "Tú")

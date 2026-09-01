@@ -666,7 +666,8 @@ main { flex: 1; }
     color: var(--color-text-muted);
 }
 .field input,
-.field select {
+.field select,
+.field textarea {
     width: 100%;
     padding: 0.65rem 0.8rem;
     border-radius: var(--radius-base);
@@ -675,6 +676,7 @@ main { flex: 1; }
     color: var(--color-text);
     font: inherit;
 }
+.field textarea { resize: vertical; min-height: 6.5em; }
 /* Selector numérico de Top Secret: las flechitas nativas de subir/bajar
    de <input type="number"> no aportan nada aquí (no tiene sentido ir
    incrementando de uno en uno hasta dar con el número que se busca). */
@@ -705,7 +707,8 @@ main { flex: 1; }
 .field-row .field { flex: 1; min-width: 200px; margin-bottom: calc(var(--space-unit) * 4); }
 
 .field input:focus,
-.field select:focus {
+.field select:focus,
+.field textarea:focus {
     outline: none;
     border-color: var(--color-accent);
 }
@@ -1603,6 +1606,22 @@ main { flex: 1; }
 .compare-grid .movie-card--result { flex-direction: column; max-width: none; }
 .compare-grid .movie-card--result .movie-card__poster { width: 100%; aspect-ratio: 2/3; }
 
+/* Más de 3 comparados: en columnas de 220px se convierte en varias filas
+   de tarjetas, incómodo de recorrer -- una lista de una sola columna
+   (cada persona, una fila horizontal) se sigue mejor cuando hay muchos. */
+.compare-grid--list { grid-template-columns: 1fr; gap: calc(var(--space-unit) * 3); }
+.compare-grid--list .compare-grid__col {
+    display: flex; align-items: center; gap: calc(var(--space-unit) * 4);
+    padding: calc(var(--space-unit) * 3);
+    background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-base);
+}
+.compare-grid--list .compare-grid__label {
+    margin: 0; padding: 0; border: none; flex-shrink: 0; width: 120px;
+}
+.compare-grid--list .movie-card--result { flex-direction: row; }
+.compare-grid--list .movie-card--result .movie-card__poster { width: 50px; aspect-ratio: 2/3; flex-shrink: 0; }
+.compare-grid--list .candidate-list { flex: 1; }
+
 /* --- Pestañas Número/Nota (ver templates/secret/_search_tabs.html) y
    casilla "comparar con amigos" dentro del propio formulario. --------- */
 .search-tabs { display: flex; gap: calc(var(--space-unit) * 2); margin-bottom: calc(var(--space-unit) * 5); }
@@ -1650,7 +1669,26 @@ main { flex: 1; }
     background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-base);
 }
 .compare-picker__hint { margin: 0; width: 100%; font-size: .82rem; }
-.compare-picker__item { display: inline-flex; align-items: center; gap: calc(var(--space-unit) * 1); font-size: .86rem; cursor: pointer; }
+/* Cada opción como una píldora aparte (mismo tacto que .tag-pill), no
+   una casilla + etiqueta sueltas -- en móvil, envueltas sin más, dos o
+   tres etiquetas de texto seguidas se leían casi como párrafo en vez de
+   como controles con los que se interactúa. */
+.compare-picker__item {
+    display: inline-flex; align-items: center; gap: calc(var(--space-unit) * 1.5);
+    padding: calc(var(--space-unit) * 1.5) calc(var(--space-unit) * 3);
+    border: 1px solid var(--color-border); border-radius: 999px;
+    background: var(--color-bg); color: var(--color-text-muted);
+    font-size: .86rem; cursor: pointer;
+}
+.compare-picker__item:has(input:checked) { border-color: var(--color-accent); color: var(--color-accent); }
+.compare-picker__item:hover { border-color: var(--color-accent); }
+.compare-picker__all {
+    padding: calc(var(--space-unit) * 1.5) calc(var(--space-unit) * 3);
+    border: 1px solid var(--color-accent); border-radius: 999px;
+    background: transparent; color: var(--color-accent);
+    font-size: .86rem; font-weight: 600; cursor: pointer;
+}
+.compare-picker__all:hover { background: var(--color-accent); color: var(--color-on-accent); }
 
 @media (max-width: 640px) {
     .shared-hub__row { flex-direction: column; align-items: flex-start; }
@@ -2245,7 +2283,7 @@ main { flex: 1; }
     flex-direction: column;
     gap: calc(var(--space-unit) * 3);
     width: 100%;
-    max-width: 360px;
+    max-width: min(560px, 100%);
     margin-top: calc(var(--space-unit) * 2);
     padding-top: calc(var(--space-unit) * 3);
     border-top: 1px solid var(--color-border);

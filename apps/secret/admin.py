@@ -1,8 +1,10 @@
 from django import forms
 from django.contrib import admin
+from django.db.models import Count
 from django.http import JsonResponse
 from django.urls import path
 
+from apps.accounts.models import User
 from apps.core.admin import SingletonAdmin, SortableAdminMixin
 from apps.movies.models import Movie
 
@@ -137,6 +139,34 @@ class SecretMovieAdmin(admin.ModelAdmin):
     search_fields = ("title", "owner__username")
     autocomplete_fields = ("movie", "owner")
     ordering = ("owner", "number")
+
+    def changelist_view(self, request, extra_context=None):
+        """Fila de accesos directos, uno por cada lista que existe de
+        verdad (Bygui + cada usuario con alguna entrada), para entrar de
+        un clic a la de quien sea -- antes solo estaba el desplegable de
+        filtro de la derecha, que no dice de un vistazo quién tiene lista
+        ni cuántas entradas tiene cada uno."""
+        counts = dict(SecretMovie.objects.values_list("owner_id").annotate(n=Count("id")).order_by().values_list("owner_id", "n"))
+        owner_ids = [oid for oid in counts if oid is not None]
+        usernames = dict(User.objects.filter(pk__in=owner_ids).values_list("pk", "username"))
+
+        owners_summary = [{
+            "label": "🕶️ Bygui (sin dueño)",
+            "url": "?owner__isnull=True",
+            "count": counts.get(None, 0),
+            "is_active": request.GET.get("owner__isnull") == "True",
+        }]
+        for oid in sorted(owner_ids, key=lambda pk: usernames.get(pk, "").lower()):
+            owners_summary.append({
+                "label": usernames.get(oid, f"#{oid}"),
+                "url": f"?owner__id__exact={oid}",
+                "count": counts[oid],
+                "is_active": request.GET.get("owner__id__exact") == str(oid),
+            })
+
+        extra_context = extra_context or {}
+        extra_context["owners_summary"] = owners_summary
+        return super().changelist_view(request, extra_context=extra_context)
 
     def save_model(self, request, obj, form, change):
         if not change:

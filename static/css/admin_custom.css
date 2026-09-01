@@ -1,5 +1,31 @@
 /* Ajustes finos sobre el tema de django-jazzmin/AdminLTE. */
 
+/* Desplegable "Ver la lista de:" en Top Secret → Películas enlistadas
+   (templates/admin/secret/secretmovie/change_list.html) -- entra de un
+   clic en la lista de cualquiera, sin abrir el filtro "dueño" de la
+   derecha. */
+.owner-quick-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+.owner-quick-nav label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #495057;
+    margin: 0;
+}
+.owner-quick-nav select {
+    height: 34px;
+    border: 1px solid #ced4da;
+    border-radius: 0.3rem;
+    padding: 0 0.5rem;
+    font-size: 0.85rem;
+    background: #fff;
+    max-width: 280px;
+}
+
 /* Panel "Actividad reciente" del dashboard (templates/admin/index.html):
    una línea por entrada en vez del timeline de iconos/tarjetas por
    defecto de Django, que para poco contenido (un título + "Añadido X.")

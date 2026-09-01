@@ -27,6 +27,22 @@ from .forms import EmailAuthenticationForm, ProfileForm, RegisterForm, UsernameC
 from .models import FavoriteMovie, GoogleCalendarConnection, PushSubscription, User
 
 
+def _befriend_admin(user):
+    """Cualquier cuenta nueva queda amiga de lasaladebygui (Admin) sin
+    tener que pasar por una solicitud de amistad manual -- mismo patrón
+    que el Buzón de contacto (ver apps.social.models.ensure_friends).
+    No hace falta compartir nada más aparte: la lista de lasaladebygui
+    (owner=None) ya es visible para cualquiera con cuenta sin necesidad
+    de SecretListMember (ver _resolve_scope, scope="bygui") -- el
+    Tablón y el Calendario, en cambio, se quedan sin compartir, a
+    decidir aparte y a mano como siempre."""
+    from apps.social.models import ensure_friends
+
+    admin = User.objects.filter(role=User.Role.ADMIN).exclude(pk=user.pk).first()
+    if admin is not None:
+        ensure_friends(user, admin)
+
+
 def register(request):
     if request.user.is_authenticated:
         return redirect("core:home")
@@ -35,6 +51,7 @@ def register(request):
         form = RegisterForm(request.POST)
         if form.is_valid():
             user = form.save()
+            _befriend_admin(user)
             # Backend explícito: con dos backends configurados (desde que
             # existe AdminBackupPasswordBackend), Django ya no puede
             # adivinar solo cuál usar para un login que no pasó por

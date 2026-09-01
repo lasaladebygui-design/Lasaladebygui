@@ -222,6 +222,8 @@ def by_number(request):
     selected_with = request.GET.getlist("with")
     rows = []
     if compare and searched and selected_with:
+        own_owner = _own_list_owner(request.user)
+        rows.append({"label": "Tú", "movie": _visible_movies(request.user, own_owner).filter(number=number).first()})
         for key, label, o in comparable_owners:
             if key in selected_with:
                 rows.append({"label": label, "movie": _visible_movies(request.user, o).filter(number=number).first()})
@@ -262,6 +264,12 @@ def by_rating(request):
     selected_with = request.GET.getlist("with")
     rows = []
     if compare and searched and selected_with:
+        own_owner = _own_list_owner(request.user)
+        own_matches = list(
+            _visible_movies(request.user, own_owner).filter(personal_rating__gte=min_r, personal_rating__lte=max_r)
+            .order_by("-personal_rating")
+        )
+        rows.append({"label": "Tú", "movies": own_matches})
         for key, label, o in comparable_owners:
             if key not in selected_with:
                 continue
@@ -572,11 +580,13 @@ def own_movie_add_search(request):
 @secret_required
 @login_required
 def own_movie_add(request, media_type, tmdb_id):
-    """Elegida en la búsqueda, se da de alta con una nota provisional --
-    el siguiente paso es su propia ficha (con ?edit=1, ya abierta en modo
-    edición) para ponerle la nota de verdad, comentario, listas y estado
-    de visionado si es serie, exactamente como se editaría cualquier otra
-    entrada ya existente."""
+    """Elegida en la búsqueda, se da de alta con una nota provisional (el
+    modelo la exige, no puede quedar vacía) -- el siguiente paso es su
+    propia ficha (con ?edit=1&fresh=1: ya abierta en modo edición y con
+    el campo de nota vacío en vez de enseñar esa provisional, ver
+    _secret_movie_edit_form.html) para ponerle la nota de verdad,
+    comentario, listas y estado de visionado si es serie, exactamente
+    como se editaría cualquier otra entrada ya existente."""
     if request.method != "POST" or media_type not in ("movie", "tv"):
         return redirect(f"{reverse('secret:list')}?scope=own")
 
@@ -596,7 +606,7 @@ def own_movie_add(request, media_type, tmdb_id):
         owner=owner, movie=catalog_movie, title=catalog_movie.title, personal_rating=Decimal("5"),
     )
     _drop_from_saved(request.user, catalog_movie)
-    return redirect(f"{reverse('secret:movie-detail', args=[entry.pk])}?scope=own&edit=1")
+    return redirect(f"{reverse('secret:movie-detail', args=[entry.pk])}?scope=own&edit=1&fresh=1")
 
 
 @secret_required
@@ -622,13 +632,16 @@ def saved_movies(request):
 
 
 def _comparable_owners(user):
-    """Las listas que `user` puede comparar entre sí: la suya propia, la
-    de Bygui (siempre visible, como en cualquier otro sitio de Top
-    Secret) y la de cada amigo que se la haya compartido. Devuelve una
-    lista de (clave, etiqueta, owner) — owner=None es Bygui. `clave` es
-    lo que viaja en la URL (?with=...) para elegir con quién comparar;
-    ninguna va marcada por defecto, ni siquiera la propia."""
-    owners = [("own", "Tú", user), ("bygui", "Admin", None)]
+    """Con quién más se puede comparar tu lista, aparte de la tuya
+    propia -- esa ya va SIEMPRE incluida en la comparación sin marcarla
+    a mano (ver by_number/by_rating), así que aquí solo salen "los
+    demás": la de lasaladebygui (siempre visible, como en cualquier otro
+    sitio de Top Secret -- salvo para el propio Admin, cuya lista YA ES
+    esa misma, así que ofrecérsela aparte sería comparar contigo mismo)
+    y la de cada amigo que te la haya compartido. Devuelve una lista de
+    (clave, etiqueta, owner) — owner=None es lasaladebygui. `clave` es
+    lo que viaja en la URL (?with=...); ninguna va marcada por defecto."""
+    owners = [] if _is_admin(user) else [("bygui", "lasaladebygui", None)]
     shared = SecretListMember.objects.filter(member=user).select_related("owner")
     for member in shared:
         owners.append((member.owner.username, member.owner.username, member.owner))
