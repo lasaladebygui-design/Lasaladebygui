@@ -151,7 +151,7 @@ class SecretMovieAdmin(admin.ModelAdmin):
         usernames = dict(User.objects.filter(pk__in=owner_ids).values_list("pk", "username"))
 
         owners_summary = [{
-            "label": "🕶️ Bygui (sin dueño)",
+            "label": "🕶️ lasaladebygui (sin dueño)",
             "url": "?owner__isnull=True",
             "count": counts.get(None, 0),
             "is_active": request.GET.get("owner__isnull") == "True",

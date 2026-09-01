@@ -129,14 +129,14 @@ class Genre(models.Model):
     personas pueden tener cada una una lista llamada "Terror" sin chocar)."""
 
     owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL, verbose_name="dueño (vacío = lista de Bygui)",
+        settings.AUTH_USER_MODEL, verbose_name="dueño (vacío = lista de lasaladebygui)",
         on_delete=models.CASCADE, null=True, blank=True, related_name="own_secret_genres",
     )
     name = models.CharField("nombre", max_length=50)
     slug = models.SlugField("slug", max_length=60, blank=True)
     admin_only = models.BooleanField(
         "solo para admins", default=False,
-        help_text="Ni esta lista ni ninguna película marcada con ella las ve nadie más, aunque tenga el código. Solo aplica a las listas de Bygui.",
+        help_text="Ni esta lista ni ninguna película marcada con ella las ve nadie más, aunque tenga el código. Solo aplica a las listas de lasaladebygui.",
     )
     order = models.PositiveIntegerField("orden", default=0)
 
@@ -174,7 +174,7 @@ class SecretMovie(models.Model):
     dos personas pueden tener cada una una película con el número 1."""
 
     owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL, verbose_name="dueño (vacío = lista de Bygui)",
+        settings.AUTH_USER_MODEL, verbose_name="dueño (vacío = lista de lasaladebygui)",
         on_delete=models.CASCADE, null=True, blank=True, related_name="own_secret_movies",
     )
     # No se elige a mano: se recalcula solo en cada guardado/borrado según la

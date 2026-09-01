@@ -963,7 +963,7 @@ class SecretMovieAdminWatchStatusTests(TestCase):
 
         response = self.client.get(reverse("admin:secret_secretmovie_changelist"))
         self.assertContains(response, "Ver la lista de:")
-        self.assertContains(response, "🕶️ Bygui (sin dueño) (2)")
+        self.assertContains(response, "🕶️ lasaladebygui (sin dueño) (2)")
         self.assertContains(response, "marta_admin_nav (1)")
 
     def test_elegir_a_alguien_en_el_desplegable_filtra_solo_lo_suyo(self):
@@ -982,7 +982,7 @@ class SecretMovieAdminWatchStatusTests(TestCase):
         # desplegable exista igual en una instalación recién estrenada.
         response = self.client.get(reverse("admin:secret_secretmovie_changelist"))
         self.assertContains(response, "Ver la lista de:")
-        self.assertContains(response, "🕶️ Bygui (sin dueño) (0)")
+        self.assertContains(response, "🕶️ lasaladebygui (sin dueño) (0)")
 
 
 class AdminOnlyGenreTests(TestCase):
