@@ -896,3 +896,40 @@ class SavedMovieListSortableAdminTests(TestCase):
     def test_el_listado_tiene_el_tirador_de_arrastre(self):
         response = self.client.get(reverse("admin:movies_savedmovielist_changelist"))
         self.assertContains(response, "drag-handle")
+
+
+class BackfillMovieRevenueTimeoutTests(TestCase):
+    """backfill_movie_revenue va en el startCommand de Render, antes de
+    gunicorn -- si TMDb va lento, sin un tope de tiempo el comando puede
+    tardar tanto que Render se cansa de esperar un puerto abierto y tumba
+    el despliegue entero (incidente real). Ver MAX_SECONDS en el comando."""
+
+    def test_para_al_superar_el_limite_de_tiempo_sin_procesar_el_resto(self):
+        from django.core.management import call_command
+
+        from apps.movies.management.commands import backfill_movie_revenue as cmd_module
+
+        Movie.objects.create(media_type=Movie.MediaType.MOVIE, tmdb_id=1, title="Una", revenue=None)
+        Movie.objects.create(media_type=Movie.MediaType.MOVIE, tmdb_id=2, title="Dos", revenue=None)
+
+        with override_settings(TMDB_API_KEY="fake-key"), \
+             patch.object(cmd_module, "MAX_SECONDS", -1), \
+             patch.object(cmd_module, "tmdb_get_details") as mock_details:
+            call_command("backfill_movie_revenue")
+
+        mock_details.assert_not_called()
+
+    def test_sin_superar_el_limite_procesa_normalmente(self):
+        from django.core.management import call_command
+
+        from apps.movies.management.commands import backfill_movie_revenue as cmd_module
+
+        movie = Movie.objects.create(media_type=Movie.MediaType.MOVIE, tmdb_id=1, title="Una", revenue=None)
+
+        with override_settings(TMDB_API_KEY="fake-key"), \
+             patch.object(cmd_module, "MAX_SECONDS", 60), \
+             patch.object(cmd_module, "tmdb_get_details", return_value={"revenue": 1_000_000}):
+            call_command("backfill_movie_revenue")
+
+        movie.refresh_from_db()
+        self.assertEqual(movie.revenue, 1_000_000)
