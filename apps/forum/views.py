@@ -1,7 +1,8 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Count
+from django.db.models import Count, F, Max
+from django.db.models.functions import Coalesce
 from django.http import Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -32,10 +33,35 @@ def _build_comment_tree(thread, user):
 
 
 def thread_list(request):
-    threads = Thread.objects.select_related("author").annotate(comment_count=Count("comments"))
+    query = request.GET.get("q", "").strip()
+    sort = request.GET.get("sort") if request.GET.get("sort") in ("active", "recent") else "recent"
+
+    threads = Thread.objects.select_related("author").annotate(
+        comment_count=Count("comments"),
+        last_activity=Coalesce(Max("comments__created_at"), F("created_at")),
+    )
+    if query:
+        threads = threads.filter(title__icontains=query)
+    threads = threads.order_by("-last_activity" if sort == "active" else "-created_at")
+
     paginator = Paginator(threads, 15)
     page = paginator.get_page(request.GET.get("page"))
-    return render(request, "forum/list.html", {"page_obj": page})
+
+    if request.user.is_authenticated:
+        # Igual que ProductView en la Tienda: comparar la última actividad
+        # del hilo contra la última lectura (o "nunca leído") para poder
+        # marcar qué hilos tienen algo nuevo desde tu última visita, sin
+        # tener que abrir cada uno para saberlo.
+        read_at_by_thread = dict(
+            ThreadRead.objects.filter(
+                user=request.user, thread__in=page.object_list
+            ).values_list("thread_id", "read_at")
+        )
+        for thread in page.object_list:
+            read_at = read_at_by_thread.get(thread.pk)
+            thread.is_new = read_at is None or thread.last_activity > read_at
+
+    return render(request, "forum/list.html", {"page_obj": page, "query": query, "sort": sort})
 
 
 def thread_detail(request, pk):

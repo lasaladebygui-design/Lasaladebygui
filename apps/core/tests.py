@@ -1362,3 +1362,37 @@ class SitemapAndRobotsTests(TestCase):
         self.assertContains(response, "Disallow: /top-secret/")
         self.assertContains(response, "Sitemap: ")
         self.assertContains(response, reverse("sitemap"))
+
+
+class GlobalSearchTests(TestCase):
+    """Buscador de la cabecera: Películas + Artículos + Foro a la vez, ver
+    apps/core/views.py::global_search."""
+
+    def test_sin_query_no_devuelve_nada(self):
+        response = self.client.get(reverse("core:search"))
+        self.assertEqual(response.content.decode().strip(), "")
+
+    def test_encuentra_una_pelicula_por_titulo(self):
+        from apps.movies.models import Movie
+
+        Movie.objects.create(media_type="movie", tmdb_id=1, title="Malicia", year="1993")
+        response = self.client.get(reverse("core:search"), {"q": "malicia"})
+        self.assertContains(response, "Malicia")
+
+    def test_encuentra_un_articulo_publico_pero_no_uno_privado(self):
+        Article.objects.create(title="Crítica de Malicia", body="<p>x</p>", author=None, is_private=False)
+        Article.objects.create(title="Malicia — notas internas", body="<p>x</p>", author=None, is_private=True)
+        response = self.client.get(reverse("core:search"), {"q": "malicia"})
+        self.assertContains(response, "Crítica de Malicia")
+        self.assertNotContains(response, "notas internas")
+
+    def test_encuentra_un_hilo_del_foro(self):
+        from apps.forum.models import Thread
+
+        Thread.objects.create(title="¿Alguien más vio Malicia?", body="x", author=None)
+        response = self.client.get(reverse("core:search"), {"q": "malicia"})
+        self.assertContains(response, "¿Alguien más vio Malicia?")
+
+    def test_sin_resultados_muestra_mensaje(self):
+        response = self.client.get(reverse("core:search"), {"q": "esto no existe en ningún sitio"})
+        self.assertContains(response, "Sin resultados")

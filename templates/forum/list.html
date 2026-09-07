@@ -16,6 +16,21 @@
             {% endif %}
         </div>
 
+        <form method="get" class="secret-toolbar thread-search-toolbar">
+            <div class="secret-toolbar__search secret-toolbar__field">
+                <label for="id_forum_q" class="visually-hidden">Buscar hilos</label>
+                <input type="search" name="q" id="id_forum_q" value="{{ query }}" placeholder="Buscar en el foro...">
+            </div>
+            <div class="secret-toolbar__field">
+                <label for="id_forum_sort" class="visually-hidden">Ordenar</label>
+                <select name="sort" id="id_forum_sort" onchange="this.form.submit()">
+                    <option value="recent" {% if sort == "recent" %}selected{% endif %}>Más recientes</option>
+                    <option value="active" {% if sort == "active" %}selected{% endif %}>Más activos</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn--ghost btn--sm">Buscar</button>
+        </form>
+
         {% if page_obj.object_list %}
         <ul class="thread-list">
             {% for thread in page_obj %}
@@ -24,6 +39,7 @@
                     <span class="thread-row__title">
                         {% if thread.is_locked %}<span class="tag-pill" title="Hilo cerrado">🔒</span>{% endif %}
                         {{ thread.title }}
+                        {% if thread.is_new %}<span class="tag-pill tag-pill--new">🆕 nuevo</span>{% endif %}
                     </span>
                     <span class="muted thread-row__meta">
                         {% username_badge thread.author "usuario eliminado" %} · {{ thread.created_at|date:"d/m/Y H:i" }} · {{ thread.comment_count }} respuesta{{ thread.comment_count|pluralize }}
@@ -33,6 +49,8 @@
             {% endfor %}
         </ul>
         {% include "partials/pagination.html" with page_obj=page_obj %}
+        {% elif query %}
+        <p class="muted">Sin resultados para «{{ query }}».</p>
         {% else %}
         <p class="muted">Todavía no hay hilos. ¡Abre el primero!</p>
         {% endif %}

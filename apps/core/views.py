@@ -65,6 +65,27 @@ def notifications_panel(request):
     return response
 
 
+def global_search(request):
+    """Buscador de la cabecera: mira a la vez en Películas, Artículos y
+    Foro (los tres apartados públicos con título buscable), en vez de
+    obligar a saber ya en qué apartado está lo que buscas. No incluye
+    usuarios (eso ya lo cubre el buscador de Social) ni nada de Top
+    Secret (privado, con código de acceso propio)."""
+    from apps.forum.models import Thread
+    from apps.movies.models import Movie
+
+    query = request.GET.get("q", "").strip()
+    movies = articles = threads = []
+    if query:
+        movies = Movie.objects.filter(title__icontains=query)[:5]
+        articles = Article.objects.filter(title__icontains=query, is_private=False)[:5]
+        threads = Thread.objects.filter(title__icontains=query).select_related("author")[:5]
+
+    return render(request, "core/_search_results.html", {
+        "query": query, "movies": movies, "articles": articles, "threads": threads,
+    })
+
+
 def donations(request):
     return render(request, "core/donations.html", {"site_config": SiteConfig.load()})
 

@@ -9,6 +9,23 @@
         <h1>¿A qué jugamos?</h1>
         <p class="muted">Nada de códigos secretos aquí: entra y juega.</p>
 
+        {% if stats %}
+        <div class="stat-strip">
+            <div class="stat-strip__item">
+                <strong>{{ stats.best_streak.value }}</strong>
+                <span>Mejor racha — {{ stats.best_streak.label }}</span>
+            </div>
+            <div class="stat-strip__item">
+                <strong>{{ stats.wins }}-{{ stats.losses }}</strong>
+                <span>Duelos ganados-perdidos</span>
+            </div>
+            <div class="stat-strip__item">
+                <strong>{{ stats.active_duels }}</strong>
+                <span>Duelo{{ stats.active_duels|pluralize }} en curso</span>
+            </div>
+        </div>
+        {% endif %}
+
         <h2>🎮 Un jugador</h2>
         <div class="card-grid">
             <a href="{% url 'games:rating-duel' %}" class="card card--link">

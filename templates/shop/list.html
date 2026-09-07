@@ -7,11 +7,22 @@
     <div class="wrap">
         <span class="card__tag">Tienda</span>
         <h1>Escaparate</h1>
-        {% if not products %}<p class="muted">Un rincón para enseñar cosas, no para venderlas.</p>{% endif %}
+        {% if not page_obj.object_list %}<p class="muted">Un rincón para enseñar cosas, no para venderlas.</p>{% endif %}
 
-        {% if products %}
+        {% if page_obj.object_list %}
+        <div class="secret-toolbar">
+            <form method="get" class="secret-toolbar__field">
+                <label for="id_sort" class="visually-hidden">Ordenar</label>
+                <select name="sort" id="id_sort" onchange="this.form.submit()">
+                    {% for value, opt in sort_options.items %}
+                    <option value="{{ value }}" {% if value == sort %}selected{% endif %}>{{ opt.1 }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            <span class="muted">{{ page_obj.paginator.count }} artículo{{ page_obj.paginator.count|pluralize }}</span>
+        </div>
         <div class="card-grid card-grid--shop">
-            {% for product in products %}
+            {% for product in page_obj %}
             <div class="card card--product" x-data="{ expanded: false }">
                 <button type="button" class="card--product__summary" @click="expanded = !expanded" :aria-expanded="expanded.toString()">
                     {% if product.image %}
@@ -27,6 +38,7 @@
             </div>
             {% endfor %}
         </div>
+        {% include "partials/pagination.html" with page_obj=page_obj %}
         {% else %}
         <p class="muted">Todavía no hay artículos en el escaparate.</p>
         {% endif %}

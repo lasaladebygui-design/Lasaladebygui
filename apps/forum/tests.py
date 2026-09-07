@@ -5,7 +5,7 @@ from django.urls import reverse
 
 from apps.accounts.models import PushSubscription, User
 
-from .models import Thread, ThreadComment
+from .models import Thread, ThreadComment, ThreadRead
 
 
 def make_user(email, role):
@@ -103,6 +103,53 @@ class ForumPermissionTests(TestCase):
         self.assertTrue(ThreadComment.objects.filter(pk=self.comment.pk).exists())
         self.comment.refresh_from_db()
         self.assertTrue(self.comment.is_deleted)
+
+
+class ForumSearchSortAndNewBadgeTests(TestCase):
+    def setUp(self):
+        self.lector = make_user("buscador@test.local", User.Role.LECTOR)
+        self.antiguo = Thread.objects.create(title="Ranking de sagas de terror", body="...", author=self.lector)
+        self.reciente = Thread.objects.create(title="¿Alguien más vio Malicia?", body="...", author=self.lector)
+
+    def test_buscador_filtra_por_titulo(self):
+        response = self.client.get(reverse("forum:list"), {"q": "Malicia"})
+        self.assertContains(response, "¿Alguien más vio Malicia?")
+        self.assertNotContains(response, "Ranking de sagas de terror")
+
+    def test_sin_resultados_muestra_mensaje(self):
+        response = self.client.get(reverse("forum:list"), {"q": "no existe esto"})
+        self.assertContains(response, "Sin resultados")
+
+    def test_orden_por_actividad_sube_el_hilo_con_respuesta_mas_reciente(self):
+        ThreadComment.objects.create(thread=self.antiguo, author=self.lector, body="revive el hilo viejo")
+        response = self.client.get(reverse("forum:list"), {"sort": "active"})
+        threads = list(response.context["page_obj"].object_list)
+        self.assertEqual(threads[0].pk, self.antiguo.pk)
+
+    def test_hilo_nunca_visto_sale_marcado_como_nuevo(self):
+        self.client.login(username=self.lector.email, password="Testpass123!")
+        response = self.client.get(reverse("forum:list"))
+        self.assertContains(response, "tag-pill--new")
+
+    def test_hilo_ya_leido_sin_novedades_no_sale_marcado(self):
+        ThreadRead.objects.create(thread=self.reciente, user=self.lector)
+        ThreadRead.objects.create(thread=self.antiguo, user=self.lector)
+        self.client.login(username=self.lector.email, password="Testpass123!")
+        response = self.client.get(reverse("forum:list"))
+        self.assertNotContains(response, "tag-pill--new")
+
+    def test_hilo_con_respuesta_tras_la_ultima_lectura_vuelve_a_salir_nuevo(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        read = ThreadRead.objects.create(thread=self.antiguo, user=self.lector)
+        ThreadRead.objects.filter(pk=read.pk).update(read_at=timezone.now() - timedelta(hours=1))
+        ThreadComment.objects.create(thread=self.antiguo, author=self.lector, body="algo nuevo")
+        self.client.login(username=self.lector.email, password="Testpass123!")
+        response = self.client.get(reverse("forum:list"))
+        threads_by_pk = {t.pk: t for t in response.context["page_obj"].object_list}
+        self.assertTrue(threads_by_pk[self.antiguo.pk].is_new)
 
 
 @override_settings(VAPID_PUBLIC_KEY="clave-publica", VAPID_PRIVATE_KEY="clave-privada")

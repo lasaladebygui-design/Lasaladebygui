@@ -15,6 +15,37 @@ def make_user(email, **extra):
     return user
 
 
+class FriendsListPageTests(TestCase):
+    """La lista de amigos pasó de texto plano a tarjetas con avatar; el
+    filtro solo aparece si hay más de 6 amigos (ver templates/social/
+    friends_list.html)."""
+
+    def setUp(self):
+        self.viewer = make_user("viewer@test.local")
+        self.client.login(username=self.viewer.email, password="Testpass123!")
+
+    def test_amigo_sale_como_tarjeta_con_avatar_placeholder(self):
+        friend = make_user("marta@test.local")
+        FriendRequest.objects.create(from_user=self.viewer, to_user=friend, accepted=True)
+        response = self.client.get(reverse("social:friends"))
+        self.assertContains(response, "friend-card")
+        self.assertContains(response, "profile-avatar--placeholder")
+        self.assertContains(response, friend.username)
+
+    def test_con_pocos_amigos_no_sale_el_filtro(self):
+        friend = make_user("pablo@test.local")
+        FriendRequest.objects.create(from_user=self.viewer, to_user=friend, accepted=True)
+        response = self.client.get(reverse("social:friends"))
+        self.assertNotContains(response, "Filtrar amigos")
+
+    def test_con_mas_de_6_amigos_sale_el_filtro(self):
+        for i in range(7):
+            friend = make_user(f"amigo{i}@test.local")
+            FriendRequest.objects.create(from_user=self.viewer, to_user=friend, accepted=True)
+        response = self.client.get(reverse("social:friends"))
+        self.assertContains(response, "Filtrar amigos")
+
+
 class FriendshipHelpersTests(TestCase):
     def setUp(self):
         self.ana = make_user("ana@test.local")

@@ -1,0 +1,42 @@
+{% load accounts_extras %}
+{% if query %}
+    {% if movies or articles or threads %}
+    <div class="gsearch__results">
+        {% if movies %}
+        <div class="gsearch__group">
+            <span class="gsearch__group-label">Películas y series</span>
+            {% for movie in movies %}
+            <a href="{% url 'movies:detail' movie.pk %}" class="gsearch__item">
+                <span class="gsearch__thumb" aria-hidden="true">🎬</span>
+                <span>{{ movie.title }}{% if movie.year %} <small>{{ movie.year }}</small>{% endif %}</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if articles %}
+        <div class="gsearch__group">
+            <span class="gsearch__group-label">Artículos</span>
+            {% for article in articles %}
+            <a href="{{ article.get_absolute_url }}" class="gsearch__item">
+                <span class="gsearch__thumb" aria-hidden="true">📰</span>
+                <span>{{ article.title }} <small>{% username_badge article.author "autor eliminado" %}</small></span>
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if threads %}
+        <div class="gsearch__group">
+            <span class="gsearch__group-label">Foro</span>
+            {% for thread in threads %}
+            <a href="{{ thread.get_absolute_url }}" class="gsearch__item">
+                <span class="gsearch__thumb" aria-hidden="true">💬</span>
+                <span>{{ thread.title }} <small>{{ thread.comments.count }} respuesta{{ thread.comments.count|pluralize }}</small></span>
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <p class="gsearch__empty muted">Sin resultados para «{{ query }}».</p>
+    {% endif %}
+{% endif %}

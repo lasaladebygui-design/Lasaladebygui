@@ -21,6 +21,39 @@ class GamesHubTests(TestCase):
         self.assertContains(response, reverse("movies:roulette-home"))
         self.assertContains(response, reverse("games:quote-game"))
 
+    def test_sin_cuenta_no_se_ve_la_franja_de_stats(self):
+        response = self.client.get(reverse("games:hub"))
+        self.assertIsNone(response.context["stats"])
+        self.assertNotContains(response, "Duelos ganados-perdidos")
+
+    def test_con_cuenta_se_ve_la_mejor_racha_de_entre_todos_los_juegos(self):
+        user = User.objects.create(email="racha@test.local", role=User.Role.LECTOR)
+        user.set_password("Testpass123!")
+        user.trivia_streak_best = 3
+        user.emoji_streak_best = 9
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+
+        response = self.client.get(reverse("games:hub"))
+        self.assertEqual(response.context["stats"]["best_streak"]["value"], 9)
+        self.assertEqual(response.context["stats"]["best_streak"]["label"], "Emoji")
+        self.assertContains(response, "Mejor racha")
+
+    def test_la_franja_cuenta_los_duelos_ganados_y_perdidos(self):
+        challenger = User.objects.create(email="reta@test.local", role=User.Role.LECTOR)
+        challenger.set_password("Testpass123!")
+        challenger.save()
+        opponent = User.objects.create(email="rival@test.local", role=User.Role.LECTOR)
+        opponent.set_password("Testpass123!")
+        opponent.save()
+        DuelRecord.record_result(challenger, opponent, winner=challenger)
+        DuelRecord.record_result(challenger, opponent, winner=opponent)
+
+        self.client.login(username=challenger.email, password="Testpass123!")
+        response = self.client.get(reverse("games:hub"))
+        self.assertEqual(response.context["stats"]["wins"], 1)
+        self.assertEqual(response.context["stats"]["losses"], 1)
+
 
 class QuoteGameTests(TestCase):
     """Frases célebres vivía antes detrás del código de Top Secret; ahora es

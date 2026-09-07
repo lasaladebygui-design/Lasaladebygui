@@ -47,14 +47,31 @@
 
         <h2 class="movie-section-title">Tus amigos</h2>
         {% if friends %}
-        <ul class="plain-list">
-            {% for friend in friends %}
-            <li>
-                <a href="{% url 'social:public-profile' username=friend.username %}">{% username_badge friend %}</a>
-                <a href="{% url 'social:conversation' username=friend.username %}" class="btn btn--ghost btn--sm">Mensaje</a>
-            </li>
-            {% endfor %}
-        </ul>
+        <div x-data="{ q: '' }">
+            {% if friends|length > 6 %}
+            <div class="secret-toolbar__search secret-toolbar__field friend-list-filter">
+                <label for="id_friend_filter" class="visually-hidden">Filtrar amigos</label>
+                <input type="search" id="id_friend_filter" x-model="q" placeholder="Filtrar amigos...">
+            </div>
+            {% endif %}
+            <ul class="plain-list friend-card-list">
+                {% for friend in friends %}
+                <li class="friend-card" x-show="q === '' || $el.dataset.username.includes(q.toLowerCase())" data-username="{{ friend.username|lower }}">
+                    <a href="{% url 'social:public-profile' username=friend.username %}" class="friend-card__avatar-link">
+                        {% if friend.avatar %}
+                            <img src="{{ friend.avatar.url }}" alt="" class="profile-avatar profile-avatar--sm">
+                        {% else %}
+                            <span class="profile-avatar profile-avatar--sm profile-avatar--placeholder" aria-hidden="true">🎬</span>
+                        {% endif %}
+                    </a>
+                    <div class="friend-card__body">
+                        <a href="{% url 'social:public-profile' username=friend.username %}">{% username_badge friend %}</a>
+                    </div>
+                    <a href="{% url 'social:conversation' username=friend.username %}" class="btn btn--ghost btn--sm">Mensaje</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
         {% else %}
         <p class="muted">Todavía no tienes amigos. Visita el perfil de alguien y agrégalo.</p>
         {% endif %}

@@ -32,16 +32,53 @@ QUOTE_BEST_ANON_KEY = "quote_streak_best_anon"
 RATING_DUEL_MEDIA_TYPES = ("movie", "tv")
 
 
+STREAK_FIELD_LABELS = {
+    "quote_streak_best": "Frases célebres",
+    "rating_duel_streak_best_movie": "Cuál está mejor valorada (pelis)",
+    "rating_duel_streak_best_tv": "Cuál está mejor valorada (series)",
+    "trivia_streak_best": "Trivial",
+    "emoji_streak_best": "Emoji",
+    "bad_description_streak_best": "Malas descripciones",
+    "actor_streak_best": "Cuál tiene al actor/actriz",
+    "true_false_streak_best": "Verdadero o falso",
+    "revenue_duel_streak_best": "Cuál recaudó más",
+}
+
+
+def _player_stats(user):
+    """Resumen personal para la franja de arriba del hub de juegos: mejor
+    racha de entre todos los juegos en solitario (con cuál fue), y el
+    marcador acumulado de duelos 1 contra 1 — todo ya se guarda en BD
+    (streaks en el propio usuario, marcador en DuelRecord), solo hace
+    falta juntarlo."""
+    best_field, best_value = max(
+        STREAK_FIELD_LABELS.items(), key=lambda item: getattr(user, item[0])
+    )
+    best_streak = {"value": getattr(user, best_field), "label": STREAK_FIELD_LABELS[best_field]}
+
+    records = DuelRecord.objects.filter(Q(player_low=user) | Q(player_high=user))
+    wins = sum(record.wins_for(user) for record in records)
+    losses = sum(record.losses_for(user) for record in records)
+
+    active_duels = Duel.objects.filter(
+        Q(challenger=user) | Q(opponent=user), status=Duel.Status.ACTIVE
+    ).count()
+
+    return {"best_streak": best_streak, "wins": wins, "losses": losses, "active_duels": active_duels}
+
+
 def games_hub(request):
     duels = []
     friends = []
+    stats = None
     if request.user.is_authenticated:
         duels = Duel.objects.filter(
             Q(challenger=request.user) | Q(opponent=request.user)
         ).select_related("challenger", "opponent")
         friends = friends_of(request.user)
+        stats = _player_stats(request.user)
     return render(request, "games/games.html", {
-        "duels": duels, "friends": friends, "duel_games": Duel.Game.choices,
+        "duels": duels, "friends": friends, "duel_games": Duel.Game.choices, "stats": stats,
     })
 
 
