@@ -1364,6 +1364,26 @@ class SitemapAndRobotsTests(TestCase):
         self.assertContains(response, reverse("sitemap"))
 
 
+class HeaderAuthLinksTests(TestCase):
+    """"Entrar"/"Crear cuenta" partían la cabecera en dos filas en móvil;
+    ahora también están en el menú ☰ (site-nav) y las de la cabecera se
+    ocultan solo en pantallas estrechas vía CSS (.header-auth-link)."""
+
+    def test_visitante_ve_entrar_y_crear_cuenta_tanto_en_cabecera_como_en_menu(self):
+        response = self.client.get(reverse("core:home"))
+        self.assertContains(response, "header-auth-link")
+        self.assertContains(response, "site-nav__auth-link")
+
+    def test_usuario_logueado_no_ve_enlaces_de_entrar(self):
+        user = User.objects.create(email="header@test.local", role=User.Role.LECTOR)
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+        response = self.client.get(reverse("core:home"))
+        self.assertNotContains(response, "header-auth-link")
+        self.assertNotContains(response, "site-nav__auth-link")
+
+
 class GlobalSearchTests(TestCase):
     """Buscador de la cabecera: Películas + Artículos + Foro a la vez, ver
     apps/core/views.py::global_search."""

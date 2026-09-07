@@ -74,17 +74,23 @@
                             {% csrf_token %}
                             <button type="submit">Salir</button>
                         </form>
+                    {% else %}
+                        <a href="{% url 'accounts:login' %}" class="site-nav__auth-link">Entrar</a>
+                        <a href="{% url 'accounts:register' %}" class="site-nav__auth-link">Crear cuenta</a>
                     {% endif %}
                 </nav>
             </div>
 
             <div class="site-header__right">
-                <div class="global-search" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false">
-                    <button type="button" class="global-search__toggle" @click="open = !open; $nextTick(() => open && $refs.gsearchInput.focus())" :aria-expanded="open.toString()" title="Buscar en el sitio">
+                <div class="global-search" x-data="{ open: false, headerBottom: 0 }" @click.outside="open = false" @keydown.escape.window="open = false">
+                    <button type="button" class="global-search__toggle"
+                            @click="open = !open; headerBottom = $el.closest('.site-header').getBoundingClientRect().bottom; $nextTick(() => open && $refs.gsearchInput.focus())"
+                            :aria-expanded="open.toString()" title="Buscar en el sitio">
                         <span aria-hidden="true">🔎</span>
                         <span class="visually-hidden">Buscar</span>
                     </button>
-                    <div class="global-search__panel" x-show="open" x-cloak x-transition>
+                    <div class="global-search__panel" x-show="open" x-cloak x-transition
+                         :style="`--gsearch-top: ${headerBottom}px`">
                         <input type="search" name="q" x-ref="gsearchInput" placeholder="Buscar películas, artículos, hilos..."
                                autocomplete="off"
                                hx-get="{% url 'core:search' %}" hx-trigger="keyup changed delay:300ms, focus"
@@ -140,8 +146,8 @@
                         <span class="header-profile__name">{% username_badge user %}</span>
                     </a>
                 {% else %}
-                    <a href="{% url 'accounts:login' %}" class="btn btn--ghost btn--sm">Entrar</a>
-                    <a href="{% url 'accounts:register' %}" class="btn btn--accent btn--sm">Crear cuenta</a>
+                    <a href="{% url 'accounts:login' %}" class="btn btn--ghost btn--sm header-auth-link">Entrar</a>
+                    <a href="{% url 'accounts:register' %}" class="btn btn--accent btn--sm header-auth-link">Crear cuenta</a>
                 {% endif %}
             </div>
         </div>

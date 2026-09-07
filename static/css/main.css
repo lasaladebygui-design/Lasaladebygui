@@ -328,12 +328,22 @@ a:hover { color: var(--color-accent-secondary); }
     cursor: pointer;
 }
 .global-search__toggle:hover { border-color: var(--color-accent); }
+
+/* El buscador es el primer icono de site-header__right (no el último, a
+   diferencia de la campanita/tema), así que un desplegable "colgado" del
+   propio botón con right:0 se salía por la izquierda de la pantalla en
+   cuanto había más iconos a su derecha (ver también el caso sin cuenta,
+   con "Entrar"/"Crear cuenta" partiendo la cabecera en dos filas). En vez
+   de anclarlo al botón, se ancla a la propia cabecera -- --gsearch-top lo
+   calcula de verdad al abrir (ver global-search__toggle en base.html), y
+   el ancho queda entre los mismos márgenes que el resto del contenido
+   (.wrap), a cualquier tamaño de pantalla. */
 .global-search__panel {
-    position: absolute;
-    top: calc(100% + 0.4rem);
-    right: 0;
+    position: fixed;
+    top: var(--gsearch-top, 60px);
+    left: clamp(calc(var(--space-unit) * 2), 4vw, calc(var(--space-unit) * 4));
+    width: min(420px, 100vw - clamp(calc(var(--space-unit) * 2), 4vw, calc(var(--space-unit) * 4)) * 2);
     z-index: 30;
-    width: min(360px, 90vw);
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-base);
@@ -3946,6 +3956,12 @@ main { flex: 1; }
     .header-profile__name { display: none; }
     .brand__text { display: none; }
 
+    /* "Entrar"/"Crear cuenta" (visitante sin cuenta) partían la cabecera
+       en dos filas en móvil — ya están en el propio menú ☰ (site-nav),
+       así que en la cabecera se ocultan aquí y todo vuelve a caber en
+       una sola fila. */
+    .header-auth-link { display: none; }
+
     /* "Volver al menú" es redundante en móvil: el propio botón ☰ Menú
        ya lleva a "Sala principal", y dejar el texto aquí es lo que
        hacía que la cabecera no cupiese en una fila y se partiese en
@@ -3962,8 +3978,7 @@ main { flex: 1; }
        que pida el contenido (no left+right, que lo estiraba de punta a
        punta de la pantalla aunque solo tuviera un par de líneas). */
     .notif-bell__menu,
-    .theme-switcher__menu,
-    .global-search__panel {
+    .theme-switcher__menu {
         position: fixed;
         top: 60px;
         left: auto;
