@@ -82,15 +82,27 @@
             </div>
 
             <div class="site-header__right">
-                <div class="global-search" x-data="{ open: false, headerBottom: 0 }" @click.outside="open = false" @keydown.escape.window="open = false">
+                <div class="global-search" x-data="{ open: false, top: 0, left: 0, width: 360 }" @click.outside="open = false" @keydown.escape.window="open = false">
                     <button type="button" class="global-search__toggle"
-                            @click="open = !open; headerBottom = $el.closest('.site-header').getBoundingClientRect().bottom; $nextTick(() => open && $refs.gsearchInput.focus())"
+                            @click="
+                                open = !open;
+                                const headerInner = $el.closest('.site-header__inner');
+                                const headerBox = headerInner.getBoundingClientRect();
+                                const headerStyle = getComputedStyle(headerInner);
+                                const contentLeft = headerBox.left + parseFloat(headerStyle.paddingLeft);
+                                const contentRight = headerBox.right - parseFloat(headerStyle.paddingRight);
+                                const btn = $el.getBoundingClientRect();
+                                top = $el.closest('.site-header').getBoundingClientRect().bottom;
+                                width = Math.min(400, contentRight - contentLeft);
+                                left = Math.max(contentLeft, Math.min(btn.right - width, contentRight - width));
+                                $nextTick(() => open && $refs.gsearchInput.focus())
+                            "
                             :aria-expanded="open.toString()" title="Buscar en el sitio">
                         <span aria-hidden="true">🔎</span>
                         <span class="visually-hidden">Buscar</span>
                     </button>
                     <div class="global-search__panel" x-show="open" x-cloak x-transition
-                         :style="`--gsearch-top: ${headerBottom}px`">
+                         :style="`--gsearch-top: ${top}px; --gsearch-left: ${left}px; --gsearch-width: ${width}px`">
                         <input type="search" name="q" x-ref="gsearchInput" placeholder="Buscar películas, artículos, hilos..."
                                autocomplete="off"
                                hx-get="{% url 'core:search' %}" hx-trigger="keyup changed delay:300ms, focus"

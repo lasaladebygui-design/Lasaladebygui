@@ -340,9 +340,14 @@ a:hover { color: var(--color-accent-secondary); }
    (.wrap), a cualquier tamaño de pantalla. */
 .global-search__panel {
     position: fixed;
+    /* --gsearch-top/left/width los calcula de verdad global-search__toggle
+       al abrir (ver base.html), a partir del hueco real de .site-header__inner
+       -- así el panel queda alineado con su propio botón (como el resto de
+       desplegables de la cabecera) sin salirse nunca de los márgenes, sea
+       cual sea el ancho de pantalla. */
     top: var(--gsearch-top, 60px);
-    left: clamp(calc(var(--space-unit) * 2), 4vw, calc(var(--space-unit) * 4));
-    width: min(420px, 100vw - clamp(calc(var(--space-unit) * 2), 4vw, calc(var(--space-unit) * 4)) * 2);
+    left: var(--gsearch-left, 16px);
+    width: var(--gsearch-width, 360px);
     z-index: 30;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
