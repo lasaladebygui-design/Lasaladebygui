@@ -1,7 +1,9 @@
 // Arrastrar y soltar filas en el listado del admin para reordenar (ver
-// SortableAdminMixin en apps/core/admin.py) — usa las casillas de
-// selección de acciones en bloque (siempre tienen el pk como value) para
-// saber qué fila es cuál, así no depende de qué columna sea el enlace.
+// SortableAdminMixin en apps/core/admin.py) — el pk de cada fila sale
+// del atributo data-pk del propio tirador (⠿), no de la casilla de
+// selección en bloque: un modelo sin borrado permitido y sin ninguna
+// otra acción disponible no pinta esas casillas en absoluto, y
+// depender de ellas dejaba el arrastre sin guardar nada.
 document.addEventListener("DOMContentLoaded", function () {
     var tbody = document.querySelector("#result_list tbody");
     if (!tbody || typeof Sortable === "undefined") return;
@@ -18,8 +20,8 @@ document.addEventListener("DOMContentLoaded", function () {
         animation: 150,
         onEnd: function () {
             var ids = Array.from(tbody.querySelectorAll("tr")).map(function (row) {
-                var checkbox = row.querySelector('input[name="_selected_action"]');
-                return checkbox ? parseInt(checkbox.value, 10) : null;
+                var handle = row.querySelector(".drag-handle[data-pk]");
+                return handle ? parseInt(handle.dataset.pk, 10) : null;
             }).filter(function (id) { return id !== null; });
 
             fetch(reorderUrl, {

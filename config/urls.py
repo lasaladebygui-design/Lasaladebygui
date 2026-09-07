@@ -2,15 +2,26 @@
 
 from django.conf import settings
 from django.contrib import admin
+from django.contrib.sitemaps.views import sitemap
 from django.urls import include, path, re_path
 from django.views.static import serve as serve_static
 
-from apps.core.views import service_worker, theme_css
+from apps.core.sitemaps import ArticleSitemap, MovieSitemap, StaticViewSitemap, ThreadSitemap
+from apps.core.views import robots_txt, service_worker, theme_css
+
+SITEMAPS = {
+    "static": StaticViewSitemap,
+    "articles": ArticleSitemap,
+    "forum": ThreadSitemap,
+    "movies": MovieSitemap,
+}
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("theme.css", theme_css, name="theme-css"),
     path("sw.js", service_worker, name="service-worker"),
+    path("sitemap.xml", sitemap, {"sitemaps": SITEMAPS}, name="sitemap"),
+    path("robots.txt", robots_txt, name="robots-txt"),
     path("cuenta/", include("apps.accounts.urls")),
     path("articulos/", include("apps.articles.urls")),
     path("foro/", include("apps.forum.urls")),

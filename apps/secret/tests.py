@@ -741,10 +741,17 @@ class OwnMovieAddTests(TestCase):
         self.assertNotContains(response, 'value="5.0"')
         self.assertNotContains(response, 'value="5,0"')
 
+        # La insignia grande de nota tampoco enseña la provisional "5" --
+        # se veía como si ya estuviera puntuada de verdad.
+        self.assertNotContains(response, ">5,0<")
+        self.assertNotContains(response, ">5.0<")
+        self.assertContains(response, "secret-movie__rating--pending")
+
         # Sin &fresh=1 (una edición normal, no recién añadida) sí se ve
         # la nota real.
         response = self.client.get(f"{reverse('secret:movie-detail', args=[entry.pk])}?scope=own&edit=1")
         self.assertNotContains(response, 'placeholder="Pon tu nota (1-10)"')
+        self.assertNotContains(response, "secret-movie__rating--pending")
 
     @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
     def test_elegir_una_serie_la_anade_con_su_media_type(self, mock_get_or_create):
@@ -1957,6 +1964,21 @@ class AmigosHubTests(TestCase):
         self.assertEqual(response.context["selected_tab"], "lista")
         self.assertEqual(response.context["selected_row"]["owner"], self.marta)
 
+    def test_enlace_al_admin_solo_para_staff_y_filtrado_a_ese_amigo(self):
+        SecretListMember.objects.create(owner=self.marta, member=self.user)
+        admin_url = f"/admin/secret/secretmovie/?owner__id__exact={self.marta.pk}"
+
+        response = self.client.get(reverse("secret:shared-hub"))
+        self.assertNotContains(response, "Editar en el admin")
+
+        # is_staff se deriva del rol en User.save() (ver apps/accounts/
+        # models.py) -- asignarlo a mano no basta, lo pisa el propio save().
+        self.user.role = User.Role.GESTOR
+        self.user.save()
+        response = self.client.get(reverse("secret:shared-hub"))
+        self.assertContains(response, "Editar en el admin")
+        self.assertContains(response, admin_url)
+
     def test_elegir_amigo_por_query_param_cambia_la_previsualizacion(self):
         SecretListMember.objects.create(owner=self.marta, member=self.user)
         SecretListMember.objects.create(owner=self.alex, member=self.user)
@@ -1972,6 +1994,19 @@ class AmigosHubTests(TestCase):
         PhotoBoardMember.objects.create(owner=self.marta, member=self.user)
         response = self.client.get(reverse("secret:shared-hub"))
         self.assertEqual(response.context["selected_tab"], "tablon")
+
+    def test_calendario_compartido_pero_vacio_se_ve_igual_no_desaparece(self):
+        # El permiso (CalendarShareMember) es lo que decide si la
+        # pestaña sale, no si hay algo dentro -- un calendario compartido
+        # sin ningún estreno guardado todavía debe seguir viéndose,
+        # vacío, en vez de comportarse como si no se hubiera compartido.
+        CalendarShareMember.objects.create(owner=self.marta, member=self.user)
+        response = self.client.get(reverse("secret:shared-hub"), {"friend": "marta", "tab": "calendario"})
+        self.assertEqual(response.context["selected_tab"], "calendario")
+        self.assertIsNotNone(response.context["selected_row"])
+        self.assertEqual(response.context["preview"], [])
+        self.assertContains(response, "Sin próximos estrenos guardados")
+        self.assertContains(response, "📅 Calendario")
 
     def test_no_se_puede_forzar_ver_a_alguien_que_no_te_comparte_nada(self):
         # `alex` no comparte nada contigo -- pedirlo explícitamente por la

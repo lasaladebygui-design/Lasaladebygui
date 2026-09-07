@@ -35,7 +35,13 @@ class SortableAdminMixin:
 
     @admin.display(description="")
     def drag_handle(self, obj):
-        return mark_safe('<span class="drag-handle" title="Arrastra para reordenar">⠿</span>')
+        # data-pk en el propio tirador (no en las casillas de selección
+        # en bloque, ver sortable_admin.js): un modelo sin borrado
+        # permitido (has_delete_permission=False) y sin ninguna otra
+        # acción disponible no pinta esas casillas en absoluto, así que
+        # depender de ellas para saber qué fila es cuál dejaba el
+        # arrastre sin guardar nada -- se veía moverse pero no persistía.
+        return mark_safe(f'<span class="drag-handle" data-pk="{obj.pk}" title="Arrastra para reordenar">⠿</span>')
 
     def get_urls(self):
         info = self.model._meta.app_label, self.model._meta.model_name

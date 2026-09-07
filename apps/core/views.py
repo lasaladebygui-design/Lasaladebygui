@@ -3,6 +3,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.contrib.staticfiles import finders
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
+from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.response import TemplateResponse
 from django.utils import timezone
@@ -111,6 +112,21 @@ def _notify_admins_of_contact_message(user, name, email, message):
             sender=sender, recipient=admin, body=message, is_contact=True,
             contact_name=contact_name, contact_email=contact_email,
         )
+
+
+def robots_txt(request):
+    """Top Secret y todo lo que exige código de acceso/cuenta queda fuera
+    del rastreo a propósito -- no tiene sentido ofrecerlo a un buscador,
+    y en el caso de Top Secret ni siquiera se vería nada sin el código."""
+    lines = [
+        "User-agent: *",
+        "Disallow: /admin/",
+        "Disallow: /top-secret/",
+        "Disallow: /cuenta/",
+        "Disallow: /social/",
+        f"Sitemap: {request.scheme}://{request.get_host()}{reverse('sitemap')}",
+    ]
+    return HttpResponse("\n".join(lines), content_type="text/plain")
 
 
 @cache_control(private=True, no_cache=True)

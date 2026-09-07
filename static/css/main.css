@@ -1559,7 +1559,7 @@ main { flex: 1; }
 }
 .amigos-inner-tab:hover { color: var(--color-text); }
 .amigos-inner-tab.is-active { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent); }
-.amigos-body__full-link { display: inline-block; margin-top: calc(var(--space-unit) * 4); }
+.amigos-body__full-link { display: flex; flex-wrap: wrap; gap: calc(var(--space-unit) * 2); margin-top: calc(var(--space-unit) * 4); }
 
 .amigos-preview-movie {
     display: flex; flex-direction: column; color: var(--color-text);
@@ -2319,6 +2319,13 @@ main { flex: 1; }
 }
 .secret-movie__rating-number { font-size: 1.85rem; line-height: 1; font-weight: 700; }
 .secret-movie__rating-suffix { font-size: 0.7rem; opacity: 0.75; }
+/* Recién añadida, todavía sin nota real puesta (ver ?fresh=1 en
+   movie_detail.html) -- gris neutro en vez del color de la nota
+   provisional, para no dar la impresión de que ya está puntuada. */
+.secret-movie__rating--pending {
+    background: var(--color-border) !important;
+    color: var(--color-text-muted);
+}
 
 .secret-movie__detail {
     /* "Ver listas" y "Ver ficha completa" son un <button> y un <a>, los

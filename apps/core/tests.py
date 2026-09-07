@@ -1332,3 +1332,33 @@ class CustomErrorPagesTests(TestCase):
             response = broken_client.get(reverse("core:home"))
         self.assertEqual(response.status_code, 500)
         self.assertContains(response, "Se nos ha fundido el proyector", status_code=500)
+
+
+class SitemapAndRobotsTests(TestCase):
+    """Sitemap.xml (django.contrib.sitemaps) y robots.txt -- Top Secret y
+    lo que exige cuenta quedan fuera a propósito (apps/core/sitemaps.py,
+    apps/core/views.py::robots_txt)."""
+
+    def test_sitemap_responde_y_lista_una_pagina_estatica(self):
+        response = self.client.get(reverse("sitemap"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "<urlset")
+
+    def test_sitemap_incluye_un_articulo_publico(self):
+        Article.objects.create(title="Público", body="<p>x</p>", author=None, is_private=False)
+        response = self.client.get(reverse("sitemap") + "?p=1")
+        self.assertContains(response, reverse("articles:list"))
+
+    def test_articulo_privado_no_sale_en_el_sitemap_de_articulos(self):
+        from apps.core.sitemaps import ArticleSitemap
+
+        Article.objects.create(title="Privado", body="<p>x</p>", author=None, is_private=True)
+        self.assertEqual(ArticleSitemap().items().count(), 0)
+
+    def test_robots_txt_desautoriza_top_secret_y_apunta_al_sitemap(self):
+        response = self.client.get(reverse("robots-txt"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/plain")
+        self.assertContains(response, "Disallow: /top-secret/")
+        self.assertContains(response, "Sitemap: ")
+        self.assertContains(response, reverse("sitemap"))
