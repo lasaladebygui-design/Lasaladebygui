@@ -3961,6 +3961,13 @@ main { flex: 1; }
     .header-profile__name { display: none; }
     .brand__text { display: none; }
 
+    /* El logo (brand__icon, 36x36 fijo) queda unos px más alto que los
+       demás botones de la cabecera (search/tema/campanita, ~32px por su
+       padding) -- se nota sobre todo en móvil, donde todo va más
+       apretado. Se encoge solo aquí para que la fila quede a la misma
+       altura en todos los iconos, sin tocar el tamaño en escritorio. */
+    .brand__icon { width: 32px; height: 32px; }
+
     /* "Entrar"/"Crear cuenta" (visitante sin cuenta) partían la cabecera
        en dos filas en móvil — ya están en el propio menú ☰ (site-nav),
        así que en la cabecera se ocultan aquí y todo vuelve a caber en
