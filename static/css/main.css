@@ -1200,6 +1200,15 @@ main { flex: 1; }
        vez de una altura fija, la caja mantiene una proporción parecida
        a la de la foto y el recorte se queda solo en los bordes. */
     .home-hero__stage { min-height: 0; aspect-ratio: 16 / 9; }
+
+    /* Con pocos artículos, la sección "Últimos artículos" que sigue al
+       carrusel de destacados suele quedar vacía (sin grid ni actividad
+       reciente) y aun así se queda con todo su padding-block -- en
+       móvil eso se nota como un hueco enorme antes de "Explora la Sala
+       de Bygui". Se recorta solo el padding superior de esa sección
+       (la que toca justo debajo de los destacados), sin tocar las demás.
+       */
+    .home-hero-section + .section { padding-top: calc(var(--space-unit) * 3); }
 }
 
 .article-search {
