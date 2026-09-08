@@ -1193,6 +1193,13 @@ main { flex: 1; }
 @media (max-width: 640px) {
     .article-grid--home { grid-template-columns: 1fr; }
     .home-hero__text { padding: calc(var(--space-unit) * 6) calc(var(--space-unit) * 4) calc(var(--space-unit) * 4); }
+    /* El min-height de .home-hero__stage (pensado para escritorio) deja
+       una caja casi cuadrada en móvil frente a una imagen panorámica
+       típica (~16:9) -- con object-fit: cover eso recorta la mayor
+       parte de los laterales de la portada subida. Con aspect-ratio en
+       vez de una altura fija, la caja mantiene una proporción parecida
+       a la de la foto y el recorte se queda solo en los bordes. */
+    .home-hero__stage { min-height: 0; aspect-ratio: 16 / 9; }
 }
 
 .article-search {
