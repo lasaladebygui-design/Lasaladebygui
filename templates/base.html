@@ -50,7 +50,7 @@
             <div class="site-header__nav" x-data="{ navOpen: false }" @click.outside="navOpen = false">
                 <button type="button" class="nav-toggle" @click="navOpen = !navOpen" :aria-expanded="navOpen.toString()" aria-controls="site-nav">
                     <span aria-hidden="true">☰</span>
-                    <span>Menú</span>
+                    <span class="nav-toggle__label">Menú</span>
                 </button>
                 {% if not request.resolver_match or request.resolver_match.view_name != "core:home" %}
                 <a href="{% url 'core:home' %}" class="nav-home-link">Volver al menú</a>

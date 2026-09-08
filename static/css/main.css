@@ -4068,3 +4068,15 @@ main { flex: 1; }
         margin-right: auto;
     }
 }
+
+/* Con sesión iniciada y la campanita activada, la cabecera tiene 5
+   iconos a la derecha (buscador, campanita, tema, logo, perfil) además
+   del ☰ Menú a la izquierda — a partir de ~360px de ancho (frecuente en
+   Android de gama media) ya no caben todos en una fila y la cabecera se
+   parte en dos, con el ☰ solo arriba y el resto debajo (bug real,
+   confirmado en vivo). Quitar la palabra "Menú" (se queda el icono ☰
+   solo) libera de sobra ese hueco sin tener que encoger ni un icono más. */
+@media (max-width: 400px) {
+    .nav-toggle__label { display: none; }
+    .nav-toggle { padding-inline: 0.6rem; }
+}
