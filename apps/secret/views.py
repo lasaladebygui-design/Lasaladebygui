@@ -1481,7 +1481,14 @@ def calendar_add(request, media_type, tmdb_id):
                 request.user.google_calendar_connection, movie.title, event_date, description=event.note,
             )
             event.save(update_fields=["google_event_id"])
-        except requests.RequestException:
+        except (requests.RequestException, KeyError, ValueError):
+            # Bug real: solo se cazaba RequestException, pero una respuesta
+            # de Google con el cuerpo que no se esperaba (p.ej. sin "id")
+            # levanta KeyError/ValueError, no RequestException -- eso se
+            # colaba sin capturar y daba un 500 aunque el ReleaseEvent ya
+            # se hubiera guardado dos líneas más arriba ("me da error pero
+            # se sube"). El fallo al sincronizar nunca debe romper la
+            # página, solo dejar el evento sin su lado de Google.
             pass
 
     return redirect(f"{reverse('secret:calendar')}?year={event_date.year}&month={event_date.month}")
@@ -1498,7 +1505,7 @@ def calendar_remove(request, pk):
     if event.google_event_id and hasattr(request.user, "google_calendar_connection"):
         try:
             google_delete_event(request.user.google_calendar_connection, event.google_event_id)
-        except requests.RequestException:
+        except (requests.RequestException, KeyError, ValueError):
             pass
 
     event.delete()
@@ -1546,7 +1553,7 @@ def calendar_move_event(request, pk):
         try:
             google_delete_event(connection, event.google_event_id)
             event.google_event_id = google_create_event(connection, event.movie.title, new_date, description=event.note)
-        except requests.RequestException:
+        except (requests.RequestException, KeyError, ValueError):
             pass
 
     event.save(update_fields=["date", "google_event_id"])
