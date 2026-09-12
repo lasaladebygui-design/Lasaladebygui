@@ -1,11 +1,11 @@
 import calendar as calendar_module
+import logging
 import random
 import unicodedata
 from datetime import date, timedelta
 from decimal import Decimal
 from functools import wraps
 
-import requests
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -51,6 +51,8 @@ from .models import (
     TierListEntry,
     TopSecretConfig,
 )
+
+logger = logging.getLogger(__name__)
 
 SESSION_KEY = "top_secret_unlocked"
 
@@ -1481,15 +1483,21 @@ def calendar_add(request, media_type, tmdb_id):
                 request.user.google_calendar_connection, movie.title, event_date, description=event.note,
             )
             event.save(update_fields=["google_event_id"])
-        except (requests.RequestException, KeyError, ValueError):
-            # Bug real: solo se cazaba RequestException, pero una respuesta
-            # de Google con el cuerpo que no se esperaba (p.ej. sin "id")
-            # levanta KeyError/ValueError, no RequestException -- eso se
-            # colaba sin capturar y daba un 500 aunque el ReleaseEvent ya
-            # se hubiera guardado dos líneas más arriba ("me da error pero
-            # se sube"). El fallo al sincronizar nunca debe romper la
-            # página, solo dejar el evento sin su lado de Google.
-            pass
+        except Exception:
+            # A proposito un except Exception generico: esto es un efecto
+            # secundario de mejor esfuerzo (sincronizar con Google), y el
+            # ReleaseEvent YA se ha guardado dos lineas mas arriba pase lo
+            # que pase aqui. Antes solo se cazaba RequestException, luego
+            # se amplio a (RequestException, KeyError, ValueError) por un
+            # bug real (una respuesta de Google sin "id" no es un error de
+            # red), pero seguia dando el error "se guarda pero sale el
+            # error" -- probablemente por algun otro tipo de fallo (p.ej.
+            # de base de datos al guardar el google_event_id). En vez de
+            # perseguir excepcion por excepcion, se caza cualquiera: la
+            # regla de negocio es que esto nunca debe romper la pagina. Se
+            # deja logueado para poder ver en Render que ha fallado y por
+            # que, sin que el usuario vea un error.
+            logger.exception("Fallo al sincronizar con Google Calendar (calendar_add, evento %s)", event.pk)
 
     return redirect(f"{reverse('secret:calendar')}?year={event_date.year}&month={event_date.month}")
 
@@ -1505,8 +1513,10 @@ def calendar_remove(request, pk):
     if event.google_event_id and hasattr(request.user, "google_calendar_connection"):
         try:
             google_delete_event(request.user.google_calendar_connection, event.google_event_id)
-        except (requests.RequestException, KeyError, ValueError):
-            pass
+        except Exception:
+            # Ver el comentario en calendar_add: efecto secundario de mejor
+            # esfuerzo, nunca debe impedir borrar el evento localmente.
+            logger.exception("Fallo al borrar el evento de Google Calendar (calendar_remove, evento %s)", pk)
 
     event.delete()
     return redirect(f"{reverse('secret:calendar')}?year={year}&month={month}")
@@ -1553,8 +1563,10 @@ def calendar_move_event(request, pk):
         try:
             google_delete_event(connection, event.google_event_id)
             event.google_event_id = google_create_event(connection, event.movie.title, new_date, description=event.note)
-        except (requests.RequestException, KeyError, ValueError):
-            pass
+        except Exception:
+            # Ver el comentario en calendar_add: efecto secundario de mejor
+            # esfuerzo, nunca debe impedir mover el evento localmente.
+            logger.exception("Fallo al mover el evento en Google Calendar (calendar_move_event, evento %s)", pk)
 
     event.save(update_fields=["date", "google_event_id"])
     messages.success(request, f"«{event.movie.title}» movida al {new_date:%d/%m/%Y}.")

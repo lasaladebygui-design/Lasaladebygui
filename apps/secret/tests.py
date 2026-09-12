@@ -1870,6 +1870,25 @@ class CalendarGoogleSyncTests(TestCase):
         event = ReleaseEvent.objects.get()
         self.assertEqual(event.google_event_id, "")
 
+    @patch("apps.secret.views.google_create_event")
+    @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
+    def test_cualquier_fallo_al_sincronizar_no_rompe_la_pagina(self, mock_get_or_create, mock_create_event):
+        # El primer arreglo (KeyError/ValueError ademas de RequestException)
+        # no era suficiente: "se guarda pero sale el error" seguia pasando,
+        # asi que el fallo real era otro tipo de excepcion no prevista
+        # (p.ej. un fallo de base de datos al guardar el google_event_id).
+        # La regla de negocio es que ESTO NUNCA debe romper la pagina, sea
+        # cual sea el motivo -- de ahi el except Exception generico.
+        mock_get_or_create.return_value = self.movie
+        mock_create_event.side_effect = RuntimeError("fallo inesperado, no relacionado con la red")
+        GoogleCalendarConnection.objects.create(user=self.user, refresh_token="r")
+
+        response = self.client.post(reverse("secret:calendar-add", args=["movie", 1]), {"date": "2026-03-15"})
+
+        self.assertEqual(response.status_code, 302)
+        event = ReleaseEvent.objects.get()
+        self.assertEqual(event.google_event_id, "")
+
     @patch("apps.secret.views.google_delete_event")
     def test_quitar_evento_lo_borra_de_tu_google_calendar(self, mock_delete_event):
         GoogleCalendarConnection.objects.create(user=self.user, refresh_token="r")
