@@ -1,0 +1,123 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+    &rsaquo; <a href="{% url 'admin:games_moviequote_changelist' %}">Frases célebres</a>
+    &rsaquo; Curar
+</div>
+{% endblock %}
+
+{% block content %}
+<p class="help">
+    Pulsa la frase que quieras usar para cada título — se guarda al instante, sin escribir nada.
+    Las dos frases pequeñas debajo de cada opción son las incorrectas con las que se mezclará en el juego.
+    "Descartar" quita el título de esta lista sin crear ninguna frase.
+</p>
+
+<p class="qc-counts">
+    <strong>{{ pending_count }}</strong> pendientes ·
+    <span class="qc-good">{{ done_count }}</span> ya elegidas ·
+    <span class="qc-muted">{{ skipped_count }}</span> descartadas
+</p>
+
+<div id="qc-list">
+    {% for c in pending %}
+    <div class="qc-card" data-id="{{ c.pk }}">
+        <div class="qc-card__header">
+            <span class="qc-title">{{ c.title }}</span>
+            {% if c.source_rating %}<span class="qc-rating">{{ c.source_rating }}</span>{% endif %}
+            <button type="button" class="qc-skip" title="Descartar este título">✕ descartar</button>
+        </div>
+        <div class="qc-options">
+            {% for opt in c.options %}
+            <button type="button" class="qc-option" data-index="{{ forloop.counter0 }}">
+                <span class="qc-option__quote">«{{ opt.quote }}»</span>
+                <span class="qc-option__wrong">se mezcla con: {{ opt.wrong1 }} · {{ opt.wrong2 }}</span>
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+    {% empty %}
+    <p class="qc-empty">No hay candidatas pendientes — genera más con <code>seed_quote_candidates</code>.</p>
+    {% endfor %}
+</div>
+
+<style>
+    #qc-list { display: flex; flex-direction: column; gap: .9rem; max-width: 760px; }
+    .qc-counts { color: var(--bs-secondary-color, var(--bs-body-color)); margin-bottom: 1rem; }
+    .qc-good { color: var(--bs-success, #2e7d4f); font-weight: 600; }
+    .qc-muted { opacity: .7; }
+    .qc-card {
+        border: 1px solid var(--bs-border-color); border-radius: 8px;
+        background: var(--bs-card-bg, var(--bs-body-bg)); padding: .9rem 1rem;
+        transition: opacity .2s ease, transform .2s ease;
+    }
+    .qc-card.qc-card--done { opacity: 0; transform: translateX(12px); pointer-events: none; }
+    .qc-card__header { display: flex; align-items: center; gap: .6rem; margin-bottom: .7rem; }
+    .qc-title { font-weight: 700; font-size: 1.02rem; }
+    .qc-rating { font-size: .8rem; padding: .1rem .5rem; border-radius: 99px; background: var(--bs-tertiary-bg); opacity: .8; }
+    .qc-skip {
+        margin-left: auto; background: transparent; border: 1px solid var(--bs-border-color); border-radius: 6px;
+        padding: .2rem .6rem; font-size: .8rem; cursor: pointer; opacity: .7; color: inherit;
+    }
+    .qc-skip:hover { opacity: 1; border-color: var(--bs-danger, #b23a3a); color: var(--bs-danger, #b23a3a); }
+    .qc-options { display: flex; flex-direction: column; gap: .5rem; }
+    .qc-option {
+        text-align: left; border: 1px solid var(--bs-border-color); border-radius: 6px; background: var(--bs-body-bg);
+        padding: .6rem .8rem; cursor: pointer; color: inherit; display: flex; flex-direction: column; gap: .15rem;
+    }
+    .qc-option:hover { background: var(--bs-tertiary-bg); border-color: var(--bs-primary, #33456b); }
+    .qc-option__quote { font-style: italic; }
+    .qc-option__wrong { font-size: .78rem; opacity: .65; }
+    .qc-empty { opacity: .7; }
+</style>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    var list = document.getElementById("qc-list");
+    if (!list) return;
+
+    function getCsrfToken() {
+        var match = document.cookie.match(/(?:^|; )csrftoken=([^;]*)/);
+        return match ? match[1] : "";
+    }
+
+    function post(url, body) {
+        return fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+            body: JSON.stringify(body),
+        });
+    }
+
+    list.addEventListener("click", function (event) {
+        var card = event.target.closest(".qc-card");
+        if (!card) return;
+        var candidateId = card.dataset.id;
+
+        var optionBtn = event.target.closest(".qc-option");
+        if (optionBtn) {
+            optionBtn.disabled = true;
+            post("{% url 'admin:games_quotecandidate_choose' %}", {
+                candidate_id: candidateId, option_index: optionBtn.dataset.index,
+            }).then(function (r) {
+                if (r.ok) { card.classList.add("qc-card--done"); setTimeout(function () { card.remove(); }, 220); }
+                else { optionBtn.disabled = false; alert("No se pudo guardar — inténtalo de nuevo."); }
+            });
+            return;
+        }
+
+        var skipBtn = event.target.closest(".qc-skip");
+        if (skipBtn) {
+            skipBtn.disabled = true;
+            post("{% url 'admin:games_quotecandidate_skip' %}", { candidate_id: candidateId }).then(function (r) {
+                if (r.ok) { card.classList.add("qc-card--done"); setTimeout(function () { card.remove(); }, 220); }
+                else { skipBtn.disabled = false; alert("No se pudo descartar — inténtalo de nuevo."); }
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -35,6 +35,39 @@ class MovieQuote(models.Model):
         return f"«{self.quote[:40]}…» — {self.correct_title}"
 
 
+class QuoteCandidate(models.Model):
+    """Candidatas para la frase célebre de un título de tu lista, pendientes
+    de que elijas una (o ninguna) desde el panel de curación (Juegos →
+    Curar frases célebres) — botones para elegir, sin escribir nada. Cada
+    opción de `options` ya lleva sus propias dos opciones incorrectas
+    (elegidas a mano para que encajen en tono/tema con la frase concreta,
+    no genéricas). Al elegir una opción se crea el `MovieQuote` definitivo
+    y esta fila se marca `resolved`; no se borra, para poder ver qué se
+    descartó o cambiar de opinión sin tener que regenerar las candidatas."""
+
+    title = models.CharField("título", max_length=255)
+    media_type = models.CharField("tipo", max_length=5, choices=MovieQuote.MediaType.choices, default=MovieQuote.MediaType.MOVIE)
+    source_rating = models.DecimalField("nota en Top Secret", max_digits=3, decimal_places=1, null=True, blank=True)
+    options = models.JSONField(
+        "opciones", default=list,
+        help_text='Lista de {"quote": "...", "wrong1": "...", "wrong2": "..."}',
+    )
+    resolved = models.BooleanField("resuelta", default=False)
+    skipped = models.BooleanField("descartada", default=False)
+    chosen_quote = models.ForeignKey(
+        MovieQuote, verbose_name="frase elegida", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "candidata de frase célebre"
+        verbose_name_plural = "candidatas de frases célebres"
+        ordering = ["-source_rating", "title"]
+
+    def __str__(self):
+        return self.title
+
+
 class TriviaQuestion(models.Model):
     """Pregunta de una sola tanda de juegos que comparten el mismo
     mecanismo (enunciado + 3 opciones, una correcta): Trivial (preguntas de
