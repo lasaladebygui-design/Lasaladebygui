@@ -13,7 +13,7 @@ DEFAULT_SORT = "new"
 
 def product_list(request):
     sort = request.GET.get("sort") if request.GET.get("sort") in SORT_OPTIONS else DEFAULT_SORT
-    products = Product.objects.order_by(SORT_OPTIONS[sort][0])
+    products = Product.objects.filter(is_visible=True).order_by(SORT_OPTIONS[sort][0])
 
     if request.user.is_authenticated:
         # Igual que el tablón de artículos: entrar en el escaparate marca

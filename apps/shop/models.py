@@ -13,6 +13,10 @@ class Product(models.Model):
     price = models.DecimalField("precio orientativo", max_digits=8, decimal_places=2, blank=True, null=True)
     url = models.URLField("enlace externo (opcional)", blank=True)
     order = models.PositiveIntegerField("orden", default=0)
+    is_visible = models.BooleanField(
+        "visible en la tienda", default=True,
+        help_text="Los artículos ocultos no aparecen en el escaparate público, pero se conservan aquí.",
+    )
     created_at = models.DateTimeField("añadido", default=timezone.now)
 
     class Meta:

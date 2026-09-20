@@ -43,7 +43,7 @@ def _unseen_articles(user):
 def _unseen_products(user):
     from apps.shop.models import Product, ProductView
 
-    products = Product.objects.exclude(
+    products = Product.objects.filter(is_visible=True).exclude(
         pk__in=ProductView.objects.filter(user=user).values("product_id")
     )
     return products.filter(created_at__gte=_joined_cutoff(user, RECENT_PRODUCTS_DAYS))
