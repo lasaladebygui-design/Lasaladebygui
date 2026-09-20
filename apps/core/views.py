@@ -227,16 +227,26 @@ def export_excel(request):
 
     wb = Workbook()
 
+    # Una única fila por (usuario, fecha): el comentario libre del día
+    # (CalendarDayNote) y el estreno/película puesta ese día (ReleaseEvent)
+    # se juntan aquí en vez de en dos hojas separadas, porque en la práctica
+    # son la misma cosa vista desde el calendario personal de cada usuario.
+    calendar_rows = {}
+    for note in CalendarDayNote.objects.select_related("user").order_by("user__username", "date"):
+        key = (str(note.user), note.date)
+        calendar_rows.setdefault(key, {"movies": [], "comment": ""})
+        calendar_rows[key]["comment"] = note.note
+    for event in ReleaseEvent.objects.select_related("user", "movie").order_by("user__username", "date"):
+        key = (str(event.user), event.date)
+        calendar_rows.setdefault(key, {"movies": [], "comment": ""})
+        label = event.movie.title if not event.note else f"{event.movie.title} ({event.note})"
+        calendar_rows[key]["movies"].append(label)
+
     ws_calendar = wb.active
     ws_calendar.title = "Calendario"
-    ws_calendar.append(["Usuario", "Fecha", "Comentario"])
-    for note in CalendarDayNote.objects.select_related("user").order_by("user__username", "date"):
-        ws_calendar.append([str(note.user), note.date.strftime("%d/%m/%Y"), note.note])
-
-    ws_calendar_movies = wb.create_sheet("Calendario - películas")
-    ws_calendar_movies.append(["Usuario", "Fecha", "Película/Serie", "Nota"])
-    for event in ReleaseEvent.objects.select_related("user", "movie").order_by("user__username", "date"):
-        ws_calendar_movies.append([str(event.user), event.date.strftime("%d/%m/%Y"), event.movie.title, event.note])
+    ws_calendar.append(["Usuario", "Fecha", "Película/Serie", "Comentario"])
+    for (username, date), data in sorted(calendar_rows.items(), key=lambda kv: (kv[0][0], kv[0][1])):
+        ws_calendar.append([username, date.strftime("%d/%m/%Y"), ", ".join(data["movies"]), data["comment"]])
 
     ws_secret = wb.create_sheet("Top Secret")
     ws_secret.append(["Nombre", "Nota", "Listas", "Comentario", "Estado (series)"])
