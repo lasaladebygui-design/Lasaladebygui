@@ -44,6 +44,29 @@ def _fake_image():
     return SimpleUploadedFile("photo.png", buffer.read(), content_type="image/png")
 
 
+def _login(client, user, password="Testpass123!"):
+    """Login + entrar en el maletín en un solo paso. gate() ahora exige
+    login (ver apps/secret/views.py), y client.login() con un usuario
+    autenticado distinto al que ya hubiera en sesión vacía esa sesión por
+    seguridad -- con ella, el código del maletín ya introducido. Por eso
+    cualquier test que cambie de usuario a mitad tiene que volver a meter
+    el código después, y este helper hace ambas cosas a la vez."""
+    client.login(username=user.email, password=password)
+    client.post(reverse("secret:gate"), {"code": "8888"})
+
+
+def _unlock_without_login(client):
+    """Sesión con el maletín ya desbloqueado pero SIN cuenta iniciada --
+    ya no se puede llegar a este estado a través de gate() (que ahora
+    exige login primero), pero sigue siendo justo el escenario que debe
+    bloquear @login_required en cada vista de dentro por su cuenta, sin
+    depender de @secret_required para ello. Se inyecta la sesión
+    directamente para poder seguir probando eso."""
+    session = client.session
+    session["top_secret_unlocked"] = True
+    session.save()
+
+
 class GateTests(TestCase):
     def setUp(self):
         # El contador de intentos fallidos vive en el caché de proceso, no
@@ -51,6 +74,16 @@ class GateTests(TestCase):
         # que fallen el código a propósito dejarían "cargado" el contador
         # para los siguientes tests que se ejecuten en el mismo proceso.
         cache.clear()
+        # gate() ahora exige cuenta y sesión iniciada incluso para intentar
+        # el código (ver login_required en la vista) -- estos tests son
+        # sobre la mecánica del propio código (intentos, bloqueo, UI), así
+        # que se loguean como Admin para no mezclar eso con el permiso de
+        # acceso a la lista de Bygui, que tiene su propia clase de tests
+        # más abajo (BygruiCodeAccessRestrictionTests).
+        self.admin = User.objects.create(email="gate_admin@test.local", role=User.Role.ADMIN, username="gate_admin")
+        self.admin.set_password("Testpass123!")
+        self.admin.save()
+        self.client.login(username=self.admin.email, password="Testpass123!")
 
     def test_codigo_por_defecto_es_8888(self):
         config = TopSecretConfig.load()
@@ -115,6 +148,64 @@ class GateTests(TestCase):
         self.assertContains(response, "briefcase--shake")
 
 
+class BygruiCodeAccessRestrictionTests(TestCase):
+    """Antes, saber el código del maletín bastaba para ver la lista de
+    Bygui de solo lectura, con cuenta o sin ella. Ahora hace falta
+    registrarte ANTES de poder siquiera intentar el código (gate() exige
+    login), y ADEMÁS que Bygui te dé acceso explícito a su lista uno a
+    uno (SecretListMember), igual que con la lista de cualquier otro
+    usuario -- ver _has_bygui_access en apps/secret/views.py."""
+
+    def setUp(self):
+        cache.clear()
+        self.admin = User.objects.create(email="bygui_gate_admin@test.local", role=User.Role.ADMIN, username="lasaladebygui_gate")
+        self.admin.set_password("Testpass123!")
+        self.admin.save()
+
+    def test_anonimo_no_puede_ni_intentar_el_codigo(self):
+        response = self.client.get(reverse("secret:gate"))
+        self.assertIn("/cuenta/login/", response.url)
+        response = self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.assertIn("/cuenta/login/", response.url)
+        self.assertFalse(self.client.session.get("top_secret_unlocked"))
+
+    def test_con_cuenta_pero_sin_permiso_el_codigo_no_lleva_a_la_lista(self):
+        user = User.objects.create(email="sin_permiso_bygui@test.local", role=User.Role.LECTOR, username="sin_permiso")
+        user.set_password("Testpass123!")
+        user.save()
+        self.client.login(username=user.email, password="Testpass123!")
+
+        response = self.client.post(reverse("secret:gate"), {"code": "8888"})
+        # El código en sí se acepta (queda "unlocked" en sesión), pero no
+        # se le manda a la lista de Bygui -- eso exige el permiso aparte.
+        self.assertTrue(self.client.session.get("top_secret_unlocked"))
+        self.assertRedirects(response, reverse("secret:shared-hub"))
+
+        # "home" sin scope explícito resuelve a "own" para cualquier
+        # cuenta normal (ver _resolve_scope) -- lo que sigue bloqueado
+        # específicamente es la lista de Bygui, con scope=bygui.
+        response = self.client.get(f"{reverse('secret:home')}?scope=bygui")
+        self.assertEqual(response.status_code, 404)
+
+    def test_con_permiso_explicito_el_codigo_si_lleva_a_la_lista(self):
+        friend = User.objects.create(email="con_permiso_bygui@test.local", role=User.Role.LECTOR, username="con_permiso")
+        friend.set_password("Testpass123!")
+        friend.save()
+        SecretListMember.objects.create(owner=self.admin, member=friend)
+        self.client.login(username=friend.email, password="Testpass123!")
+
+        response = self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.assertRedirects(response, reverse("secret:home"))
+
+        response = self.client.get(f"{reverse('secret:home')}?scope=bygui")
+        self.assertEqual(response.status_code, 200)
+
+    def test_admin_siempre_llega_a_su_propia_lista(self):
+        self.client.login(username=self.admin.email, password="Testpass123!")
+        response = self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.assertRedirects(response, reverse("secret:home"))
+
+
 class RatingColorBandTests(TestCase):
     """Los tramos de color son de número arbitrario y los decide quien
     administra (no un fijo "bueno/medio/malo") — ver rating_color en
@@ -150,6 +241,14 @@ class RatingColorBandTests(TestCase):
 
 class SecretMovieViewTests(TestCase):
     def setUp(self):
+        # Estos tests son sobre el listado/filtrado de SecretMovie
+        # (owner=None, la lista de Bygui), no sobre quién puede verla --
+        # se entra como Admin, que siempre tiene acceso a "su" lista sin
+        # depender de ningún permiso (ver _has_bygui_access).
+        self.admin = User.objects.create(email="secret_movie_view_admin@test.local", role=User.Role.ADMIN, username="secret_movie_view_admin")
+        self.admin.set_password("Testpass123!")
+        self.admin.save()
+        self.client.login(username=self.admin.email, password="Testpass123!")
         self.client.post(reverse("secret:gate"), {"code": "8888"})
         self.a = SecretMovie.objects.create(title="Reservoir Dogs", personal_rating="9.0")
         self.b = SecretMovie.objects.create(title="Kill Bill", personal_rating="8.5")
@@ -285,7 +384,7 @@ class SecretMovieViewTests(TestCase):
         # Propia (owner=user): siempre editable por su dueño, sin
         # depender de ningún interruptor -- distinto de la de Bygui.
         c = SecretMovie.objects.create(owner=user, title="Dark", personal_rating="7.0", movie=serie)
-        self.client.login(username=user.email, password="Testpass123!")
+        _login(self.client, user)
 
         response = self.client.post(reverse("secret:movie-watch-cycle", args=[c.pk]))
         self.assertContains(response, "secret-movie__watch-badge--airing")
@@ -299,6 +398,8 @@ class SecretMovieViewTests(TestCase):
         self.assertContains(response, "secret-movie__watch-badge--not_watched")
 
     def test_no_se_puede_cambiar_el_estado_sin_login(self):
+        self.client.logout()
+        _unlock_without_login(self.client)
         serie = Movie.objects.create(tmdb_id=12, title="Dark", media_type="tv")
         c = SecretMovie.objects.create(title="Dark", personal_rating="7.0", movie=serie)
         response = self.client.post(reverse("secret:movie-watch-cycle", args=[c.pk]))
@@ -312,7 +413,7 @@ class SecretMovieViewTests(TestCase):
         user.set_password("Testpass123!")
         user.save()
         propia = SecretMovie.objects.create(owner=user, title="Reservoir Dogs", personal_rating="9.0", movie=peli)
-        self.client.login(username=user.email, password="Testpass123!")
+        _login(self.client, user)
 
         response = self.client.post(reverse("secret:movie-watch-cycle", args=[propia.pk]))
         self.assertEqual(response.status_code, 200)
@@ -320,17 +421,32 @@ class SecretMovieViewTests(TestCase):
         self.assertEqual(propia.series_watch_status, SecretMovie.SeriesWatchStatus.NOT_WATCHED)
 
     def test_no_puedes_cambiar_el_estado_de_la_lista_de_bygui_sin_ser_admin(self):
+        # Con permiso de lectura (SecretListMember) pero sin ser Admin: se
+        # ve la lista (200) pero el POST no cambia nada -- de solo lectura,
+        # igual que antes de que el acceso mismo necesitara permiso.
         serie = Movie.objects.create(tmdb_id=14, title="Dark", media_type="tv")
         c = SecretMovie.objects.create(title="Dark", personal_rating="7.0", movie=serie)
         user = User.objects.create(email="visto_test3@test.local", role=User.Role.LECTOR, username="visto_test3")
         user.set_password("Testpass123!")
         user.save()
-        self.client.login(username=user.email, password="Testpass123!")
+        SecretListMember.objects.create(owner=self.admin, member=user)
+        _login(self.client, user)
 
         response = self.client.post(f"{reverse('secret:movie-watch-cycle', args=[c.pk])}?scope=bygui")
         self.assertEqual(response.status_code, 200)
         c.refresh_from_db()
         self.assertEqual(c.series_watch_status, SecretMovie.SeriesWatchStatus.NOT_WATCHED)
+
+    def test_sin_permiso_a_la_lista_de_bygui_ni_siquiera_se_ve(self):
+        serie = Movie.objects.create(tmdb_id=141, title="Dark", media_type="tv")
+        c = SecretMovie.objects.create(title="Dark", personal_rating="7.0", movie=serie)
+        user = User.objects.create(email="sin_permiso_visto@test.local", role=User.Role.LECTOR, username="sin_permiso_visto")
+        user.set_password("Testpass123!")
+        user.save()
+        _login(self.client, user)
+
+        response = self.client.post(f"{reverse('secret:movie-watch-cycle', args=[c.pk])}?scope=bygui")
+        self.assertEqual(response.status_code, 404)
 
     def test_lista_completa_filtra_por_lista(self):
         terror = Genre.objects.create(name="Terror")
@@ -478,7 +594,7 @@ class SecretMovieViewTests(TestCase):
         user.set_password("Testpass123!")
         user.save()
         c = SecretMovie.objects.create(owner=user, title="Dark", personal_rating="7.0", movie=serie)
-        self.client.login(username=user.email, password="Testpass123!")
+        _login(self.client, user)
 
         response = self.client.post(reverse("secret:movie-watch-cycle", args=[c.pk]) + "?context=detail")
         self.assertContains(response, "movie-detail__poster-wrap")
@@ -512,7 +628,6 @@ class SecretMovieQuickEditTests(TestCase):
     siempre editable, sin ningún interruptor de por medio."""
 
     def setUp(self):
-        self.client.post(reverse("secret:gate"), {"code": "8888"})
         self.movie = SecretMovie.objects.create(title="Reservoir Dogs", personal_rating="9.0")
         self.admin = User.objects.create(email="edit_admin@test.local", role=User.Role.ADMIN, username="edit_admin")
         self.admin.set_password("Testpass123!")
@@ -527,7 +642,7 @@ class SecretMovieQuickEditTests(TestCase):
         config.save()
 
     def test_editar_da_404_si_el_interruptor_esta_apagado(self):
-        self.client.login(username=self.admin.email, password="Testpass123!")
+        _login(self.client, self.admin)
         response = self.client.post(reverse("secret:movie-quick-edit", args=[self.movie.pk]), {
             "personal_rating": "7.5", "tie_break": "0",
         })
@@ -537,6 +652,7 @@ class SecretMovieQuickEditTests(TestCase):
 
     def test_editar_requiere_login_aunque_el_interruptor_este_encendido(self):
         self._enable_web_editing()
+        _unlock_without_login(self.client)
         response = self.client.post(reverse("secret:movie-quick-edit", args=[self.movie.pk]), {
             "personal_rating": "7.5", "tie_break": "0",
         })
@@ -546,7 +662,8 @@ class SecretMovieQuickEditTests(TestCase):
 
     def test_un_lector_no_puede_editar_la_lista_de_bygui_ni_con_el_interruptor_encendido(self):
         self._enable_web_editing()
-        self.client.login(username=self.user.email, password="Testpass123!")
+        SecretListMember.objects.create(owner=self.admin, member=self.user)
+        _login(self.client, self.user)
         response = self.client.post(f"{reverse('secret:movie-quick-edit', args=[self.movie.pk])}", {
             "scope": "bygui", "personal_rating": "7.5", "tie_break": "0",
         })
@@ -556,7 +673,7 @@ class SecretMovieQuickEditTests(TestCase):
 
     def test_editar_nota_y_listas_con_el_interruptor_encendido(self):
         self._enable_web_editing()
-        self.client.login(username=self.admin.email, password="Testpass123!")
+        _login(self.client, self.admin)
         terror = Genre.objects.create(name="Terror")
 
         response = self.client.post(reverse("secret:movie-quick-edit", args=[self.movie.pk]), {
@@ -571,7 +688,7 @@ class SecretMovieQuickEditTests(TestCase):
 
     def test_editar_titulo_con_el_interruptor_encendido(self):
         self._enable_web_editing()
-        self.client.login(username=self.admin.email, password="Testpass123!")
+        _login(self.client, self.admin)
 
         self.client.post(reverse("secret:movie-quick-edit", args=[self.movie.pk]), {
             "title": "Reservoir Dogs (1992)", "personal_rating": "9.0", "tie_break": "0",
@@ -581,7 +698,7 @@ class SecretMovieQuickEditTests(TestCase):
 
     def test_un_lector_puede_editar_su_propia_lista_sin_interruptor(self):
         propia = SecretMovie.objects.create(owner=self.user, title="Kill Bill", personal_rating="8.0")
-        self.client.login(username=self.user.email, password="Testpass123!")
+        _login(self.client, self.user)
 
         response = self.client.post(reverse("secret:movie-quick-edit", args=[propia.pk]), {
             "title": "Kill Bill Vol. 1", "personal_rating": "9.0", "tie_break": "0", "comment": "Genial",
@@ -595,7 +712,7 @@ class SecretMovieQuickEditTests(TestCase):
     def test_un_lector_no_puede_editar_la_lista_propia_de_otro(self):
         other = User.objects.create(email="otra_lista@test.local", role=User.Role.LECTOR, username="otra_lista")
         ajena = SecretMovie.objects.create(owner=other, title="Ajena", personal_rating="7.0")
-        self.client.login(username=self.user.email, password="Testpass123!")
+        _login(self.client, self.user)
 
         response = self.client.post(reverse("secret:movie-quick-edit", args=[ajena.pk]), {
             "title": "Hackeada", "personal_rating": "1.0", "tie_break": "0",
@@ -605,12 +722,13 @@ class SecretMovieQuickEditTests(TestCase):
         self.assertEqual(ajena.title, "Ajena")
 
     def test_lista_completa_no_enseña_el_formulario_de_edicion_sin_el_interruptor(self):
+        _login(self.client, self.admin)
         response = self.client.get(reverse("secret:list"))
         self.assertNotContains(response, "secret-movie__edit-form")
 
     def test_lista_completa_enseña_el_formulario_de_edicion_con_el_interruptor(self):
         self._enable_web_editing()
-        self.client.login(username=self.admin.email, password="Testpass123!")
+        _login(self.client, self.admin)
         response = self.client.get(reverse("secret:list"))
         self.assertContains(response, "secret-movie__edit-form")
 
@@ -621,7 +739,6 @@ class AdminOnlyMovieTests(TestCase):
     código — independiente de en qué listas esté."""
 
     def setUp(self):
-        self.client.post(reverse("secret:gate"), {"code": "8888"})
         self.oculta = SecretMovie.objects.create(title="Solo para mí", personal_rating="9.0", admin_only=True)
         self.visible = SecretMovie.objects.create(title="Para todos", personal_rating="8.0")
 
@@ -629,21 +746,32 @@ class AdminOnlyMovieTests(TestCase):
         self.admin.set_password("Testpass123!")
         self.admin.save()
 
+        # "No admin" ya no puede ser un anónimo con el código: hace falta
+        # cuenta Y permiso explícito para ver la lista de Bygui (ver
+        # _has_bygui_access) -- aquí se le da ese permiso general para
+        # aislar lo que este test comprueba de verdad: que admin_only
+        # sigue oculto incluso con acceso de lectura a "el resto".
+        self.friend = User.objects.create(email="admin_only_movie_friend@test.local", role=User.Role.LECTOR, username="admin_only_friend")
+        self.friend.set_password("Testpass123!")
+        self.friend.save()
+        SecretListMember.objects.create(owner=self.admin, member=self.friend)
+        _login(self.client, self.friend)
+
     def test_no_admin_no_ve_la_pelicula_oculta_en_la_lista_completa(self):
-        response = self.client.get(reverse("secret:list"))
+        response = self.client.get(reverse("secret:list"), {"scope": "bygui"})
         self.assertEqual(list(response.context["movies"]), [self.visible])
 
     def test_admin_si_ve_la_pelicula_oculta_en_la_lista_completa(self):
-        self.client.login(username=self.admin.email, password="Testpass123!")
+        _login(self.client, self.admin)
         response = self.client.get(reverse("secret:list"))
         self.assertIn(self.oculta, list(response.context["movies"]))
 
     def test_no_admin_no_puede_acceder_a_la_ficha_de_la_pelicula_oculta(self):
-        response = self.client.get(reverse("secret:movie-detail", args=[self.oculta.pk]))
+        response = self.client.get(reverse("secret:movie-detail", args=[self.oculta.pk]), {"scope": "bygui"})
         self.assertEqual(response.status_code, 404)
 
     def test_no_admin_no_puede_acceder_a_la_pelicula_oculta_por_numero(self):
-        response = self.client.get(reverse("secret:by-number"), {"number": self.oculta.number})
+        response = self.client.get(reverse("secret:by-number"), {"number": self.oculta.number, "scope": "bygui"})
         self.assertEqual(response.status_code, 404)
 
 
@@ -653,7 +781,6 @@ class MoviePosterEditTests(TestCase):
     listas, ver SecretMovieQuickEditTests)."""
 
     def setUp(self):
-        self.client.post(reverse("secret:gate"), {"code": "8888"})
         self.movie = SecretMovie.objects.create(title="Drive", personal_rating="8.0")
         self.user = User.objects.create(email="poster_test@test.local", role=User.Role.ADMIN, username="poster_test")
         self.user.set_password("Testpass123!")
@@ -665,14 +792,14 @@ class MoviePosterEditTests(TestCase):
         config.save()
 
     def test_buscar_da_404_si_el_interruptor_esta_apagado(self):
-        self.client.login(username=self.user.email, password="Testpass123!")
+        _login(self.client, self.user)
         response = self.client.get(reverse("secret:movie-poster-search", args=[self.movie.pk]))
         self.assertEqual(response.status_code, 404)
 
     @patch("apps.secret.views.tmdb_search")
     def test_buscar_usa_el_servicio_tmdb_con_el_interruptor_encendido(self, mock_search):
         self._enable_web_editing()
-        self.client.login(username=self.user.email, password="Testpass123!")
+        _login(self.client, self.user)
         mock_search.return_value = []
         response = self.client.get(reverse("secret:movie-poster-search", args=[self.movie.pk]), {"query": "drive"})
         self.assertEqual(response.status_code, 200)
@@ -681,7 +808,7 @@ class MoviePosterEditTests(TestCase):
     @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
     def test_enlazar_una_portada(self, mock_get_or_create):
         self._enable_web_editing()
-        self.client.login(username=self.user.email, password="Testpass123!")
+        _login(self.client, self.user)
         mock_get_or_create.return_value = Movie.objects.create(tmdb_id=55, title="Drive", media_type="movie")
 
         response = self.client.post(reverse("secret:movie-poster-set", args=[self.movie.pk, 55]))
@@ -690,7 +817,7 @@ class MoviePosterEditTests(TestCase):
         self.assertEqual(self.movie.movie.tmdb_id, 55)
 
     def test_enlazar_portada_da_404_si_el_interruptor_esta_apagado(self):
-        self.client.login(username=self.user.email, password="Testpass123!")
+        _login(self.client, self.user)
         response = self.client.post(reverse("secret:movie-poster-set", args=[self.movie.pk, 55]))
         self.assertEqual(response.status_code, 404)
 
@@ -700,7 +827,7 @@ class MoviePosterEditTests(TestCase):
         self.movie.movie = catalog_movie
         self.movie.save(update_fields=["movie"])
 
-        self.client.login(username=self.user.email, password="Testpass123!")
+        _login(self.client, self.user)
         response = self.client.post(reverse("secret:movie-poster-remove", args=[self.movie.pk]))
         self.assertRedirects(response, reverse("secret:list"))
         self.movie.refresh_from_db()
@@ -713,11 +840,10 @@ class OwnMovieAddTests(TestCase):
     llevarte a su ficha ya en modo edición -- sin quedarse a medias."""
 
     def setUp(self):
-        self.client.post(reverse("secret:gate"), {"code": "8888"})
         self.user = User.objects.create(email="own_movie_add@test.local", role=User.Role.LECTOR)
         self.user.set_password("Testpass123!")
         self.user.save()
-        self.client.login(username=self.user.email, password="Testpass123!")
+        _login(self.client, self.user)
 
     @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
     def test_elegir_una_pelicula_la_anade_y_lleva_a_su_ficha_en_edicion(self, mock_get_or_create):
@@ -802,11 +928,10 @@ class OwnMovieAddAsAdminTests(TestCase):
     "al añadir película, ahora te dice que no está"."""
 
     def setUp(self):
-        self.client.post(reverse("secret:gate"), {"code": "8888"})
         self.admin = User.objects.create(email="own_movie_add_admin@test.local", role=User.Role.ADMIN)
         self.admin.set_password("Testpass123!")
         self.admin.save()
-        self.client.login(username=self.admin.email, password="Testpass123!")
+        _login(self.client, self.admin)
 
     @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
     def test_admin_anade_una_pelicula_y_la_encuentra_en_su_propia_lista(self, mock_get_or_create):
@@ -858,7 +983,6 @@ class OwnMovieAddAsAdminTests(TestCase):
 
 class GenreManageTests(TestCase):
     def setUp(self):
-        self.client.post(reverse("secret:gate"), {"code": "8888"})
         self.user = User.objects.create(email="genre_manage_test@test.local", role=User.Role.ADMIN, username="genre_manage_test")
         self.user.set_password("Testpass123!")
         self.user.save()
@@ -870,18 +994,18 @@ class GenreManageTests(TestCase):
         config = TopSecretConfig.load()
         config.allow_web_editing = False
         config.save()
-        self.client.login(username=self.user.email, password="Testpass123!")
+        _login(self.client, self.user)
         response = self.client.get(reverse("secret:genre-manage"))
         self.assertEqual(response.status_code, 404)
 
     def test_crear_lista(self):
-        self.client.login(username=self.user.email, password="Testpass123!")
+        _login(self.client, self.user)
         response = self.client.post(reverse("secret:genre-manage"), {"name": "Infravaloradas"})
         self.assertRedirects(response, f"{reverse('secret:genre-manage')}?scope=own")
         self.assertTrue(Genre.objects.filter(name="Infravaloradas").exists())
 
     def test_borrar_lista(self):
-        self.client.login(username=self.user.email, password="Testpass123!")
+        _login(self.client, self.user)
         genre = Genre.objects.create(name="Terror")
         response = self.client.post(reverse("secret:genre-delete", args=[genre.pk]))
         self.assertRedirects(response, f"{reverse('secret:genre-manage')}?scope=own")
@@ -997,7 +1121,6 @@ class AdminOnlyGenreTests(TestCase):
     nadie que no sea Admin, aunque tenga el código del maletín."""
 
     def setUp(self):
-        self.client.post(reverse("secret:gate"), {"code": "8888"})
         self.secreta = Genre.objects.create(name="Solo Bygui", admin_only=True)
         self.publica = Genre.objects.create(name="Terror")
         self.oculta = SecretMovie.objects.create(title="Solo para mí", personal_rating="9.0")
@@ -1009,39 +1132,47 @@ class AdminOnlyGenreTests(TestCase):
         self.admin.set_password("Testpass123!")
         self.admin.save()
 
+        # Ver el mismo comentario en AdminOnlyMovieTests.setUp: "no admin"
+        # ahora necesita cuenta + permiso explícito, no solo el código.
+        self.friend = User.objects.create(email="admin_top_secret_friend@test.local", role=User.Role.LECTOR, username="admin_only_genre_friend")
+        self.friend.set_password("Testpass123!")
+        self.friend.save()
+        SecretListMember.objects.create(owner=self.admin, member=self.friend)
+        _login(self.client, self.friend)
+
     def test_no_admin_no_ve_la_pelicula_oculta_en_la_lista_completa(self):
-        response = self.client.get(reverse("secret:list"))
+        response = self.client.get(reverse("secret:list"), {"scope": "bygui"})
         self.assertEqual(list(response.context["movies"]), [self.visible])
 
     def test_admin_si_ve_la_pelicula_oculta_en_la_lista_completa(self):
-        self.client.login(username=self.admin.email, password="Testpass123!")
+        _login(self.client, self.admin)
         response = self.client.get(reverse("secret:list"))
         self.assertIn(self.oculta, list(response.context["movies"]))
 
     def test_no_admin_no_ve_la_lista_privada_en_el_filtro(self):
-        response = self.client.get(reverse("secret:list"))
+        response = self.client.get(reverse("secret:list"), {"scope": "bygui"})
         self.assertNotIn(self.secreta, list(response.context["form"].fields["genres"].queryset))
 
     def test_admin_si_ve_la_lista_privada_en_el_filtro(self):
-        self.client.login(username=self.admin.email, password="Testpass123!")
+        _login(self.client, self.admin)
         response = self.client.get(reverse("secret:list"))
         self.assertIn(self.secreta, list(response.context["form"].fields["genres"].queryset))
 
     def test_no_admin_no_puede_acceder_a_la_pelicula_oculta_por_numero(self):
-        response = self.client.get(reverse("secret:by-number"), {"number": self.oculta.number})
+        response = self.client.get(reverse("secret:by-number"), {"number": self.oculta.number, "scope": "bygui"})
         self.assertEqual(response.status_code, 404)
 
     def test_no_admin_no_puede_acceder_a_la_ficha_de_la_pelicula_oculta(self):
-        response = self.client.get(reverse("secret:movie-detail", args=[self.oculta.pk]))
+        response = self.client.get(reverse("secret:movie-detail", args=[self.oculta.pk]), {"scope": "bygui"})
         self.assertEqual(response.status_code, 404)
 
     def test_no_admin_no_ve_la_lista_privada_en_el_buscador_por_nota(self):
-        response = self.client.get(reverse("secret:by-rating"))
+        response = self.client.get(reverse("secret:by-rating"), {"scope": "bygui"})
         self.assertNotIn(self.secreta, list(response.context["genres"]))
 
     def test_no_admin_buscando_por_la_lista_privada_no_encuentra_nada(self):
         response = self.client.get(reverse("secret:by-rating"), {
-            "min_rating": 1, "max_rating": 10, "genre": self.secreta.slug,
+            "min_rating": 1, "max_rating": 10, "genre": self.secreta.slug, "scope": "bygui",
         })
         self.assertIsNone(response.context["result"])
 
@@ -1051,7 +1182,10 @@ class SecretMovieAutoNumberingTests(TestCase):
     (de mayor a menor), recalculada sola en cada guardado/borrado."""
 
     def setUp(self):
-        self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.admin = User.objects.create(email="auto_numbering_admin@test.local", role=User.Role.ADMIN, username="auto_numbering_admin")
+        self.admin.set_password("Testpass123!")
+        self.admin.save()
+        _login(self.client, self.admin)
 
     def test_la_mejor_nota_es_el_numero_uno(self):
         peor = SecretMovie.objects.create(title="Peor", personal_rating="6.0")
@@ -1206,7 +1340,7 @@ class TierListTests(TestCase):
 
     def test_requiere_login(self):
         anon_client = self.client_class()
-        anon_client.post(reverse("secret:gate"), {"code": "8888"})
+        _unlock_without_login(anon_client)
         response = anon_client.get(reverse("secret:tier-list"))
         self.assertIn("/cuenta/login/", response.url)
 
@@ -1393,7 +1527,7 @@ class PhotoBoardTests(TestCase):
 
     def test_requiere_login(self):
         anon_client = self.client_class()
-        anon_client.post(reverse("secret:gate"), {"code": "8888"})
+        _unlock_without_login(anon_client)
         response = anon_client.get(reverse("secret:photo-board"))
         self.assertIn("/cuenta/login/", response.url)
 
@@ -1638,9 +1772,12 @@ class CalendarTests(TestCase):
     def test_requiere_login(self):
         # self.client.logout() también borraría el código ya desbloqueado
         # (Django vacía toda la sesión), así que probamos con un cliente
-        # nuevo que solo ha metido el código, sin haber iniciado sesión.
+        # nuevo, con la sesión del maletín inyectada directamente (gate()
+        # ya no deja llegar a ese estado sin login, pero login_required
+        # debe seguir bloqueando esta vista por su cuenta si de alguna
+        # otra forma se llegase con la sesión así).
         anon_client = self.client_class()
-        anon_client.post(reverse("secret:gate"), {"code": "8888"})
+        _unlock_without_login(anon_client)
         response = anon_client.get(reverse("secret:calendar"))
         self.assertIn("/cuenta/login/", response.url)
 
@@ -2139,15 +2276,15 @@ class TopSecretTabOrderTests(TestCase):
         self.assertIn("guardados", TopSecretTab.ordered_keys())
 
     def test_reordenar_no_hace_salir_amigos_ni_guardados_sin_login(self):
-        # Sin sesión iniciada, esas dos pestañas siguen sin salir en la
-        # barra pase lo que pase con el orden (ver _shell.html). logout()
-        # vacía también la sesión del maletín (secret_required la exige
-        # aparte del login), así que hay que volver a abrirlo.
-        self.client.logout()
-        self.client.post(reverse("secret:gate"), {"code": "8888"})
-        response = self.client.get(f"{reverse('secret:list')}?scope=bygui")
-        self.assertNotContains(response, ">Amigos<")
-        self.assertNotContains(response, ">Guardados<")
+        # Antes se llegaba aquí sin cuenta (solo con el código) y esas dos
+        # pestañas debían seguir ocultas para quien no está logueado --
+        # ahora ni siquiera se puede llegar a la página sin cuenta (ver
+        # login_required en full_list), así que la protección es más
+        # directa todavía: ni la página entera se ve.
+        anon_client = self.client_class()
+        _unlock_without_login(anon_client)
+        response = anon_client.get(f"{reverse('secret:list')}?scope=bygui")
+        self.assertIn("/cuenta/login/", response.url)
 
 
 class CompareWithFriendsTests(TestCase):
@@ -2195,10 +2332,22 @@ class CompareWithFriendsTests(TestCase):
         keys = [key for key, label, o in response.context["comparable_owners"]]
         self.assertNotIn("bygui", keys)
 
-    def test_lasaladebygui_si_sale_como_opcion_para_un_usuario_normal(self):
+    def test_lasaladebygui_si_sale_como_opcion_con_permiso(self):
+        # Ya no basta con ser "un usuario normal": Bygui tiene que haberte
+        # dado acceso explícito a su lista (ver _has_bygui_access).
+        admin = User.objects.create(email="compare_bygui_admin@test.local", role=User.Role.ADMIN, username="lasaladebygui_cmp")
+        SecretListMember.objects.create(owner=admin, member=self.user)
+
         response = self.client.get(reverse("secret:by-number"), {"number": 1})
         labels = [label for key, label, o in response.context["comparable_owners"]]
         self.assertIn("lasaladebygui", labels)
+
+    def test_lasaladebygui_no_sale_como_opcion_sin_permiso(self):
+        User.objects.create(email="compare_bygui_admin2@test.local", role=User.Role.ADMIN, username="lasaladebygui_cmp2")
+
+        response = self.client.get(reverse("secret:by-number"), {"number": 1})
+        labels = [label for key, label, o in response.context["comparable_owners"]]
+        self.assertNotIn("lasaladebygui", labels)
 
     def test_boton_todos_aparece_cuando_hay_con_quien_comparar(self):
         response = self.client.get(reverse("secret:by-number"), {"number": 1})

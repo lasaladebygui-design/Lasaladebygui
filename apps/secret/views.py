@@ -79,6 +79,41 @@ def _is_admin(user):
     return user.is_authenticated and user.role == User.Role.ADMIN
 
 
+def _bygui_owner_user():
+    """La cuenta de Admin cuya lista ES "la lista de Bygui" -- se usa
+    solo para comprobar el permiso de acceso (SecretListMember se guarda
+    contra esta cuenta real, igual que si fuera un amigo cualquiera
+    compartiendo su lista). Nunca se usa para consultar SecretMovie: eso
+    sigue siendo owner=None, como siempre."""
+    return User.objects.filter(role=User.Role.ADMIN).first()
+
+
+def _normalize_owner(owner_user):
+    """SecretListMember guarda a Bygui como una cuenta real (para poder
+    invitar/expulsar amigos con el mismo interruptor que cualquier otro
+    dueño de lista), pero SecretMovie sigue guardando sus datos con
+    owner=None, como de siempre. Cualquier sitio que resuelva "de quién
+    es esta lista" a partir de una cuenta (en vez de partir ya de
+    _resolve_scope) tiene que pasar el resultado por aquí antes de
+    consultar SecretMovie -- si no, la cuenta de Bygui no encuentra sus
+    propias películas."""
+    if owner_user is not None and owner_user.role == User.Role.ADMIN:
+        return None
+    return owner_user
+
+
+def _has_bygui_access(user):
+    """Antes, conocer el código del maletín bastaba para ver la lista de
+    Bygui de solo lectura, cuenta o no. Ahora hace falta ADEMÁS que Bygui
+    te haya dado acceso explícitamente, con el mismo interruptor de
+    amigo-a-amigo que ya existe para cualquier otra lista propia (ver
+    SecretListMember y secret/own_list_share.html) -- Bygui gestiona
+    quién ve "su lista" desde esa misma pantalla, porque para ella "mi
+    lista" y "la lista de Bygui" son la misma cosa (ver _own_list_owner)."""
+    bygui_admin = _bygui_owner_user()
+    return bool(bygui_admin) and SecretListMember.objects.filter(owner=bygui_admin, member=user).exists()
+
+
 def _own_list_owner(user):
     """El `owner` con el que se guarda/consulta "tu propia lista" -- para
     Admin es None (la lista de Bygui: "mi lista" y "la lista de Bygui"
@@ -121,7 +156,10 @@ def _resolve_scope(request):
 
     - 'own' (por defecto si tienes cuenta): tu propia lista.
     - 'bygui' (por defecto si no tienes cuenta): la lista de Bygui — de
-      solo lectura para cualquiera que no sea ella.
+      solo lectura para quien tenga cuenta Y a quien Bygui le haya dado
+      acceso explícito (ver _has_bygui_access). Ya NO basta con el código
+      del maletín ni con tener cuenta sin más: 404 para cualquier otro
+      caso, igual que con la lista de cualquier amigo.
     - cualquier otro valor: el username de alguien que te ha dado acceso
       de solo lectura a la suya (ver SecretListMember). 404 si no es así.
 
@@ -138,22 +176,23 @@ def _resolve_scope(request):
         # los datos de siempre, sin una copia aparte vacía para ella.
         return None, _web_editing_allowed(), scope
 
+    if not user.is_authenticated:
+        raise Http404
+
     if scope == "own":
-        if not user.is_authenticated:
-            raise Http404
         return user, True, "own"
 
     if scope == "bygui":
+        if not _has_bygui_access(user):
+            raise Http404
         return None, False, "bygui"
 
-    if not user.is_authenticated:
-        raise Http404
     friend_owner = get_object_or_404(User, username=scope)
     if friend_owner.pk == user.pk:
         return user, True, "own"
     if not SecretListMember.objects.filter(owner=friend_owner, member=user).exists():
         raise Http404
-    return friend_owner, False, scope
+    return _normalize_owner(friend_owner), False, scope
 
 
 def secret_required(view_func):
@@ -170,7 +209,13 @@ def _gate_attempts_cache_key(request):
     return f"secret_gate_attempts:{request.META.get('REMOTE_ADDR', 'unknown')}"
 
 
+@login_required
 def gate(request):
+    """Hace falta cuenta y sesión iniciada incluso para LLEGAR a intentar
+    el código -- antes cualquier visitante anónimo podía probarlo
+    directamente. `login_required` ya manda a quien no tenga sesión a
+    accounts:login (con "?next=" de vuelta aquí mismo), así que a partir
+    de este punto request.user siempre está autenticado."""
     if request.session.get(SESSION_KEY):
         return redirect("secret:home")
 
@@ -184,6 +229,18 @@ def gate(request):
             if config.check_code(form.cleaned_data["code"]):
                 cache.delete(cache_key)
                 request.session[SESSION_KEY] = True
+                # El código ya no basta por sí solo para ver la lista de
+                # Bygui (ver _has_bygui_access): además de cuenta y código,
+                # hace falta que ella te haya dado acceso explícito -- sin
+                # eso, "secret:home" daría un 404 seco. Se avisa de qué
+                # falta en vez de dejar que lo descubra así.
+                if not _is_admin(request.user) and not _has_bygui_access(request.user):
+                    messages.info(
+                        request,
+                        "Código correcto, pero todavía no tienes acceso a la lista de Bygui. "
+                        "Pídele que te lo dé desde su pantalla de \"Compartir mi lista\".",
+                    )
+                    return redirect("secret:shared-hub")
                 return redirect("secret:home")
             cache.set(cache_key, cache.get(cache_key, 0) + 1, GATE_LOCKOUT_SECONDS)
             form.add_error("code", "Código incorrecto.")
@@ -200,6 +257,7 @@ def lock(request):
 
 
 @secret_required
+@login_required
 def by_number(request):
     owner, editable, scope = _resolve_scope(request)
     form = NumberSelectForm(request.GET or None)
@@ -240,6 +298,7 @@ def by_number(request):
 
 
 @secret_required
+@login_required
 def by_rating(request):
     owner, editable, scope = _resolve_scope(request)
     form = RatingSearchForm(request.GET or None)
@@ -292,6 +351,7 @@ def by_rating(request):
 
 
 @secret_required
+@login_required
 def full_list(request):
     owner, editable, scope = _resolve_scope(request)
     form = FullListFilterForm(request.GET or None, owner=owner, admin_user=_is_admin(request.user))
@@ -386,6 +446,7 @@ def full_list(request):
 
 
 @secret_required
+@login_required
 def movie_detail(request, pk):
     owner, editable, scope = _resolve_scope(request)
     movie = get_object_or_404(_visible_movies(request.user, owner), pk=pk)
@@ -643,9 +704,18 @@ def _comparable_owners(user):
     y la de cada amigo que te la haya compartido. Devuelve una lista de
     (clave, etiqueta, owner) — owner=None es lasaladebygui. `clave` es
     lo que viaja en la URL (?with=...); ninguna va marcada por defecto."""
-    owners = [] if _is_admin(user) else [("bygui", "lasaladebygui", None)]
+    bygui_admin = None if _is_admin(user) else _bygui_owner_user()
+    has_bygui = bool(bygui_admin) and _has_bygui_access(user)
+    owners = [("bygui", "lasaladebygui", None)] if has_bygui else []
     shared = SecretListMember.objects.filter(member=user).select_related("owner")
     for member in shared:
+        # La cuenta de Bygui ya está arriba con owner=None (para que
+        # _visible_movies encuentre sus SecretMovie, guardadas así de
+        # siempre) -- repetirla aquí con owner=<esa cuenta> solo daría una
+        # entrada duplicada y vacía, porque bajo su propio owner real no
+        # hay ninguna película guardada.
+        if bygui_admin and member.owner_id == bygui_admin.pk:
+            continue
         owners.append((member.owner.username, member.owner.username, member.owner))
     return owners
 
@@ -749,7 +819,7 @@ def _amigos_preview(request_user, friend, tab):
             ReleaseEvent.objects.filter(user=friend, date__gte=today)
             .select_related("movie").order_by("date")[:6]
         )
-    return list(_visible_movies(request_user, friend).order_by("number")[:12])
+    return list(_visible_movies(request_user, _normalize_owner(friend)).order_by("number")[:12])
 
 
 @secret_required
