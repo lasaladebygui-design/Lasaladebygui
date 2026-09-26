@@ -79,15 +79,6 @@ def _is_admin(user):
     return user.is_authenticated and user.role == User.Role.ADMIN
 
 
-def _bygui_owner_user():
-    """La cuenta de Admin cuya lista ES "la lista de Bygui" -- se usa
-    solo para comprobar el permiso de acceso (SecretListMember se guarda
-    contra esta cuenta real, igual que si fuera un amigo cualquiera
-    compartiendo su lista). Nunca se usa para consultar SecretMovie: eso
-    sigue siendo owner=None, como siempre."""
-    return User.objects.filter(role=User.Role.ADMIN).first()
-
-
 def _normalize_owner(owner_user):
     """SecretListMember guarda a Bygui como una cuenta real (para poder
     invitar/expulsar amigos con el mismo interruptor que cualquier otro
@@ -104,14 +95,22 @@ def _normalize_owner(owner_user):
 
 def _has_bygui_access(user):
     """Antes, conocer el código del maletín bastaba para ver la lista de
-    Bygui de solo lectura, cuenta o no. Ahora hace falta ADEMÁS que Bygui
-    te haya dado acceso explícitamente, con el mismo interruptor de
+    lasaladebygui de solo lectura, cuenta o no. Ahora hace falta ADEMÁS
+    que se te dé acceso explícitamente, con el mismo interruptor de
     amigo-a-amigo que ya existe para cualquier otra lista propia (ver
-    SecretListMember y secret/own_list_share.html) -- Bygui gestiona
-    quién ve "su lista" desde esa misma pantalla, porque para ella "mi
-    lista" y "la lista de Bygui" son la misma cosa (ver _own_list_owner)."""
-    bygui_admin = _bygui_owner_user()
-    return bool(bygui_admin) and SecretListMember.objects.filter(owner=bygui_admin, member=user).exists()
+    SecretListMember y secret/own_list_share.html) -- quien administra
+    gestiona quién ve "su lista" desde esa misma pantalla, porque para
+    Admin "mi lista" y "la lista de lasaladebygui" son la misma cosa (ver
+    _own_list_owner).
+
+    OJO: hay más de una cuenta con role=ADMIN en producción (por ejemplo
+    "Bygui" y "lasaladebygui" son cuentas DISTINTAS, no la misma) y todas
+    ellas comparten exactamente esos mismos datos (owner=None) como "su"
+    lista -- por eso aquí se acepta el permiso concedido por CUALQUIERA
+    de ellas (owner__role=ADMIN), en vez de fijar una cuenta admin
+    concreta por su pk/username, que dependería de cuál se usara para
+    invitar y podría no reconocer el permiso si se concedió con otra."""
+    return SecretListMember.objects.filter(owner__role=User.Role.ADMIN, member=user).exists()
 
 
 def _own_list_owner(user):
@@ -704,17 +703,16 @@ def _comparable_owners(user):
     y la de cada amigo que te la haya compartido. Devuelve una lista de
     (clave, etiqueta, owner) — owner=None es lasaladebygui. `clave` es
     lo que viaja en la URL (?with=...); ninguna va marcada por defecto."""
-    bygui_admin = None if _is_admin(user) else _bygui_owner_user()
-    has_bygui = bool(bygui_admin) and _has_bygui_access(user)
+    has_bygui = (not _is_admin(user)) and _has_bygui_access(user)
     owners = [("bygui", "lasaladebygui", None)] if has_bygui else []
     shared = SecretListMember.objects.filter(member=user).select_related("owner")
     for member in shared:
-        # La cuenta de Bygui ya está arriba con owner=None (para que
-        # _visible_movies encuentre sus SecretMovie, guardadas así de
-        # siempre) -- repetirla aquí con owner=<esa cuenta> solo daría una
-        # entrada duplicada y vacía, porque bajo su propio owner real no
-        # hay ninguna película guardada.
-        if bygui_admin and member.owner_id == bygui_admin.pk:
+        # Cualquier cuenta ADMIN (hay más de una) ya está arriba con
+        # owner=None (para que _visible_movies encuentre sus SecretMovie,
+        # guardadas así de siempre) -- repetirla aquí con owner=<esa
+        # cuenta> solo daría una entrada duplicada y vacía, porque bajo
+        # su propio owner real no hay ninguna película guardada.
+        if member.owner.role == User.Role.ADMIN:
             continue
         owners.append((member.owner.username, member.owner.username, member.owner))
     return owners
@@ -871,13 +869,18 @@ def shared_hub(request):
 @login_required
 def own_list_share(request):
     """Gestionar con qué amigos compartes tu lista propia (solo lectura
-    para ellos) — mismo patrón que el tablón de fotos (PhotoBoardMember)."""
+    para ellos) — mismo patrón que el tablón de fotos (PhotoBoardMember).
+    Para Admin, esta pantalla es también la que decide quién tiene acceso
+    a "la lista de lasaladebygui" (ver _has_bygui_access) -- se avisa así
+    en el texto, para que quede claro que no es "una lista más", sino esa
+    misma que todo el mundo conoce con ese nombre."""
     members = SecretListMember.objects.filter(owner=request.user).select_related("member")
     member_ids = {m.member_id for m in members}
     invitable_friends = [f for f in _shareable_friends(request.user) if f.pk not in member_ids]
     shared_with_me = SecretListMember.objects.filter(member=request.user).select_related("owner")
     return render(request, "secret/own_list_share.html", {
         "members": members, "invitable_friends": invitable_friends, "shared_with_me": shared_with_me,
+        "is_bygui": _is_admin(request.user),
     })
 
 
@@ -895,7 +898,8 @@ def own_list_share_invite(request, username):
     if request.method == "POST" and are_friends(request.user, friend):
         member, _ = SecretListMember.objects.get_or_create(owner=request.user, member=friend)
         if not _is_htmx(request):
-            messages.success(request, f"{friend} ya puede ver tu lista.")
+            list_label = "la lista de lasaladebygui" if _is_admin(request.user) else "tu lista"
+            messages.success(request, f"{friend} ya puede ver {list_label}.")
     if _is_htmx(request):
         return render(request, "secret/_share_toggle_list.html", {"friend": friend, "member": member})
     return redirect("secret:own-list-share")
@@ -910,7 +914,8 @@ def own_list_share_kick(request, pk):
         member.delete()
         if _is_htmx(request):
             return render(request, "secret/_share_toggle_list.html", {"friend": friend, "member": None})
-        messages.success(request, f"{friend} ya no puede ver tu lista.")
+        list_label = "la lista de lasaladebygui" if _is_admin(request.user) else "tu lista"
+        messages.success(request, f"{friend} ya no puede ver {list_label}.")
     return redirect("secret:own-list-share")
 
 
