@@ -80,7 +80,7 @@ class GateTests(TestCase):
         # que se loguean como Admin para no mezclar eso con el permiso de
         # acceso a la lista de Bygui, que tiene su propia clase de tests
         # más abajo (BygruiCodeAccessRestrictionTests).
-        self.admin = User.objects.create(email="gate_admin@test.local", role=User.Role.ADMIN, username="gate_admin")
+        self.admin = User.objects.create(email="gate_admin@test.local", role=User.Role.ADMIN, username="lasaladebygui")
         self.admin.set_password("Testpass123!")
         self.admin.save()
         self.client.login(username=self.admin.email, password="Testpass123!")
@@ -158,7 +158,7 @@ class BygruiCodeAccessRestrictionTests(TestCase):
 
     def setUp(self):
         cache.clear()
-        self.admin = User.objects.create(email="bygui_gate_admin@test.local", role=User.Role.ADMIN, username="lasaladebygui_gate")
+        self.admin = User.objects.create(email="bygui_gate_admin@test.local", role=User.Role.ADMIN, username="lasaladebygui")
         self.admin.set_password("Testpass123!")
         self.admin.save()
 
@@ -205,6 +205,37 @@ class BygruiCodeAccessRestrictionTests(TestCase):
         response = self.client.post(reverse("secret:gate"), {"code": "8888"})
         self.assertRedirects(response, reverse("secret:home"))
 
+    def test_otra_cuenta_admin_tiene_su_propio_espacio_no_el_de_lasaladebygui(self):
+        # Repro exacta del bug reportado: en producción hay varias cuentas
+        # con role=ADMIN (p.ej. "Bygui" y "Arol", aparte de "lasaladebygui"
+        # misma) -- entrar con cualquiera de esas OTRAS cuentas no debe
+        # aterrizar en la lista de lasaladebygui ni impedir cambiarla: debe
+        # ser un espacio personal propio, tan editable como el de
+        # cualquier usuario normal.
+        otro_admin = User.objects.create(email="otro_admin_top_secret@test.local", role=User.Role.ADMIN, username="Otra")
+        otro_admin.set_password("Testpass123!")
+        otro_admin.save()
+        self.client.login(username=otro_admin.email, password="Testpass123!")
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+
+        # "own" (por defecto) es SU lista personal, vacía y editable --
+        # no la de lasaladebygui.
+        response = self.client.get(reverse("secret:home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["movies"]), [])
+        self.assertTrue(response.context["editable"])
+
+        # Añadir algo desde ahí lo guarda bajo su propia cuenta, no
+        # owner=None (que es exclusivo de la cuenta lasaladebygui).
+        peli = SecretMovie.objects.create(owner=otro_admin, title="Su propia peli", personal_rating="8.0")
+        response = self.client.get(reverse("secret:home"))
+        self.assertEqual(list(response.context["movies"]), [peli])
+
+        # Y sin que lasaladebygui le dé acceso, la lista de lasaladebygui
+        # le sigue estando vetada igual que a cualquier otra persona.
+        response = self.client.get(f"{reverse('secret:home')}?scope=bygui")
+        self.assertEqual(response.status_code, 404)
+
 
 class RatingColorBandTests(TestCase):
     """Los tramos de color son de número arbitrario y los decide quien
@@ -245,7 +276,7 @@ class SecretMovieViewTests(TestCase):
         # (owner=None, la lista de Bygui), no sobre quién puede verla --
         # se entra como Admin, que siempre tiene acceso a "su" lista sin
         # depender de ningún permiso (ver _has_bygui_access).
-        self.admin = User.objects.create(email="secret_movie_view_admin@test.local", role=User.Role.ADMIN, username="secret_movie_view_admin")
+        self.admin = User.objects.create(email="secret_movie_view_admin@test.local", role=User.Role.ADMIN, username="lasaladebygui")
         self.admin.set_password("Testpass123!")
         self.admin.save()
         self.client.login(username=self.admin.email, password="Testpass123!")
@@ -629,7 +660,7 @@ class SecretMovieQuickEditTests(TestCase):
 
     def setUp(self):
         self.movie = SecretMovie.objects.create(title="Reservoir Dogs", personal_rating="9.0")
-        self.admin = User.objects.create(email="edit_admin@test.local", role=User.Role.ADMIN, username="edit_admin")
+        self.admin = User.objects.create(email="edit_admin@test.local", role=User.Role.ADMIN, username="lasaladebygui")
         self.admin.set_password("Testpass123!")
         self.admin.save()
         self.user = User.objects.create(email="edit_test@test.local", role=User.Role.LECTOR, username="edit_test")
@@ -742,7 +773,7 @@ class AdminOnlyMovieTests(TestCase):
         self.oculta = SecretMovie.objects.create(title="Solo para mí", personal_rating="9.0", admin_only=True)
         self.visible = SecretMovie.objects.create(title="Para todos", personal_rating="8.0")
 
-        self.admin = User.objects.create(email="admin_only_movie@test.local", role=User.Role.ADMIN)
+        self.admin = User.objects.create(email="admin_only_movie@test.local", role=User.Role.ADMIN, username="lasaladebygui")
         self.admin.set_password("Testpass123!")
         self.admin.save()
 
@@ -782,7 +813,7 @@ class MoviePosterEditTests(TestCase):
 
     def setUp(self):
         self.movie = SecretMovie.objects.create(title="Drive", personal_rating="8.0")
-        self.user = User.objects.create(email="poster_test@test.local", role=User.Role.ADMIN, username="poster_test")
+        self.user = User.objects.create(email="poster_test@test.local", role=User.Role.ADMIN, username="lasaladebygui")
         self.user.set_password("Testpass123!")
         self.user.save()
 
@@ -928,7 +959,7 @@ class OwnMovieAddAsAdminTests(TestCase):
     "al añadir película, ahora te dice que no está"."""
 
     def setUp(self):
-        self.admin = User.objects.create(email="own_movie_add_admin@test.local", role=User.Role.ADMIN)
+        self.admin = User.objects.create(email="own_movie_add_admin@test.local", role=User.Role.ADMIN, username="lasaladebygui")
         self.admin.set_password("Testpass123!")
         self.admin.save()
         _login(self.client, self.admin)
@@ -983,7 +1014,7 @@ class OwnMovieAddAsAdminTests(TestCase):
 
 class GenreManageTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create(email="genre_manage_test@test.local", role=User.Role.ADMIN, username="genre_manage_test")
+        self.user = User.objects.create(email="genre_manage_test@test.local", role=User.Role.ADMIN, username="lasaladebygui")
         self.user.set_password("Testpass123!")
         self.user.save()
         config = TopSecretConfig.load()
@@ -1128,7 +1159,7 @@ class AdminOnlyGenreTests(TestCase):
         self.visible = SecretMovie.objects.create(title="Para todos", personal_rating="8.0")
         self.visible.genres.add(self.publica)
 
-        self.admin = User.objects.create(email="admin_top_secret@test.local", role=User.Role.ADMIN)
+        self.admin = User.objects.create(email="admin_top_secret@test.local", role=User.Role.ADMIN, username="lasaladebygui")
         self.admin.set_password("Testpass123!")
         self.admin.save()
 
@@ -1182,7 +1213,7 @@ class SecretMovieAutoNumberingTests(TestCase):
     (de mayor a menor), recalculada sola en cada guardado/borrado."""
 
     def setUp(self):
-        self.admin = User.objects.create(email="auto_numbering_admin@test.local", role=User.Role.ADMIN, username="auto_numbering_admin")
+        self.admin = User.objects.create(email="auto_numbering_admin@test.local", role=User.Role.ADMIN, username="lasaladebygui")
         self.admin.set_password("Testpass123!")
         self.admin.save()
         _login(self.client, self.admin)
@@ -2320,7 +2351,7 @@ class CompareWithFriendsTests(TestCase):
         self.assertIn("mi_amigo", labels)
 
     def test_lasaladebygui_no_sale_como_opcion_para_el_propio_admin(self):
-        admin = User.objects.create(email="compare_admin@test.local", role=User.Role.ADMIN)
+        admin = User.objects.create(email="compare_admin@test.local", role=User.Role.ADMIN, username="lasaladebygui")
         admin.set_password("Testpass123!")
         admin.save()
         # login() con un usuario distinto al de setUp vacía la sesión
@@ -2335,7 +2366,7 @@ class CompareWithFriendsTests(TestCase):
     def test_lasaladebygui_si_sale_como_opcion_con_permiso(self):
         # Ya no basta con ser "un usuario normal": Bygui tiene que haberte
         # dado acceso explícito a su lista (ver _has_bygui_access).
-        admin = User.objects.create(email="compare_bygui_admin@test.local", role=User.Role.ADMIN, username="lasaladebygui_cmp")
+        admin = User.objects.create(email="compare_bygui_admin@test.local", role=User.Role.ADMIN, username="lasaladebygui")
         SecretListMember.objects.create(owner=admin, member=self.user)
 
         response = self.client.get(reverse("secret:by-number"), {"number": 1})
@@ -2343,7 +2374,7 @@ class CompareWithFriendsTests(TestCase):
         self.assertIn("lasaladebygui", labels)
 
     def test_lasaladebygui_no_sale_como_opcion_sin_permiso(self):
-        User.objects.create(email="compare_bygui_admin2@test.local", role=User.Role.ADMIN, username="lasaladebygui_cmp2")
+        User.objects.create(email="compare_bygui_admin2@test.local", role=User.Role.ADMIN, username="lasaladebygui")
 
         response = self.client.get(reverse("secret:by-number"), {"number": 1})
         labels = [label for key, label, o in response.context["comparable_owners"]]

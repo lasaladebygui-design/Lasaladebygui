@@ -75,20 +75,32 @@ def _is_htmx(request):
     return request.headers.get("HX-Request") == "true"
 
 
-def _is_admin(user):
-    return user.is_authenticated and user.role == User.Role.ADMIN
+# El username de la ÚNICA cuenta cuya lista propia ES "la lista de
+# lasaladebygui" (owner=None) -- se fija por nombre, no por role=ADMIN,
+# porque en producción hay varias cuentas con ese role (p.ej. "Bygui" y
+# "Arol", aparte de "lasaladebygui" misma) que son personas DISTINTAS con
+# su propio espacio personal de Top Secret, no copropietarias de esta
+# lista. role=ADMIN sigue dando privilegios de administración del sitio
+# (panel /admin/, moderar, editar artículos...) -- eso no cambia aquí,
+# solo se deja de asumir que "ser Admin" significa también "mi lista
+# personal es la lista de lasaladebygui".
+BYGUI_USERNAME = "lasaladebygui"
+
+
+def _is_bygui_persona(user):
+    return user.is_authenticated and user.username == BYGUI_USERNAME
 
 
 def _normalize_owner(owner_user):
-    """SecretListMember guarda a Bygui como una cuenta real (para poder
-    invitar/expulsar amigos con el mismo interruptor que cualquier otro
-    dueño de lista), pero SecretMovie sigue guardando sus datos con
+    """SecretListMember guarda a lasaladebygui como una cuenta real (para
+    poder invitar/expulsar amigos con el mismo interruptor que cualquier
+    otro dueño de lista), pero SecretMovie sigue guardando sus datos con
     owner=None, como de siempre. Cualquier sitio que resuelva "de quién
     es esta lista" a partir de una cuenta (en vez de partir ya de
     _resolve_scope) tiene que pasar el resultado por aquí antes de
-    consultar SecretMovie -- si no, la cuenta de Bygui no encuentra sus
-    propias películas."""
-    if owner_user is not None and owner_user.role == User.Role.ADMIN:
+    consultar SecretMovie -- si no, esa cuenta no encuentra sus propias
+    películas."""
+    if owner_user is not None and _is_bygui_persona(owner_user):
         return None
     return owner_user
 
@@ -96,32 +108,27 @@ def _normalize_owner(owner_user):
 def _has_bygui_access(user):
     """Antes, conocer el código del maletín bastaba para ver la lista de
     lasaladebygui de solo lectura, cuenta o no. Ahora hace falta ADEMÁS
-    que se te dé acceso explícitamente, con el mismo interruptor de
-    amigo-a-amigo que ya existe para cualquier otra lista propia (ver
-    SecretListMember y secret/own_list_share.html) -- quien administra
-    gestiona quién ve "su lista" desde esa misma pantalla, porque para
-    Admin "mi lista" y "la lista de lasaladebygui" son la misma cosa (ver
-    _own_list_owner).
-
-    OJO: hay más de una cuenta con role=ADMIN en producción (por ejemplo
-    "Bygui" y "lasaladebygui" son cuentas DISTINTAS, no la misma) y todas
-    ellas comparten exactamente esos mismos datos (owner=None) como "su"
-    lista -- por eso aquí se acepta el permiso concedido por CUALQUIERA
-    de ellas (owner__role=ADMIN), en vez de fijar una cuenta admin
-    concreta por su pk/username, que dependería de cuál se usara para
-    invitar y podría no reconocer el permiso si se concedió con otra."""
-    return SecretListMember.objects.filter(owner__role=User.Role.ADMIN, member=user).exists()
+    que lasaladebygui te dé acceso explícitamente, con el mismo
+    interruptor de amigo-a-amigo que ya existe para cualquier otra lista
+    propia (ver SecretListMember y secret/own_list_share.html) -- para
+    esa cuenta en concreto (y solo ella, ver BYGUI_USERNAME) "mi lista" y
+    "la lista de lasaladebygui" son la misma cosa (ver _own_list_owner),
+    así que ese permiso solo lo puede conceder ella, no cualquier otra
+    cuenta con role=ADMIN."""
+    return SecretListMember.objects.filter(owner__username=BYGUI_USERNAME, member=user).exists()
 
 
 def _own_list_owner(user):
-    """El `owner` con el que se guarda/consulta "tu propia lista" -- para
-    Admin es None (la lista de Bygui: "mi lista" y "la lista de Bygui"
-    son la misma cosa, ver _resolve_scope), para cualquier otra cuenta es
-    ella misma. own_movie_add/own_movie_delete tienen que usar este
-    mismo valor al crear/buscar, o lo que Admin añade a "su" lista queda
-    guardado bajo su usuario real y se vuelve invisible (404) en cuanto
-    lo mira con scope=own, que para ella resuelve a owner=None."""
-    return None if _is_admin(user) else user
+    """El `owner` con el que se guarda/consulta "tu propia lista" -- solo
+    para la cuenta lasaladebygui es None (su lista personal ES la lista
+    de lasaladebygui, ver _resolve_scope); para cualquier otra cuenta,
+    Admin incluida, es ella misma: Top Secret es un espacio personal por
+    cuenta, y ser Admin no te presta la lista de otra persona ni la
+    reemplaza por la tuya. own_movie_add/own_movie_delete tienen que usar
+    este mismo valor al crear/buscar, o lo que lasaladebygui añade a "su"
+    lista queda guardado bajo su usuario real y se vuelve invisible (404)
+    en cuanto lo mira con scope=own, que para ella resuelve a owner=None."""
+    return None if _is_bygui_persona(user) else user
 
 
 def _shareable_friends(user):
@@ -139,7 +146,7 @@ def _visible_movies(user, owner):
     se ve entera por quien tenga permiso para verla — ese permiso ya se
     decidió en `_resolve_scope`, aquí no hay nada más que filtrar."""
     movies = SecretMovie.objects.filter(owner=owner).prefetch_related("genres").select_related("movie")
-    if owner is None and not _is_admin(user):
+    if owner is None and not _is_bygui_persona(user):
         movies = movies.exclude(genres__admin_only=True).exclude(admin_only=True)
     return movies
 
@@ -147,18 +154,23 @@ def _visible_movies(user, owner):
 def _resolve_scope(request):
     """A qué lista completa se refiere esta petición, y si quien mira
     puede editarla. Todo el mundo con cuenta tiene su propia lista,
-    siempre editable por su dueño y de nadie más; la lista de Bygui es un
-    caso especial de "propia" que por continuidad con los datos de
-    siempre se sigue guardando con owner=None en vez de con su usuario, y
-    que solo ella (Admin) puede editar — y únicamente mientras
-    TopSecretConfig.allow_web_editing esté activo, igual que siempre.
+    siempre editable por su dueño y de nadie más -- Top Secret es un
+    espacio personal por cuenta, ser Admin (role=ADMIN, privilegios de
+    administración del sitio) no te da ninguna relación especial con la
+    lista de otra cuenta ni sustituye la tuya por la suya. La ÚNICA
+    excepción es la propia cuenta lasaladebygui (ver BYGUI_USERNAME): por
+    continuidad con los datos de siempre, su lista propia se sigue
+    guardando con owner=None en vez de con su usuario, y solo ella puede
+    editarla — y únicamente mientras TopSecretConfig.allow_web_editing
+    esté activo, igual que siempre.
 
     - 'own' (por defecto si tienes cuenta): tu propia lista.
-    - 'bygui' (por defecto si no tienes cuenta): la lista de Bygui — de
-      solo lectura para quien tenga cuenta Y a quien Bygui le haya dado
-      acceso explícito (ver _has_bygui_access). Ya NO basta con el código
-      del maletín ni con tener cuenta sin más: 404 para cualquier otro
-      caso, igual que con la lista de cualquier amigo.
+    - 'bygui' (por defecto si no tienes cuenta): la lista de
+      lasaladebygui — de solo lectura para quien tenga cuenta Y a quien
+      lasaladebygui le haya dado acceso explícito (ver
+      _has_bygui_access). Ya NO basta con el código del maletín ni con
+      tener cuenta sin más, ni con ser Admin de otra cuenta: 404 para
+      cualquier otro caso, igual que con la lista de cualquier amigo.
     - cualquier otro valor: el username de alguien que te ha dado acceso
       de solo lectura a la suya (ver SecretListMember). 404 si no es así.
 
@@ -170,9 +182,11 @@ def _resolve_scope(request):
     if not scope:
         scope = "own" if user.is_authenticated else "bygui"
 
-    if _is_admin(user) and scope in ("own", "bygui"):
-        # Para Bygui, "mi lista" y "la lista de Bygui" son la misma cosa —
-        # los datos de siempre, sin una copia aparte vacía para ella.
+    if _is_bygui_persona(user) and scope in ("own", "bygui"):
+        # Para lasaladebygui, "mi lista" y "la lista de lasaladebygui" son
+        # la misma cosa — los datos de siempre, sin una copia aparte
+        # vacía para ella. Cualquier OTRA cuenta Admin cae por debajo,
+        # donde scope="own" le da su propia lista personal de verdad.
         return None, _web_editing_allowed(), scope
 
     if not user.is_authenticated:
@@ -233,10 +247,10 @@ def gate(request):
                 # hace falta que ella te haya dado acceso explícito -- sin
                 # eso, "secret:home" daría un 404 seco. Se avisa de qué
                 # falta en vez de dejar que lo descubra así.
-                if not _is_admin(request.user) and not _has_bygui_access(request.user):
+                if not _is_bygui_persona(request.user) and not _has_bygui_access(request.user):
                     messages.info(
                         request,
-                        "Código correcto, pero todavía no tienes acceso a la lista de Bygui. "
+                        "Código correcto, pero todavía no tienes acceso a la lista de lasaladebygui. "
                         "Pídele que te lo dé desde su pantalla de \"Compartir mi lista\".",
                     )
                     return redirect("secret:shared-hub")
@@ -305,7 +319,7 @@ def by_rating(request):
     searched = False
     genre_slug = request.GET.get("genre", "").strip()
     genres = Genre.objects.filter(owner=owner)
-    if owner is None and not _is_admin(request.user):
+    if owner is None and not _is_bygui_persona(request.user):
         genres = genres.filter(admin_only=False)
     selected_genre_name = next((g.name for g in genres if g.slug == genre_slug), "")
 
@@ -353,7 +367,7 @@ def by_rating(request):
 @login_required
 def full_list(request):
     owner, editable, scope = _resolve_scope(request)
-    form = FullListFilterForm(request.GET or None, owner=owner, admin_user=_is_admin(request.user))
+    form = FullListFilterForm(request.GET or None, owner=owner, admin_user=_is_bygui_persona(request.user))
     movies = _visible_movies(request.user, owner)
     if form.is_valid():
         genres = form.cleaned_data.get("genres")
@@ -697,22 +711,23 @@ def _comparable_owners(user):
     """Con quién más se puede comparar tu lista, aparte de la tuya
     propia -- esa ya va SIEMPRE incluida en la comparación sin marcarla
     a mano (ver by_number/by_rating), así que aquí solo salen "los
-    demás": la de lasaladebygui (siempre visible, como en cualquier otro
-    sitio de Top Secret -- salvo para el propio Admin, cuya lista YA ES
-    esa misma, así que ofrecérsela aparte sería comparar contigo mismo)
-    y la de cada amigo que te la haya compartido. Devuelve una lista de
-    (clave, etiqueta, owner) — owner=None es lasaladebygui. `clave` es
-    lo que viaja en la URL (?with=...); ninguna va marcada por defecto."""
-    has_bygui = (not _is_admin(user)) and _has_bygui_access(user)
+    demás": la de lasaladebygui (visible si te ha dado acceso -- salvo
+    para ella misma, cuya lista YA ES esa misma, así que ofrecérsela
+    aparte sería comparar contigo mismo) y la de cada amigo que te la
+    haya compartido, Admin o no. Devuelve una lista de (clave, etiqueta,
+    owner) — owner=None es lasaladebygui. `clave` es lo que viaja en la
+    URL (?with=...); ninguna va marcada por defecto."""
+    has_bygui = (not _is_bygui_persona(user)) and _has_bygui_access(user)
     owners = [("bygui", "lasaladebygui", None)] if has_bygui else []
     shared = SecretListMember.objects.filter(member=user).select_related("owner")
     for member in shared:
-        # Cualquier cuenta ADMIN (hay más de una) ya está arriba con
-        # owner=None (para que _visible_movies encuentre sus SecretMovie,
-        # guardadas así de siempre) -- repetirla aquí con owner=<esa
-        # cuenta> solo daría una entrada duplicada y vacía, porque bajo
-        # su propio owner real no hay ninguna película guardada.
-        if member.owner.role == User.Role.ADMIN:
+        # La cuenta lasaladebygui ya está arriba con owner=None (para que
+        # _visible_movies encuentre sus SecretMovie, guardadas así de
+        # siempre) -- repetirla aquí con owner=<esa cuenta> solo daría
+        # una entrada duplicada y vacía, porque bajo su propio owner real
+        # no hay ninguna película guardada. Cualquier OTRA cuenta Admin
+        # sí tiene su propia lista real y entra en el bucle normal.
+        if _is_bygui_persona(member.owner):
             continue
         owners.append((member.owner.username, member.owner.username, member.owner))
     return owners
@@ -870,17 +885,19 @@ def shared_hub(request):
 def own_list_share(request):
     """Gestionar con qué amigos compartes tu lista propia (solo lectura
     para ellos) — mismo patrón que el tablón de fotos (PhotoBoardMember).
-    Para Admin, esta pantalla es también la que decide quién tiene acceso
-    a "la lista de lasaladebygui" (ver _has_bygui_access) -- se avisa así
-    en el texto, para que quede claro que no es "una lista más", sino esa
-    misma que todo el mundo conoce con ese nombre."""
+    Para la cuenta lasaladebygui (y solo ella), esta pantalla es también
+    la que decide quién tiene acceso a "la lista de lasaladebygui" (ver
+    _has_bygui_access) -- se avisa así en el texto, para que quede claro
+    que no es "una lista más", sino esa misma que todo el mundo conoce
+    con ese nombre. Para cualquier otra cuenta (Admin incluida), esta
+    pantalla comparte su propia lista personal, sin más."""
     members = SecretListMember.objects.filter(owner=request.user).select_related("member")
     member_ids = {m.member_id for m in members}
     invitable_friends = [f for f in _shareable_friends(request.user) if f.pk not in member_ids]
     shared_with_me = SecretListMember.objects.filter(member=request.user).select_related("owner")
     return render(request, "secret/own_list_share.html", {
         "members": members, "invitable_friends": invitable_friends, "shared_with_me": shared_with_me,
-        "is_bygui": _is_admin(request.user),
+        "is_bygui": _is_bygui_persona(request.user),
     })
 
 
@@ -898,7 +915,7 @@ def own_list_share_invite(request, username):
     if request.method == "POST" and are_friends(request.user, friend):
         member, _ = SecretListMember.objects.get_or_create(owner=request.user, member=friend)
         if not _is_htmx(request):
-            list_label = "la lista de lasaladebygui" if _is_admin(request.user) else "tu lista"
+            list_label = "la lista de lasaladebygui" if _is_bygui_persona(request.user) else "tu lista"
             messages.success(request, f"{friend} ya puede ver {list_label}.")
     if _is_htmx(request):
         return render(request, "secret/_share_toggle_list.html", {"friend": friend, "member": member})
@@ -914,7 +931,7 @@ def own_list_share_kick(request, pk):
         member.delete()
         if _is_htmx(request):
             return render(request, "secret/_share_toggle_list.html", {"friend": friend, "member": None})
-        list_label = "la lista de lasaladebygui" if _is_admin(request.user) else "tu lista"
+        list_label = "la lista de lasaladebygui" if _is_bygui_persona(request.user) else "tu lista"
         messages.success(request, f"{friend} ya no puede ver {list_label}.")
     return redirect("secret:own-list-share")
 
