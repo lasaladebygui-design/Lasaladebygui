@@ -21,6 +21,7 @@ from .models import (
     Genre,
     PhotoBoardMember,
     RatingColorBand,
+    RatingGuide,
     ReleaseEvent,
     SecretListMember,
     SecretMovie,
@@ -238,13 +239,14 @@ class BygruiCodeAccessRestrictionTests(TestCase):
 
 
 class RatingColorBandTests(TestCase):
-    """Los tramos de color son de número arbitrario y los decide quien
-    administra (no un fijo "bueno/medio/malo") — ver rating_color en
-    apps/secret/models.py."""
+    """Los tramos de color son de número arbitrario y los decide cada
+    cuenta para su propia lista (no un fijo "bueno/medio/malo", y ya no
+    es un único ajuste para todo el sitio) — ver RatingGuide.rating_color
+    en apps/secret/models.py."""
 
     def setUp(self):
-        self.config = TopSecretConfig.load()
-        RatingColorBand.objects.filter(config=self.config).delete()
+        user = User.objects.create(email="rating_bands@test.local", role=User.Role.LECTOR)
+        self.config = RatingGuide.for_user(user)
 
     def test_nota_dentro_de_un_tramo_usa_su_color(self):
         RatingColorBand.objects.create(config=self.config, min_rating="1.0", max_rating="4.0", color="#FF0000", order=0)
@@ -310,17 +312,17 @@ class SecretMovieViewTests(TestCase):
         self.assertEqual(list(response.context["movies"]), [self.a, self.b])
 
     def test_lista_completa_enseña_el_icono_de_guia_si_hay_texto(self):
-        config = TopSecretConfig.load()
-        config.rating_guide = "A partir del 8 me lo pienso dos veces."
-        config.save()
+        guide = RatingGuide.for_user(self.admin)
+        guide.rating_guide = "A partir del 8 me lo pienso dos veces."
+        guide.save()
         response = self.client.get(reverse("secret:list"))
         self.assertContains(response, "rating-guide__toggle")
         self.assertContains(response, "A partir del 8 me lo pienso dos veces.")
 
     def test_lista_completa_no_enseña_el_icono_sin_guia(self):
-        config = TopSecretConfig.load()
-        config.rating_guide = ""
-        config.save()
+        guide = RatingGuide.for_user(self.admin)
+        guide.rating_guide = ""
+        guide.save()
         response = self.client.get(reverse("secret:list"))
         self.assertNotContains(response, "rating-guide__toggle")
 
@@ -1041,6 +1043,108 @@ class GenreManageTests(TestCase):
         response = self.client.post(reverse("secret:genre-delete", args=[genre.pk]))
         self.assertRedirects(response, f"{reverse('secret:genre-manage')}?scope=own")
         self.assertFalse(Genre.objects.filter(pk=genre.pk).exists())
+
+    def test_renombrar_lista_conserva_las_peliculas_que_la_tenian(self):
+        # Antes solo se podía borrar y recrear -- eso perdía qué
+        # películas tenían esa lista marcada. Renombrar en el sitio no.
+        _login(self.client, self.user)
+        genre = Genre.objects.create(name="Terror")
+        movie = SecretMovie.objects.create(title="Posesión infernal", personal_rating="8.0")
+        movie.genres.add(genre)
+
+        response = self.client.post(reverse("secret:genre-rename", args=[genre.pk]), {"name": "Terror clásico"})
+        self.assertRedirects(response, f"{reverse('secret:genre-manage')}?scope=own")
+        genre.refresh_from_db()
+        self.assertEqual(genre.name, "Terror clásico")
+        self.assertIn(genre, movie.genres.all())
+
+    def test_no_se_puede_renombrar_una_lista_ajena(self):
+        other = User.objects.create(email="genre_rename_other@test.local", role=User.Role.LECTOR, username="genre_rename_other")
+        ajena = Genre.objects.create(owner=other, name="Ajena")
+        _login(self.client, self.user)
+
+        response = self.client.post(reverse("secret:genre-rename", args=[ajena.pk]), {"name": "Hackeada"})
+        self.assertEqual(response.status_code, 404)
+        ajena.refresh_from_db()
+        self.assertEqual(ajena.name, "Ajena")
+
+
+class RatingGuidePerAccountTests(TestCase):
+    """La guía para entender la nota y sus tramos de color eran un único
+    ajuste para todo el sitio (el de lasaladebygui, ver TopSecretConfig
+    antes de este cambio) -- ahora cada cuenta tiene la suya propia (ver
+    RatingGuide), y editar la tuya no toca ni se ve afectada por la de
+    ninguna otra persona, Admin incluida."""
+
+    def setUp(self):
+        self.bygui = User.objects.create(email="rgpa_bygui@test.local", role=User.Role.ADMIN, username="lasaladebygui")
+        self.bygui.set_password("Testpass123!")
+        self.bygui.save()
+        RatingGuide.for_user(self.bygui)
+        RatingGuide.objects.filter(user=self.bygui).update(rating_guide="Guía de lasaladebygui.")
+
+        self.user = User.objects.create(email="rgpa_user@test.local", role=User.Role.LECTOR, username="rgpa_user")
+        self.user.set_password("Testpass123!")
+        self.user.save()
+
+    def test_editar_la_guia_propia_no_toca_la_de_lasaladebygui(self):
+        _login(self.client, self.user)
+        response = self.client.post(f"{reverse('secret:rating-guide')}?scope=own", {"rating_guide": "Mi propia guía."})
+        self.assertRedirects(response, f"{reverse('secret:rating-guide')}?scope=own")
+
+        self.assertEqual(RatingGuide.for_user(self.user).rating_guide, "Mi propia guía.")
+        self.assertEqual(RatingGuide.for_user(self.bygui).rating_guide, "Guía de lasaladebygui.")
+
+    def test_la_lista_de_un_usuario_normal_enseña_su_propia_guia_no_la_de_lasaladebygui(self):
+        RatingGuide.for_user(self.user)
+        RatingGuide.objects.filter(user=self.user).update(rating_guide="Solo mía.")
+        _login(self.client, self.user)
+
+        response = self.client.get(reverse("secret:list"))
+        self.assertContains(response, "Solo mía.")
+        self.assertNotContains(response, "Guía de lasaladebygui.")
+
+    def test_sin_edicion_no_se_puede_editar_la_guia(self):
+        friend = User.objects.create(email="rgpa_friend@test.local", role=User.Role.LECTOR, username="rgpa_friend")
+        friend.set_password("Testpass123!")
+        friend.save()
+        SecretListMember.objects.create(owner=self.bygui, member=friend)
+        _login(self.client, friend)
+
+        response = self.client.get(f"{reverse('secret:rating-guide')}?scope=bygui")
+        self.assertEqual(response.status_code, 404)
+
+    def test_no_se_pueden_tocar_los_tramos_de_color_de_otra_cuenta(self):
+        ajeno_band = RatingColorBand.objects.create(
+            config=RatingGuide.for_user(self.bygui), min_rating="1.0", max_rating="4.0", color="#ff0000", order=0,
+        )
+        _login(self.client, self.user)
+
+        response = self.client.post(reverse("secret:rating-guide-band-update", args=[ajeno_band.pk]), {
+            "min_rating": "1.0", "max_rating": "4.0", "color": "#000000", "order": "0",
+        })
+        self.assertEqual(response.status_code, 404)
+        ajeno_band.refresh_from_db()
+        self.assertEqual(ajeno_band.color, "#ff0000")
+
+    def test_anadir_editar_y_borrar_un_tramo_de_color_propio(self):
+        _login(self.client, self.user)
+
+        response = self.client.post(reverse("secret:rating-guide-band-add"), {
+            "min_rating": "1.0", "max_rating": "4.0", "color": "#ff0000", "order": "0", "scope": "own",
+        })
+        self.assertRedirects(response, f"{reverse('secret:rating-guide')}?scope=own")
+        band = RatingColorBand.objects.get(config__user=self.user)
+        self.assertEqual(RatingGuide.for_user(self.user).rating_color(2.5), "#ff0000")
+
+        self.client.post(reverse("secret:rating-guide-band-update", args=[band.pk]), {
+            "min_rating": "1.0", "max_rating": "4.0", "color": "#00ff00", "order": "0", "scope": "own",
+        })
+        band.refresh_from_db()
+        self.assertEqual(band.color, "#00ff00")
+
+        self.client.post(reverse("secret:rating-guide-band-delete", args=[band.pk]), {"scope": "own"})
+        self.assertFalse(RatingColorBand.objects.filter(pk=band.pk).exists())
 
 
 class GenreSortableAdminTests(TestCase):

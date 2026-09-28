@@ -2422,7 +2422,13 @@ main { flex: 1; }
     gap: calc(var(--space-unit) * 3);
     flex-wrap: wrap;
 }
-.genre-manage-row form { margin-left: auto; }
+/* Solo la última forma de la fila (borrar) se empuja a la derecha -- si
+   hubiera otra antes (p. ej. renombrar), debe quedarse a la izquierda. */
+.genre-manage-row form:last-of-type { margin-left: auto; }
+.genre-manage-row__name {
+    width: 12em;
+    max-width: 40vw;
+}
 
 .secret-movie__edit-poster {
     display: flex;

@@ -15,16 +15,13 @@ def _default_code_hash():
 
 class TopSecretConfig(SingletonModel):
     """Código de acceso al maletín Tarantino (se guarda hasheado, nunca en
-    texto plano) y punto de entrada a los tramos de color de la nota de la
-    lista completa (ver RatingColorBand) — cuántos tramos haya y de qué
-    nota a qué nota va cada uno se decide entero desde el admin."""
+    texto plano) -- uno solo para todo el sitio, es la puerta de entrada a
+    la sección, no a ninguna lista en concreto (eso lo decide después
+    _resolve_scope). La guía para entender la nota y sus colores viven
+    aparte, en RatingGuide: cada cuenta tiene la suya (ver ese modelo)."""
 
     access_code_hash = models.CharField(
         "código de acceso (hash)", max_length=128, default=_default_code_hash
-    )
-    rating_guide = models.TextField(
-        "guía para entender la lista", blank=True,
-        help_text="Explica tu criterio a la hora de puntuar (qué hunde una nota, qué la infla...). Se enseña colapsada, en un desplegable, en la lista completa.",
     )
     allow_web_editing = models.BooleanField(
         "permitir editar nota y listas desde la web", default=False,
@@ -38,8 +35,8 @@ class TopSecretConfig(SingletonModel):
     )
 
     class Meta:
-        verbose_name = "código de acceso y colores"
-        verbose_name_plural = "código de acceso y colores"
+        verbose_name = "código de acceso al maletín"
+        verbose_name_plural = "código de acceso al maletín"
 
     def __str__(self):
         return "Código de acceso al maletín Tarantino"
@@ -49,6 +46,35 @@ class TopSecretConfig(SingletonModel):
 
     def set_code(self, code):
         self.access_code_hash = make_password(code)
+
+
+class RatingGuide(models.Model):
+    """Guía para entender la nota de TU lista, y los tramos de color que
+    la acompañan (ver RatingColorBand) -- cada cuenta tiene la suya
+    propia, con su propio criterio: antes vivía en el TopSecretConfig
+    único del sitio, así que todo el mundo veía siempre la guía y los
+    colores de lasaladebygui, incluso mirando su propia lista. Se crea
+    sola (vacía) la primera vez que hace falta, ver `for_user`."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, verbose_name="cuenta", on_delete=models.CASCADE, related_name="rating_guide_config",
+    )
+    rating_guide = models.TextField(
+        "guía para entender la lista", blank=True,
+        help_text="Explica tu criterio a la hora de puntuar (qué hunde una nota, qué la infla...). Se enseña colapsada, en un desplegable, en la lista completa.",
+    )
+
+    class Meta:
+        verbose_name = "guía y colores de mi lista"
+        verbose_name_plural = "guía y colores de mi lista"
+
+    def __str__(self):
+        return f"Guía de {self.user}"
+
+    @classmethod
+    def for_user(cls, user):
+        obj, _created = cls.objects.get_or_create(user=user)
+        return obj
 
     def rating_color(self, personal_rating):
         band = (
@@ -64,7 +90,7 @@ class RatingColorBand(models.Model):
     fijo. El primer tramo cuyo rango incluya la nota es el que manda; si
     dos se solapan, gana el de menor `order`."""
 
-    config = models.ForeignKey(TopSecretConfig, on_delete=models.CASCADE, related_name="rating_bands")
+    config = models.ForeignKey(RatingGuide, on_delete=models.CASCADE, related_name="rating_bands")
     min_rating = models.DecimalField("nota mínima", max_digits=3, decimal_places=1)
     max_rating = models.DecimalField("nota máxima", max_digits=3, decimal_places=1)
     color = hex_field("#9CA3AF", "color")

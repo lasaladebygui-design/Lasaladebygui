@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Genre, SecretMovie, SecretPhoto, TierLevel
+from .models import Genre, RatingColorBand, RatingGuide, SecretMovie, SecretPhoto, TierLevel
 
 RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
 
@@ -113,6 +113,21 @@ class GenreQuickForm(forms.ModelForm):
         model = Genre
         fields = ["name"]
         labels = {"name": "Nombre de la lista nueva"}
+
+
+class RatingGuideForm(forms.ModelForm):
+    class Meta:
+        model = RatingGuide
+        fields = ["rating_guide"]
+        widgets = {"rating_guide": forms.Textarea(attrs={"rows": 10})}
+        labels = {"rating_guide": "Guía para entender tu lista"}
+
+
+class RatingColorBandForm(forms.ModelForm):
+    class Meta:
+        model = RatingColorBand
+        fields = ["min_rating", "max_rating", "color", "order"]
+        widgets = {"color": forms.TextInput(attrs={"type": "color"})}
 
 
 class CodeForm(forms.Form):

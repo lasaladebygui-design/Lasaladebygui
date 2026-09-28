@@ -33,6 +33,8 @@ from .forms import (
     FullListFilterForm,
     GenreQuickForm,
     NumberSelectForm,
+    RatingColorBandForm,
+    RatingGuideForm,
     RatingSearchForm,
     SecretMovieQuickEditForm,
     SecretPhotoForm,
@@ -43,6 +45,8 @@ from .models import (
     CalendarShareMember,
     Genre,
     PhotoBoardMember,
+    RatingColorBand,
+    RatingGuide,
     ReleaseEvent,
     SecretListMember,
     SecretMovie,
@@ -103,6 +107,18 @@ def _normalize_owner(owner_user):
     if owner_user is not None and _is_bygui_persona(owner_user):
         return None
     return owner_user
+
+
+def _rating_guide_for(owner):
+    """El RatingGuide (guía + colores) de la lista que se está mirando --
+    cada cuenta tiene la suya propia (ver RatingGuide), así que ya no es
+    "la misma explicación para todo el mundo mire la lista que mire".
+    `owner` es el valor que ya devuelve _resolve_scope: None es la cuenta
+    lasaladebygui, cualquier otro valor es directamente esa cuenta."""
+    if owner is None:
+        bygui = User.objects.filter(username=BYGUI_USERNAME).first()
+        return RatingGuide.for_user(bygui) if bygui else RatingGuide(rating_guide="")
+    return RatingGuide.for_user(owner)
 
 
 def _has_bygui_access(user):
@@ -438,7 +454,7 @@ def full_list(request):
         if prev_type is not None:
             querystring["prev_type"] = prev_type
 
-    rating_config = TopSecretConfig.load()
+    rating_config = _rating_guide_for(owner)
     context = {
         "movies": page_obj, "form": form, "rating_config": rating_config,
         "sort": sort, "querystring": querystring.urlencode(), "query": query,
@@ -464,7 +480,7 @@ def movie_detail(request, pk):
     owner, editable, scope = _resolve_scope(request)
     movie = get_object_or_404(_visible_movies(request.user, owner), pk=pk)
     return render(request, "secret/movie_detail.html", {
-        "movie": movie, "rating_config": TopSecretConfig.load(),
+        "movie": movie, "rating_config": _rating_guide_for(owner),
         "scope": scope, "editable": editable, "list_owner": owner,
         "can_add": scope == "own",
         "all_genres": Genre.objects.filter(owner=owner) if editable else Genre.objects.none(),
@@ -630,6 +646,106 @@ def genre_delete(request, pk):
         genre.delete()
         messages.success(request, f"Lista «{genre.name}» eliminada.")
     return redirect(f"{reverse('secret:genre-manage')}?scope={scope}")
+
+
+@secret_required
+@login_required
+def genre_rename(request, pk):
+    """Antes, corregir un typo en el nombre de una lista obligaba a
+    borrarla y crearla de nuevo -- perdiendo qué películas la tenían
+    marcada. Se edita en el sitio, sin salir de la fila."""
+    owner, editable, scope = _resolve_scope(request)
+    if not editable:
+        raise Http404
+    genre = get_object_or_404(Genre, pk=pk, owner=owner)
+    if request.method == "POST":
+        form = GenreQuickForm(request.POST, instance=genre)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Lista renombrada.")
+        else:
+            messages.error(request, "No se pudo renombrar (¿ya existe ese nombre?).")
+    return redirect(f"{reverse('secret:genre-manage')}?scope={scope}")
+
+
+@secret_required
+@login_required
+def rating_guide_view(request):
+    """Guía para entender la nota (texto) y sus tramos de color -- cada
+    cuenta tiene la suya propia, ver RatingGuide. Se gestiona igual que
+    las listas (Genre): en el sitio, sin pasar por el admin, mientras la
+    lista que se mira sea editable por quien la mira."""
+    owner, editable, scope = _resolve_scope(request)
+    if not editable:
+        raise Http404
+    guide = _rating_guide_for(owner)
+    if not guide.pk:
+        guide.save()
+    if request.method == "POST":
+        form = RatingGuideForm(request.POST, instance=guide)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Guía guardada.")
+            return redirect(f"{reverse('secret:rating-guide')}?scope={scope}")
+    else:
+        form = RatingGuideForm(instance=guide)
+    return render(request, "secret/rating_guide.html", {
+        "form": form, "bands": guide.rating_bands.all(), "band_form": RatingColorBandForm(),
+        "scope": scope,
+    })
+
+
+@secret_required
+@login_required
+def rating_guide_band_add(request):
+    owner, editable, scope = _resolve_scope(request)
+    if not editable:
+        raise Http404
+    guide = _rating_guide_for(owner)
+    if not guide.pk:
+        guide.save()
+    if request.method == "POST":
+        form = RatingColorBandForm(request.POST)
+        if form.is_valid():
+            band = form.save(commit=False)
+            band.config = guide
+            band.save()
+            messages.success(request, "Tramo de color añadido.")
+        else:
+            messages.error(request, "No se pudo añadir el tramo: revisa las notas mínima y máxima.")
+    return redirect(f"{reverse('secret:rating-guide')}?scope={scope}")
+
+
+@secret_required
+@login_required
+def rating_guide_band_update(request, pk):
+    owner, editable, scope = _resolve_scope(request)
+    if not editable:
+        raise Http404
+    guide = _rating_guide_for(owner)
+    band = get_object_or_404(RatingColorBand, pk=pk, config=guide)
+    if request.method == "POST":
+        form = RatingColorBandForm(request.POST, instance=band)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Tramo de color actualizado.")
+        else:
+            messages.error(request, "No se pudo guardar el tramo: revisa las notas mínima y máxima.")
+    return redirect(f"{reverse('secret:rating-guide')}?scope={scope}")
+
+
+@secret_required
+@login_required
+def rating_guide_band_delete(request, pk):
+    owner, editable, scope = _resolve_scope(request)
+    if not editable:
+        raise Http404
+    guide = _rating_guide_for(owner)
+    band = get_object_or_404(RatingColorBand, pk=pk, config=guide)
+    if request.method == "POST":
+        band.delete()
+        messages.success(request, "Tramo de color borrado.")
+    return redirect(f"{reverse('secret:rating-guide')}?scope={scope}")
 
 
 @secret_required

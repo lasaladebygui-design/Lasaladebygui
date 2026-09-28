@@ -15,6 +15,7 @@ from .models import (
     Genre,
     PhotoBoardMember,
     RatingColorBand,
+    RatingGuide,
     ReleaseEvent,
     SecretListMember,
     SecretMovie,
@@ -38,8 +39,7 @@ class TopSecretConfigForm(forms.ModelForm):
 
     class Meta:
         model = TopSecretConfig
-        fields = ["rating_guide", "allow_web_editing"]
-        widgets = {"rating_guide": forms.Textarea(attrs={"rows": 10})}
+        fields = ["allow_web_editing"]
 
     def save(self, commit=True):
         instance = super().save(commit=False)
@@ -51,11 +51,27 @@ class TopSecretConfigForm(forms.ModelForm):
         return instance
 
 
+@admin.register(TopSecretConfig)
+class TopSecretConfigAdmin(SingletonAdmin):
+    # La guía para entender la nota y sus colores ya NO viven aquí -- son
+    # de cada cuenta (ver RatingGuide más abajo): esto es solo el código
+    # de acceso al maletín (compartido para todo el sitio) y el
+    # interruptor de edición desde la web de la lista de lasaladebygui.
+    form = TopSecretConfigForm
+    fieldsets = (
+        (None, {"fields": ("new_code",)}),
+        ("Edición desde la web", {
+            "fields": ("allow_web_editing",),
+            "description": "Interruptor temporal para la lista de lasaladebygui: con esto activo, la nota, el desempate y las listas de cada película se pueden editar directamente en Lista completa, sin pasar por aquí. La lista propia de cada usuario siempre es editable, con o sin este interruptor.",
+        }),
+    )
+
+
 class RatingColorBandInline(admin.TabularInline):
     """Tantos tramos de nota→color como se quiera (no solo "bueno/medio/
     malo" fijo) — p. ej. "1 a 4: rojo", "4.1 a 7: naranja", "7.1 a 10: verde",
     o cualquier otro reparto. El primer tramo cuyo rango incluya la nota es
-    el que se usa (ver TopSecretConfig.rating_color)."""
+    el que se usa (ver RatingGuide.rating_color)."""
 
     model = RatingColorBand
     extra = 1
@@ -67,21 +83,34 @@ class RatingColorBandInline(admin.TabularInline):
         return super().formfield_for_dbfield(db_field, request, **kwargs)
 
 
-@admin.register(TopSecretConfig)
-class TopSecretConfigAdmin(SingletonAdmin):
-    form = TopSecretConfigForm
+@admin.register(RatingGuide)
+class RatingGuideAdmin(admin.ModelAdmin):
+    """Guía para entender la nota, y sus tramos de color -- una por
+    cuenta (antes era una sola para todo el sitio, la de lasaladebygui).
+    La gestión normal es desde la propia web (Top Secret → tu lista → ℹ️
+    guía); esto es para poder verlas/editarlas todas desde un mismo
+    sitio, o moderar la de alguien si hiciera falta."""
+
+    list_display = ("user", "rating_guide_preview", "band_count")
+    search_fields = ("user__username",)
+    autocomplete_fields = ("user",)
     inlines = [RatingColorBandInline]
     fieldsets = (
-        (None, {"fields": ("new_code",)}),
+        (None, {"fields": ("user",)}),
         ("Guía para entender la lista", {
             "fields": ("rating_guide",),
-            "description": "Se enseña colapsada, en un desplegable con un icono ℹ️, en Top Secret → Lista completa.",
-        }),
-        ("Edición desde la web", {
-            "fields": ("allow_web_editing",),
-            "description": "Interruptor temporal: con esto activo, la nota, el desempate y las listas de cada película se pueden editar directamente en Lista completa, sin pasar por aquí.",
+            "description": "Se enseña colapsada, en un desplegable con un icono ℹ️, en Top Secret → Lista completa — solo a quien mire ESTA lista, la de esta cuenta.",
         }),
     )
+
+    @admin.display(description="guía")
+    def rating_guide_preview(self, obj):
+        text = obj.rating_guide.strip()
+        return (text[:80] + "…") if len(text) > 80 else (text or "—")
+
+    @admin.display(description="tramos de color")
+    def band_count(self, obj):
+        return obj.rating_bands.count()
 
 
 @admin.register(TopSecretTab)
