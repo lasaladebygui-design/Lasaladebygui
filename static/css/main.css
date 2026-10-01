@@ -73,13 +73,21 @@ a:hover { color: var(--color-accent-secondary); }
 }
 
 @media (min-width: 1025px) {
-    /* En escritorio sobra sitio a los lados y las cabeceras/toolbars
-       se sienten encajonadas; el móvil y la tablet se quedan igual
-       que estaban (solo aplica a partir del corte de "escritorio"
-       que ya usa el resto de la hoja de estilos). +80px en vez de
-       +200px: el margen lateral se notaba demasiado con pantallas
-       anchas, esto lo deja de sobra pero sin ser tan llamativo. */
-    .wrap { max-width: calc(var(--max-content-width) + 80px); }
+    /* En escritorio sobra sitio a los lados; el móvil y la tablet se
+       quedan igual que estaban (solo aplica a partir del corte de
+       "escritorio" que ya usa el resto de la hoja de estilos).
+       min(…, 94vw): en monitores muy anchos no sigue creciendo sin
+       límite (se queda en +350px sobre el ancho configurado), y en
+       portátiles de escritorio más justos de ancho no se pega a los
+       bordes de la ventana. */
+    .wrap { max-width: min(calc(var(--max-content-width) + 350px), 94vw); }
+
+    /* La cabecera (menú + buscador/tema/perfil) se queda con un ancho
+       propio más corto que el del contenido: si creciera igual que el
+       resto, el botón de menú y el perfil quedarían cada uno pegado a
+       un extremo, con un hueco enorme en medio. Así quedan juntos,
+       aunque el contenido de debajo sí aproveche el ancho completo. */
+    .site-header .wrap.site-header__inner { max-width: min(1040px, 92vw); }
 }
 
 /* --- Header --------------------------------------------------------- */
