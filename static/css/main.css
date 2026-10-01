@@ -76,8 +76,10 @@ a:hover { color: var(--color-accent-secondary); }
     /* En escritorio sobra sitio a los lados y las cabeceras/toolbars
        se sienten encajonadas; el móvil y la tablet se quedan igual
        que estaban (solo aplica a partir del corte de "escritorio"
-       que ya usa el resto de la hoja de estilos). */
-    .wrap { max-width: calc(var(--max-content-width) + 200px); }
+       que ya usa el resto de la hoja de estilos). +80px en vez de
+       +200px: el margen lateral se notaba demasiado con pantallas
+       anchas, esto lo deja de sobra pero sin ser tan llamativo. */
+    .wrap { max-width: calc(var(--max-content-width) + 80px); }
 }
 
 /* --- Header --------------------------------------------------------- */
