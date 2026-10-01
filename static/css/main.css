@@ -83,11 +83,16 @@ a:hover { color: var(--color-accent-secondary); }
     .wrap { max-width: min(calc(var(--max-content-width) + 350px), 94vw); }
 
     /* La cabecera (menú + buscador/tema/perfil) se queda con un ancho
-       propio más corto que el del contenido: si creciera igual que el
-       resto, el botón de menú y el perfil quedarían cada uno pegado a
-       un extremo, con un hueco enorme en medio. Así quedan juntos,
-       aunque el contenido de debajo sí aproveche el ancho completo. */
-    .site-header .wrap.site-header__inner { max-width: min(1040px, 92vw); }
+       propio más corto que el del contenido, y además se deja de
+       repartir sus dos grupos a los extremos (space-between): en
+       escritorio se juntan de verdad en el centro de esa cabecera más
+       corta, en vez de solo estar "menos lejos" dentro de una caja más
+       pequeña. El contenido de debajo sigue aprovechando el ancho
+       completo; esto solo afecta a la cabecera. */
+    .site-header .wrap.site-header__inner {
+        max-width: min(1040px, 92vw);
+        justify-content: center;
+    }
 }
 
 /* --- Header --------------------------------------------------------- */
