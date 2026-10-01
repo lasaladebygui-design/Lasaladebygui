@@ -81,17 +81,11 @@ a:hover { color: var(--color-accent-secondary); }
        portátiles de escritorio más justos de ancho no se pega a los
        bordes de la ventana. */
     .wrap { max-width: min(calc(var(--max-content-width) + 350px), 94vw); }
-
-    /* La cabecera (menú a la izquierda, buscador/tema/marca/perfil a la
-       derecha) se queda con un ancho propio más corto que el del
-       contenido: sigue repartida a los dos extremos (space-between,
-       como siempre — el menú a la izquierda, el resto a la derecha),
-       pero al ser una caja más corta que el contenido de debajo, el
-       hueco entre ambos grupos es menor. El contenido de debajo sigue
-       aprovechando el ancho completo; esto solo afecta a la cabecera. */
-    .site-header .wrap.site-header__inner {
-        max-width: min(1040px, 92vw);
-    }
+    /* La cabecera usa el mismo ancho que el resto del contenido (sin
+       tope propio): con space-between, el menú queda pegado al
+       extremo izquierdo y el bloque de buscador/tema/marca/perfil al
+       extremo derecho, aprovechando todo el margen que se ganó arriba
+       en vez de dejarlo como hueco muerto en medio. */
 }
 
 /* --- Header --------------------------------------------------------- */
