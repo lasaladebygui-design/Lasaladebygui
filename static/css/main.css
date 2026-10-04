@@ -3772,14 +3772,31 @@ main { flex: 1; }
     font-size: 0.7rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 700;
     color: var(--color-text-muted); margin-bottom: calc(var(--space-unit) * 2);
 }
-/* A propósito, no es un .btn: solo quien administra ve este enlace, y
+/* A propósito, no es un .btn: solo quien administra ve este desplegable, y
    debe notarse lo justo para no competir con el resto de la cabecera
-   del calendario. */
-.cinema-strip-add {
-    font-size: 0.68rem; font-weight: 600; text-transform: none; letter-spacing: normal;
-    color: var(--color-text-muted); text-decoration: none; opacity: .75;
+   del calendario. El formulario se abre como un panel flotante (position:
+   absolute) para no empujar el grid del calendario hacia abajo. */
+.cinema-strip-add { position: relative; font-size: 0.68rem; }
+.cinema-strip-add > summary {
+    list-style: none; cursor: pointer; font-weight: 600; color: var(--color-text-muted); opacity: .75;
 }
-.cinema-strip-add:hover { color: var(--color-accent); opacity: 1; }
+.cinema-strip-add > summary::-webkit-details-marker { display: none; }
+.cinema-strip-add > summary:hover,
+.cinema-strip-add[open] > summary { color: var(--color-accent); opacity: 1; }
+.cinema-strip-add-form {
+    position: absolute; top: 100%; left: 0; margin-top: calc(var(--space-unit) * 2); z-index: 5;
+    display: flex; flex-direction: column; gap: calc(var(--space-unit) * 1.5);
+    width: 200px; background: var(--color-surface); border: 1px solid var(--color-border);
+    border-radius: var(--radius-base); padding: calc(var(--space-unit) * 3);
+    box-shadow: 0 8px 24px rgba(0,0,0,.25);
+}
+.cinema-strip-add-form input,
+.cinema-strip-add-form select {
+    font-size: 0.8rem; font-weight: 400; text-transform: none; letter-spacing: normal;
+    padding: calc(var(--space-unit) * 1) calc(var(--space-unit) * 1.5);
+    border: 1px solid var(--color-border); border-radius: calc(var(--radius-base) - 2px);
+    background: var(--color-bg); color: var(--color-text);
+}
 .cinema-strip {
     display: flex; gap: calc(var(--space-unit) * 3); overflow-x: auto; padding-bottom: calc(var(--space-unit) * 2);
 }

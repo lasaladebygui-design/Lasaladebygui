@@ -2135,6 +2135,45 @@ class CinemaStripTests(TestCase):
         with self.assertRaises(ProtectedError):
             self.category.delete()
 
+    def test_quien_no_es_superusuario_no_ve_el_desplegable_de_anadir(self):
+        response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
+        self.assertNotContains(response, "cinema-strip-add")
+
+    def test_quien_no_es_superusuario_no_puede_anadir_por_url_directa(self):
+        response = self.client.post(reverse("secret:cinema-release-add"), {
+            "title": "Intento", "category": self.category.pk, "release_date": "2026-03-15",
+        })
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(CinemaRelease.objects.count(), 0)
+
+    def test_superusuario_ve_el_desplegable_y_puede_anadir_desde_la_tira(self):
+        self.user.role = User.Role.ADMIN
+        self.user.save()
+
+        response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
+        self.assertContains(response, "cinema-strip-add")
+
+        response = self.client.post(reverse("secret:cinema-release-add"), {
+            "title": "Añadido desde el calendario", "category": self.category.pk,
+            "release_date": "2026-03-20", "note": "VOSE", "year": 2026, "month": 3,
+        })
+        self.assertRedirects(response, f"{reverse('secret:calendar')}?year=2026&month=3")
+        release = CinemaRelease.objects.get()
+        self.assertEqual(release.title, "Añadido desde el calendario")
+        self.assertEqual(release.category, self.category)
+        self.assertEqual(release.note, "VOSE")
+
+    def test_faltan_datos_no_crea_nada_y_avisa(self):
+        self.user.role = User.Role.ADMIN
+        self.user.save()
+
+        response = self.client.post(reverse("secret:cinema-release-add"), {
+            "title": "", "category": self.category.pk, "release_date": "2026-03-20",
+        }, follow=True)
+
+        self.assertEqual(CinemaRelease.objects.count(), 0)
+        self.assertContains(response, "Revisa el título, la categoría y la fecha del estreno.")
+
 
 @override_settings(GOOGLE_OAUTH_CLIENT_ID="client-id", GOOGLE_OAUTH_CLIENT_SECRET="client-secret")
 class CalendarGoogleSyncTests(TestCase):

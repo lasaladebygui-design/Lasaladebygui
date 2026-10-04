@@ -67,5 +67,6 @@ urlpatterns = [
     path("dentro/calendario/<int:pk>/quitar/", views.calendar_remove, name="calendar-remove"),
     path("dentro/calendario/<int:pk>/mover/", views.calendar_move_event, name="calendar-move"),
     path("dentro/calendario/nota/", views.calendar_day_note, name="calendar-day-note"),
+    path("dentro/calendario/cartelera/anadir/", views.cinema_release_add, name="cinema-release-add"),
     path("dentro/calendario/<str:username>/", views.calendar_view, name="calendar-shared"),
 ]

@@ -16,6 +16,7 @@ from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from apps.accounts.models import User
@@ -43,6 +44,7 @@ from .forms import (
 from .models import (
     CalendarDayNote,
     CalendarShareMember,
+    CinemaCategory,
     CinemaRelease,
     Genre,
     PhotoBoardMember,
@@ -1508,6 +1510,7 @@ def calendar_view(request, username=None):
     return render(request, "secret/calendar.html", {
         "weeks": weeks,
         "cinema_releases": cinema_releases,
+        "cinema_categories": CinemaCategory.objects.all() if request.user.is_superuser else CinemaCategory.objects.none(),
         "year": year,
         "month": month,
         "month_label": f"{MONTH_NAMES_ES[month]} {year}",
@@ -1521,6 +1524,37 @@ def calendar_view(request, username=None):
         "is_owner": is_owner,
         "shell_tab": "calendario",
     })
+
+
+@secret_required
+@login_required
+def cinema_release_add(request):
+    """Alta rápida de un estreno de cartelera desde la propia tira del
+    calendario, sin pasar por el admin -- solo para superusuarios, que
+    son quienes curan la cartelera (ver CinemaRelease)."""
+    if not request.user.is_superuser:
+        raise Http404
+
+    year = request.POST.get("year") or request.GET.get("year")
+    month = request.POST.get("month") or request.GET.get("month")
+    back = reverse("secret:calendar")
+    if year and month:
+        back = f"{back}?year={year}&month={month}"
+
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip()
+        category = CinemaCategory.objects.filter(pk=request.POST.get("category")).first()
+        release_date = parse_date(request.POST.get("release_date", ""))
+        note = request.POST.get("note", "").strip()
+        if not title or not category or not release_date:
+            messages.error(request, "Revisa el título, la categoría y la fecha del estreno.")
+        else:
+            CinemaRelease.objects.create(
+                title=title, category=category, release_date=release_date, note=note,
+            )
+            messages.success(request, f"«{title}» añadido a la cartelera.")
+
+    return redirect(back)
 
 
 @secret_required
