@@ -35,8 +35,8 @@ class TopSecretConfig(SingletonModel):
     )
 
     class Meta:
-        verbose_name = "código de acceso al maletín"
-        verbose_name_plural = "código de acceso al maletín"
+        verbose_name = "ajustes: código de acceso al maletín"
+        verbose_name_plural = "ajustes: código de acceso al maletín"
 
     def __str__(self):
         return "Código de acceso al maletín Tarantino"
@@ -65,8 +65,8 @@ class RatingGuide(models.Model):
     )
 
     class Meta:
-        verbose_name = "guía y colores de mi lista"
-        verbose_name_plural = "guía y colores de mi lista"
+        verbose_name = "ajustes: guía y colores (por cuenta)"
+        verbose_name_plural = "ajustes: guía y colores (por cuenta)"
 
     def __str__(self):
         return f"Guía de {self.user}"
@@ -136,7 +136,7 @@ class TopSecretTab(models.Model):
 
     class Meta:
         verbose_name = "orden de pestaña"
-        verbose_name_plural = "orden de las pestañas de arriba"
+        verbose_name_plural = "ajustes: orden de las pestañas de arriba"
         ordering = ["order"]
 
     def __str__(self):
@@ -178,8 +178,8 @@ class Genre(models.Model):
     order = models.PositiveIntegerField("orden", default=0)
 
     class Meta:
-        verbose_name = "lista"
-        verbose_name_plural = "listas"
+        verbose_name = "lista: tema"
+        verbose_name_plural = "lista: temas"
         ordering = ["order", "name"]
         constraints = [
             models.UniqueConstraint(fields=["name"], condition=Q(owner__isnull=True), name="nombre_unico_listas_bygui"),
@@ -255,7 +255,7 @@ class SecretMovie(models.Model):
         # "¿Eliminar la {verbose_name} X?", etc. con esto) — el plural es
         # lo que sale en el menú lateral del admin.
         verbose_name = "entrada a la lista completa"
-        verbose_name_plural = "películas enlistadas"
+        verbose_name_plural = "lista: películas"
         ordering = ["number"]
         constraints = [
             models.UniqueConstraint(fields=["number"], condition=Q(owner__isnull=True), name="numero_unico_lista_bygui"),
@@ -411,7 +411,7 @@ class SecretListMember(models.Model):
 
     class Meta:
         verbose_name = "permiso a la lista propia"
-        verbose_name_plural = "permisos a la lista propia"
+        verbose_name_plural = "lista: permisos para compartir"
         constraints = [
             models.UniqueConstraint(fields=["owner", "member"], name="un_acceso_por_dueno_y_miembro_lista"),
         ]
@@ -440,7 +440,7 @@ class CalendarShareMember(models.Model):
 
     class Meta:
         verbose_name = "permiso al calendario"
-        verbose_name_plural = "permisos al calendario"
+        verbose_name_plural = "calendario: permisos para compartir"
         constraints = [
             models.UniqueConstraint(fields=["owner", "member"], name="un_acceso_por_dueno_y_miembro_calendario"),
         ]
@@ -470,7 +470,7 @@ class PhotoBoardMember(models.Model):
 
     class Meta:
         verbose_name = "permiso al tablón de fotos"
-        verbose_name_plural = "permisos al tablón de fotos"
+        verbose_name_plural = "tablón: permisos para compartir"
         constraints = [
             models.UniqueConstraint(fields=["owner", "member"], name="un_acceso_por_dueno_y_miembro"),
         ]
@@ -504,7 +504,7 @@ class SecretPhoto(models.Model):
 
     class Meta:
         verbose_name = "foto del tablón"
-        verbose_name_plural = "tablón de fotos"
+        verbose_name_plural = "tablón: fotos"
         ordering = ["-created_at"]
 
     def __str__(self):
@@ -530,8 +530,8 @@ class ReleaseEvent(models.Model):
     google_event_id = models.CharField("id del evento en Google Calendar", max_length=255, blank=True)
 
     class Meta:
-        verbose_name = "estreno en el calendario"
-        verbose_name_plural = "estrenos en el calendario"
+        verbose_name = "estreno que sigo"
+        verbose_name_plural = "calendario: estrenos que sigo"
         ordering = ["date"]
         db_table = "movies_releaseevent"
 
@@ -551,7 +551,7 @@ class CalendarDayNote(models.Model):
 
     class Meta:
         verbose_name = "comentario del calendario"
-        verbose_name_plural = "comentarios del calendario"
+        verbose_name_plural = "calendario: comentarios"
         ordering = ["date"]
         db_table = "movies_calendardaynote"
         constraints = [
@@ -580,7 +580,7 @@ class CinemaCategory(models.Model):
 
     class Meta:
         verbose_name = "categoría de cine"
-        verbose_name_plural = "categorías de cine"
+        verbose_name_plural = "cartelera: categorías"
         ordering = ["order", "name"]
 
     def __str__(self):
@@ -607,7 +607,7 @@ class CinemaRelease(models.Model):
 
     class Meta:
         verbose_name = "estreno en cines"
-        verbose_name_plural = "estrenos en cines"
+        verbose_name_plural = "cartelera: estrenos"
         ordering = ["release_date", "title"]
 
     def __str__(self):

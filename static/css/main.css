@@ -3768,9 +3768,18 @@ main { flex: 1; }
    franja cuando hay algo que enseñar ese mes. */
 .cinema-strip-wrap { margin-bottom: calc(var(--space-unit) * 4); }
 .cinema-strip-label {
+    display: flex; align-items: center; gap: calc(var(--space-unit) * 2);
     font-size: 0.7rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 700;
     color: var(--color-text-muted); margin-bottom: calc(var(--space-unit) * 2);
 }
+/* A propósito, no es un .btn: solo quien administra ve este enlace, y
+   debe notarse lo justo para no competir con el resto de la cabecera
+   del calendario. */
+.cinema-strip-add {
+    font-size: 0.68rem; font-weight: 600; text-transform: none; letter-spacing: normal;
+    color: var(--color-text-muted); text-decoration: none; opacity: .75;
+}
+.cinema-strip-add:hover { color: var(--color-accent); opacity: 1; }
 .cinema-strip {
     display: flex; gap: calc(var(--space-unit) * 3); overflow-x: auto; padding-bottom: calc(var(--space-unit) * 2);
 }

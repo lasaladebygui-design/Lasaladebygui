@@ -476,12 +476,19 @@ DEFAULT_ADMIN_MENU_ORDER = [
     "games.OscarCategory", "games.OscarCandidate", "games.OscarVote",
     "games.Duel", "games.DuelRecord",
     "shop",
-    "secret", "secret.SecretMovie", "secret.Genre",
-    "secret.TierListEntry", "secret.TierLevel",
-    "secret.SecretPhoto", "secret.PhotoBoardMember",
-    "secret.ReleaseEvent", "secret.CalendarDayNote",
-    "secret.CinemaCategory", "secret.CinemaRelease",
-    "secret.TopSecretConfig", "secret.RatingGuide", "secret.TopSecretTab",
+    # Dentro de "secret" hay muchas pantallas (16) para una sola app de
+    # Django, y Jazzmin no tiene subcabeceras dentro de una app -- así
+    # que el agrupado real lo hacen dos cosas a la vez: el orden de aquí
+    # (los 6 bloques de abajo, cada uno con sus modelos juntos) y el
+    # prefijo "grupo: " en el verbose_name_plural de cada modelo (ver
+    # apps/secret/models.py), que es lo que de verdad se lee en el menú.
+    "secret",
+    "secret.SecretMovie", "secret.Genre", "secret.SecretListMember",  # Lista
+    "secret.TierListEntry", "secret.TierLevel",  # Tier list
+    "secret.SecretPhoto", "secret.PhotoBoardMember",  # Tablón
+    "secret.ReleaseEvent", "secret.CalendarDayNote", "secret.CalendarShareMember",  # Calendario
+    "secret.CinemaCategory", "secret.CinemaRelease",  # Cartelera
+    "secret.TopSecretConfig", "secret.RatingGuide", "secret.TopSecretTab",  # Ajustes
     "accounts",
     "core",
     "auth",
@@ -531,9 +538,15 @@ JAZZMIN_SETTINGS = {
         "secret.RatingGuide": "fas fa-palette",
         "secret.TopSecretTab": "fas fa-bars",
         "secret.SecretMovie": "fas fa-user-secret",
-        "secret.TierListEntry": "fas fa-layer-group",
-        "secret.SecretPhoto": "fas fa-images",
         "secret.Genre": "fas fa-icons",
+        "secret.SecretListMember": "fas fa-user-check",
+        "secret.TierListEntry": "fas fa-layer-group",
+        "secret.TierLevel": "fas fa-trophy",
+        "secret.SecretPhoto": "fas fa-images",
+        "secret.PhotoBoardMember": "fas fa-user-check",
+        "secret.ReleaseEvent": "fas fa-calendar-check",
+        "secret.CalendarDayNote": "fas fa-calendar-day",
+        "secret.CalendarShareMember": "fas fa-user-check",
         "secret.CinemaCategory": "fas fa-tags",
         "secret.CinemaRelease": "fas fa-ticket-alt",
         "social.FriendRequest": "fas fa-user-friends",
