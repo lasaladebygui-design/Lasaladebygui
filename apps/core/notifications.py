@@ -6,10 +6,27 @@ ya vivía, esto solo la reúne para enseñarla junta.
 
 Abrir la campanita resetea el número entero de golpe (ver
 `_after_last_seen` y `User.notifications_seen_at`): no hace falta entrar
-uno a uno en cada aviso para que deje de contar."""
+uno a uno en cada aviso para que deje de contar.
+
+`unread_notifications_count()` la llama `site_context` en CADA página (es
+un context processor), así que sin caché cada navegación pagaba 5 consultas
+`.count()` separadas solo para pintar el numerito de la campanita — mismo
+problema que ya se documentó y resolvió para `SiteConfig.load()` en
+`SingletonModel`, pero sin aplicárselo a esto. Se cachea con el mismo
+patrón, por el mismo motivo (ver el docstring de `SingletonModel`): el
+`cache.set` va detrás de `transaction.on_commit`, no en el momento de leer,
+para que en los tests (TestCase envuelve cada test en una transacción que
+se deshace al final) el `on_commit` nunca llegue a ejecutarse y por tanto
+nunca quede nada cacheado de una prueba a la siguiente, ni dentro de la
+misma prueba entre un `assertEqual` y el siguiente — sin este truco, los
+tests que crean un mensaje/artículo/aviso y comprueban el contador varias
+veces seguidas (sin pasar por `notifications_panel`) empezarían a fallar,
+sirviendo un número cacheado de hace un instante en vez de recalcular."""
 
 from datetime import timedelta
 
+from django.core.cache import cache
+from django.db import transaction
 from django.urls import reverse
 from django.utils import timezone
 
@@ -17,6 +34,7 @@ from .models import Announcement, SiteConfig
 
 RECENT_ARTICLES_DAYS = 30
 RECENT_PRODUCTS_DAYS = 30
+NOTIF_COUNT_CACHE_TTL = 20  # segundos
 
 
 def _joined_cutoff(user, days):
@@ -59,11 +77,27 @@ def _after_last_seen(queryset, user):
     return queryset
 
 
+def _notif_count_cache_key(user):
+    return f"unread_notif_count:{user.pk}"
+
+
+def invalidate_notifications_count(user):
+    """Llamar justo después de tocar `notifications_seen_at` (o cualquier
+    cosa que deba reflejarse ya, sin esperar al TTL) para que el próximo
+    cálculo sea exacto en vez de servir el valor cacheado anterior."""
+    cache.delete(_notif_count_cache_key(user))
+
+
 def unread_notifications_count(user):
     if user is None or not user.is_authenticated:
         return 0
     if not SiteConfig.load().notifications_bell_enabled:
         return 0
+
+    cache_key = _notif_count_cache_key(user)
+    count = cache.get(cache_key)
+    if count is not None:
+        return count
 
     from apps.social.models import FriendRequest, Message
 
@@ -73,6 +107,7 @@ def unread_notifications_count(user):
     count += Announcement.objects.exclude(read_by=user).filter(created_at__gte=user.date_joined).count()
     count += _after_last_seen(_unseen_articles(user), user).count()
     count += _after_last_seen(_unseen_products(user), user).count()
+    transaction.on_commit(lambda: cache.set(cache_key, count, NOTIF_COUNT_CACHE_TTL))
     return count
 
 

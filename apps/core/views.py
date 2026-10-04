@@ -16,7 +16,7 @@ from apps.articles.permissions import can_manage_private_articles
 
 from .forms import ContactForm
 from .models import SESSION_THEME_KEY, Announcement, ContactLink, SiteConfig, Theme, get_effective_theme
-from .notifications import notifications_feed, unread_notifications_count
+from .notifications import invalidate_notifications_count, notifications_feed, unread_notifications_count
 
 
 def home(request):
@@ -60,6 +60,7 @@ def notifications_panel(request):
         announcement.read_by.add(request.user)
     request.user.notifications_seen_at = timezone.now()
     request.user.save(update_fields=["notifications_seen_at"])
+    invalidate_notifications_count(request.user)  # que el recuento de abajo no sirva el valor cacheado de hace <20s
     response = render(request, "core/_notifications_panel.html", {"feed": feed})
     response["X-Notif-Remaining"] = str(unread_notifications_count(request.user))
     return response

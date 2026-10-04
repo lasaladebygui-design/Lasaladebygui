@@ -77,11 +77,22 @@ class RatingGuide(models.Model):
         return obj
 
     def rating_color(self, personal_rating):
-        band = (
-            self.rating_bands.filter(min_rating__lte=personal_rating, max_rating__gte=personal_rating)
-            .order_by("order").first()
-        )
-        return band.color if band else "#9CA3AF"
+        """Se llama una vez POR PELÍCULA al pintar una lista completa (hasta
+        24 por página) — antes cada llamada lanzaba su propia consulta
+        filtrando rating_bands, así que una página de 24 películas hacía 24
+        idas y vueltas a la base de datos solo para los colores (en Supabase,
+        con latencia de red real, eso se notaba como segundos de carga).
+        Los tramos se cargan una sola vez por instancia y se reutilizan en
+        memoria para el resto de llamadas de esta misma guía."""
+        for band in self._cached_bands():
+            if band.min_rating <= personal_rating <= band.max_rating:
+                return band.color
+        return "#9CA3AF"
+
+    def _cached_bands(self):
+        if not hasattr(self, "_bands_cache"):
+            self._bands_cache = list(self.rating_bands.order_by("order"))
+        return self._bands_cache
 
 
 class RatingColorBand(models.Model):
