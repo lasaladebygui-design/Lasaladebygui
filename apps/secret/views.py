@@ -43,6 +43,7 @@ from .forms import (
 from .models import (
     CalendarDayNote,
     CalendarShareMember,
+    CinemaRelease,
     Genre,
     PhotoBoardMember,
     RatingColorBand,
@@ -1497,8 +1498,16 @@ def calendar_view(request, username=None):
     prev_month_date = first_of_month - timedelta(days=1)
     next_month_date = (first_of_month + timedelta(days=32)).replace(day=1)
 
+    # Cartelera del mes (no es dato personal de "owner": es la misma para
+    # todo el mundo que mire este mes, la cura quien tenga acceso al
+    # admin — ver CinemaRelease/CinemaCategory).
+    cinema_releases = CinemaRelease.objects.filter(
+        release_date__year=year, release_date__month=month,
+    ).select_related("category", "movie")
+
     return render(request, "secret/calendar.html", {
         "weeks": weeks,
+        "cinema_releases": cinema_releases,
         "year": year,
         "month": month,
         "month_label": f"{MONTH_NAMES_ES[month]} {year}",

@@ -3762,6 +3762,35 @@ main { flex: 1; }
 .calendar-google-btn { opacity: 0.9; }
 .calendar-google-btn:hover { opacity: 1; }
 
+/* Tira de "en cines este mes": cartelera real curada desde el admin
+   (CinemaRelease/CinemaCategory), encima del grid del calendario --
+   el grid de abajo no cambia de forma por esto, solo se añade esta
+   franja cuando hay algo que enseñar ese mes. */
+.cinema-strip-wrap { margin-bottom: calc(var(--space-unit) * 4); }
+.cinema-strip-label {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 700;
+    color: var(--color-text-muted); margin-bottom: calc(var(--space-unit) * 2);
+}
+.cinema-strip {
+    display: flex; gap: calc(var(--space-unit) * 3); overflow-x: auto; padding-bottom: calc(var(--space-unit) * 2);
+}
+.cinema-card {
+    flex: none; width: 150px; display: flex; flex-direction: column; gap: 0.3rem;
+    background: var(--color-surface); border: 1px solid var(--color-border); border-top: 3px solid var(--cinema-accent, var(--color-accent));
+    border-radius: var(--radius-base); padding: calc(var(--space-unit) * 3);
+}
+.cinema-card__top { display: flex; align-items: center; justify-content: space-between; }
+.cinema-card__poster {
+    width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 15px; background: var(--cinema-accent, var(--color-accent)); flex: none;
+}
+.cinema-card__date { font-size: 0.7rem; color: var(--color-text-muted); }
+.cinema-card__title { font-size: 0.8rem; font-weight: 600; line-height: 1.25; color: var(--color-text); text-decoration: none; }
+a.cinema-card__title:hover { color: var(--cinema-accent, var(--color-accent)); }
+.cinema-card__genre { font-size: 0.68rem; color: var(--cinema-accent, var(--color-accent)); font-weight: 600; }
+.cinema-card__note { font-size: 0.68rem; color: var(--color-text-muted); font-style: italic; }
+@media (max-width: 640px) { .cinema-card { width: 130px; } }
+
 .calendar-nav {
     display: flex;
     align-items: center;

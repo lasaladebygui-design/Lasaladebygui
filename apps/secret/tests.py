@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db.models import ProtectedError
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -18,6 +19,8 @@ from .forms import SecretMovieForm
 from .models import (
     CalendarDayNote,
     CalendarShareMember,
+    CinemaCategory,
+    CinemaRelease,
     Genre,
     PhotoBoardMember,
     RatingColorBand,
@@ -2080,6 +2083,57 @@ class CalendarTests(TestCase):
         response = self.client.post(reverse("secret:calendar-day-note"), {"date": "2026-03-15", "note": "X"})
         self.assertRedirects(response, reverse("secret:gate"))
         self.assertFalse(CalendarDayNote.objects.filter(date=date(2026, 3, 15)).exists())
+
+
+class CinemaStripTests(TestCase):
+    """Tira de "en cines este mes" encima del calendario -- cartelera
+    pública curada desde el admin (CinemaCategory/CinemaRelease), igual
+    para cualquiera que mire ese mes, a diferencia del resto del
+    calendario que es por cuenta."""
+
+    def setUp(self):
+        self.user = User.objects.create(email="cines@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+        self.client.post(reverse("secret:gate"), {"code": "8888"})
+        self.category = CinemaCategory.objects.create(name="Terror", emoji="🩸", color="#ff3860")
+
+    def test_sin_estrenos_ese_mes_no_sale_la_tira(self):
+        response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
+        self.assertNotContains(response, "cinema-strip-wrap")
+
+    def test_un_estreno_ese_mes_sale_en_la_tira_con_su_emoji(self):
+        CinemaRelease.objects.create(title="Ejemplo de estreno", category=self.category, release_date=date(2026, 3, 15))
+        response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
+        self.assertContains(response, "cinema-strip-wrap")
+        self.assertContains(response, "Ejemplo de estreno")
+        self.assertContains(response, "🩸")
+
+    def test_un_estreno_de_otro_mes_no_sale(self):
+        CinemaRelease.objects.create(title="Mes equivocado", category=self.category, release_date=date(2026, 4, 1))
+        response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
+        self.assertNotContains(response, "Mes equivocado")
+
+    def test_estreno_con_pelicula_del_catalogo_enlaza_a_su_ficha(self):
+        movie = Movie.objects.create(tmdb_id=777, title="Con ficha", media_type="movie")
+        CinemaRelease.objects.create(title="Con ficha", category=self.category, release_date=date(2026, 3, 15), movie=movie)
+        response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
+        self.assertContains(response, reverse("movies:detail", args=[movie.pk]))
+
+    def test_estreno_sin_pelicula_del_catalogo_no_enlaza(self):
+        CinemaRelease.objects.create(title="Sin ficha", category=self.category, release_date=date(2026, 3, 15))
+        response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
+        # Sin película asociada, el título va en un <span>, no en un <a> —
+        # comprobamos la etiqueta exacta en vez de "no hay ningún enlace a
+        # /peliculas/ en la página", porque el menú principal sí tiene uno
+        # (a /peliculas/, el catálogo) sin relación con esta tira.
+        self.assertContains(response, '<span class="cinema-card__title">Sin ficha</span>')
+
+    def test_no_se_puede_borrar_una_categoria_con_estrenos(self):
+        CinemaRelease.objects.create(title="Depende de esta categoría", category=self.category, release_date=date(2026, 3, 15))
+        with self.assertRaises(ProtectedError):
+            self.category.delete()
 
 
 @override_settings(GOOGLE_OAUTH_CLIENT_ID="client-id", GOOGLE_OAUTH_CLIENT_SECRET="client-secret")

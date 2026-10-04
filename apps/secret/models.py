@@ -560,3 +560,55 @@ class CalendarDayNote(models.Model):
 
     def __str__(self):
         return f"{self.date:%d/%m/%Y} — {self.note} ({self.user})"
+
+
+class CinemaCategory(models.Model):
+    """Categoría temática para la tira de "en cines este mes" del
+    calendario (Terror, Acción, Animación...) -- un catálogo aparte del
+    de Genre: Genre son las listas personales de cada cuenta dentro de
+    Top Secret (gustos propios), esto es solo para clasificar qué se
+    estrena en cines cada mes, igual para todo el mundo. Se gestiona
+    desde su propia pantalla del admin (ver CinemaCategoryAdmin)."""
+
+    name = models.CharField("nombre", max_length=40, unique=True)
+    emoji = models.CharField(
+        "emoji", max_length=8,
+        help_text="Se usa como icono del póster en la tira de estrenos del calendario, p. ej. 🩸",
+    )
+    color = hex_field("#00e5ff", "color")
+    order = models.PositiveIntegerField("orden", default=0)
+
+    class Meta:
+        verbose_name = "categoría de cine"
+        verbose_name_plural = "categorías de cine"
+        ordering = ["order", "name"]
+
+    def __str__(self):
+        return f"{self.emoji} {self.name}"
+
+
+class CinemaRelease(models.Model):
+    """Un estreno real en cines, para la tira de "en cines este mes" que
+    se ve encima del calendario de Top Secret -- lo añade quien tenga
+    acceso al admin (es cartelera pública, no un dato personal de nadie,
+    así que no se gestiona desde la web como el resto del calendario)."""
+
+    title = models.CharField("título", max_length=200)
+    category = models.ForeignKey(
+        CinemaCategory, verbose_name="categoría", on_delete=models.PROTECT, related_name="releases",
+    )
+    release_date = models.DateField("fecha de estreno")
+    movie = models.ForeignKey(
+        Movie, verbose_name="película del catálogo (opcional)", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="+",
+        help_text="Si ya está en el catálogo, enlaza su ficha desde la tira. Si no, déjalo vacío.",
+    )
+    note = models.CharField("nota", max_length=120, blank=True, help_text="Ej: «Secuela», «Solo en VOSE»...")
+
+    class Meta:
+        verbose_name = "estreno en cines"
+        verbose_name_plural = "estrenos en cines"
+        ordering = ["release_date", "title"]
+
+    def __str__(self):
+        return f"{self.title} ({self.release_date:%d/%m/%Y})"

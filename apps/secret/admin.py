@@ -4,6 +4,8 @@ from django.db.models import Count
 from django.http import JsonResponse
 from django.urls import path
 
+from django.utils.safestring import mark_safe
+
 from apps.accounts.models import User
 from apps.core.admin import SingletonAdmin, SortableAdminMixin
 from apps.movies.models import Movie
@@ -12,6 +14,8 @@ from .forms import SecretMovieForm
 from .models import (
     CalendarDayNote,
     CalendarShareMember,
+    CinemaCategory,
+    CinemaRelease,
     Genre,
     PhotoBoardMember,
     RatingColorBand,
@@ -305,3 +309,41 @@ class CalendarDayNoteAdmin(admin.ModelAdmin):
     list_display = ("user", "date", "note")
     search_fields = ("user__username",)
     ordering = ("date",)
+
+
+@admin.register(CinemaCategory)
+class CinemaCategoryAdmin(SortableAdminMixin, admin.ModelAdmin):
+    """Pantalla propia a propósito (pedido explícito): las categorías y
+    sus emojis para la tira de "en cines" del calendario se gestionan
+    aquí, no como un inline escondido dentro de otro modelo."""
+
+    list_display = ("name", "emoji", "color_preview")
+    list_display_links = ("name", "emoji")
+    search_fields = ("name",)
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        if db_field.name == "color":
+            kwargs["widget"] = forms.TextInput(attrs={"type": "color"})
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
+
+    @admin.display(description="color")
+    def color_preview(self, obj):
+        return mark_safe(
+            f'<span style="display:inline-block;width:14px;height:14px;border-radius:50%;'
+            f'background:{obj.color};border:1px solid rgba(0,0,0,.25);vertical-align:-2px"></span> {obj.color}'
+        )
+
+
+@admin.register(CinemaRelease)
+class CinemaReleaseAdmin(admin.ModelAdmin):
+    """También en su propia pantalla, separada de CinemaCategory: aquí se
+    añaden los estrenos en sí, mes a mes — distinto ritmo de edición que
+    las categorías (que apenas cambian una vez definidas)."""
+
+    list_display = ("title", "category", "release_date", "movie")
+    list_display_links = ("title",)
+    list_filter = ("category",)
+    date_hierarchy = "release_date"
+    search_fields = ("title",)
+    autocomplete_fields = ("movie",)
+    ordering = ("-release_date",)
