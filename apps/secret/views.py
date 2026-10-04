@@ -1559,6 +1559,29 @@ def cinema_release_add(request):
 
 @secret_required
 @login_required
+def cinema_release_remove(request, pk):
+    """Quitar un estreno de la tira desde la propia tira (p. ej. "ya lo he
+    visto") sin pasar por el admin -- mismo permiso que el alta."""
+    if not request.user.is_superuser:
+        raise Http404
+
+    year = request.POST.get("year") or request.GET.get("year")
+    month = request.POST.get("month") or request.GET.get("month")
+    back = reverse("secret:calendar")
+    if year and month:
+        back = f"{back}?year={year}&month={month}"
+
+    if request.method == "POST":
+        release = get_object_or_404(CinemaRelease, pk=pk)
+        title = release.title
+        release.delete()
+        messages.success(request, f"«{title}» quitado de la cartelera.")
+
+    return redirect(back)
+
+
+@secret_required
+@login_required
 def calendar_share(request):
     """Gestionar con qué amigos compartes tu calendario (solo lectura para
     ellos) — mismo patrón que el tablón de fotos y tu lista propia."""

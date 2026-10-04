@@ -2174,6 +2174,33 @@ class CinemaStripTests(TestCase):
         self.assertEqual(CinemaRelease.objects.count(), 0)
         self.assertContains(response, "Revisa el título, la categoría y la fecha del estreno.")
 
+    def test_quien_no_es_superusuario_no_ve_el_boton_de_quitar(self):
+        CinemaRelease.objects.create(title="Visible", category=self.category, release_date=date(2026, 3, 15))
+        response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
+        self.assertNotContains(response, "cinema-card__remove-form")
+
+    def test_quien_no_es_superusuario_no_puede_quitar_por_url_directa(self):
+        release = CinemaRelease.objects.create(title="Visible", category=self.category, release_date=date(2026, 3, 15))
+        response = self.client.post(reverse("secret:cinema-release-remove", args=[release.pk]))
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(CinemaRelease.objects.filter(pk=release.pk).exists())
+
+    def test_superusuario_puede_quitar_un_estreno_ya_visto(self):
+        self.user.role = User.Role.ADMIN
+        self.user.save()
+        release = CinemaRelease.objects.create(title="Ya la he visto", category=self.category, release_date=date(2026, 3, 15))
+
+        response = self.client.get(reverse("secret:calendar"), {"year": 2026, "month": 3})
+        self.assertContains(response, "cinema-card__remove-form")
+
+        response = self.client.post(
+            reverse("secret:cinema-release-remove", args=[release.pk]),
+            {"year": 2026, "month": 3},
+        )
+
+        self.assertRedirects(response, f"{reverse('secret:calendar')}?year=2026&month=3")
+        self.assertFalse(CinemaRelease.objects.filter(pk=release.pk).exists())
+
 
 @override_settings(GOOGLE_OAUTH_CLIENT_ID="client-id", GOOGLE_OAUTH_CLIENT_SECRET="client-secret")
 class CalendarGoogleSyncTests(TestCase):

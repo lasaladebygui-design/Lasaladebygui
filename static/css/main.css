@@ -3801,10 +3801,23 @@ main { flex: 1; }
     display: flex; gap: calc(var(--space-unit) * 3); overflow-x: auto; padding-bottom: calc(var(--space-unit) * 2);
 }
 .cinema-card {
+    position: relative;
     flex: none; width: 150px; display: flex; flex-direction: column; gap: 0.3rem;
     background: var(--color-surface); border: 1px solid var(--color-border); border-top: 3px solid var(--cinema-accent, var(--color-accent));
     border-radius: var(--radius-base); padding: calc(var(--space-unit) * 3);
 }
+/* Quitar un estreno ("ya la he visto") sin que compita visualmente con
+   la tarjeta: solo una × pequeña en la esquina, apenas visible hasta
+   que se pasa el ratón por encima de la tarjeta. */
+.cinema-card__remove-form { position: absolute; top: 2px; right: 2px; z-index: 1; }
+.cinema-card__remove {
+    width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem; line-height: 1; border: none; border-radius: 50%;
+    background: transparent; color: var(--color-text-muted); opacity: 0; cursor: pointer;
+    transition: opacity .15s, color .15s, background .15s;
+}
+.cinema-card:hover .cinema-card__remove { opacity: .6; }
+.cinema-card__remove:hover { opacity: 1; color: var(--color-danger); background: var(--color-bg); }
 .cinema-card__top { display: flex; align-items: center; justify-content: space-between; }
 .cinema-card__poster {
     width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
