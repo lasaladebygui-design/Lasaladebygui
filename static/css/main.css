@@ -1137,7 +1137,6 @@ main { flex: 1; }
 }
 .activity-panel h2 { font-size: 1.15rem; margin: 0.2rem 0 0; }
 .activity-panel .activity-feed { max-height: 560px; overflow-y: auto; }
-.home-aside__cta { margin-top: calc(var(--space-unit) * 4); text-align: center; }
 
 .home-explore__title { font-size: 1.3rem; margin-bottom: calc(var(--space-unit) * 5); }
 .explore-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: calc(var(--space-unit) * 3); }
