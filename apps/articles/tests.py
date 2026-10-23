@@ -529,6 +529,19 @@ class NewArticleEmailTests(TestCase):
         })
         self.assertEqual(len(mail.outbox), 0)
 
+    def test_quitar_privado_vuelve_a_avisar_y_editarlo_despues_no(self):
+        gestor = make_user("gestor_republica@test.local", User.Role.GESTOR)
+        self.client.login(username=gestor.email, password="Testpass123!")
+        article = Article.objects.create(title="Oculto un tiempo", body="<p>x</p>", author=gestor, is_private=True)
+        url = reverse("articles:update", args=[article.slug])
+
+        self.client.post(url, {"title": article.title, "body": "<p>x</p>", "tags_input": ""})
+        self.assertIn(self.reader.email, {sent.to[0] for sent in mail.outbox})
+
+        mail.outbox.clear()
+        self.client.post(url, {"title": "Retocado", "body": "<p>x</p>", "tags_input": ""})
+        self.assertEqual(len(mail.outbox), 0)
+
     @patch("apps.articles.views.send_mail", side_effect=OSError("SMTP caído"))
     def test_un_fallo_de_smtp_no_rompe_la_publicacion(self, mock_send_mail):
         # Si el servidor de email falla (SMTP caído, credenciales mal

@@ -157,6 +157,26 @@ def _notify_users_of_new_article(request, article):
     logger.info("Aviso de artículo nuevo «%s»: %d/%d emails enviados.", article.title, sent, recipients.count())
 
 
+def announce_article(request, article):
+    """Push + email de "Nuevo artículo". Se llama cada vez que un artículo
+    pasa a público (`Article.just_published`): al crearlo, o al quitarle
+    "privado" más tarde, que vuelve a contar como publicación. El artículo
+    ya está guardado a estas alturas: un fallo al avisar nunca debe impedir
+    que se vea su página."""
+    try:
+        User = get_user_model()
+        subscribers = User.objects.filter(push_subscriptions__isnull=False).exclude(pk=article.author_id).distinct()
+        send_push_to_users(
+            subscribers,
+            title="Nuevo artículo",
+            body=article.title,
+            url=article.get_absolute_url(),
+        )
+        _notify_users_of_new_article(request, article)
+    except Exception:
+        logger.exception("Fallo al avisar del artículo nuevo «%s»", article.title)
+
+
 @login_required
 def article_create(request):
     if not can_create_articles(request.user):
@@ -170,22 +190,8 @@ def article_create(request):
             article.save()
             form.save_m2m()
             messages.success(request, "Artículo publicado.")
-            if not article.is_private:
-                # El artículo ya está guardado a estas alturas: un fallo al
-                # avisar (push o email) nunca debe impedir que se vea la
-                # página del artículo recién publicado.
-                try:
-                    User = get_user_model()
-                    subscribers = User.objects.filter(push_subscriptions__isnull=False).exclude(pk=article.author_id).distinct()
-                    send_push_to_users(
-                        subscribers,
-                        title="Nuevo artículo",
-                        body=article.title,
-                        url=article.get_absolute_url(),
-                    )
-                    _notify_users_of_new_article(request, article)
-                except Exception:
-                    logger.exception("Fallo al avisar del artículo nuevo «%s»", article.title)
+            if article.just_published:
+                announce_article(request, article)
             return redirect(article.get_absolute_url())
     else:
         form = ArticleForm(user=request.user)
@@ -202,8 +208,10 @@ def article_update(request, slug):
     if request.method == "POST":
         form = ArticleForm(request.POST, request.FILES, instance=article, user=request.user)
         if form.is_valid():
-            form.save()
+            article = form.save()
             messages.success(request, "Artículo actualizado.")
+            if article.just_published:
+                announce_article(request, article)
             return redirect(article.get_absolute_url())
     else:
         form = ArticleForm(instance=article, user=request.user)

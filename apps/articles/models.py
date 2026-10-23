@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.text import slugify
 
 from django_ckeditor_5.fields import CKEditor5Field
@@ -53,6 +54,10 @@ class Article(models.Model):
     )
     created_at = models.DateTimeField("fecha de publicación", auto_now_add=True)
     updated_at = models.DateTimeField("última edición", auto_now=True)
+    published_at = models.DateTimeField(
+        "publicado (último aviso)", null=True, blank=True, editable=False,
+        help_text="Se renueva cada vez que pasa de privado a público: la campanita avisa de nuevo desde esta fecha.",
+    )
 
     class Meta:
         verbose_name = "artículo"
@@ -71,6 +76,15 @@ class Article(models.Model):
                 suffix += 1
                 candidate = f"{base}-{suffix}"
             self.slug = candidate
+        # Cada vez que pasa a público (al crearlo, o al quitarle "privado"
+        # después) cuenta como publicación nueva: se renueva `published_at`
+        # y `just_published` le dice a quien guarda que toca avisar.
+        self.just_published = False
+        if not self.is_private:
+            was_public = bool(self.pk) and Article.objects.filter(pk=self.pk, is_private=False).exists()
+            if not was_public or self.published_at is None:
+                self.published_at = timezone.now()
+                self.just_published = not was_public
         super().save(*args, **kwargs)
 
     def get_absolute_url(self):

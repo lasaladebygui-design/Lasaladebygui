@@ -20,8 +20,7 @@
         <h1>{% if article.is_private %}🔒 {% endif %}{{ article.title }}</h1>
         {% if article.is_private %}<p class="muted">Privado — solo lo ven Gestores y Admin.</p>{% endif %}
         <p class="muted article-card__meta">
-            Por {% username_badge article.author "autor eliminado" %} · {{ article.created_at|date:"d/m/Y" }}
-            {% if article.updated_at|date:"YmdHi" != article.created_at|date:"YmdHi" %}· editado el {{ article.updated_at|date:"d/m/Y" }}{% endif %}
+            Por {% username_badge article.author "autor eliminado" %}
         </p>
 
         {% if can_edit or can_delete %}
@@ -57,7 +56,7 @@
         <ul class="comment-list">
             {% for comment in article.comments.all %}
             <li class="comment" id="comment-{{ comment.pk }}">
-                <p class="comment__meta">{% username_badge comment.author "usuario eliminado" %} · <span class="muted">{{ comment.created_at|date:"d/m/Y H:i" }}</span></p>
+                <p class="comment__meta">{% username_badge comment.author "usuario eliminado" %}</p>
                 <p class="comment__body">{{ comment.body|linebreaksbr }}</p>
             </li>
             {% empty %}

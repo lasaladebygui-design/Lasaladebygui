@@ -1097,6 +1097,40 @@ class NotificationsBellTests(TestCase):
         ArticleView.objects.create(article=article, user=self.user)
         self.assertEqual(unread_notifications_count(self.user), 0)
 
+    def test_un_articulo_ocultado_deja_de_avisar(self):
+        article = Article.objects.create(title="Se oculta", body="<p>x</p>", author=self.other)
+        self.assertEqual(unread_notifications_count(self.user), 1)
+
+        article.is_private = True
+        article.save()
+        self.assertEqual(unread_notifications_count(self.user), 0)
+
+    def test_un_articulo_que_se_vuelve_a_publicar_avisa_otra_vez(self):
+        from apps.articles.models import ArticleView
+
+        article = Article.objects.create(title="Vuelve", body="<p>x</p>", author=self.other)
+        ArticleView.objects.create(article=article, user=self.user)
+        self.client.get(reverse("core:notifications-panel"))
+        self.user.refresh_from_db()
+        self.assertEqual(unread_notifications_count(self.user), 0)
+
+        article.is_private = True
+        article.save()
+        article.is_private = False
+        article.save()
+        self.assertTrue(article.just_published)
+        self.assertEqual(unread_notifications_count(self.user), 1)
+        self.assertEqual(notifications_feed(self.user)[0]["kind"], "article")
+
+    def test_editar_un_articulo_publico_no_vuelve_a_avisar(self):
+        article = Article.objects.create(title="Original", body="<p>x</p>", author=self.other)
+        published_at = article.published_at
+
+        article.title = "Retocado"
+        article.save()
+        self.assertFalse(article.just_published)
+        self.assertEqual(article.published_at, published_at)
+
     def test_un_aviso_del_equipo_cuenta_hasta_que_se_abre_el_panel(self):
         Announcement.objects.create(title="Mantenimiento", body="El sábado a las 10.")
         self.assertEqual(unread_notifications_count(self.user), 1)

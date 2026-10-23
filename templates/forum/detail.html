@@ -16,7 +16,6 @@
             {% else %}
                 {% username_badge thread.author "usuario eliminado" %}
             {% endif %}
-            · {{ thread.created_at|date:"d/m/Y H:i" }}
         </p>
         <p class="thread-body">{{ thread.body|linebreaksbr }}</p>
 

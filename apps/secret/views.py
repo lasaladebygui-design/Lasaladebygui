@@ -34,7 +34,7 @@ from .forms import (
     FullListFilterForm,
     GenreQuickForm,
     NumberSelectForm,
-    RatingColorBandForm,
+    RatingColorBandFormSet,
     RatingGuideForm,
     RatingSearchForm,
     SecretMovieQuickEditForm,
@@ -48,7 +48,6 @@ from .models import (
     CinemaRelease,
     Genre,
     PhotoBoardMember,
-    RatingColorBand,
     RatingGuide,
     ReleaseEvent,
     SecretListMember,
@@ -429,6 +428,18 @@ def full_list(request):
                 output_field=IntegerField(),
             )
         ).order_by("type_order", "-personal_rating", "-tie_break", "number")
+    elif sort == "comments_first":
+        # Mismo agrupado que "Películas primero" (reutiliza `type_order`
+        # para los separadores): primero las que tienen comentario y luego
+        # el resto, cada grupo por nota de mayor a menor.
+        grouped_labels = {0: "💬 Con comentario", 1: "Sin comentario"}
+        movies = movies.annotate(
+            type_order=Case(
+                When(comment="", then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        ).order_by("type_order", "-personal_rating", "-tie_break", "number")
     else:
         sort = "desc"
         movies = movies.order_by("-personal_rating", "-tie_break", "number")
@@ -677,78 +688,43 @@ def rating_guide_view(request):
     """Guía para entender la nota (texto) y sus tramos de color -- cada
     cuenta tiene la suya propia, ver RatingGuide. Se gestiona igual que
     las listas (Genre): en el sitio, sin pasar por el admin, mientras la
-    lista que se mira sea editable por quien la mira."""
+    lista que se mira sea editable por quien la mira.
+
+    La guía y TODOS los tramos se guardan juntos en un único envío (un
+    formset, no un botón "Guardar" por fila): antes, editar dos tramos a
+    la vez y guardar solo uno perdía el otro cambio sin avisar, porque
+    cada fila recargaba la página entera por su cuenta."""
     owner, editable, scope = _resolve_scope(request)
     if not editable:
         raise Http404
     guide = _rating_guide_for(owner)
     if not guide.pk:
         guide.save()
+
     if request.method == "POST":
         form = RatingGuideForm(request.POST, instance=guide)
-        if form.is_valid():
+        formset = RatingColorBandFormSet(request.POST, queryset=guide.rating_bands.all(), prefix="band")
+        if form.is_valid() and formset.is_valid():
             form.save()
-            messages.success(request, "Guía guardada.")
-            return redirect(f"{reverse('secret:rating-guide')}?scope={scope}")
+            bands = formset.save(commit=False)
+            for band in bands:
+                band.config = guide
+                band.save()
+            for band in formset.deleted_objects:
+                band.delete()
+            if not _is_htmx(request):
+                messages.success(request, "Guía guardada.")
+                return redirect(f"{reverse('secret:rating-guide')}?scope={scope}")
+            # Formset fresco para que el intercambio por HTMX enseñe el
+            # estado ya guardado (con la fila en blanco nueva al final).
+            formset = RatingColorBandFormSet(queryset=guide.rating_bands.all(), prefix="band")
     else:
         form = RatingGuideForm(instance=guide)
-    return render(request, "secret/rating_guide.html", {
-        "form": form, "bands": guide.rating_bands.all(), "band_form": RatingColorBandForm(),
-        "scope": scope,
-    })
+        formset = RatingColorBandFormSet(queryset=guide.rating_bands.all(), prefix="band")
 
-
-@secret_required
-@login_required
-def rating_guide_band_add(request):
-    owner, editable, scope = _resolve_scope(request)
-    if not editable:
-        raise Http404
-    guide = _rating_guide_for(owner)
-    if not guide.pk:
-        guide.save()
-    if request.method == "POST":
-        form = RatingColorBandForm(request.POST)
-        if form.is_valid():
-            band = form.save(commit=False)
-            band.config = guide
-            band.save()
-            messages.success(request, "Tramo de color añadido.")
-        else:
-            messages.error(request, "No se pudo añadir el tramo: revisa las notas mínima y máxima.")
-    return redirect(f"{reverse('secret:rating-guide')}?scope={scope}")
-
-
-@secret_required
-@login_required
-def rating_guide_band_update(request, pk):
-    owner, editable, scope = _resolve_scope(request)
-    if not editable:
-        raise Http404
-    guide = _rating_guide_for(owner)
-    band = get_object_or_404(RatingColorBand, pk=pk, config=guide)
-    if request.method == "POST":
-        form = RatingColorBandForm(request.POST, instance=band)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Tramo de color actualizado.")
-        else:
-            messages.error(request, "No se pudo guardar el tramo: revisa las notas mínima y máxima.")
-    return redirect(f"{reverse('secret:rating-guide')}?scope={scope}")
-
-
-@secret_required
-@login_required
-def rating_guide_band_delete(request, pk):
-    owner, editable, scope = _resolve_scope(request)
-    if not editable:
-        raise Http404
-    guide = _rating_guide_for(owner)
-    band = get_object_or_404(RatingColorBand, pk=pk, config=guide)
-    if request.method == "POST":
-        band.delete()
-        messages.success(request, "Tramo de color borrado.")
-    return redirect(f"{reverse('secret:rating-guide')}?scope={scope}")
+    context = {"form": form, "formset": formset, "scope": scope}
+    template = "secret/_rating_guide_panel.html" if _is_htmx(request) else "secret/rating_guide.html"
+    return render(request, template, context)
 
 
 @secret_required
@@ -1572,10 +1548,14 @@ def cinema_release_remove(request, pk):
         back = f"{back}?year={year}&month={month}"
 
     if request.method == "POST":
-        release = get_object_or_404(CinemaRelease, pk=pk)
-        title = release.title
-        release.delete()
-        messages.success(request, f"«{title}» quitado de la cartelera.")
+        # Si ya no existe (p. ej. doble clic en la ×: la segunda petición
+        # llega cuando la primera ya lo ha borrado), no es un error: el
+        # resultado que se pedía ya está hecho, se vuelve sin más.
+        release = CinemaRelease.objects.filter(pk=pk).first()
+        if release is not None:
+            title = release.title
+            release.delete()
+            messages.success(request, f"«{title}» quitado de la cartelera.")
 
     return redirect(back)
 
@@ -1779,9 +1759,19 @@ def calendar_add(request, media_type, tmdb_id):
 @secret_required
 @login_required
 def calendar_remove(request, pk):
-    event = get_object_or_404(ReleaseEvent, pk=pk, user=request.user)
     if request.method != "POST":
         raise Http404
+    event = ReleaseEvent.objects.filter(pk=pk, user=request.user).first()
+    if event is None:
+        if ReleaseEvent.objects.filter(pk=pk).exists():
+            raise Http404  # existe, pero es de otra persona
+        # Ya borrado (doble clic en 🗑️, o dos pestañas): no es un error,
+        # se vuelve al mes desde el que se pulsó.
+        back = reverse("secret:calendar")
+        year, month = request.POST.get("year", ""), request.POST.get("month", "")
+        if year.isdigit() and month.isdigit():
+            back = f"{back}?year={year}&month={month}"
+        return redirect(back)
     year, month = event.date.year, event.date.month
 
     if event.google_event_id and hasattr(request.user, "google_calendar_connection"):

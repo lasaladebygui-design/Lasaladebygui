@@ -2552,6 +2552,11 @@ main { flex: 1; }
 .rating-guide__text { color: var(--color-text-muted); }
 .rating-guide__text p { margin-bottom: calc(var(--space-unit) * 3); }
 .rating-guide__text p:last-child { margin-bottom: 0; }
+.rating-guide__delete {
+    display: inline-flex; align-items: center; gap: calc(var(--space-unit));
+    cursor: pointer; margin-left: auto; color: var(--color-text-muted); font-size: 0.85rem;
+}
+.rating-guide__delete:hover { color: var(--color-danger); }
 
 /* --- Top Secret: selector de lista (la tuya / la de Bygui / la de un
    amigo que te la haya compartido) — ver templates/secret/_scope_banner.html,

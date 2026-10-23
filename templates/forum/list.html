@@ -42,7 +42,7 @@
                         {% if thread.is_new %}<span class="tag-pill tag-pill--new">🆕 nuevo</span>{% endif %}
                     </span>
                     <span class="muted thread-row__meta">
-                        {% username_badge thread.author "usuario eliminado" %} · {{ thread.created_at|date:"d/m/Y H:i" }} · {{ thread.comment_count }} respuesta{{ thread.comment_count|pluralize }}
+                        {% username_badge thread.author "usuario eliminado" %} · {{ thread.comment_count }} respuesta{{ thread.comment_count|pluralize }}
                     </span>
                 </a>
             </li>

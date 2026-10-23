@@ -4,6 +4,7 @@ from django.contrib import admin
 from apps.core.admin import SortableAdminMixin
 
 from .models import Article, ArticleComment, ArticleIdea, ArticleView, Tag
+from .views import announce_article
 
 
 @admin.register(Tag)
@@ -46,7 +47,7 @@ class ArticleAdmin(admin.ModelAdmin):
     # filter_horizontal (dos columnas con flechas) — un buscador con
     # resultados en vivo es mucho más cómodo, para autor y para listas.
     autocomplete_fields = ("author", "tags")
-    readonly_fields = ("created_at", "updated_at")
+    readonly_fields = ("created_at", "updated_at", "published_at")
     inlines = [ArticleCommentInline]
     actions = ["make_private", "make_public"]
     # Agrupados por lo que se toca a menudo (contenido, publicación) y lo
@@ -55,8 +56,13 @@ class ArticleAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {"fields": ("title", "cover", "body")}),
         ("Publicación", {"fields": ("author", "tags", "is_featured", "is_private")}),
-        ("Info", {"fields": ("created_at", "updated_at"), "classes": ("collapse",)}),
+        ("Info", {"fields": ("created_at", "updated_at", "published_at"), "classes": ("collapse",)}),
     )
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if obj.just_published:
+            announce_article(request, obj)
 
     def get_changeform_initial_data(self, request):
         # Al crear un artículo nuevo desde el admin, el autor eres tú por
@@ -72,7 +78,12 @@ class ArticleAdmin(admin.ModelAdmin):
 
     @admin.action(description="🌐 Marcar como públicos")
     def make_public(self, request, queryset):
-        queryset.update(is_private=False)
+        # Uno a uno en vez de `update()`: así pasa por `Article.save`, que
+        # renueva `published_at`, y se vuelve a avisar de cada uno.
+        for article in queryset.filter(is_private=True):
+            article.is_private = False
+            article.save()
+            announce_article(request, article)
 
 
 @admin.register(ArticleComment)

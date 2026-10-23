@@ -59,6 +59,16 @@ def _login(client, user, password="Testpass123!"):
     client.post(reverse("secret:gate"), {"code": "8888"})
 
 
+def _band_management_form(total=0, initial=0):
+    """Datos mínimos del management form que exige todo formset de Django
+    (ver RatingColorBandFormSet) -- sin esto, formset.is_valid() ni
+    siquiera llega a evaluarse, salta "ManagementForm data is missing"."""
+    return {
+        "band-TOTAL_FORMS": str(total), "band-INITIAL_FORMS": str(initial),
+        "band-MIN_NUM_FORMS": "0", "band-MAX_NUM_FORMS": "1000",
+    }
+
+
 def _unlock_without_login(client):
     """Sesión con el maletín ya desbloqueado pero SIN cuenta iniciada --
     ya no se puede llegar a este estado a través de gate() (que ahora
@@ -545,6 +555,15 @@ class SecretMovieViewTests(TestCase):
         response = self.client.get(reverse("secret:list"), {"sort": "series_first"})
         result = list(response.context["movies"])
         self.assertLess(result.index(serie_baja), result.index(peli_alta))
+
+    def test_ordenar_con_comentarios_primero(self):
+        comentada_baja = SecretMovie.objects.create(title="Comentada floja", personal_rating="2.0", comment="Ojo con el final")
+
+        response = self.client.get(reverse("secret:list"), {"sort": "comments_first"})
+        result = list(response.context["movies"])
+        self.assertEqual(result, [comentada_baja, self.a, self.b])
+        self.assertEqual(result[0].group_label, "💬 Con comentario")
+        self.assertEqual(result[1].group_label, "Sin comentario")
 
     def test_no_se_muestra_el_numero_interno_en_la_lista(self):
         response = self.client.get(reverse("secret:list"))
@@ -1092,7 +1111,10 @@ class RatingGuidePerAccountTests(TestCase):
 
     def test_editar_la_guia_propia_no_toca_la_de_lasaladebygui(self):
         _login(self.client, self.user)
-        response = self.client.post(f"{reverse('secret:rating-guide')}?scope=own", {"rating_guide": "Mi propia guía."})
+        response = self.client.post(f"{reverse('secret:rating-guide')}?scope=own", {
+            "rating_guide": "Mi propia guía.",
+            **_band_management_form(),
+        })
         self.assertRedirects(response, f"{reverse('secret:rating-guide')}?scope=own")
 
         self.assertEqual(RatingGuide.for_user(self.user).rating_guide, "Mi propia guía.")
@@ -1103,7 +1125,10 @@ class RatingGuidePerAccountTests(TestCase):
         RatingGuide.objects.filter(user=self.user).update(rating_guide="Solo mía.")
         _login(self.client, self.user)
 
-        response = self.client.get(reverse("secret:list"))
+        # La guía ya no va embebida en la lista: se carga en el sitio con
+        # un clic (hx-trigger="click once" en templates/secret/list.html),
+        # así que se comprueba pidiendo ese mismo fragmento por HTMX.
+        response = self.client.get(f"{reverse('secret:rating-guide')}?scope=own", HTTP_HX_REQUEST="true")
         self.assertContains(response, "Solo mía.")
         self.assertNotContains(response, "Guía de lasaladebygui.")
 
@@ -1118,35 +1143,71 @@ class RatingGuidePerAccountTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_no_se_pueden_tocar_los_tramos_de_color_de_otra_cuenta(self):
+        # La guía y los tramos se guardan juntos en un formset (ver
+        # RatingColorBandFormSet en rating_guide_view) cuyo queryset está
+        # restringido a los tramos de ESTA cuenta (guide.rating_bands, con
+        # guide = la guía de self.user) -- intentar colar el id de un
+        # tramo ajeno en la fila "extra" no lo asocia a ese tramo (las
+        # filas extra no resuelven "id" contra nada, solo crean), y el
+        # `config` de lo que sí se cree lo fuerza siempre el propio
+        # servidor a la guía de self.user (ver rating_guide_view), nunca
+        # a la de otra cuenta. El tramo ajeno queda intacto en cualquier
+        # caso.
         ajeno_band = RatingColorBand.objects.create(
             config=RatingGuide.for_user(self.bygui), min_rating="1.0", max_rating="4.0", color="#ff0000", order=0,
         )
         _login(self.client, self.user)
 
-        response = self.client.post(reverse("secret:rating-guide-band-update", args=[ajeno_band.pk]), {
-            "min_rating": "1.0", "max_rating": "4.0", "color": "#000000", "order": "0",
+        self.client.post(f"{reverse('secret:rating-guide')}?scope=own", {
+            "rating_guide": "",
+            **_band_management_form(total=1, initial=0),
+            "band-0-id": str(ajeno_band.pk),
+            "band-0-min_rating": "1.0", "band-0-max_rating": "4.0", "band-0-color": "#000000", "band-0-order": "0",
         })
-        self.assertEqual(response.status_code, 404)
         ajeno_band.refresh_from_db()
         self.assertEqual(ajeno_band.color, "#ff0000")
+        self.assertFalse(RatingColorBand.objects.filter(config__user=self.bygui).exclude(pk=ajeno_band.pk).exists())
 
     def test_anadir_editar_y_borrar_un_tramo_de_color_propio(self):
         _login(self.client, self.user)
 
-        response = self.client.post(reverse("secret:rating-guide-band-add"), {
-            "min_rating": "1.0", "max_rating": "4.0", "color": "#ff0000", "order": "0", "scope": "own",
+        # Añadir: la única fila que llega es la "extra" en blanco (sin id).
+        response = self.client.post(f"{reverse('secret:rating-guide')}?scope=own", {
+            "rating_guide": "",
+            **_band_management_form(total=1, initial=0),
+            "band-0-id": "", "band-0-min_rating": "1.0", "band-0-max_rating": "4.0",
+            "band-0-color": "#ff0000", "band-0-order": "0",
         })
         self.assertRedirects(response, f"{reverse('secret:rating-guide')}?scope=own")
         band = RatingColorBand.objects.get(config__user=self.user)
         self.assertEqual(RatingGuide.for_user(self.user).rating_color(2.5), "#ff0000")
 
-        self.client.post(reverse("secret:rating-guide-band-update", args=[band.pk]), {
-            "min_rating": "1.0", "max_rating": "4.0", "color": "#00ff00", "order": "0", "scope": "own",
+        # Editar: ahora hay 1 fila inicial (la que se acaba de crear) más
+        # la fila extra en blanco para seguir pudiendo añadir otra.
+        self.client.post(f"{reverse('secret:rating-guide')}?scope=own", {
+            "rating_guide": "",
+            **_band_management_form(total=2, initial=1),
+            "band-0-id": str(band.pk), "band-0-min_rating": "1.0", "band-0-max_rating": "4.0",
+            "band-0-color": "#00ff00", "band-0-order": "0",
+            # La fila extra "de verdad" en blanco lleva order=0 y
+            # color=#9CA3AF (sus valores por defecto en el modelo, lo que
+            # renderiza el widget sin tocar) -- mandarla con "" en esos dos
+            # campos no es una fila vacía para Django (has_changed() la ve
+            # distinta de su propio initial), y la valida entera pidiendo
+            # los campos obligatorios (min_rating/max_rating, sin default).
+            "band-1-id": "", "band-1-min_rating": "", "band-1-max_rating": "", "band-1-color": "#9CA3AF", "band-1-order": "0",
         })
         band.refresh_from_db()
         self.assertEqual(band.color, "#00ff00")
 
-        self.client.post(reverse("secret:rating-guide-band-delete", args=[band.pk]), {"scope": "own"})
+        # Borrar: misma fila, pero marcando su casilla DELETE.
+        self.client.post(f"{reverse('secret:rating-guide')}?scope=own", {
+            "rating_guide": "",
+            **_band_management_form(total=2, initial=1),
+            "band-0-id": str(band.pk), "band-0-min_rating": "1.0", "band-0-max_rating": "4.0",
+            "band-0-color": "#00ff00", "band-0-order": "0", "band-0-DELETE": "on",
+            "band-1-id": "", "band-1-min_rating": "", "band-1-max_rating": "", "band-1-color": "#9CA3AF", "band-1-order": "0",
+        })
         self.assertFalse(RatingColorBand.objects.filter(pk=band.pk).exists())
 
 
@@ -2039,6 +2100,13 @@ class CalendarTests(TestCase):
         self.assertRedirects(response, reverse("secret:calendar") + "?year=2026&month=3")
         self.assertFalse(ReleaseEvent.objects.filter(pk=event.pk).exists())
 
+    def test_quitar_dos_veces_no_da_error(self):
+        event = ReleaseEvent.objects.create(user=self.user, movie=self.movie, date=date(2026, 3, 15))
+        url = reverse("secret:calendar-remove", args=[event.pk])
+        self.client.post(url, {"year": "2026", "month": "3"})
+        response = self.client.post(url, {"year": "2026", "month": "3"})
+        self.assertRedirects(response, reverse("secret:calendar") + "?year=2026&month=3")
+
     def test_no_se_puede_quitar_un_evento_ajeno(self):
         other = User.objects.create(email="otro_quitar@test.local", role=User.Role.LECTOR)
         event = ReleaseEvent.objects.create(user=other, movie=self.movie, date=date(2026, 3, 15))
@@ -2200,6 +2268,16 @@ class CinemaStripTests(TestCase):
 
         self.assertRedirects(response, f"{reverse('secret:calendar')}?year=2026&month=3")
         self.assertFalse(CinemaRelease.objects.filter(pk=release.pk).exists())
+
+    def test_quitar_un_estreno_dos_veces_no_da_error(self):
+        self.user.role = User.Role.ADMIN
+        self.user.save()
+        release = CinemaRelease.objects.create(title="Doble clic", category=self.category, release_date=date(2026, 3, 15))
+        url = reverse("secret:cinema-release-remove", args=[release.pk])
+
+        self.client.post(url, {"year": 2026, "month": 3})
+        response = self.client.post(url, {"year": 2026, "month": 3})
+        self.assertRedirects(response, f"{reverse('secret:calendar')}?year=2026&month=3")
 
 
 @override_settings(GOOGLE_OAUTH_CLIENT_ID="client-id", GOOGLE_OAUTH_CLIENT_SECRET="client-secret")

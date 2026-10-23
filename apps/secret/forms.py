@@ -127,7 +127,27 @@ class RatingColorBandForm(forms.ModelForm):
     class Meta:
         model = RatingColorBand
         fields = ["min_rating", "max_rating", "color", "order"]
-        widgets = {"color": forms.TextInput(attrs={"type": "color"})}
+        widgets = {
+            # Sin un ancho explícito, el campo numérico se queda con el
+            # mínimo del navegador y las flechitas de subir/bajar se comen
+            # el dígito escrito encima (se ve vacío/solapado aunque sí
+            # tenga valor) -- ver el mismo ancho ya usado a mano en orden.
+            "min_rating": forms.NumberInput(attrs={"step": "0.1", "min": "0", "max": "10", "style": "width: 4.5em;"}),
+            "max_rating": forms.NumberInput(attrs={"step": "0.1", "min": "0", "max": "10", "style": "width: 4.5em;"}),
+            "color": forms.TextInput(attrs={"type": "color"}),
+            "order": forms.NumberInput(attrs={"style": "width: 4.5em;"}),
+        }
+
+
+# Los tramos de color se guardan TODOS juntos con la guía en un único envío
+# (ver rating_guide_view): antes cada fila tenía su propio botón "Guardar"
+# y una recarga de página aparte, así que editar varias filas a la vez
+# perdía las que no se habían guardado todavía -- un formset de Django es
+# el mecanismo pensado justo para esto (editar/añadir/borrar una lista de
+# filas del mismo modelo en un solo POST).
+RatingColorBandFormSet = forms.modelformset_factory(
+    RatingColorBand, form=RatingColorBandForm, extra=1, can_delete=True,
+)
 
 
 class CodeForm(forms.Form):

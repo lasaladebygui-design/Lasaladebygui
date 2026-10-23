@@ -47,15 +47,22 @@ def _joined_cutoff(user, days):
 
 
 def _unseen_articles(user):
-    from apps.articles.models import Article, ArticleView
-    from apps.articles.permissions import can_manage_private_articles
+    """Artículos públicos que no has leído desde su última publicación.
+    Cuenta `published_at`, no `created_at`: si un artículo se oculta
+    (privado) desaparece de la campanita para todos, y si se vuelve a
+    publicar avisa otra vez, aunque ya lo hubieras leído antes."""
+    from django.db.models import F
 
-    articles = Article.objects.exclude(
-        pk__in=ArticleView.objects.filter(user=user).values("article_id")
-    ).exclude(author=user)
-    if not can_manage_private_articles(user):
-        articles = articles.filter(is_private=False)
-    return articles.filter(created_at__gte=_joined_cutoff(user, RECENT_ARTICLES_DAYS))
+    from apps.articles.models import Article, ArticleView
+
+    read_since_published = ArticleView.objects.filter(
+        user=user, viewed_at__gte=F("article__published_at"),
+    ).values("article_id")
+    articles = (
+        Article.objects.filter(is_private=False, published_at__isnull=False)
+        .exclude(pk__in=read_since_published).exclude(author=user)
+    )
+    return articles.filter(published_at__gte=_joined_cutoff(user, RECENT_ARTICLES_DAYS))
 
 
 def _unseen_products(user):
@@ -67,13 +74,13 @@ def _unseen_products(user):
     return products.filter(created_at__gte=_joined_cutoff(user, RECENT_PRODUCTS_DAYS))
 
 
-def _after_last_seen(queryset, user):
+def _after_last_seen(queryset, user, field="created_at"):
     """Además de "sin leer/sin visitar" tal cual ya se filtraba, ignora lo
     que ya existía la última vez que se abrió la campanita — así abrirla
     resetea el número entero de golpe, sin tener que entrar uno a uno en
     cada aviso para que deje de contar."""
     if user.notifications_seen_at:
-        return queryset.filter(created_at__gt=user.notifications_seen_at)
+        return queryset.filter(**{f"{field}__gt": user.notifications_seen_at})
     return queryset
 
 
@@ -105,7 +112,7 @@ def unread_notifications_count(user):
     count += _after_last_seen(Message.objects.filter(recipient=user, read_at__isnull=True), user).count()
     count += _after_last_seen(FriendRequest.objects.filter(to_user=user, accepted=False), user).count()
     count += Announcement.objects.exclude(read_by=user).filter(created_at__gte=user.date_joined).count()
-    count += _after_last_seen(_unseen_articles(user), user).count()
+    count += _after_last_seen(_unseen_articles(user), user, "published_at").count()
     count += _after_last_seen(_unseen_products(user), user).count()
     transaction.on_commit(lambda: cache.set(cache_key, count, NOTIF_COUNT_CACHE_TTL))
     return count
@@ -164,13 +171,13 @@ def notifications_feed(user, limit_per_category=5):
             "created_at": ann.created_at,
         })
 
-    for article in _after_last_seen(_unseen_articles(user), user).order_by("-created_at")[:limit_per_category]:
+    for article in _after_last_seen(_unseen_articles(user), user, "published_at").order_by("-published_at")[:limit_per_category]:
         items.append({
             "kind": "article", "icon": "📰",
             "text": f"Nuevo artículo: {article.title}",
             "detail": "",
             "url": article.get_absolute_url(),
-            "created_at": article.created_at,
+            "created_at": article.published_at,
         })
 
     for product in _after_last_seen(_unseen_products(user), user).order_by("-created_at")[:limit_per_category]:
