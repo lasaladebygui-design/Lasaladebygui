@@ -164,12 +164,13 @@ def tmdb_get_details(tmdb_id, media_type="movie"):
     return response.json()
 
 
-def omdb_get_imdb_rating(imdb_id):
-    """Nota IMDb (0-10) de una película a partir de su imdb_id, vía OMDb.
-    Devuelve None si OMDb no tiene nota (p.ej. "N/A"), no encuentra el
-    título, o directamente falla la petición — a diferencia de TMDb, esto
-    es un dato complementario (ver `Movie.get_or_create_from_tmdb`): que
-    OMDb esté caído o sin cuota nunca debe impedir añadir la película."""
+def omdb_fetch_imdb_rating(imdb_id):
+    """Como `omdb_get_imdb_rating`, pero lanza MovieAPIError si la petición
+    falla (red, clave inválida o cuota diaria agotada — OMDb responde 401
+    con "Request limit reached!"). Lo usa `refresh_imdb_ratings`, que
+    necesita distinguir "OMDb no tiene nota" (None) de "OMDb no ha
+    contestado" para no machacar una nota buena ni seguir gastando
+    peticiones con la cuota ya agotada."""
     if not imdb_id:
         return None
     try:
@@ -179,11 +180,28 @@ def omdb_get_imdb_rating(imdb_id):
             timeout=REQUEST_TIMEOUT,
         )
         response.raise_for_status()
-    except requests.RequestException:
-        return None
+    except requests.RequestException as exc:
+        raise MovieAPIError("No se pudo contactar con OMDb.") from exc
 
     data = response.json()
-    rating = data.get("imdbRating")
+    if data.get("Response") == "False" and "limit" in (data.get("Error") or "").lower():
+        raise MovieAPIError("Cuota diaria de OMDb agotada.")
+    return _parse_imdb_rating(data.get("imdbRating"))
+
+
+def omdb_get_imdb_rating(imdb_id):
+    """Nota IMDb (0-10) de una película a partir de su imdb_id, vía OMDb.
+    Devuelve None si OMDb no tiene nota (p.ej. "N/A"), no encuentra el
+    título, o directamente falla la petición — a diferencia de TMDb, esto
+    es un dato complementario (ver `Movie.get_or_create_from_tmdb`): que
+    OMDb esté caído o sin cuota nunca debe impedir añadir la película."""
+    try:
+        return omdb_fetch_imdb_rating(imdb_id)
+    except MovieAPIError:
+        return None
+
+
+def _parse_imdb_rating(rating):
     if not rating or rating == "N/A":
         return None
     try:

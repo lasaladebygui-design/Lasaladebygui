@@ -1,9 +1,11 @@
 import json
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib import admin
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.accounts.models import User
 
@@ -933,3 +935,132 @@ class BackfillMovieRevenueTimeoutTests(TestCase):
 
         movie.refresh_from_db()
         self.assertEqual(movie.revenue, 1_000_000)
+
+
+class RefreshImdbRatingsTests(TestCase):
+    """refresh_imdb_ratings: renueva solo las notas con más de 30 días, sin
+    borrar una nota buena si OMDb ya no la tiene, y parando en seco si OMDb
+    falla (cuota agotada) para no gastar peticiones en balde."""
+
+    def _movie(self, tmdb_id, rating, days_ago):
+        checked = timezone.now() - timedelta(days=days_ago) if days_ago is not None else None
+        return Movie.objects.create(
+            tmdb_id=tmdb_id, title=f"Peli {tmdb_id}", imdb_id=f"tt{tmdb_id:07d}",
+            imdb_rating=rating, imdb_rating_checked_at=checked,
+        )
+
+    def _run(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        call_command("refresh_imdb_ratings", stdout=StringIO(), stderr=StringIO())
+
+    @override_settings(OMDB_API_KEY="fake-omdb-key")
+    @patch("apps.movies.management.commands.refresh_imdb_ratings.omdb_fetch_imdb_rating")
+    def test_solo_renueva_las_notas_antiguas(self, mock_fetch):
+        mock_fetch.return_value = 8.1
+        old = self._movie(1, "7.5", days_ago=40)
+        never = self._movie(2, "6.0", days_ago=None)
+        fresh = self._movie(3, "5.0", days_ago=3)
+        self._run()
+        old.refresh_from_db(); never.refresh_from_db(); fresh.refresh_from_db()
+        self.assertEqual(str(old.imdb_rating), "8.1")
+        self.assertEqual(str(never.imdb_rating), "8.1")
+        self.assertEqual(str(fresh.imdb_rating), "5.0")
+        self.assertEqual(mock_fetch.call_count, 2)
+
+    @override_settings(OMDB_API_KEY="fake-omdb-key")
+    @patch("apps.movies.management.commands.refresh_imdb_ratings.omdb_fetch_imdb_rating")
+    def test_sin_nota_en_omdb_conserva_la_anterior(self, mock_fetch):
+        mock_fetch.return_value = None
+        movie = self._movie(1, "7.5", days_ago=40)
+        self._run()
+        movie.refresh_from_db()
+        self.assertEqual(str(movie.imdb_rating), "7.5")
+        self.assertLess((timezone.now() - movie.imdb_rating_checked_at).days, 1)
+
+    @override_settings(OMDB_API_KEY="fake-omdb-key")
+    @patch("apps.movies.management.commands.refresh_imdb_ratings.omdb_fetch_imdb_rating")
+    def test_fallo_de_omdb_para_y_no_marca_como_comprobada(self, mock_fetch):
+        mock_fetch.side_effect = MovieAPIError("Cuota diaria de OMDb agotada.")
+        first = self._movie(1, "7.5", days_ago=40)
+        self._movie(2, "6.0", days_ago=50)
+        self._run()
+        first.refresh_from_db()
+        self.assertEqual(str(first.imdb_rating), "7.5")
+        self.assertEqual(mock_fetch.call_count, 1)
+        self.assertGreater((timezone.now() - first.imdb_rating_checked_at).days, 30)
+
+
+class SyncNewReleasesTests(TestCase):
+    """sync_new_releases: da de alta solo lo que no está ya en el catálogo,
+    sin duplicar lo que aparece en varios listados y respetando --limit."""
+
+    def _run(self, **kwargs):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        call_command("sync_new_releases", pages=1, stdout=StringIO(), stderr=StringIO(), **kwargs)
+
+    @override_settings(TMDB_API_KEY="fake-tmdb-key")
+    @patch("apps.movies.models.Movie.get_or_create_from_tmdb")
+    @patch("requests.get")
+    def test_anade_solo_los_que_faltan(self, mock_get, mock_create):
+        mock_get.return_value.raise_for_status.return_value = None
+        mock_get.return_value.json.return_value = {"results": [{"id": 10}, {"id": 11}]}
+        Movie.objects.create(tmdb_id=10, title="Ya está", media_type="movie")
+        mock_create.side_effect = lambda tmdb_id, media_type: Movie.objects.create(
+            tmdb_id=tmdb_id, title=f"Nueva {tmdb_id}", media_type=media_type,
+        )
+        self._run()
+        created = sorted((c.args[0], c.kwargs["media_type"]) for c in mock_create.call_args_list)
+        self.assertEqual(created, [(10, "tv"), (11, "movie"), (11, "tv")])
+
+    @override_settings(TMDB_API_KEY="fake-tmdb-key")
+    @patch("apps.movies.models.Movie.get_or_create_from_tmdb")
+    @patch("requests.get")
+    def test_respeta_el_limite(self, mock_get, mock_create):
+        mock_get.return_value.raise_for_status.return_value = None
+        mock_get.return_value.json.return_value = {"results": [{"id": i} for i in range(1, 30)]}
+        mock_create.side_effect = lambda tmdb_id, media_type: Movie.objects.create(
+            tmdb_id=tmdb_id, title=f"Nueva {tmdb_id}", media_type=media_type,
+        )
+        self._run(limit=5)
+        self.assertEqual(mock_create.call_count, 5)
+
+
+class DailyCatalogUpdateTests(TestCase):
+    """La actualización diaria se lanza como mucho una vez cada RUN_EVERY,
+    y nunca fuera del despliegue real (CATALOG_AUTO_UPDATE)."""
+
+    def setUp(self):
+        from . import maintenance
+
+        maintenance._next_check_at = 0.0
+
+    def test_claim_daily_run_solo_una_vez(self):
+        from .models import CatalogSync
+
+        self.assertTrue(CatalogSync.claim_daily_run(timedelta(hours=20)))
+        self.assertFalse(CatalogSync.claim_daily_run(timedelta(hours=20)))
+        CatalogSync.objects.filter(pk=1).update(last_started_at=timezone.now() - timedelta(hours=21))
+        self.assertTrue(CatalogSync.claim_daily_run(timedelta(hours=20)))
+
+    @override_settings(CATALOG_AUTO_UPDATE=False)
+    @patch("apps.movies.maintenance.subprocess.Popen")
+    def test_desactivada_no_lanza_nada(self, mock_popen):
+        self.client.get(reverse("movies:list"))
+        mock_popen.assert_not_called()
+
+    @override_settings(CATALOG_AUTO_UPDATE=True)
+    @patch("apps.movies.maintenance.subprocess.Popen")
+    def test_activada_lanza_update_catalog_una_vez(self, mock_popen):
+        from . import maintenance
+
+        self.client.get(reverse("movies:list"))
+        maintenance._next_check_at = 0.0
+        self.client.get(reverse("movies:list"))
+        self.assertEqual(mock_popen.call_count, 1)
+        self.assertIn("update_catalog", mock_popen.call_args.args[0])

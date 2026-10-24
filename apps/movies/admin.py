@@ -18,7 +18,7 @@ class MovieAdmin(admin.ModelAdmin):
     list_display = ("title", "media_type", "year", "imdb_rating", "votes_count_display", "created_at")
     list_filter = ("media_type",)
     search_fields = ("title", "tmdb_id", "imdb_id")
-    readonly_fields = ("tmdb_id", "imdb_id", "created_at")
+    readonly_fields = ("tmdb_id", "imdb_id", "imdb_rating_checked_at", "created_at")
 
     @admin.display(description="votos")
     def votes_count_display(self, obj):

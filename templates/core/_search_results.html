@@ -8,7 +8,7 @@
             {% for movie in movies %}
             <a href="{% url 'movies:detail' movie.pk %}" class="gsearch__item">
                 <span class="gsearch__thumb" aria-hidden="true">🎬</span>
-                <span>{{ movie.title }}{% if movie.year %} <small>{{ movie.year }}</small>{% endif %}</span>
+                <span>{{ movie.title }}{% if movie.year %} <small>{{ movie.year }}</small>{% endif %}{% if movie.imdb_rating %} <small>· IMDb {{ movie.imdb_rating }}</small>{% endif %}</span>
             </a>
             {% endfor %}
         </div>

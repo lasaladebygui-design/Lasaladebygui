@@ -32,6 +32,7 @@
                     <h3>{{ vote.movie.title }}</h3>
                     <p class="muted">{{ vote.movie.year }} {% if vote.movie.media_type == "tv" %}· Serie{% endif %}</p>
                     <span class="tag-pill">Tu nota: {{ vote.score }}</span>
+                    {% if vote.movie.imdb_rating %}<span class="tag-pill">IMDb {{ vote.movie.imdb_rating }}</span>{% endif %}
                 </div>
             </a>
             {% endfor %}

@@ -82,6 +82,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "apps.movies.maintenance.DailyCatalogUpdateMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -413,6 +414,12 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="") or (
 
 TMDB_API_KEY = env("TMDB_API_KEY", default="")
 OMDB_API_KEY = env("OMDB_API_KEY", default="")
+
+# Actualización diaria del catálogo (estrenos nuevos + notas IMDb renovadas),
+# disparada desde las visitas porque Render free no tiene cron — ver
+# apps/movies/maintenance.py. Activa por defecto solo en el despliegue real,
+# para no lanzar procesos ni gastar cuota de las APIs en local o en los tests.
+CATALOG_AUTO_UPDATE = env.bool("CATALOG_AUTO_UPDATE", default=IS_REAL_DEPLOY)
 
 # --- Notificaciones push (Web Push / VAPID) -------------------------------
 # Se generan una sola vez con `python manage.py generate_vapid_keys` y se

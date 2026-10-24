@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils import timezone
 
 from . import services
 
@@ -28,6 +29,10 @@ class Movie(models.Model):
     imdb_rating = models.DecimalField(
         "nota IMDb", max_digits=3, decimal_places=1, null=True, blank=True,
         help_text="Obtenida de OMDb (omdbapi.com). Vacía si OMDb no tiene nota para este título.",
+    )
+    imdb_rating_checked_at = models.DateTimeField(
+        "nota IMDb comprobada", null=True, blank=True,
+        help_text="Última vez que se pidió la nota a OMDb. `refresh_imdb_ratings` la renueva cada mes.",
     )
     revenue = models.BigIntegerField(
         "recaudación (USD)", null=True, blank=True,
@@ -90,6 +95,7 @@ class Movie(models.Model):
             poster_path=details.get("poster_path") or "",
             overview=details.get("overview") or "",
             imdb_rating=imdb_rating,
+            imdb_rating_checked_at=timezone.now() if imdb_rating is not None else None,
             revenue=revenue or None,
         )
 
@@ -100,6 +106,35 @@ class Movie(models.Model):
     @property
     def votes_count(self):
         return self.votes.count()
+
+
+class CatalogSync(models.Model):
+    """Una sola fila (pk=1) con la hora en que arrancó la última
+    actualización diaria del catálogo (`update_catalog`). Sirve de cerrojo:
+    `claim_daily_run` la adelanta con un UPDATE condicional, así que aunque
+    varios procesos de gunicorn lo intenten a la vez solo uno gana."""
+
+    last_started_at = models.DateTimeField("última actualización del catálogo", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "actualización del catálogo"
+        verbose_name_plural = "actualización del catálogo"
+
+    def __str__(self):
+        return f"Última actualización: {self.last_started_at or 'nunca'}"
+
+    @classmethod
+    def claim_daily_run(cls, min_interval):
+        """True si este proceso se queda con la actualización de hoy (han
+        pasado al menos `min_interval` desde la anterior)."""
+        now = timezone.now()
+        cls.objects.get_or_create(pk=1)
+        claimed = (
+            cls.objects.filter(pk=1)
+            .filter(models.Q(last_started_at__isnull=True) | models.Q(last_started_at__lt=now - min_interval))
+            .update(last_started_at=now)
+        )
+        return claimed == 1
 
 
 class Vote(models.Model):

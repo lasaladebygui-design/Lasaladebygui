@@ -249,6 +249,13 @@ Cada película se cachea una sola vez en el modelo `Movie` (`apps.movies.models.
 
 `python manage.py seed_movies` (opcional `--pages N`, por defecto 2) recorre "populares" y "mejor valoradas" de TMDb **y además tres franjas de `/discover/movie` por nota** (≤4, 4-6 y 6-7.5, cada una con un mínimo de votos para evitar títulos irrelevantes) para que el catálogo no quede sesgado hacia notas altas — si solo se usaran "populares"/"mejor valoradas", el Modo 1 de la ruleta se quedaría sin candidatas al elegir un rango de nota bajo. Resuelve la nota IMDb de cada película encontrada. Sin ejecutarlo, el catálogo empieza vacío y se va llenando según los usuarios añaden películas a su lista en el Modo 2.
 
+**El catálogo se actualiza solo cada día (`update_catalog`)**, sin cron ni nada que configurar: el plan free de Render no tiene tareas programadas, así que la primera visita de cada día lanza la actualización en un proceso aparte (sin retrasar la página). Lo controla `apps/movies/maintenance.py`, y el modelo `CatalogSync` guarda cuándo fue la última vez para que no se repita aunque haya varios procesos. Solo está activo en el despliegue real (`CATALOG_AUTO_UPDATE`, por defecto activo solo en Render). Hace dos cosas:
+
+- `sync_new_releases`: añade lo que está saliendo según TMDb, es decir, películas en cartelera y próximos estrenos en España, series en emisión y lo más visto de la semana. Añade como mucho 60 fichas nuevas al día.
+- `refresh_imdb_ratings`: vuelve a pedir a OMDb la nota de las fichas cuya nota lleva más de 30 días sin comprobarse (campo `imdb_rating_checked_at`), o más de 7 días si todavía no tenían nota (los estrenos). Las más antiguas van primero, como mucho 300 al día. Solo toca lo que ya está en el catálogo: no se descarga ninguna base de notas de IMDb. Si OMDb ya no tiene nota para un título, se conserva la anterior; si OMDb falla o se acaba la cuota, para y lo retoma al día siguiente.
+
+Entre las dos gastan como mucho 360 de las 1.000 peticiones diarias del plan gratuito de OMDb, así que queda margen para lo que se añade desde la web.
+
 Si ya habías ejecutado `seed_movies` antes de este cambio y notas huecos en ciertos rangos de nota, vuelve a ejecutarlo (es idempotente: no duplica lo que ya existe) para completar el catálogo con las franjas nuevas.
 
 **Buscar en `/peliculas/` no se limita al catálogo local:** si buscas un título que no está cacheado todavía, la página también consulta TMDb en vivo y muestra esos resultados en una sección aparte ("Más resultados"); al abrir uno se cachea igual que cualquier otra (título, portada, sinopsis y nota IMDb) y a partir de ahí ya cuenta para el Modo 1 de la ruleta y las votaciones.

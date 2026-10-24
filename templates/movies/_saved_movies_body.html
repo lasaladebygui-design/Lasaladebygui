@@ -74,6 +74,7 @@ Guardadas -- Quitar (🗑️) ya no redirige, va por HTMX y no lo necesita.
             <div class="movie-card__body">
                 <h3>{{ item.movie.title }}</h3>
                 <p class="muted">{{ item.movie.year }} {% if item.movie.media_type == "tv" %}· Serie{% endif %}</p>
+                {% if item.movie.imdb_rating %}<span class="tag-pill">IMDb {{ item.movie.imdb_rating }}</span>{% endif %}
             </div>
         </a>
         {% if sublists %}
