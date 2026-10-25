@@ -151,6 +151,7 @@ def movie_from_tmdb(request, media_type, tmdb_id):
 
 def movie_detail(request, pk):
     movie = get_object_or_404(Movie, pk=pk)
+    movie.ensure_imdb_rating()
     user_vote = None
     is_saved = False
     saved_lists = []

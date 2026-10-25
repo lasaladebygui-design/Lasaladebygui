@@ -515,7 +515,7 @@ class SecretMovieViewTests(TestCase):
         terror = Genre.objects.create(name="Terror")
         self.a.genres.add(terror)
 
-        response = self.client.get(reverse("secret:list"), {"f": "1", "no_genres": [terror.slug]})
+        response = self.client.get(reverse("secret:list"), {"apply": "1", "no_genres": [terror.slug]})
         self.assertEqual(list(response.context["movies"]), [self.b])
 
     def test_lista_completa_ver_y_no_ver_a_la_vez(self):
@@ -524,14 +524,14 @@ class SecretMovieViewTests(TestCase):
         self.a.genres.add(terror, slasher)
         self.b.genres.add(terror)
 
-        response = self.client.get(reverse("secret:list"), {"f": "1", "genres": [terror.slug], "no_genres": [slasher.slug]})
+        response = self.client.get(reverse("secret:list"), {"apply": "1", "genres": [terror.slug], "no_genres": [slasher.slug]})
         self.assertEqual(list(response.context["movies"]), [self.b])
 
     def test_lista_en_ver_y_no_ver_avisa_y_gana_no_ver(self):
         terror = Genre.objects.create(name="Terror")
         self.a.genres.add(terror)
 
-        response = self.client.get(reverse("secret:list"), {"f": "1", "genres": [terror.slug], "no_genres": [terror.slug]})
+        response = self.client.get(reverse("secret:list"), {"apply": "1", "genres": [terror.slug], "no_genres": [terror.slug]})
         self.assertEqual(list(response.context["movies"]), [self.b])
         self.assertEqual(response.context["conflict_genres"], [terror])
         self.assertContains(response, "a la vez en Ver y en No ver")
@@ -539,7 +539,7 @@ class SecretMovieViewTests(TestCase):
     def test_filtro_de_listas_se_mantiene_al_volver(self):
         terror = Genre.objects.create(name="Terror")
         self.a.genres.add(terror)
-        self.client.get(reverse("secret:list"), {"f": "1", "no_genres": [terror.slug]})
+        self.client.get(reverse("secret:list"), {"apply": "1", "no_genres": [terror.slug]})
 
         response = self.client.get(reverse("secret:list"))
         self.assertEqual(list(response.context["movies"]), [self.b])
@@ -549,7 +549,7 @@ class SecretMovieViewTests(TestCase):
         terror = Genre.objects.create(name="Terror")
         gore = Genre.objects.create(name="Gore")
         self.a.genres.add(terror)
-        self.client.get(reverse("secret:list"), {"f": "1", "genres": [gore.slug], "no_genres": [terror.slug]})
+        self.client.get(reverse("secret:list"), {"apply": "1", "genres": [gore.slug], "no_genres": [terror.slug]})
         self.client.logout()
 
         otro = Client()
@@ -558,10 +558,31 @@ class SecretMovieViewTests(TestCase):
         self.assertEqual(response.context["see_slugs"], [gore.slug])
         self.assertEqual(response.context["hide_slugs"], [terror.slug])
 
+    def test_cambiar_tipo_orden_o_buscar_no_borra_el_filtro_guardado(self):
+        # Esos botones envían el mismo formulario: si la página aún no había
+        # marcado las casillas, antes se guardaba un filtro vacío.
+        terror = Genre.objects.create(name="Terror")
+        self.a.genres.add(terror)
+        self.client.get(reverse("secret:list"), {"apply": "1", "no_genres": [terror.slug]})
+
+        self.client.get(reverse("secret:list"), {"type": "movie"})
+        self.client.get(reverse("secret:list"), {"sort": "asc", "q": ""})
+        response = self.client.get(reverse("secret:list"))
+        self.assertEqual(list(response.context["movies"]), [self.b])
+        self.assertContains(response, 'value="%s" x-model="hide" checked' % terror.slug)
+
+    def test_filtro_sin_aplicar_se_usa_pero_no_se_guarda(self):
+        terror = Genre.objects.create(name="Terror")
+        self.a.genres.add(terror)
+        response = self.client.get(reverse("secret:list"), {"no_genres": [terror.slug]})
+        self.assertEqual(list(response.context["movies"]), [self.b])
+        response = self.client.get(reverse("secret:list"))
+        self.assertEqual(list(response.context["movies"]), [self.a, self.b])
+
     def test_quitar_filtros_borra_el_filtro_guardado(self):
         terror = Genre.objects.create(name="Terror")
         self.a.genres.add(terror)
-        self.client.get(reverse("secret:list"), {"f": "1", "no_genres": [terror.slug]})
+        self.client.get(reverse("secret:list"), {"apply": "1", "no_genres": [terror.slug]})
 
         self.client.get(reverse("secret:list"), {"clear": "1"})
         response = self.client.get(reverse("secret:list"))
@@ -570,9 +591,9 @@ class SecretMovieViewTests(TestCase):
     def test_aplicar_sin_marcar_nada_borra_el_filtro_guardado(self):
         terror = Genre.objects.create(name="Terror")
         self.a.genres.add(terror)
-        self.client.get(reverse("secret:list"), {"f": "1", "genres": [terror.slug]})
+        self.client.get(reverse("secret:list"), {"apply": "1", "genres": [terror.slug]})
 
-        self.client.get(reverse("secret:list"), {"f": "1"})
+        self.client.get(reverse("secret:list"), {"apply": "1"})
         response = self.client.get(reverse("secret:list"))
         self.assertEqual(list(response.context["movies"]), [self.a, self.b])
 
@@ -763,7 +784,7 @@ class SharedListFilterTests(TestCase):
         self.risa.genres.add(self.comedia)
 
         _login(self.client, self.owner)
-        self.client.get(reverse("secret:list"), {"f": "1", "no_genres": [self.terror.slug]})
+        self.client.get(reverse("secret:list"), {"apply": "1", "no_genres": [self.terror.slug]})
 
         self.friend_client = Client()
         _login(self.friend_client, self.friend)
@@ -778,7 +799,7 @@ class SharedListFilterTests(TestCase):
         self.assertContains(response, "🔒 Las listas con candado las ha ocultado duenofiltro")
 
     def test_quien_ve_la_lista_no_puede_quitar_el_no_ver_del_dueno(self):
-        response = self._friend_list(f="1", genres=[self.terror.slug])
+        response = self._friend_list(apply="1", genres=[self.terror.slug])
         self.assertNotIn(self.miedo, list(response.context["movies"]))
         response = self._friend_list(clear="1")
         self.assertEqual(list(response.context["movies"]), [self.risa])
@@ -794,7 +815,7 @@ class SharedListFilterTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_los_filtros_de_quien_ve_la_lista_van_solo_en_su_sesion(self):
-        response = self._friend_list(f="1", no_genres=[self.comedia.slug])
+        response = self._friend_list(apply="1", no_genres=[self.comedia.slug])
         self.assertEqual(list(response.context["movies"]), [])
         # Se mantienen mientras dure su sesión...
         self.assertEqual(list(self._friend_list().context["movies"]), [])

@@ -99,6 +99,43 @@ class Movie(models.Model):
             revenue=revenue or None,
         )
 
+    def ensure_imdb_rating(self):
+        """Si la ficha no tiene nota IMDb, la pide en el momento (y el id de
+        IMDb a TMDb si también falta) -- se llama al abrir una ficha, para
+        que cualquier película que se busque y se abra la tenga sin esperar
+        a la renovación diaria (refresh_imdb_ratings). Como mucho un intento
+        al día por película, para no gastar cuota de OMDb en las que de
+        verdad no tienen nota; y un fallo de TMDb/OMDb nunca rompe la página."""
+        from datetime import timedelta
+        from decimal import Decimal
+
+        from django.core.cache import cache
+
+        if self.imdb_rating is not None or not self.pk or not settings.OMDB_API_KEY:
+            return
+        if not cache.add(f"imdb_rating_try:{self.pk}", True, int(timedelta(days=1).total_seconds())):
+            return
+
+        imdb_id = self.imdb_id
+        if not imdb_id and settings.TMDB_API_KEY:
+            try:
+                details = services.tmdb_get_details(self.tmdb_id, media_type=self.media_type)
+            except services.MovieAPIError:
+                details = {}
+            imdb_id = (details.get("external_ids") or {}).get("imdb_id") or ""
+        rating = services.omdb_get_imdb_rating(imdb_id) if imdb_id else None
+
+        fields = {}
+        if imdb_id and imdb_id != self.imdb_id:
+            fields["imdb_id"] = imdb_id
+        if rating is not None:
+            fields["imdb_rating"] = Decimal(str(rating))
+            fields["imdb_rating_checked_at"] = timezone.now()
+        if fields:
+            type(self).objects.filter(pk=self.pk).update(**fields)
+            for name, value in fields.items():
+                setattr(self, name, value)
+
     @property
     def average_score(self):
         return self.votes.aggregate(models.Avg("score"))["score__avg"]

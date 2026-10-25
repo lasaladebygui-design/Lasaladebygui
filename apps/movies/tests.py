@@ -993,6 +993,24 @@ class RefreshImdbRatingsTests(TestCase):
         self.assertGreater((timezone.now() - first.imdb_rating_checked_at).days, 30)
 
 
+    @override_settings(OMDB_API_KEY="fake-omdb-key")
+    @patch("apps.movies.management.commands.refresh_imdb_ratings.omdb_fetch_imdb_rating")
+    def test_primero_las_que_estan_en_alguna_lista(self, mock_fetch):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        from apps.secret.models import SecretMovie
+
+        mock_fetch.return_value = 8.1
+        sin_lista = self._movie(1, None, days_ago=None)
+        en_lista = self._movie(2, None, days_ago=None)
+        SecretMovie.objects.create(title="En mi lista", personal_rating="7.0", movie=en_lista)
+        call_command("refresh_imdb_ratings", limit=1, stdout=StringIO(), stderr=StringIO())
+        en_lista.refresh_from_db(); sin_lista.refresh_from_db()
+        self.assertEqual(str(en_lista.imdb_rating), "8.1")
+        self.assertIsNone(sin_lista.imdb_rating)
+
 class SyncNewReleasesTests(TestCase):
     """sync_new_releases: da de alta solo lo que no está ya en el catálogo,
     sin duplicar lo que aparece en varios listados y respetando --limit."""
@@ -1064,3 +1082,50 @@ class DailyCatalogUpdateTests(TestCase):
         self.client.get(reverse("movies:list"))
         self.assertEqual(mock_popen.call_count, 1)
         self.assertIn("update_catalog", mock_popen.call_args.args[0])
+
+
+@override_settings(OMDB_API_KEY="fake-omdb-key", TMDB_API_KEY="fake-tmdb-key")
+class ImdbRatingOnOpenTests(TestCase):
+    """Movie.ensure_imdb_rating: al abrir la ficha de una película sin nota
+    IMDb se pide en el momento, como mucho una vez al día por película."""
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        self.addCleanup(cache.clear)
+        self.movie = Movie.objects.create(tmdb_id=77, title="Sin nota", imdb_id="tt0000077")
+
+    @patch("apps.movies.services.omdb_get_imdb_rating", return_value=7.3)
+    def test_al_abrir_la_ficha_se_rellena_la_nota(self, mock_omdb):
+        response = self.client.get(reverse("movies:detail", args=[self.movie.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.movie.refresh_from_db()
+        self.assertEqual(str(self.movie.imdb_rating), "7.3")
+        self.assertIsNotNone(self.movie.imdb_rating_checked_at)
+        mock_omdb.assert_called_once_with("tt0000077")
+
+    @patch("apps.movies.services.omdb_get_imdb_rating", return_value=None)
+    def test_sin_nota_en_omdb_no_se_vuelve_a_pedir_hasta_el_dia_siguiente(self, mock_omdb):
+        self.client.get(reverse("movies:detail", args=[self.movie.pk]))
+        self.client.get(reverse("movies:detail", args=[self.movie.pk]))
+        self.assertEqual(mock_omdb.call_count, 1)
+        self.movie.refresh_from_db()
+        self.assertIsNone(self.movie.imdb_rating)
+        self.assertIsNone(self.movie.imdb_rating_checked_at)
+
+    @patch("apps.movies.services.omdb_get_imdb_rating", return_value=6.4)
+    @patch("apps.movies.services.tmdb_get_details", return_value={"external_ids": {"imdb_id": "tt0000099"}})
+    def test_sin_id_de_imdb_lo_busca_en_tmdb(self, mock_tmdb, mock_omdb):
+        movie = Movie.objects.create(tmdb_id=99, title="Sin id")
+        self.client.get(reverse("movies:detail", args=[movie.pk]))
+        movie.refresh_from_db()
+        self.assertEqual(movie.imdb_id, "tt0000099")
+        self.assertEqual(str(movie.imdb_rating), "6.4")
+
+    @patch("apps.movies.services.omdb_get_imdb_rating")
+    def test_si_ya_tiene_nota_no_pide_nada(self, mock_omdb):
+        self.movie.imdb_rating = "8.0"
+        self.movie.save()
+        self.client.get(reverse("movies:detail", args=[self.movie.pk]))
+        mock_omdb.assert_not_called()

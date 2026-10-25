@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
-from django.db.models import F, Q
+from django.db.models import Exists, F, OuterRef, Q
 from django.utils import timezone
 
 from apps.movies.models import Movie
@@ -41,13 +41,26 @@ class Command(BaseCommand):
         now = timezone.now()
         cutoff = now - timedelta(days=options["days"])
         missing_cutoff = now - timedelta(days=MISSING_RATING_DAYS)
+        # Primero las que están en alguna lista (Top Secret o Guardadas): con
+        # miles de fichas en el catálogo y unos cientos por día, por orden de
+        # alta las que de verdad se miran podían tardar semanas en tener nota.
+        from apps.movies.models import SavedMovie
+        from apps.secret.models import SecretMovie
+
         movies = (
             Movie.objects.filter(
                 Q(imdb_rating_checked_at__isnull=True)
                 | Q(imdb_rating_checked_at__lt=cutoff)
                 | Q(imdb_rating__isnull=True, imdb_rating_checked_at__lt=missing_cutoff)
             )
-            .order_by(F("imdb_rating_checked_at").asc(nulls_first=True), "pk")[: options["limit"]]
+            .annotate(
+                in_secret=Exists(SecretMovie.objects.filter(movie=OuterRef("pk"))),
+                in_saved=Exists(SavedMovie.objects.filter(movie=OuterRef("pk"))),
+            )
+            .order_by(
+                F("in_secret").desc(), F("in_saved").desc(),
+                F("imdb_rating_checked_at").asc(nulls_first=True), "pk",
+            )[: options["limit"]]
         )
 
         changed, unchanged, stopped = 0, 0, False

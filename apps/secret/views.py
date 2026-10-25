@@ -460,11 +460,17 @@ def _full_list_filter_data(request, owner, is_owner):
         data.pop("genres", None)
         data.pop("no_genres", None)
         clear()
-    elif "f" in data or "genres" in data or "no_genres" in data:
-        # Las tandas del scroll infinito repiten los mismos parámetros: no
-        # hace falta volver a guardarlos en cada una.
-        if "page" not in data:
-            save(data.getlist("genres"), data.getlist("no_genres"))
+    elif "apply" in data:
+        # Solo el botón "Aplicar" del desplegable guarda el filtro (vacío =
+        # quitarlo). El mismo formulario se envía también al cambiar tipo,
+        # orden o al buscar: si eso guardase, una pulsación antes de que la
+        # página terminara de cargar (casillas aún sin marcar) borraba el
+        # filtro guardado.
+        save(data.getlist("genres"), data.getlist("no_genres"))
+    elif "genres" in data or "no_genres" in data:
+        # Filtro de esta petición (tipo, orden, buscar, scroll infinito):
+        # se aplica tal cual, sin guardarlo.
+        pass
     else:
         see, hide = load()
         if see or hide:
@@ -474,6 +480,7 @@ def _full_list_filter_data(request, owner, is_owner):
             if see or hide:
                 data.setlist("genres", see)
                 data.setlist("no_genres", hide)
+    data.pop("apply", None)
     data.pop("f", None)
     return data
 
@@ -609,6 +616,8 @@ def full_list(request):
 def movie_detail(request, pk):
     owner, editable, scope = _resolve_scope(request)
     movie = get_object_or_404(_visible_movies(request.user, owner), pk=pk)
+    if movie.movie:
+        movie.movie.ensure_imdb_rating()
     return render(request, "secret/movie_detail.html", {
         "movie": movie, "rating_config": _rating_guide_for(owner),
         "scope": scope, "editable": editable, "list_owner": owner,
