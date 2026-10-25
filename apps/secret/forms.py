@@ -185,6 +185,14 @@ class FullListFilterForm(forms.Form):
         widget=forms.CheckboxSelectMultiple,
         help_text="Marca varias para cruzarlas: solo aparecen las películas que estén en todas las marcadas.",
     )
+    no_genres = forms.ModelMultipleChoiceField(
+        label="No ver",
+        queryset=Genre.objects.none(),
+        to_field_name="slug",
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        help_text="Desaparecen las películas que estén en cualquiera de las marcadas.",
+    )
 
     def __init__(self, *args, owner=None, admin_user=False, **kwargs):
         super().__init__(*args, **kwargs)
@@ -192,6 +200,7 @@ class FullListFilterForm(forms.Form):
         if owner is None and not admin_user:
             genres = genres.filter(admin_only=False)
         self.fields["genres"].queryset = genres
+        self.fields["no_genres"].queryset = genres
 
 
 class TierLevelForm(forms.ModelForm):

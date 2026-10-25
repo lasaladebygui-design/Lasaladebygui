@@ -510,6 +510,58 @@ class SecretMovieViewTests(TestCase):
         response = self.client.get(reverse("secret:list"), {"genres": [terror.slug, slasher.slug]})
         self.assertEqual(list(response.context["movies"]), [self.a])
 
+    def test_lista_completa_no_ver_quita_las_de_esa_lista(self):
+        terror = Genre.objects.create(name="Terror")
+        self.a.genres.add(terror)
+
+        response = self.client.get(reverse("secret:list"), {"f": "1", "no_genres": [terror.slug]})
+        self.assertEqual(list(response.context["movies"]), [self.b])
+
+    def test_lista_completa_ver_y_no_ver_a_la_vez(self):
+        terror = Genre.objects.create(name="Terror")
+        slasher = Genre.objects.create(name="Slasher")
+        self.a.genres.add(terror, slasher)
+        self.b.genres.add(terror)
+
+        response = self.client.get(reverse("secret:list"), {"f": "1", "genres": [terror.slug], "no_genres": [slasher.slug]})
+        self.assertEqual(list(response.context["movies"]), [self.b])
+
+    def test_lista_en_ver_y_no_ver_avisa_y_gana_no_ver(self):
+        terror = Genre.objects.create(name="Terror")
+        self.a.genres.add(terror)
+
+        response = self.client.get(reverse("secret:list"), {"f": "1", "genres": [terror.slug], "no_genres": [terror.slug]})
+        self.assertEqual(list(response.context["movies"]), [self.b])
+        self.assertEqual(response.context["conflict_genres"], [terror])
+        self.assertContains(response, "a la vez en Ver y en No ver")
+
+    def test_filtro_de_listas_se_mantiene_al_volver(self):
+        terror = Genre.objects.create(name="Terror")
+        self.a.genres.add(terror)
+        self.client.get(reverse("secret:list"), {"f": "1", "no_genres": [terror.slug]})
+
+        response = self.client.get(reverse("secret:list"))
+        self.assertEqual(list(response.context["movies"]), [self.b])
+        self.assertEqual(response.context["hide_slugs"], [terror.slug])
+
+    def test_quitar_filtros_borra_el_filtro_guardado(self):
+        terror = Genre.objects.create(name="Terror")
+        self.a.genres.add(terror)
+        self.client.get(reverse("secret:list"), {"f": "1", "no_genres": [terror.slug]})
+
+        self.client.get(reverse("secret:list"), {"clear": "1"})
+        response = self.client.get(reverse("secret:list"))
+        self.assertEqual(list(response.context["movies"]), [self.a, self.b])
+
+    def test_aplicar_sin_marcar_nada_borra_el_filtro_guardado(self):
+        terror = Genre.objects.create(name="Terror")
+        self.a.genres.add(terror)
+        self.client.get(reverse("secret:list"), {"f": "1", "genres": [terror.slug]})
+
+        self.client.get(reverse("secret:list"), {"f": "1"})
+        response = self.client.get(reverse("secret:list"))
+        self.assertEqual(list(response.context["movies"]), [self.a, self.b])
+
     def test_lista_completa_combina_genero_y_orden(self):
         terror = Genre.objects.create(name="Terror")
         self.a.genres.add(terror)

@@ -1578,6 +1578,101 @@ main { flex: 1; }
 .list-filter summary { list-style: none; cursor: pointer; }
 .list-filter summary::-webkit-details-marker { display: none; }
 .list-filter .list-picker__menu { left: 0; right: auto; }
+
+/* --- Top Secret: "Filtrar por listas" con Ver / No ver (ver
+   templates/secret/list.html). El desplegable nunca puede salirse de la
+   pantalla: en PC se recoloca con JS (place()) si no cabe a la derecha o
+   por abajo, y en móvil pasa a ser una hoja fija pegada a los bordes con
+   su propio scroll. ----------------------------------------------------- */
+
+.list-filter--seehide summary { min-width: 11rem; }
+.list-filter__count {
+    display: inline-block; min-width: 1.3em; padding: 0 0.4em; border-radius: 999px;
+    font-size: 0.75rem; font-weight: 700; line-height: 1.5; text-align: center;
+}
+.list-filter__count--see { background: var(--color-success); color: var(--color-bg); }
+.list-filter__count--hide { background: var(--color-danger); color: var(--color-bg); }
+.list-filter__count--warn { background: #f2c14e; color: #241a00; }
+
+.list-filter .list-filter__menu {
+    width: min(26rem, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+    max-height: min(32rem, calc(100vh - 24px));
+    overflow: hidden;
+    gap: 0.45rem;
+    padding: 0.6rem;
+}
+/* El menú es una columna flex con altura máxima: solo la lista de casillas
+   encoge (y hace scroll); el resto mantiene su altura. */
+.list-filter__menu > :not(.list-filter__items) { flex-shrink: 0; }
+.list-filter__mode {
+    display: grid; grid-template-columns: 1fr 1fr; flex-shrink: 0;
+    margin: -0.6rem -0.6rem 0; border-bottom: 1px solid var(--color-border);
+}
+.list-filter__mode-btn {
+    border: none; background: transparent; color: var(--color-text-muted);
+    font: inherit; font-size: 0.78rem; font-weight: 700; padding: 0.3rem 0.5rem; cursor: pointer;
+}
+.list-filter__mode-btn span { font-weight: 600; opacity: 0.85; margin-left: 0.2rem; }
+.list-filter__mode-btn + .list-filter__mode-btn { border-left: 1px solid var(--color-border); }
+.list-filter__mode-btn--see[aria-pressed="true"] { background: var(--color-success); color: var(--color-bg); }
+.list-filter__mode-btn--hide[aria-pressed="true"] { background: var(--color-danger); color: var(--color-bg); }
+.list-filter__hint { margin: 0; font-size: 0.75rem; }
+.list-filter__warn {
+    display: flex; gap: 0.5rem; align-items: flex-start;
+    background: #2b2208; border: 1px solid #6b5414; border-radius: var(--radius-base);
+    padding: 0.45rem 0.6rem; font-size: 0.8rem; color: var(--color-text);
+}
+.list-filter__warn b { color: #f2c14e; }
+.list-filter__warn-icon { color: #f2c14e; font-weight: 800; }
+.list-filter__warn--page { margin-bottom: calc(var(--space-unit) * 4); }
+.list-filter__search {
+    width: 100%; box-sizing: border-box; height: 32px; padding: 0 0.55rem;
+    border-radius: var(--radius-base); border: 1px solid var(--color-border);
+    background: var(--color-bg); color: var(--color-text); font: inherit; font-size: 0.85rem;
+}
+.list-filter__search:focus { outline: none; border-color: var(--color-accent); }
+.list-filter__items {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); gap: 0.1rem 0.4rem;
+    align-content: start;
+}
+.list-filter__item {
+    display: flex; align-items: center; gap: 0.45rem; min-width: 0;
+    padding: 0.3rem 0.4rem; border-radius: var(--radius-base); font-size: 0.86rem; cursor: pointer;
+}
+.list-filter__item span:first-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-filter__item:hover { background: var(--color-bg); }
+.list-filter__item input { width: auto; margin: 0; flex-shrink: 0; }
+.list-filter__item.is-conflict { background: #2b2208; }
+.list-filter__tag {
+    margin-left: auto; flex-shrink: 0; font-size: 0.66rem; font-weight: 700;
+    border: 1px solid currentColor; border-radius: 3px; padding: 0 0.3rem; white-space: nowrap;
+}
+.list-filter__tag--see { color: var(--color-success); }
+.list-filter__tag--hide { color: var(--color-danger); }
+.list-filter__item.is-conflict .list-filter__tag { color: #f2c14e; }
+.list-filter__foot {
+    display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;
+    padding-top: 0.45rem; border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 640px) {
+    /* En móvil, hoja fija dentro de la pantalla: nunca se sale por los
+       lados ni por abajo, y la lista de casillas hace scroll por dentro. */
+    .list-filter .list-filter__menu {
+        position: fixed;
+        top: auto;
+        left: max(12px, env(safe-area-inset-left, 0px));
+        right: max(12px, env(safe-area-inset-right, 0px));
+        bottom: max(12px, env(safe-area-inset-bottom, 0px));
+        width: auto;
+        max-width: none;
+        max-height: 75vh;
+        z-index: 50;
+    }
+    .list-filter__items { grid-template-columns: 1fr; }
+}
 .list-manage {
     display: flex;
     flex-direction: column;
