@@ -7,7 +7,7 @@ from unittest.mock import patch
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models import ProtectedError
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from apps.accounts.models import GoogleCalendarConnection, User
@@ -542,6 +542,19 @@ class SecretMovieViewTests(TestCase):
 
         response = self.client.get(reverse("secret:list"))
         self.assertEqual(list(response.context["movies"]), [self.b])
+        self.assertEqual(response.context["hide_slugs"], [terror.slug])
+
+    def test_filtro_de_listas_se_mantiene_tras_cerrar_sesion_y_en_otro_dispositivo(self):
+        terror = Genre.objects.create(name="Terror")
+        gore = Genre.objects.create(name="Gore")
+        self.a.genres.add(terror)
+        self.client.get(reverse("secret:list"), {"f": "1", "genres": [gore.slug], "no_genres": [terror.slug]})
+        self.client.logout()
+
+        otro = Client()
+        _login(otro, self.admin)
+        response = otro.get(reverse("secret:list"))
+        self.assertEqual(response.context["see_slugs"], [gore.slug])
         self.assertEqual(response.context["hide_slugs"], [terror.slug])
 
     def test_quitar_filtros_borra_el_filtro_guardado(self):

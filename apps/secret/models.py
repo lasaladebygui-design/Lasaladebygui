@@ -420,6 +420,34 @@ class SecretListMember(models.Model):
         return f"{self.member} ve la lista de {self.owner}"
 
 
+class ListFilterPreference(models.Model):
+    """Filtro "Ver / No ver" que cada cuenta deja puesto en una Lista
+    completa (la suya, la de Bygui o la de un amigo). Va en la base de datos
+    y no en la sesión para que se mantenga también al cerrar sesión, en otro
+    dispositivo o en la app instalada, hasta que se quita con "Quitar
+    filtros". Guarda slugs de Genre: si una lista se borra, su slug se
+    ignora al volver a aplicar el filtro."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="cuenta",
+        on_delete=models.CASCADE, related_name="secret_list_filters",
+    )
+    scope_key = models.CharField("lista filtrada", max_length=160)
+    see = models.JSONField("ver", default=list, blank=True)
+    hide = models.JSONField("no ver", default=list, blank=True)
+    updated_at = models.DateTimeField("actualizado", auto_now=True)
+
+    class Meta:
+        verbose_name = "filtro guardado de la lista completa"
+        verbose_name_plural = "lista: filtros guardados"
+        constraints = [
+            models.UniqueConstraint(fields=["user", "scope_key"], name="un_filtro_por_cuenta_y_lista"),
+        ]
+
+    def __str__(self):
+        return f"Filtro de {self.user} en {self.scope_key}"
+
+
 class CalendarShareMember(models.Model):
     """Acceso de un amigo a TU calendario personal de Top Secret (ver
     ReleaseEvent/CalendarDayNote) -- de solo lectura: ve tus estrenos y

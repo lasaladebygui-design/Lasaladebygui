@@ -47,6 +47,7 @@ from .models import (
     CinemaCategory,
     CinemaRelease,
     Genre,
+    ListFilterPreference,
     PhotoBoardMember,
     RatingGuide,
     ReleaseEvent,
@@ -384,25 +385,33 @@ def by_rating(request):
 def _full_list_filter_data(request, owner, scope):
     """Parámetros GET de la lista completa con el filtro de listas
     ("Ver" = genres, "No ver" = no_genres) que se mantiene entre visitas:
-    se guarda en la sesión cada vez que llega uno nuevo y se vuelve a
-    aplicar al entrar sin él, hasta que se quita con "Quitar filtros"
-    (?clear=1). Va por lista (scope + dueño), así que el filtro de tu lista
-    no se cuela en la de Bygui ni en la de un amigo."""
-    key = f"secret_list_filter:{scope}:{owner.pk if owner else 'bygui'}"
+    se guarda en la cuenta (ListFilterPreference) cada vez que llega uno
+    nuevo y se vuelve a aplicar al entrar sin él -- también tras cerrar
+    sesión o desde otro dispositivo -- hasta que se quita con "Quitar
+    filtros" (?clear=1). Va por lista (scope + dueño), así que el filtro de
+    tu lista no se cuela en la de Bygui ni en la de un amigo."""
+    key = f"{scope}:{owner.pk if owner else 'bygui'}"
+    prefs = ListFilterPreference.objects.filter(user=request.user, scope_key=key)
     data = request.GET.copy()
     if "clear" in data:
         data.pop("clear")
         data.pop("genres", None)
         data.pop("no_genres", None)
-        request.session.pop(key, None)
+        prefs.delete()
     elif "f" in data or "genres" in data or "no_genres" in data:
-        request.session[key] = {"see": data.getlist("genres"), "hide": data.getlist("no_genres")}
+        # Las tandas del scroll infinito repiten los mismos parámetros: no
+        # hace falta volver a guardarlos en cada una.
+        if "page" not in data:
+            ListFilterPreference.objects.update_or_create(
+                user=request.user, scope_key=key,
+                defaults={"see": data.getlist("genres"), "hide": data.getlist("no_genres")},
+            )
     else:
-        saved = request.session.get(key)
+        saved = prefs.first()
         if saved:
             valid = set(Genre.objects.filter(owner=owner).values_list("slug", flat=True))
-            see = [s for s in saved.get("see", []) if s in valid]
-            hide = [s for s in saved.get("hide", []) if s in valid]
+            see = [s for s in saved.see if s in valid]
+            hide = [s for s in saved.hide if s in valid]
             if see or hide:
                 data.setlist("genres", see)
                 data.setlist("no_genres", hide)
