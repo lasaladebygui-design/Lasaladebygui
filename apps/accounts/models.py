@@ -101,8 +101,16 @@ class User(AbstractUser):
         return self.username or self.email
 
     def save(self, *args, **kwargs):
+        # Un guardado parcial que no toca el rol (la hora de la campanita, el
+        # tema elegido, un récord de un juego, last_login al entrar...) no
+        # puede cambiar nada de lo que depende de él: se salta leer el rol
+        # anterior y resincronizar el grupo Gestor, que eran unas siete
+        # consultas más en cada uno de esos guardados.
+        update_fields = kwargs.get("update_fields")
+        role_untouched = update_fields is not None and "role" not in update_fields
+
         previous_role = None
-        if self.pk:
+        if self.pk and not role_untouched:
             previous_role = type(self).objects.filter(pk=self.pk).values_list("role", flat=True).first()
 
         # El email es el identificador de acceso (USERNAME_FIELD): normalizar
@@ -127,6 +135,8 @@ class User(AbstractUser):
         self.is_active = self.role != self.Role.BANEADO
 
         super().save(*args, **kwargs)
+        if role_untouched:
+            return
         self._sync_gestor_group()
 
         # El baneo no solo bloquea futuros inicios de sesión (is_active):

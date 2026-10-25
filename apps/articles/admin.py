@@ -40,6 +40,9 @@ class ArticleAdminForm(forms.ModelForm):
 class ArticleAdmin(admin.ModelAdmin):
     form = ArticleAdminForm
     list_display = ("title", "author", "is_featured", "is_private", "created_at")
+    # author puede estar vacío: el select_related automático del admin no
+    # lo sigue y se pediría un usuario por fila.
+    list_select_related = ("author",)
     list_editable = ("is_featured",)
     list_filter = ("is_featured", "is_private", "tags", "author")
     search_fields = ("title", "body")

@@ -154,6 +154,9 @@ class OscarCategoryAdmin(SortableAdminMixin, admin.ModelAdmin):
 @admin.register(OscarCandidate)
 class OscarCandidateAdmin(admin.ModelAdmin):
     list_display = ("display_title", "category", "submitted_by", "created_at")
+    # display_title usa la película, que puede estar vacía (candidato que es
+    # una persona): el select_related automático del admin no la sigue.
+    list_select_related = ("category", "submitted_by", "movie")
     list_filter = ("category",)
     search_fields = ("movie__title", "person_name")
     autocomplete_fields = ("movie",)

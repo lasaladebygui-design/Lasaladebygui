@@ -143,6 +143,9 @@ class GenreAdmin(SortableAdminMixin, admin.ModelAdmin):
     list_display = ("name", "owner", "admin_only")
     list_display_links = ("name",)
     list_editable = ("admin_only",)
+    # owner puede estar vacío (lista de Bygui): el select_related automático
+    # del admin no lo sigue y se pediría un usuario por fila.
+    list_select_related = ("owner",)
     list_filter = ("admin_only", "owner")
     exclude = ("slug", "order")
     search_fields = ("name", "owner__username")
@@ -218,9 +221,14 @@ class SecretMovieAdmin(admin.ModelAdmin):
     class Media:
         js = ("js/admin_secret_movie_watch_status.js",)
 
+    def get_queryset(self, request):
+        # Las listas de todas las filas de la página en una sola consulta
+        # (ver genre_list), en vez de una por fila.
+        return super().get_queryset(request).prefetch_related("genres")
+
     @admin.display(description="listas")
     def genre_list(self, obj):
-        return ", ".join(obj.genres.values_list("name", flat=True))
+        return ", ".join(genre.name for genre in obj.genres.all())
 
     def get_urls(self):
         info = self.model._meta.app_label, self.model._meta.model_name
@@ -289,10 +297,23 @@ class TierListEntryAdmin(admin.ModelAdmin):
     list_display = ("title", "user", "tier", "order")
     list_display_links = ("title",)
     list_editable = ("tier", "order")
+    list_select_related = ("user", "tier__user")
     list_filter = ("user", "tier")
     search_fields = ("title",)
     autocomplete_fields = ("movie",)
     ordering = ("user_id", "tier__order", "order")
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "tier":
+            # El nombre de cada nivel incluye su usuario (TierLevel.__str__),
+            # y "tier" es editable en el listado: sin esto, cada fila volvía
+            # a pedir todos los niveles y, por cada uno, su usuario. Las
+            # opciones se calculan una vez y todas las filas las comparten.
+            kwargs["queryset"] = TierLevel.objects.select_related("user")
+            field = super().formfield_for_foreignkey(db_field, request, **kwargs)
+            field.choices = list(field.choices)
+            return field
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
 @admin.register(ReleaseEvent)

@@ -22,6 +22,7 @@ from .models import (
     CinemaCategory,
     CinemaRelease,
     Genre,
+    ListFilterPreference,
     PhotoBoardMember,
     RatingColorBand,
     RatingGuide,
@@ -738,6 +739,81 @@ class SecretMovieViewTests(TestCase):
             "min_rating": 8, "max_rating": 9, "genre": comedia.slug,
         })
         self.assertIsNone(response.context["result"])
+
+
+class SharedListFilterTests(TestCase):
+    """El "No ver" que el dueño tiene en su lista completa se aplica también
+    a quien la ve compartida, que no lo puede quitar; quien la ve puede
+    filtrar a su gusto, pero solo en su sesión y sin tocar nada del dueño."""
+
+    def setUp(self):
+        self.owner = User.objects.create(email="dueno_filtro@test.local", username="duenofiltro")
+        self.owner.set_password("Testpass123!")
+        self.owner.save()
+        self.friend = User.objects.create(email="amigo_filtro@test.local", username="amigofiltro")
+        self.friend.set_password("Testpass123!")
+        self.friend.save()
+        SecretListMember.objects.create(owner=self.owner, member=self.friend)
+
+        self.terror = Genre.objects.create(owner=self.owner, name="Terror")
+        self.comedia = Genre.objects.create(owner=self.owner, name="Comedia")
+        self.miedo = SecretMovie.objects.create(owner=self.owner, title="Miedo", personal_rating="7.0")
+        self.miedo.genres.add(self.terror)
+        self.risa = SecretMovie.objects.create(owner=self.owner, title="Risa", personal_rating="6.0")
+        self.risa.genres.add(self.comedia)
+
+        _login(self.client, self.owner)
+        self.client.get(reverse("secret:list"), {"f": "1", "no_genres": [self.terror.slug]})
+
+        self.friend_client = Client()
+        _login(self.friend_client, self.friend)
+
+    def _friend_list(self, **params):
+        return self.friend_client.get(reverse("secret:list"), {"scope": self.owner.username, **params})
+
+    def test_el_no_ver_del_dueno_se_aplica_a_quien_ve_su_lista(self):
+        response = self._friend_list()
+        self.assertEqual(list(response.context["movies"]), [self.risa])
+        self.assertEqual(response.context["locked_slugs"], [self.terror.slug])
+        self.assertContains(response, "🔒 Las listas con candado las ha ocultado duenofiltro")
+
+    def test_quien_ve_la_lista_no_puede_quitar_el_no_ver_del_dueno(self):
+        response = self._friend_list(f="1", genres=[self.terror.slug])
+        self.assertNotIn(self.miedo, list(response.context["movies"]))
+        response = self._friend_list(clear="1")
+        self.assertEqual(list(response.context["movies"]), [self.risa])
+
+    def test_tampoco_sale_al_buscar_por_numero_ni_en_su_ficha(self):
+        # Igual que con las listas privadas: 404, sin distinguir "no
+        # existe" de "no puedes verla".
+        response = self.friend_client.get(reverse("secret:by-number"), {"number": self.miedo.number, "scope": self.owner.username})
+        self.assertEqual(response.status_code, 404)
+        response = self.friend_client.get(
+            reverse("secret:movie-detail", args=[self.miedo.pk]), {"scope": self.owner.username},
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_los_filtros_de_quien_ve_la_lista_van_solo_en_su_sesion(self):
+        response = self._friend_list(f="1", no_genres=[self.comedia.slug])
+        self.assertEqual(list(response.context["movies"]), [])
+        # Se mantienen mientras dure su sesión...
+        self.assertEqual(list(self._friend_list().context["movies"]), [])
+        # ...pero no se guardan en ninguna cuenta ni tocan los del dueño.
+        self.assertFalse(ListFilterPreference.objects.filter(user=self.friend).exists())
+        pref = ListFilterPreference.objects.get(user=self.owner)
+        self.assertEqual((pref.see, pref.hide), ([], [self.terror.slug]))
+        self.assertEqual(list(self.client.get(reverse("secret:list")).context["movies"]), [self.risa])
+
+        otra_sesion = Client()
+        _login(otra_sesion, self.friend)
+        response = otra_sesion.get(reverse("secret:list"), {"scope": self.owner.username})
+        self.assertEqual(list(response.context["movies"]), [self.risa])
+
+    def test_el_dueno_sigue_pudiendo_ver_y_cambiar_lo_suyo(self):
+        self.client.get(reverse("secret:list"), {"clear": "1"})
+        response = self.client.get(reverse("secret:list"))
+        self.assertEqual(set(response.context["movies"]), {self.miedo, self.risa})
+        self.assertEqual(set(self._friend_list().context["movies"]), {self.miedo, self.risa})
 
 
 class SecretMovieQuickEditTests(TestCase):

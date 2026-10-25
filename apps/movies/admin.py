@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.db.models import Count, OuterRef, Subquery
+from django.db.models.functions import Coalesce
 
 from apps.core.admin import SortableAdminMixin
 
@@ -20,9 +22,20 @@ class MovieAdmin(admin.ModelAdmin):
     search_fields = ("title", "tmdb_id", "imdb_id")
     readonly_fields = ("tmdb_id", "imdb_id", "imdb_rating_checked_at", "created_at")
 
+    def get_queryset(self, request):
+        # El número de votos de cada fila sale en la misma consulta del
+        # listado (antes, un COUNT por fila). Subconsulta y no Count() +
+        # GROUP BY para no cambiar nada del resto del queryset (búsqueda,
+        # acciones como borrar los seleccionados...).
+        votes = (
+            Vote.objects.filter(movie=OuterRef("pk")).order_by()
+            .values("movie").annotate(n=Count("pk")).values("n")
+        )
+        return super().get_queryset(request).annotate(_votes_count=Coalesce(Subquery(votes), 0))
+
     @admin.display(description="votos")
     def votes_count_display(self, obj):
-        return obj.votes_count
+        return obj._votes_count if hasattr(obj, "_votes_count") else obj.votes_count
 
     def get_search_results(self, request, queryset, search_term):
         """El autocompletar (usado p. ej. al enlazar la "portada" de una

@@ -11,7 +11,9 @@ from django.urls import path
 from django.utils.safestring import mark_safe
 from django.utils.text import slugify
 
-from .models import AdminMenuOrder, Announcement, ContactLink, FavoriteQuote, PersonalNote, SiteConfig, Theme
+from .models import (
+    AdminMenuOrder, Announcement, ContactLink, FavoriteQuote, PersonalNote, SiteConfig, Theme, invalidate_theme_cache,
+)
 
 
 class SortableAdminMixin:
@@ -154,13 +156,23 @@ class ThemeAdmin(SortableAdminMixin, ColorWidgetMixin, admin.ModelAdmin):
         ("Tipografía y espaciado", {"fields": ("font_heading", "font_body", "space_unit", "radius_base")}),
     )
 
+    # queryset.update() y el bulk_update del arrastre no pasan por
+    # Theme.save(): hay que vaciar a mano la caché de temas (ver
+    # cached_themes) para que el cambio se vea al momento.
     @admin.action(description="👁️ Publicar (mostrar en el selector de temas)")
     def publish_themes(self, request, queryset):
         queryset.update(is_published=True)
+        invalidate_theme_cache()
 
     @admin.action(description="🙈 Despublicar (ocultar del selector de temas)")
     def unpublish_themes(self, request, queryset):
         queryset.update(is_published=False)
+        invalidate_theme_cache()
+
+    def reorder_view(self, request):
+        response = super().reorder_view(request)
+        invalidate_theme_cache()
+        return response
 
 
 class SingletonAdmin(admin.ModelAdmin):

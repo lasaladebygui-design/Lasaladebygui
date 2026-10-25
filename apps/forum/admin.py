@@ -13,6 +13,9 @@ class ThreadCommentInline(admin.TabularInline):
 @admin.register(Thread)
 class ThreadAdmin(admin.ModelAdmin):
     list_display = ("title", "author", "is_locked", "created_at")
+    # author puede estar vacío (usuario borrado): el select_related
+    # automático del admin no lo sigue y se pediría uno por fila.
+    list_select_related = ("author",)
     list_editable = ("is_locked",)
     list_filter = ("is_locked",)
     search_fields = ("title", "body")
@@ -23,6 +26,9 @@ class ThreadAdmin(admin.ModelAdmin):
 @admin.register(ThreadComment)
 class ThreadCommentAdmin(admin.ModelAdmin):
     list_display = ("thread", "author", "parent", "is_deleted", "created_at")
+    # "parent" se pinta como "Comentario de <autor> en <hilo>": sin esto,
+    # cada fila pedía el comentario padre, su autor y su hilo por separado.
+    list_select_related = ("thread", "author", "parent__author", "parent__thread")
     list_filter = ("is_deleted",)
     search_fields = ("body", "author__email")
     autocomplete_fields = ("thread", "author", "parent")

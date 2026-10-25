@@ -77,6 +77,7 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "apps.core.middleware.DailySessionRefreshMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -126,6 +127,13 @@ if not _database_url:
 DATABASES = {"default": env.db_url_config(_database_url)}
 if DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql":
     DATABASES["default"]["OPTIONS"] = {"sslmode": env("DB_SSLMODE", default="require")}
+    # Reutiliza la conexión con Supabase entre peticiones en vez de abrir una
+    # nueva (TCP + TLS + autenticación en el pooler) en cada carga de página.
+    # Con un único proceso de gunicorn es una sola conexión abierta. Los
+    # health checks la comprueban al empezar cada petición y la reabren si
+    # Supabase la ha cortado mientras estaba parada.
+    DATABASES["default"]["CONN_MAX_AGE"] = env.int("DB_CONN_MAX_AGE", default=300)
+    DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
 # --- Caché --------------------------------------------------------------
 # LocMemCache de toda la vida: un único proceso, no hace falta Redis. Se usa
@@ -154,11 +162,13 @@ LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "core:home"
 
 # Sesión larga: una vez iniciada sesión, no vuelve a pedirla mientras se siga
-# usando el sitio de vez en cuando (cada visita alarga otro año la caducidad,
-# por SESSION_SAVE_EVERY_REQUEST) — pensado para el panel de admin, que si
-# no pide credenciales cada pocos días.
+# usando el sitio de vez en cuando (cada día que se usa alarga otro año la
+# caducidad, ver apps.core.middleware.DailySessionRefreshMiddleware) —
+# pensado para el panel de admin, que si no pide credenciales cada pocos días.
+# Antes era SESSION_SAVE_EVERY_REQUEST = True, que conseguía lo mismo pero
+# reescribiendo la sesión en la base de datos en cada carga de página.
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 365  # 1 año
-SESSION_SAVE_EVERY_REQUEST = True
+SESSION_SAVE_EVERY_REQUEST = False
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 LOGOUT_REDIRECT_URL = "core:home"
 

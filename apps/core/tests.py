@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -1450,3 +1450,113 @@ class GlobalSearchTests(TestCase):
     def test_sin_resultados_muestra_mensaje(self):
         response = self.client.get(reverse("core:search"), {"q": "esto no existe en ningún sitio"})
         self.assertContains(response, "Sin resultados")
+
+
+class DailySessionRefreshTests(TestCase):
+    """La sesión de un año se renueva una vez al día que se usa la web (ver
+    apps/core/middleware.py), no en cada carga de página como hacía antes
+    SESSION_SAVE_EVERY_REQUEST."""
+
+    def setUp(self):
+        self.user = User.objects.create(email="sesion_diaria@test.local", role=User.Role.LECTOR)
+        self.user.set_password("Testpass123!")
+        self.user.save()
+        self.client.login(username=self.user.email, password="Testpass123!")
+
+    def _get_counting_session_writes(self, url="/"):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get(url)
+        writes = [
+            q for q in ctx.captured_queries
+            if "django_session" in q["sql"] and q["sql"].lstrip().upper().startswith(("UPDATE", "INSERT"))
+        ]
+        return response, writes
+
+    def test_solo_reescribe_la_sesion_una_vez_al_dia(self):
+        _, first = self._get_counting_session_writes()
+        self.assertEqual(len(first), 1)
+
+        response, second = self._get_counting_session_writes()
+        self.assertEqual(second, [])
+        self.assertNotIn(settings.SESSION_COOKIE_NAME, response.cookies)
+        self.assertEqual(response.wsgi_request.user, self.user)
+
+    def test_al_dia_siguiente_renueva_la_sesion_y_su_cookie_de_un_ano(self):
+        self._get_counting_session_writes()
+        tomorrow = timezone.localdate() + timedelta(days=1)
+        with patch("apps.core.middleware.timezone.localdate", return_value=tomorrow):
+            response, writes = self._get_counting_session_writes()
+        self.assertEqual(len(writes), 1)
+        self.assertEqual(response.cookies[settings.SESSION_COOKIE_NAME]["max-age"], settings.SESSION_COOKIE_AGE)
+
+    def test_no_crea_sesiones_para_visitantes_sin_nada_guardado(self):
+        from django.contrib.sessions.models import Session
+
+        self.client.logout()
+        before = Session.objects.count()
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Session.objects.count(), before)
+
+
+class ThemeCacheTests(TestCase):
+    """cached_themes() (apps/core/models.py): el selector de temas y el tema
+    activo salen de caché en cada página, así que cualquier cambio de temas
+    tiene que vaciarla para verse al momento -- también los que no pasan por
+    Theme.save() (acciones del admin con update(), arrastrar para ordenar)."""
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        self.addCleanup(cache.clear)
+        self.admin = User.objects.create(email="tema_cache@test.local", role=User.Role.ADMIN, is_staff=True, is_superuser=True)
+        self.admin.set_password("Testpass123!")
+        self.admin.save()
+        self.client.login(username=self.admin.email, password="Testpass123!")
+        self.oculto = Theme.objects.create(name="Oculto", slug="oculto", is_published=False, order=1)
+        self.visible = Theme.objects.create(name="Visible", slug="visible", is_published=True, order=2)
+
+    def _fill_cache(self):
+        from .models import cached_themes
+
+        with self.captureOnCommitCallbacks(execute=True):
+            cached_themes()
+
+    def _published_in_selector(self):
+        response = self.client.get(reverse("core:home"))
+        return [t.slug for t in response.context["all_themes"]]
+
+    def _mine_in_selector(self):
+        # Las migraciones ya crean temas propios: solo importa el orden de
+        # los dos de esta prueba entre sí.
+        return [slug for slug in self._published_in_selector() if slug in ("oculto", "visible")]
+
+    def test_publicar_desde_el_admin_se_ve_al_momento(self):
+        self._fill_cache()
+        self.assertNotIn("oculto", self._published_in_selector())
+        self.client.post(reverse("admin:core_theme_changelist"), {
+            "action": "publish_themes", "_selected_action": [self.oculto.pk],
+        })
+        self.assertIn("oculto", self._published_in_selector())
+
+    def test_editar_un_tema_se_ve_al_momento(self):
+        self._fill_cache()
+        self.visible.is_published = False
+        self.visible.save()
+        self.assertNotIn("visible", self._published_in_selector())
+
+    def test_arrastrar_para_ordenar_se_ve_al_momento(self):
+        self._fill_cache()
+        self.oculto.is_published = True
+        self.oculto.save()
+        self._fill_cache()
+        self.assertEqual(self._mine_in_selector(), ["oculto", "visible"])
+        self.client.post(
+            reverse("admin:core_theme_reorder"),
+            data='{"order": [%d, %d]}' % (self.visible.pk, self.oculto.pk),
+            content_type="application/json",
+        )
+        self.assertEqual(self._mine_in_selector(), ["visible", "oculto"])

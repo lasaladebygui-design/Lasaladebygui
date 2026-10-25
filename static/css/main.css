@@ -1645,6 +1645,9 @@ main { flex: 1; }
 .list-filter__item:hover { background: var(--color-bg); }
 .list-filter__item input { width: auto; margin: 0; flex-shrink: 0; }
 .list-filter__item.is-conflict { background: #2b2208; }
+.list-filter__item.is-locked { opacity: 0.6; cursor: not-allowed; }
+.list-filter__item.is-locked:hover { background: transparent; }
+.list-filter__tag--lock { color: var(--color-text-muted); }
 .list-filter__tag {
     margin-left: auto; flex-shrink: 0; font-size: 0.66rem; font-weight: 700;
     border: 1px solid currentColor; border-radius: 3px; padding: 0 0.3rem; white-space: nowrap;
@@ -2644,6 +2647,10 @@ main { flex: 1; }
     margin-bottom: calc(var(--space-unit) * 6);
 }
 .rating-guide__panel .movie-section-title { margin-top: 0; }
+/* "Tramos de color" va debajo del cuadro de texto de la guía: un poco de
+   aire para que no quede pegado a él. */
+.rating-guide__panel .movie-section-title.rating-guide__bands-title,
+.rating-guide__bands-title { margin-top: calc(var(--space-unit) * 5); }
 .rating-guide__text { color: var(--color-text-muted); }
 .rating-guide__text p { margin-bottom: calc(var(--space-unit) * 3); }
 .rating-guide__text p:last-child { margin-bottom: 0; }

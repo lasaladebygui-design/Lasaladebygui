@@ -56,8 +56,14 @@ def notifications_panel(request):
     próxima vez que se abra solo aparecerá lo que sea nuevo desde este
     momento (ver `notifications_seen_at` en el modelo de usuario)."""
     feed = notifications_feed(request.user)
-    for announcement in Announcement.objects.exclude(read_by=request.user):
-        announcement.read_by.add(request.user)
+    # Todos los avisos pendientes como leídos en una sola inserción (antes,
+    # una transacción por aviso).
+    ReadBy = Announcement.read_by.through
+    ReadBy.objects.bulk_create(
+        [ReadBy(announcement_id=pk, user_id=request.user.pk)
+         for pk in Announcement.objects.exclude(read_by=request.user).values_list("pk", flat=True)],
+        ignore_conflicts=True,
+    )
     request.user.notifications_seen_at = timezone.now()
     request.user.save(update_fields=["notifications_seen_at"])
     invalidate_notifications_count(request.user)  # que el recuento de abajo no sirva el valor cacheado de hace <20s

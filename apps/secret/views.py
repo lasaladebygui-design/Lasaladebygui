@@ -167,7 +167,39 @@ def _visible_movies(user, owner):
     movies = SecretMovie.objects.filter(owner=owner).prefetch_related("genres").select_related("movie")
     if owner is None and not _is_bygui_persona(user):
         movies = movies.exclude(genres__admin_only=True).exclude(admin_only=True)
+    if not _is_list_owner(user, owner):
+        # Lo que el dueño tiene en "No ver" en su lista completa tampoco lo
+        # ve nadie con quien la comparta, en ningún apartado (lista, buscar
+        # por número/nota, comparar, ficha...), y no lo puede quitar.
+        hidden_ids = list(_owner_hidden_genres(owner).values_list("pk", flat=True))
+        if hidden_ids:
+            movies = movies.exclude(genres__in=hidden_ids)
     return movies
+
+
+def _is_list_owner(user, owner):
+    """Si quien mira es el dueño de la lista (owner=None: la de Bygui, cuyo
+    dueño es la cuenta lasaladebygui)."""
+    if owner is None:
+        return _is_bygui_persona(user)
+    return user.is_authenticated and owner.pk == user.pk
+
+
+def _owner_filter_key(owner):
+    """Clave del filtro "Ver / No ver" que el dueño guarda en su cuenta para
+    su propia lista (ver ListFilterPreference)."""
+    return f"own:{owner.pk if owner else 'bygui'}"
+
+
+def _owner_hidden_genres(owner):
+    """Listas que el dueño tiene marcadas en "No ver" en su lista completa."""
+    owner_user = owner or User.objects.filter(username=BYGUI_USERNAME).first()
+    if owner_user is None:
+        return Genre.objects.none()
+    pref = ListFilterPreference.objects.filter(user=owner_user, scope_key=_owner_filter_key(owner)).first()
+    if pref is None or not pref.hide:
+        return Genre.objects.none()
+    return Genre.objects.filter(owner=owner, slug__in=pref.hide)
 
 
 def _resolve_scope(request):
@@ -382,36 +414,63 @@ def by_rating(request):
     })
 
 
-def _full_list_filter_data(request, owner, scope):
+def _full_list_filter_data(request, owner, is_owner):
     """Parámetros GET de la lista completa con el filtro de listas
     ("Ver" = genres, "No ver" = no_genres) que se mantiene entre visitas:
-    se guarda en la cuenta (ListFilterPreference) cada vez que llega uno
-    nuevo y se vuelve a aplicar al entrar sin él -- también tras cerrar
-    sesión o desde otro dispositivo -- hasta que se quita con "Quitar
-    filtros" (?clear=1). Va por lista (scope + dueño), así que el filtro de
-    tu lista no se cuela en la de Bygui ni en la de un amigo."""
-    key = f"{scope}:{owner.pk if owner else 'bygui'}"
-    prefs = ListFilterPreference.objects.filter(user=request.user, scope_key=key)
+    se guarda cada vez que llega uno nuevo y se vuelve a aplicar al entrar
+    sin él, hasta que se quita con "Quitar filtros" (?clear=1).
+
+    - El dueño de la lista lo guarda en su cuenta (ListFilterPreference):
+      se mantiene también tras cerrar sesión o en otro dispositivo, y su
+      "No ver" se aplica además a quien vea la lista compartida (ver
+      _visible_movies).
+    - Quien la ve compartida solo lo guarda en su sesión: puede filtrar a
+      su gusto, pero nunca toca el filtro del dueño."""
+    if is_owner:
+        key = _owner_filter_key(owner)
+        prefs = ListFilterPreference.objects.filter(user=request.user, scope_key=key)
+
+        def load():
+            pref = prefs.first()
+            return (pref.see, pref.hide) if pref else ([], [])
+
+        def save(see, hide):
+            ListFilterPreference.objects.update_or_create(
+                user=request.user, scope_key=key, defaults={"see": see, "hide": hide},
+            )
+
+        def clear():
+            prefs.delete()
+    else:
+        key = f"secret_list_filter:{owner.pk if owner else 'bygui'}"
+
+        def load():
+            saved = request.session.get(key) or {}
+            return saved.get("see", []), saved.get("hide", [])
+
+        def save(see, hide):
+            request.session[key] = {"see": see, "hide": hide}
+
+        def clear():
+            request.session.pop(key, None)
+
     data = request.GET.copy()
     if "clear" in data:
         data.pop("clear")
         data.pop("genres", None)
         data.pop("no_genres", None)
-        prefs.delete()
+        clear()
     elif "f" in data or "genres" in data or "no_genres" in data:
         # Las tandas del scroll infinito repiten los mismos parámetros: no
         # hace falta volver a guardarlos en cada una.
         if "page" not in data:
-            ListFilterPreference.objects.update_or_create(
-                user=request.user, scope_key=key,
-                defaults={"see": data.getlist("genres"), "hide": data.getlist("no_genres")},
-            )
+            save(data.getlist("genres"), data.getlist("no_genres"))
     else:
-        saved = prefs.first()
-        if saved:
+        see, hide = load()
+        if see or hide:
             valid = set(Genre.objects.filter(owner=owner).values_list("slug", flat=True))
-            see = [s for s in saved.see if s in valid]
-            hide = [s for s in saved.hide if s in valid]
+            see = [s for s in see if s in valid]
+            hide = [s for s in hide if s in valid]
             if see or hide:
                 data.setlist("genres", see)
                 data.setlist("no_genres", hide)
@@ -423,13 +482,18 @@ def _full_list_filter_data(request, owner, scope):
 @login_required
 def full_list(request):
     owner, editable, scope = _resolve_scope(request)
-    data = _full_list_filter_data(request, owner, scope)
+    is_owner = _is_list_owner(request.user, owner)
+    data = _full_list_filter_data(request, owner, is_owner)
     form = FullListFilterForm(data or None, owner=owner, admin_user=_is_bygui_persona(request.user))
     movies = _visible_movies(request.user, owner)
+    # En una lista compartida, las listas que su dueño tiene en "No ver"
+    # (ya fuera de `movies`, ver _visible_movies) salen bloqueadas en el
+    # desplegable: quien mira no puede volver a mostrarlas.
+    locked_slugs = set() if is_owner else set(_owner_hidden_genres(owner).values_list("slug", flat=True))
     see_genres, hide_genres, conflict_genres = [], [], []
     if form.is_valid():
-        see_genres = list(form.cleaned_data.get("genres") or [])
-        hide_genres = list(form.cleaned_data.get("no_genres") or [])
+        see_genres = [g for g in form.cleaned_data.get("genres") or [] if g.slug not in locked_slugs]
+        hide_genres = [g for g in form.cleaned_data.get("no_genres") or [] if g.slug not in locked_slugs]
         # Una lista marcada a la vez en "Ver" y en "No ver": gana "No ver"
         # (se avisa en la plantilla), así que no se exige en el cruce de
         # "Ver" -- si no, el resultado saldría siempre vacío.
@@ -527,6 +591,7 @@ def full_list(request):
         "conflict_genres": conflict_genres,
         "has_list_filter": bool(see_genres or hide_genres),
         "filter_genre_names": {g.slug: g.name for g in form.fields["genres"].queryset},
+        "locked_slugs": sorted(locked_slugs), "is_list_owner": is_owner,
     }
     # El scroll infinito (_secret_list_sentinel.html) pide más páginas por
     # HTMX a esta misma URL, esperando solo las filas nuevas -- pero la

@@ -163,6 +163,39 @@ class Theme(models.Model):
                 candidate = f"{base}-{suffix}"
             self.slug = candidate
         super().save(*args, **kwargs)
+        invalidate_theme_cache()
+
+    def delete(self, *args, **kwargs):
+        result = super().delete(*args, **kwargs)
+        invalidate_theme_cache()
+        return result
+
+
+THEMES_CACHE_KEY = "themes:all"
+
+
+def invalidate_theme_cache():
+    """Hay que llamarla después de cualquier cambio de temas que no pase por
+    Theme.save()/delete() (p. ej. un queryset.update() en una acción del
+    admin); si no, el selector y el tema activo tardarían hasta
+    SINGLETON_CACHE_TTL segundos en enterarse."""
+    cache.delete(THEMES_CACHE_KEY)
+
+
+def cached_themes():
+    """Todos los temas (publicados o no), en el orden del selector.
+
+    El tema activo y la lista del selector de la cabecera se leen en CADA
+    página (ver site_context y get_effective_theme), y antes eso eran dos
+    consultas por carga solo para unas pocas filas que casi nunca cambian.
+    Se cachean con el mismo patrón que SingletonModel.load(): se rellena con
+    transaction.on_commit para que en los tests nunca quede nada cacheado
+    de una prueba a otra."""
+    themes = cache.get(THEMES_CACHE_KEY)
+    if themes is None:
+        themes = list(Theme.objects.all())
+        transaction.on_commit(lambda: cache.set(THEMES_CACHE_KEY, themes, SINGLETON_CACHE_TTL))
+    return themes
 
 
 class SiteConfig(SingletonModel):
@@ -373,22 +406,25 @@ def get_effective_theme(user=None, session=None):
     4. Cinephile por su slug, y como último recurso un Theme() sin guardar
        con los valores por defecto, para que /theme.css nunca falle."""
 
+    themes = cached_themes()
+    by_id = {t.pk: t for t in themes}
+
     if user is not None and getattr(user, "is_authenticated", False) and getattr(user, "theme_id", None):
-        return user.theme
+        return by_id.get(user.theme_id) or user.theme
 
     if session is not None:
         slug = session.get(SESSION_THEME_KEY)
         if slug:
-            theme = Theme.objects.filter(slug=slug).first()
+            theme = next((t for t in themes if t.slug == slug), None)
             if theme:
                 return theme
 
     config = SiteConfig.load()
     if config.active_theme_id:
-        return config.active_theme
+        return by_id.get(config.active_theme_id) or config.active_theme
 
-    theme = Theme.objects.filter(slug=Theme.DEFAULT_SLUG).first()
+    theme = next((t for t in themes if t.slug == Theme.DEFAULT_SLUG), None)
     if theme:
         return theme
 
-    return Theme.objects.first() or Theme()
+    return themes[0] if themes else Theme()
