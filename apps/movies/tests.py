@@ -715,8 +715,8 @@ class MovieListLiveSearchTests(TestCase):
         mock_get_or_create.assert_called_once_with(1, media_type="tv")
 
     def test_catalogo_sin_busqueda_filtra_por_tipo(self):
-        pelicula = make_movie(1, "Una película", None)
-        serie = Movie.objects.create(tmdb_id=2, title="Una serie", media_type="tv")
+        pelicula = Movie.objects.create(tmdb_id=1, title="Una película", imdb_rating="7.0", poster_path="/p.jpg")
+        serie = Movie.objects.create(tmdb_id=2, title="Una serie", media_type="tv", imdb_rating="7.0", poster_path="/s.jpg")
 
         response = self.client.get(reverse("movies:list"), {"type": "tv"})
         self.assertEqual(list(response.context["page_obj"].object_list), [serie])
@@ -786,8 +786,9 @@ class MovieListInfiniteScrollTests(TestCase):
     al aparecer en pantalla, pide el siguiente tramo por HTMX."""
 
     def setUp(self):
+        # Fichas completas: sin buscar solo salen las que tienen portada y nota.
         for i in range(1, 30):
-            make_movie(i, f"Película {i}", None)
+            Movie.objects.create(tmdb_id=i, title=f"Película {i}", imdb_rating="7.0", poster_path="/p.jpg")
 
     def test_primera_carga_trae_un_tramo_y_el_sensor_de_la_siguiente(self):
         response = self.client.get(reverse("movies:list"))
@@ -1129,3 +1130,47 @@ class ImdbRatingOnOpenTests(TestCase):
         self.movie.save()
         self.client.get(reverse("movies:detail", args=[self.movie.pk]))
         mock_omdb.assert_not_called()
+
+
+class MovieBrowseTests(TestCase):
+    """Películas y series sin buscar: solo fichas completas (portada y nota
+    IMDb), en un orden que cambia cada día pero es estable dentro del día."""
+
+    def _movie(self, tmdb_id, rating="7.0", poster="/p.jpg", media_type="movie"):
+        return Movie.objects.create(
+            tmdb_id=tmdb_id, title=f"Peli {tmdb_id}", media_type=media_type,
+            imdb_rating=rating, poster_path=poster,
+        )
+
+    def _browse(self, **params):
+        return self.client.get(reverse("movies:list"), params)
+
+    def test_solo_salen_fichas_con_portada_y_nota(self):
+        completa = self._movie(1)
+        self._movie(2, rating=None)
+        self._movie(3, poster="")
+        response = self._browse()
+        self.assertEqual(list(response.context["page_obj"].object_list), [completa])
+
+    def test_el_filtro_de_series_tambien_solo_muestra_completas(self):
+        serie = self._movie(4, media_type="tv")
+        self._movie(5, media_type="tv", rating=None)
+        self._movie(6)
+        response = self._browse(type="tv")
+        self.assertEqual(list(response.context["page_obj"].object_list), [serie])
+
+    def test_el_orden_cambia_de_un_dia_a_otro_y_no_se_repite_ninguna(self):
+        from datetime import date
+
+        movies = [self._movie(100 + i) for i in range(40)]
+
+        def order_on(day):
+            with patch("apps.movies.views.timezone.localdate", return_value=day):
+                first = list(self._browse().context["page_obj"].object_list)
+                second = list(self._browse(page=2).context["page_obj"].object_list)
+            return first + second
+
+        hoy = order_on(date(2026, 10, 26))
+        self.assertEqual(sorted(m.pk for m in hoy), sorted(m.pk for m in movies))
+        self.assertEqual(hoy, order_on(date(2026, 10, 26)))
+        self.assertNotEqual(hoy, order_on(date(2026, 10, 27)))

@@ -4,11 +4,13 @@ import random
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Max, Q
+from django.db.models import F, Max, Q
+from django.db.models.functions import Mod
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from apps.core.models import get_effective_theme
@@ -123,7 +125,15 @@ def movie_list(request):
 
     # Sin búsqueda: se navega lo ya visitado localmente (scroll infinito) —
     # listar aquí el catálogo entero de TMDb no tendría sentido sin filtro.
-    movies_qs = Movie.objects.all() if media_type == "all" else Movie.objects.filter(media_type=media_type)
+    # Solo fichas completas (portada y nota IMDb): las que aún no tienen nota
+    # irán apareciendo según la vayan recibiendo (ver refresh_imdb_ratings).
+    # El orden cambia cada día para que la portada no sea siempre la misma,
+    # pero es estable durante el día para que el scroll infinito no repita
+    # ni se salte fichas entre una página y la siguiente.
+    movies_qs = Movie.objects.filter(imdb_rating__isnull=False).exclude(poster_path="")
+    if media_type != "all":
+        movies_qs = movies_qs.filter(media_type=media_type)
+    movies_qs = movies_qs.annotate(daily_order=_daily_shuffle_key()).order_by("daily_order", "pk")
     paginator = Paginator(movies_qs, 24)
     page = paginator.get_page(request.GET.get("page"))
 
@@ -136,6 +146,18 @@ def movie_list(request):
         "query": query,
         "media_type": media_type,
     })
+
+
+def _daily_shuffle_key():
+    """Clave de orden pseudoaleatoria que cambia cada día: (id × m + día)
+    mód un primo, con un multiplicador m grande y distinto cada día (así ids
+    seguidos quedan repartidos y el orden de un día no se parece al del
+    siguiente). Al ser primo el módulo, ids distintos dan claves distintas
+    (mientras haya menos de un millón de fichas), y es aritmética simple que
+    funciona igual en SQLite y Postgres."""
+    day = timezone.localdate().toordinal()
+    multiplier = 100_003 + (day * 7_919) % 800_000
+    return Mod(F("pk") * multiplier + day, 1_000_003)
 
 
 def movie_from_tmdb(request, media_type, tmdb_id):
