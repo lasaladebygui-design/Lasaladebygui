@@ -28,6 +28,7 @@ from .models import (
     TierListEntry,
     TopSecretConfig,
     TopSecretTab,
+    ajustar_solapes,
 )
 
 
@@ -73,13 +74,13 @@ class TopSecretConfigAdmin(SingletonAdmin):
 
 class RatingColorBandInline(admin.TabularInline):
     """Tantos tramos de nota→color como se quiera (no solo "bueno/medio/
-    malo" fijo) — p. ej. "1 a 4: rojo", "4.1 a 7: naranja", "7.1 a 10: verde",
-    o cualquier otro reparto. El primer tramo cuyo rango incluya la nota es
-    el que se usa (ver RatingGuide.rating_color)."""
+    malo" fijo) — p. ej. "0 a 4: rojo", "4.1 a 7: naranja", "7.1 a 10: verde",
+    o cualquier otro reparto (ver RatingGuide.rating_color). Los solapes se
+    recortan al guardar, igual que en la web (ver RatingGuideAdmin.save_formset)."""
 
     model = RatingColorBand
     extra = 1
-    fields = ("min_rating", "max_rating", "color", "order")
+    fields = ("min_rating", "max_rating", "color")
 
     def formfield_for_dbfield(self, db_field, request, **kwargs):
         if db_field.name == "color":
@@ -111,6 +112,21 @@ class RatingGuideAdmin(admin.ModelAdmin):
     def rating_guide_preview(self, obj):
         text = obj.rating_guide.strip()
         return (text[:80] + "…") if len(text) > 80 else (text or "—")
+
+    def save_formset(self, request, form, formset, change):
+        super().save_formset(request, form, formset, change)
+        if formset.model is not RatingColorBand:
+            return
+        # Mandan las filas tocadas en este guardado; el resto se recorta.
+        tocados = [f.instance for f in formset.forms if f.has_changed() and f.instance.pk
+                   and f not in formset.deleted_forms]
+        pks = {b.pk for b in tocados}
+        todos = tocados + [b for b in form.instance.rating_bands.all() if b.pk not in pks]
+        vivos, descartados = ajustar_solapes(todos, prioridad=todos)
+        for b in descartados:
+            b.delete()
+        for b in vivos:
+            b.save()
 
     @admin.display(description="tramos de color")
     def band_count(self, obj):

@@ -1,6 +1,9 @@
 from django.conf import settings
+from decimal import Decimal
+
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.files.storage import storages
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
 from django.utils.text import slugify
@@ -11,6 +14,12 @@ from apps.movies.models import Movie
 
 def _default_code_hash():
     return make_password("8888")
+
+
+# Escala de las notas: de 0 a 10 con un decimal (antes empezaba en 1). Se
+# comprueba también en el servidor, no solo con el min/max del <input>.
+RATING_VALIDATORS = [MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("10"))]
+RATING_STEP = Decimal("0.1")
 
 
 class TopSecretConfig(SingletonModel):
@@ -91,29 +100,63 @@ class RatingGuide(models.Model):
 
     def _cached_bands(self):
         if not hasattr(self, "_bands_cache"):
-            self._bands_cache = list(self.rating_bands.order_by("order"))
+            self._bands_cache = list(self.rating_bands.all())
         return self._bands_cache
 
 
 class RatingColorBand(models.Model):
-    """Un tramo de nota con su propio color (p. ej. "de 1 a 4: rojo") — se
+    """Un tramo de nota con su propio color (p. ej. "de 0 a 4: rojo") — se
     pueden definir tantos como se quiera, no solo un "bueno/medio/malo"
-    fijo. El primer tramo cuyo rango incluya la nota es el que manda; si
-    dos se solapan, gana el de menor `order`."""
+    fijo. Nunca se solapan (ver `ajustar_solapes`), así que cada nota cae
+    como mucho en uno, y se enseñan siempre de mayor a menor."""
 
     config = models.ForeignKey(RatingGuide, on_delete=models.CASCADE, related_name="rating_bands")
-    min_rating = models.DecimalField("nota mínima", max_digits=3, decimal_places=1)
-    max_rating = models.DecimalField("nota máxima", max_digits=3, decimal_places=1)
+    min_rating = models.DecimalField("nota mínima", max_digits=3, decimal_places=1, validators=RATING_VALIDATORS)
+    max_rating = models.DecimalField("nota máxima", max_digits=3, decimal_places=1, validators=RATING_VALIDATORS)
     color = hex_field("#9CA3AF", "color")
-    order = models.PositiveIntegerField("orden", default=0)
 
     class Meta:
         verbose_name = "tramo de color"
         verbose_name_plural = "tramos de color"
-        ordering = ["order", "min_rating"]
+        ordering = ["-min_rating"]
 
     def __str__(self):
         return f"{self.min_rating}–{self.max_rating}: {self.color}"
+
+
+def ajustar_solapes(bands, prioridad):
+    """Quita los solapes entre tramos de una misma guía: cada tramo de
+    `prioridad` se respeta tal cual y los que chocan con él se recortan
+    hasta su borde (empiezan justo después o acaban justo antes), o se
+    descartan si quedan tapados enteros. Si uno queda dentro de otro más
+    ancho, el ancho se queda con el lado más largo (a igualdad, el de abajo).
+    Se recorre `prioridad` en orden y cada tramo ya respetado queda fijo: los
+    siguientes solo pueden recortar a los que aún no lo están, así que el
+    primero gana a todos. Es la misma regla que aplica en vivo
+    static/js/rating_bands.js. Devuelve (los que quedan, los descartados)."""
+    vivos = list(bands)
+    descartados = []
+    fijos = []
+    for e in prioridad:
+        if e not in vivos:
+            continue
+        for b in list(vivos):
+            if b is e or b in fijos or b.max_rating < e.min_rating or b.min_rating > e.max_rating:
+                continue
+            if b.min_rating >= e.min_rating and b.max_rating <= e.max_rating:
+                vivos.remove(b)
+                descartados.append(b)
+            elif b.min_rating < e.min_rating and b.max_rating > e.max_rating:
+                if e.min_rating - b.min_rating >= b.max_rating - e.max_rating:
+                    b.max_rating = e.min_rating - RATING_STEP
+                else:
+                    b.min_rating = e.max_rating + RATING_STEP
+            elif b.min_rating < e.min_rating:
+                b.max_rating = e.min_rating - RATING_STEP
+            else:
+                b.min_rating = e.max_rating + RATING_STEP
+        fijos.append(e)
+    return vivos, descartados
 
 
 class TopSecretTab(models.Model):
@@ -220,7 +263,7 @@ class SecretMovie(models.Model):
     # nota misma, o `tie_break` cuando dos tienen la misma nota.
     number = models.PositiveIntegerField("número", editable=False, default=0)
     title = models.CharField("título", max_length=255)
-    personal_rating = models.DecimalField("nota personal", max_digits=3, decimal_places=1)
+    personal_rating = models.DecimalField("nota personal", max_digits=3, decimal_places=1, validators=RATING_VALIDATORS)
     tie_break = models.PositiveIntegerField(
         "orden de desempate", default=0, blank=True,
         help_text="Solo importa entre dos películas con la misma nota: la de mayor valor aquí sale antes en el número.",

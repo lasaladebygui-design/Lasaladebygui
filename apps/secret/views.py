@@ -57,6 +57,7 @@ from .models import (
     TierLevel,
     TierListEntry,
     TopSecretConfig,
+    ajustar_solapes,
 )
 
 logger = logging.getLogger(__name__)
@@ -122,6 +123,43 @@ def _rating_guide_for(owner):
         bygui = User.objects.filter(username=BYGUI_USERNAME).first()
         return RatingGuide.for_user(bygui) if bygui else RatingGuide(rating_guide="")
     return RatingGuide.for_user(owner)
+
+
+def _fmt_nota(valor):
+    return f"{valor:.1f}".replace(".", ",")
+
+
+def _guardar_tramos(guide, formset):
+    """Guarda el formset de tramos (ya validado) quitando los solapes: los
+    tramos tocados en este envío mandan sobre los que no se han tocado, y
+    entre los tocados, el de más arriba en el formulario. Devuelve los
+    avisos de lo que se ha ajustado o borrado para dejarlos sin solapes."""
+    tocados = formset.save(commit=False)
+    borrados = {b.pk for b in formset.deleted_objects}
+    pks_tocados = {b.pk for b in tocados if b.pk}
+    intactos = [b for b in guide.rating_bands.all() if b.pk not in borrados and b.pk not in pks_tocados]
+    for band in tocados:
+        band.config = guide
+    antes = {id(b): (b.min_rating, b.max_rating) for b in tocados + intactos}
+    vivos, descartados = ajustar_solapes(tocados + intactos, prioridad=tocados + intactos)
+
+    avisos = []
+    for b in descartados:
+        lo, hi = antes[id(b)]
+        avisos.append(f"Tramo {_fmt_nota(lo)}–{_fmt_nota(hi)} borrado: quedaba tapado entero por otro.")
+        if b.pk:
+            b.delete()
+    for b in vivos:
+        if antes[id(b)] != (b.min_rating, b.max_rating):
+            lo, hi = antes[id(b)]
+            avisos.append(
+                f"Tramo {_fmt_nota(lo)}–{_fmt_nota(hi)} ajustado a "
+                f"{_fmt_nota(b.min_rating)}–{_fmt_nota(b.max_rating)} para no pisar a otro."
+            )
+        b.save()
+    for b in formset.deleted_objects:
+        b.delete()
+    return avisos
 
 
 def _has_bygui_access(user):
@@ -815,10 +853,16 @@ def rating_guide_view(request):
     las listas (Genre): en el sitio, sin pasar por el admin, mientras la
     lista que se mira sea editable por quien la mira.
 
-    La guía y TODOS los tramos se guardan juntos en un único envío (un
-    formset, no un botón "Guardar" por fila): antes, editar dos tramos a
+    El texto de la guía y los tramos van en pestañas distintas, cada una
+    con su propio formulario y botón: se guarda lo que llegue en el envío
+    (el texto si viene `rating_guide`, los tramos si viene su formset).
+    Los tramos van TODOS juntos en un único formset: antes, editar dos a
     la vez y guardar solo uno perdía el otro cambio sin avisar, porque
-    cada fila recargaba la página entera por su cuenta."""
+    cada fila recargaba la página entera por su cuenta.
+
+    Los tramos nunca se solapan: si chocan, se respeta el que se acaba de
+    tocar y el otro se recorta hasta su borde (ver ajustar_solapes; el
+    navegador ya lo hace en vivo, esto es la garantía del servidor)."""
     owner, editable, scope = _resolve_scope(request)
     if not editable:
         raise Http404
@@ -826,28 +870,33 @@ def rating_guide_view(request):
     if not guide.pk:
         guide.save()
 
+    tab = "tramos" if request.GET.get("tab") == "tramos" else "guia"
+    ajustes = []
+    form = RatingGuideForm(instance=guide)
+    formset = RatingColorBandFormSet(queryset=guide.rating_bands.all(), prefix="band")
     if request.method == "POST":
-        form = RatingGuideForm(request.POST, instance=guide)
-        formset = RatingColorBandFormSet(request.POST, queryset=guide.rating_bands.all(), prefix="band")
-        if form.is_valid() and formset.is_valid():
-            form.save()
-            bands = formset.save(commit=False)
-            for band in bands:
-                band.config = guide
-                band.save()
-            for band in formset.deleted_objects:
-                band.delete()
+        guardar_guia = "rating_guide" in request.POST
+        guardar_tramos = "band-TOTAL_FORMS" in request.POST
+        if guardar_guia:
+            form = RatingGuideForm(request.POST, instance=guide)
+        if guardar_tramos:
+            tab = "tramos"
+            formset = RatingColorBandFormSet(request.POST, queryset=guide.rating_bands.all(), prefix="band")
+        if (not guardar_guia or form.is_valid()) and (not guardar_tramos or formset.is_valid()):
+            if guardar_guia:
+                form.save()
+            if guardar_tramos:
+                ajustes = _guardar_tramos(guide, formset)
             if not _is_htmx(request):
-                messages.success(request, "Guía guardada.")
-                return redirect(f"{reverse('secret:rating-guide')}?scope={scope}")
+                messages.success(request, "Tramos guardados." if guardar_tramos else "Guía guardada.")
+                for aviso in ajustes:
+                    messages.info(request, aviso)
+                return redirect(f"{reverse('secret:rating-guide')}?scope={scope}&tab={tab}")
             # Formset fresco para que el intercambio por HTMX enseñe el
             # estado ya guardado (con la fila en blanco nueva al final).
             formset = RatingColorBandFormSet(queryset=guide.rating_bands.all(), prefix="band")
-    else:
-        form = RatingGuideForm(instance=guide)
-        formset = RatingColorBandFormSet(queryset=guide.rating_bands.all(), prefix="band")
 
-    context = {"form": form, "formset": formset, "scope": scope}
+    context = {"form": form, "formset": formset, "scope": scope, "tab": tab, "ajustes": ajustes}
     template = "secret/_rating_guide_panel.html" if _is_htmx(request) else "secret/rating_guide.html"
     return render(request, template, context)
 

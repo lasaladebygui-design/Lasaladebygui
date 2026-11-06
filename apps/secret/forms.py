@@ -2,7 +2,7 @@ from django import forms
 
 from .models import Genre, RatingColorBand, RatingGuide, SecretMovie, SecretPhoto, TierLevel
 
-RATING_CHOICES = [(i, str(i)) for i in range(1, 11)]
+RATING_CHOICES = [(i, str(i)) for i in range(0, 11)]
 
 
 class SecretMovieForm(forms.ModelForm):
@@ -126,17 +126,28 @@ class RatingGuideForm(forms.ModelForm):
 class RatingColorBandForm(forms.ModelForm):
     class Meta:
         model = RatingColorBand
-        fields = ["min_rating", "max_rating", "color", "order"]
+        fields = ["min_rating", "max_rating", "color"]
         widgets = {
             # Sin un ancho explícito, el campo numérico se queda con el
             # mínimo del navegador y las flechitas de subir/bajar se comen
             # el dígito escrito encima (se ve vacío/solapado aunque sí
-            # tenga valor) -- ver el mismo ancho ya usado a mano en orden.
-            "min_rating": forms.NumberInput(attrs={"step": "0.1", "min": "0", "max": "10", "style": "width: 4.5em;"}),
-            "max_rating": forms.NumberInput(attrs={"step": "0.1", "min": "0", "max": "10", "style": "width: 4.5em;"}),
+            # tenga valor). Las clases las usa static/js/rating_bands.js.
+            "min_rating": forms.NumberInput(attrs={
+                "step": "0.1", "min": "0", "max": "10", "style": "width: 4.5em;", "class": "rating-band__min",
+            }),
+            "max_rating": forms.NumberInput(attrs={
+                "step": "0.1", "min": "0", "max": "10", "style": "width: 4.5em;", "class": "rating-band__max",
+            }),
             "color": forms.TextInput(attrs={"type": "color"}),
-            "order": forms.NumberInput(attrs={"style": "width: 4.5em;"}),
         }
+
+    def clean(self):
+        cleaned = super().clean()
+        # "de 7 a 3" se entiende como "de 3 a 7" en vez de dar error.
+        lo, hi = cleaned.get("min_rating"), cleaned.get("max_rating")
+        if lo is not None and hi is not None and lo > hi:
+            cleaned["min_rating"], cleaned["max_rating"] = hi, lo
+        return cleaned
 
 
 # Los tramos de color se guardan TODOS juntos con la guía en un único envío

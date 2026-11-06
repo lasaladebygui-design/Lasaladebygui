@@ -5,6 +5,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models import ProtectedError
 from django.test import Client, TestCase, override_settings
@@ -34,6 +35,7 @@ from .models import (
     TierListEntry,
     TopSecretConfig,
     TopSecretTab,
+    ajustar_solapes,
 )
 
 try:
@@ -263,23 +265,54 @@ class RatingColorBandTests(TestCase):
         self.config = RatingGuide.for_user(user)
 
     def test_nota_dentro_de_un_tramo_usa_su_color(self):
-        RatingColorBand.objects.create(config=self.config, min_rating="1.0", max_rating="4.0", color="#FF0000", order=0)
+        RatingColorBand.objects.create(config=self.config, min_rating="1.0", max_rating="4.0", color="#FF0000")
         self.assertEqual(self.config.rating_color(2.5), "#FF0000")
 
     def test_nota_fuera_de_todo_tramo_usa_el_gris_por_defecto(self):
-        RatingColorBand.objects.create(config=self.config, min_rating="1.0", max_rating="4.0", color="#FF0000", order=0)
+        RatingColorBand.objects.create(config=self.config, min_rating="1.0", max_rating="4.0", color="#FF0000")
         self.assertEqual(self.config.rating_color(9.0), "#9CA3AF")
 
-    def test_tramos_solapados_gana_el_de_menor_order(self):
-        RatingColorBand.objects.create(config=self.config, min_rating="5.0", max_rating="8.0", color="#00FF00", order=1)
-        RatingColorBand.objects.create(config=self.config, min_rating="6.0", max_rating="10.0", color="#0000FF", order=0)
-        self.assertEqual(self.config.rating_color(7.0), "#0000FF")
+    def _tramo(self, lo, hi):
+        return RatingColorBand(config=self.config, min_rating=Decimal(lo), max_rating=Decimal(hi))
+
+    def test_al_solaparse_manda_el_tocado_y_el_otro_se_recorta_hasta_su_borde(self):
+        tocado, arriba, abajo = self._tramo("4.0", "7.0"), self._tramo("6.0", "10.0"), self._tramo("0.0", "5.0")
+        vivos, descartados = ajustar_solapes([tocado, arriba, abajo], prioridad=[tocado, arriba, abajo])
+        self.assertEqual(descartados, [])
+        self.assertEqual((tocado.min_rating, tocado.max_rating), (Decimal("4.0"), Decimal("7.0")))
+        self.assertEqual((arriba.min_rating, arriba.max_rating), (Decimal("7.1"), Decimal("10.0")))
+        self.assertEqual((abajo.min_rating, abajo.max_rating), (Decimal("0.0"), Decimal("3.9")))
+
+    def test_un_tramo_tapado_entero_se_descarta(self):
+        tocado, tapado = self._tramo("2.0", "8.0"), self._tramo("3.0", "5.0")
+        vivos, descartados = ajustar_solapes([tocado, tapado], prioridad=[tocado, tapado])
+        self.assertEqual(vivos, [tocado])
+        self.assertEqual(descartados, [tapado])
+
+    def test_si_el_tocado_cae_dentro_de_otro_ese_se_queda_con_el_lado_mas_largo(self):
+        tocado, ancho = self._tramo("7.0", "8.0"), self._tramo("0.0", "10.0")
+        ajustar_solapes([tocado, ancho], prioridad=[tocado, ancho])
+        self.assertEqual((ancho.min_rating, ancho.max_rating), (Decimal("0.0"), Decimal("6.9")))
+
+    def test_los_tramos_salen_de_mayor_a_menor(self):
+        for lo, hi in (("2.1", "3.0"), ("1.1", "2.0"), ("0.0", "1.0"), ("4.0", "10.0")):
+            RatingColorBand.objects.create(config=self.config, min_rating=lo, max_rating=hi)
+        self.assertEqual(
+            [str(b.min_rating) for b in self.config.rating_bands.all()], ["4.0", "2.1", "1.1", "0.0"],
+        )
+
+    def test_la_escala_va_de_0_a_10(self):
+        RatingColorBand(config=self.config, min_rating="0.0", max_rating="10.0").full_clean()
+        with self.assertRaises(ValidationError):
+            RatingColorBand(config=self.config, min_rating="0.0", max_rating="10.5").full_clean()
+        with self.assertRaises(ValidationError):
+            SecretMovie(title="X", personal_rating="-1.0").full_clean()
 
     def test_se_pueden_definir_tantos_tramos_como_se_quiera(self):
-        RatingColorBand.objects.create(config=self.config, min_rating="0.0", max_rating="2.5", color="#111111", order=0)
-        RatingColorBand.objects.create(config=self.config, min_rating="2.6", max_rating="5.0", color="#222222", order=1)
-        RatingColorBand.objects.create(config=self.config, min_rating="5.1", max_rating="7.5", color="#333333", order=2)
-        RatingColorBand.objects.create(config=self.config, min_rating="7.6", max_rating="10.0", color="#444444", order=3)
+        RatingColorBand.objects.create(config=self.config, min_rating="0.0", max_rating="2.5", color="#111111")
+        RatingColorBand.objects.create(config=self.config, min_rating="2.6", max_rating="5.0", color="#222222")
+        RatingColorBand.objects.create(config=self.config, min_rating="5.1", max_rating="7.5", color="#333333")
+        RatingColorBand.objects.create(config=self.config, min_rating="7.6", max_rating="10.0", color="#444444")
         self.assertEqual(self.config.rating_color(1.0), "#111111")
         self.assertEqual(self.config.rating_color(4.0), "#222222")
         self.assertEqual(self.config.rating_color(6.0), "#333333")
@@ -1080,7 +1113,7 @@ class OwnMovieAddTests(TestCase):
         # El campo de nota sale vacío (con &fresh=1) en vez de mostrar la
         # nota provisional "5" que el modelo exige internamente -- si no
         # se tocara, se vería como si ya estuviera puntuada.
-        self.assertContains(response, 'placeholder="Pon tu nota (1-10)"')
+        self.assertContains(response, 'placeholder="Pon tu nota (0-10)"')
         self.assertNotContains(response, 'value="5.0"')
         self.assertNotContains(response, 'value="5,0"')
 
@@ -1093,7 +1126,7 @@ class OwnMovieAddTests(TestCase):
         # Sin &fresh=1 (una edición normal, no recién añadida) sí se ve
         # la nota real.
         response = self.client.get(f"{reverse('secret:movie-detail', args=[entry.pk])}?scope=own&edit=1")
-        self.assertNotContains(response, 'placeholder="Pon tu nota (1-10)"')
+        self.assertNotContains(response, 'placeholder="Pon tu nota (0-10)"')
         self.assertNotContains(response, "secret-movie__rating--pending")
 
     @patch("apps.secret.views.Movie.get_or_create_from_tmdb")
@@ -1275,9 +1308,8 @@ class RatingGuidePerAccountTests(TestCase):
         _login(self.client, self.user)
         response = self.client.post(f"{reverse('secret:rating-guide')}?scope=own", {
             "rating_guide": "Mi propia guía.",
-            **_band_management_form(),
         })
-        self.assertRedirects(response, f"{reverse('secret:rating-guide')}?scope=own")
+        self.assertRedirects(response, f"{reverse('secret:rating-guide')}?scope=own&tab=guia")
 
         self.assertEqual(RatingGuide.for_user(self.user).rating_guide, "Mi propia guía.")
         self.assertEqual(RatingGuide.for_user(self.bygui).rating_guide, "Guía de lasaladebygui.")
@@ -1316,7 +1348,7 @@ class RatingGuidePerAccountTests(TestCase):
         # a la de otra cuenta. El tramo ajeno queda intacto en cualquier
         # caso.
         ajeno_band = RatingColorBand.objects.create(
-            config=RatingGuide.for_user(self.bygui), min_rating="1.0", max_rating="4.0", color="#ff0000", order=0,
+            config=RatingGuide.for_user(self.bygui), min_rating="1.0", max_rating="4.0", color="#ff0000",
         )
         _login(self.client, self.user)
 
@@ -1324,7 +1356,7 @@ class RatingGuidePerAccountTests(TestCase):
             "rating_guide": "",
             **_band_management_form(total=1, initial=0),
             "band-0-id": str(ajeno_band.pk),
-            "band-0-min_rating": "1.0", "band-0-max_rating": "4.0", "band-0-color": "#000000", "band-0-order": "0",
+            "band-0-min_rating": "1.0", "band-0-max_rating": "4.0", "band-0-color": "#000000",
         })
         ajeno_band.refresh_from_db()
         self.assertEqual(ajeno_band.color, "#ff0000")
@@ -1338,9 +1370,9 @@ class RatingGuidePerAccountTests(TestCase):
             "rating_guide": "",
             **_band_management_form(total=1, initial=0),
             "band-0-id": "", "band-0-min_rating": "1.0", "band-0-max_rating": "4.0",
-            "band-0-color": "#ff0000", "band-0-order": "0",
+            "band-0-color": "#ff0000",
         })
-        self.assertRedirects(response, f"{reverse('secret:rating-guide')}?scope=own")
+        self.assertRedirects(response, f"{reverse('secret:rating-guide')}?scope=own&tab=tramos")
         band = RatingColorBand.objects.get(config__user=self.user)
         self.assertEqual(RatingGuide.for_user(self.user).rating_color(2.5), "#ff0000")
 
@@ -1350,14 +1382,14 @@ class RatingGuidePerAccountTests(TestCase):
             "rating_guide": "",
             **_band_management_form(total=2, initial=1),
             "band-0-id": str(band.pk), "band-0-min_rating": "1.0", "band-0-max_rating": "4.0",
-            "band-0-color": "#00ff00", "band-0-order": "0",
+            "band-0-color": "#00ff00",
             # La fila extra "de verdad" en blanco lleva order=0 y
             # color=#9CA3AF (sus valores por defecto en el modelo, lo que
             # renderiza el widget sin tocar) -- mandarla con "" en esos dos
             # campos no es una fila vacía para Django (has_changed() la ve
             # distinta de su propio initial), y la valida entera pidiendo
             # los campos obligatorios (min_rating/max_rating, sin default).
-            "band-1-id": "", "band-1-min_rating": "", "band-1-max_rating": "", "band-1-color": "#9CA3AF", "band-1-order": "0",
+            "band-1-id": "", "band-1-min_rating": "", "band-1-max_rating": "", "band-1-color": "#9CA3AF",
         })
         band.refresh_from_db()
         self.assertEqual(band.color, "#00ff00")
@@ -1367,10 +1399,61 @@ class RatingGuidePerAccountTests(TestCase):
             "rating_guide": "",
             **_band_management_form(total=2, initial=1),
             "band-0-id": str(band.pk), "band-0-min_rating": "1.0", "band-0-max_rating": "4.0",
-            "band-0-color": "#00ff00", "band-0-order": "0", "band-0-DELETE": "on",
-            "band-1-id": "", "band-1-min_rating": "", "band-1-max_rating": "", "band-1-color": "#9CA3AF", "band-1-order": "0",
+            "band-0-color": "#00ff00", "band-0-DELETE": "on",
+            "band-1-id": "", "band-1-min_rating": "", "band-1-max_rating": "", "band-1-color": "#9CA3AF",
         })
         self.assertFalse(RatingColorBand.objects.filter(pk=band.pk).exists())
+
+    def test_guardar_tramos_que_se_pisan_recorta_el_que_no_se_ha_tocado(self):
+        guia = RatingGuide.for_user(self.user)
+        viejo = RatingColorBand.objects.create(config=guia, min_rating="5.0", max_rating="10.0", color="#00ff00")
+        _login(self.client, self.user)
+        response = self.client.post(f"{reverse('secret:rating-guide')}?scope=own&tab=tramos", {
+            **_band_management_form(total=2, initial=1),
+            "band-0-id": str(viejo.pk), "band-0-min_rating": "5.0", "band-0-max_rating": "10.0", "band-0-color": "#00ff00",
+            "band-1-id": "", "band-1-min_rating": "0.0", "band-1-max_rating": "6.0", "band-1-color": "#ff0000",
+        }, follow=True)
+        viejo.refresh_from_db()
+        self.assertEqual((viejo.min_rating, viejo.max_rating), (Decimal("6.1"), Decimal("10.0")))
+        self.assertEqual(guia.rating_color(Decimal("6.0")), "#ff0000")
+        self.assertContains(response, "ajustado a 6,1–10,0")
+
+    def test_nota_minima_mayor_que_la_maxima_se_da_la_vuelta(self):
+        _login(self.client, self.user)
+        self.client.post(f"{reverse('secret:rating-guide')}?scope=own", {
+            **_band_management_form(total=1, initial=0),
+            "band-0-id": "", "band-0-min_rating": "7.0", "band-0-max_rating": "3.0", "band-0-color": "#ff0000",
+        })
+        band = RatingColorBand.objects.get(config__user=self.user)
+        self.assertEqual((band.min_rating, band.max_rating), (Decimal("3.0"), Decimal("7.0")))
+
+    def test_la_guia_y_los_tramos_se_guardan_por_separado(self):
+        guia = RatingGuide.for_user(self.user)
+        RatingGuide.objects.filter(pk=guia.pk).update(rating_guide="Texto de antes.")
+        band = RatingColorBand.objects.create(config=guia, min_rating="0.0", max_rating="4.0", color="#ff0000")
+        _login(self.client, self.user)
+
+        # Guardar solo la guía no toca los tramos...
+        response = self.client.post(f"{reverse('secret:rating-guide')}?scope=own", {"rating_guide": "Texto nuevo."})
+        self.assertRedirects(response, f"{reverse('secret:rating-guide')}?scope=own&tab=guia")
+        self.assertTrue(RatingColorBand.objects.filter(pk=band.pk).exists())
+
+        # ...y guardar solo los tramos no toca el texto de la guía.
+        response = self.client.post(f"{reverse('secret:rating-guide')}?scope=own&tab=tramos", {
+            **_band_management_form(total=1, initial=1),
+            "band-0-id": str(band.pk), "band-0-min_rating": "0.0", "band-0-max_rating": "4.0", "band-0-color": "#0000ff",
+        })
+        self.assertRedirects(response, f"{reverse('secret:rating-guide')}?scope=own&tab=tramos")
+        self.assertEqual(RatingGuide.for_user(self.user).rating_guide, "Texto nuevo.")
+        band.refresh_from_db()
+        self.assertEqual(band.color, "#0000ff")
+
+    def test_el_editor_tiene_pestanas_guia_y_tramos(self):
+        _login(self.client, self.user)
+        response = self.client.get(f"{reverse('secret:rating-guide')}?scope=own&tab=tramos", HTTP_HX_REQUEST="true")
+        self.assertContains(response, "Guardar guía")
+        self.assertContains(response, "Guardar tramos")
+        self.assertContains(response, "tab: 'tramos'")
 
 
 class GenreSortableAdminTests(TestCase):
